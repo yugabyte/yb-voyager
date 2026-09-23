@@ -235,7 +235,8 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q, s := objectPath(tt.entry, "postgresql")
+			q, s, err := objectPath(tt.entry, "postgresql")
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantQ, q)
 			assert.Equal(t, tt.wantS, s)
 			// q+s must equal the ref's own ForDisplay rendering.
@@ -384,4 +385,76 @@ func TestRenderHTML_EmptyScopeDimensionShowsNoChip(t *testing.T) {
 	assert.Contains(t, html, "no tables")
 	assert.Contains(t, html, `<span class="scope-chip">TABLE</span>`, "a non-empty dimension still lists its chips")
 	assert.NotContains(t, html, `<span class="scope-chip">all</span>`)
+}
+
+// Each case is a report the HTML cannot show faithfully. Rendering past any of
+// them would drop or misprint a finding in a page that still looks complete.
+func TestRenderHTML_RejectsReportsItCannotDisplay(t *testing.T) {
+	tests := []struct {
+		name    string
+		breakIt func(r *Report)
+		wantErr string
+	}{
+		{
+			name: "an interval no capture opens",
+			breakIt: func(r *Report) {
+				r.Drifts[0].Window.From = r.Drifts[0].Window.From.Add(-time.Hour)
+			},
+			wantErr: "no capture point opens it",
+		},
+		{
+			name: "an interval no capture closes",
+			breakIt: func(r *Report) {
+				r.Drifts[0].Window.To = r.Drifts[0].Window.To.Add(time.Hour)
+			},
+			wantErr: "no capture point closes it",
+		},
+		{
+			name:    "an unknown operation",
+			breakIt: func(r *Report) { r.Drifts[0].Operation = "RENAMED" },
+			wantErr: `unexpected operation "RENAMED"`,
+		},
+		{
+			name:    "an unknown severity",
+			breakIt: func(r *Report) { r.Drifts[0].Severity = "catastrophic" },
+			wantErr: `unexpected severity "catastrophic"`,
+		},
+		{
+			name:    "a value of an undocumented type",
+			breakIt: func(r *Report) { r.Drifts[1].NewValue = 42 },
+			wantErr: `unexpected value type int for attribute "TYPE"`,
+		},
+		{
+			name:    "a column finding without a column",
+			breakIt: func(r *Report) { r.Drifts[1].SubObject = "" },
+			wantErr: "column finding on public.orders has no column name",
+		},
+		{
+			name:    "a finding without an object name",
+			breakIt: func(r *Report) { r.Drifts[0].Object.Name = "" },
+			wantErr: "has an empty schema or name",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := fixtureReport()
+			tt.breakIt(&r)
+			_, err := RenderHTML(r)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+// A capture label from a newer voyager only loses its timeline marker; failing
+// the whole report over it would throw away every finding.
+func TestRenderHTML_UnknownCaptureLabelStillRenders(t *testing.T) {
+	r := fixtureReport()
+	r.CapturePoints[0].Label = "import_data_start"
+
+	out, err := RenderHTML(r)
+	require.NoError(t, err)
+	html := string(out)
+	assert.Contains(t, html, "table added", "the findings must still render")
+	assert.Contains(t, html, "import_data_start", "the footer still lists the capture")
 }

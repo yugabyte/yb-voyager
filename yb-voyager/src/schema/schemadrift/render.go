@@ -44,8 +44,12 @@ func RenderJSON(r Report) ([]byte, error) {
 // RenderHTML renders r as a self-contained (inline CSS, no external assets,
 // no JS required) single-page HTML report.
 func RenderHTML(r Report) ([]byte, error) {
+	view, err := newReportView(r)
+	if err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
-	if err := driftReportTemplate.Execute(&buf, newReportView(r)); err != nil {
+	if err := driftReportTemplate.Execute(&buf, view); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -140,7 +144,11 @@ type snapshotRow struct {
 	Note       string
 }
 
-func newReportView(r Report) reportView {
+func newReportView(r Report) (reportView, error) {
+	timeline, err := buildTimeline(r.CapturePoints, groupByInterval(r.Drifts), r.Source.DatabaseType)
+	if err != nil {
+		return reportView{}, err
+	}
 	return reportView{
 		ChangeCount: r.Summary.ChangeCount,
 
@@ -150,10 +158,10 @@ func newReportView(r Report) reportView {
 		ComparingSummary: comparingSummary(r.Comparing),
 		ComparingScope:   comparingScope(r.Comparing),
 
-		TimelineRows: buildTimeline(r.CapturePoints, groupByInterval(r.Drifts), r.Source.DatabaseType),
+		TimelineRows: timeline,
 
 		Snapshots: snapshotRows(r.CapturePoints),
-	}
+	}, nil
 }
 
 // sourceLine renders "<type>@<host>:<port>/<database> · <version>", omitting
@@ -274,13 +282,23 @@ type intervalGroup struct {
 // Intervals are matched on the capture that OPENS them, never on the (i, i+1) pair:
 // a failed capture is bridged (see BuildReport), so an interval's window can span one
 // and would match no consecutive pair at all.
-func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, dbType string) []timelineEntry {
+func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, dbType string) ([]timelineEntry, error) {
 	capturePointAt := make(map[time.Time]CapturePoint, len(capturePoints))
 	for _, c := range capturePoints {
 		capturePointAt[c.CapturedAt] = c
 	}
 	groupFrom := make(map[time.Time]intervalGroup, len(groups))
 	for _, g := range groups {
+		if _, ok := capturePointAt[g.Window.From]; !ok {
+			return nil, fmt.Errorf("interval %s: no capture point opens it", intervalLabel(g.Window))
+		}
+		if _, ok := capturePointAt[g.Window.To]; !ok {
+			return nil, fmt.Errorf("interval %s: no capture point closes it", intervalLabel(g.Window))
+		}
+		if other, ok := groupFrom[g.Window.From]; ok {
+			return nil, fmt.Errorf("intervals %s and %s open at the same capture point",
+				intervalLabel(other.Window), intervalLabel(g.Window))
+		}
 		groupFrom[g.Window.From] = g
 	}
 	var timeline []timelineEntry
@@ -289,17 +307,24 @@ func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, dbType 
 			timeline = append(timeline, timelineEntry{Event: &ev})
 		}
 		if g, ok := groupFrom[c.CapturedAt]; ok {
-			iv := newIntervalView(g, capturePointAt[g.Window.To], dbType)
+			iv, err := newIntervalView(g, capturePointAt[g.Window.To], dbType)
+			if err != nil {
+				return nil, fmt.Errorf("interval %s: %w", intervalLabel(g.Window), err)
+			}
 			timeline = append(timeline, timelineEntry{Interval: &iv})
 		}
 	}
-	return timeline
+	return timeline, nil
+}
+
+func intervalLabel(w Window) string {
+	return formatTime(w.From) + " → " + formatTime(w.To)
 }
 
 // deriveEvent derives the point-event marker (if any) for a single capture,
-// from its Label and Reason. Periodic captures and the live read never
-// produce a marker; ok is false in that case (and for any Label/Reason
-// combination not in the known vocabulary).
+// from its Label and Reason. A Label/Reason outside the known vocabulary also
+// gets no marker rather than an error: an export dir written by a newer voyager
+// can carry one, and the footer still lists it.
 func deriveEvent(c CapturePoint) (eventView, bool) {
 	t := formatTime(c.CapturedAt)
 	// A bridged point always gets a marker, whatever its label: without one the
@@ -309,6 +334,8 @@ func deriveEvent(c CapturePoint) (eventView, bool) {
 		return eventView{Label: "⚠ not compared", Time: t, Err: true}, true
 	}
 	switch c.Label {
+	case schemasnapshot.LabelExportDataFromSourcePeriodic, schemasnapshot.LabelSourceLive:
+		return eventView{}, false
 	case schemasnapshot.LabelExportSchema:
 		return eventView{Label: "export schema: completed", Time: t}, true
 	case schemasnapshot.LabelExportDataFromSourceStart:
@@ -338,7 +365,7 @@ func deriveEvent(c CapturePoint) (eventView, bool) {
 // newIntervalView builds the display view for one interval group. next is
 // the capture that closes the interval's window (the "to" side of the
 // pair); the interval is "live" when next is the live read of the source.
-func newIntervalView(g intervalGroup, next CapturePoint, dbType string) intervalView {
+func newIntervalView(g intervalGroup, next CapturePoint, dbType string) (intervalView, error) {
 	live := next.Label == schemasnapshot.LabelSourceLive
 	count := changeCountLabel(len(g.Drifts))
 	if live {
@@ -347,16 +374,20 @@ func newIntervalView(g intervalGroup, next CapturePoint, dbType string) interval
 
 	findings := make([]findingView, len(g.Drifts))
 	for i, d := range g.Drifts {
-		findings[i] = newFindingView(d, dbType)
+		fv, err := newFindingView(d, dbType)
+		if err != nil {
+			return intervalView{}, fmt.Errorf("%s finding on %s: %w", d.Type, d.Object.ForDisplay(dbType), err)
+		}
+		findings[i] = fv
 	}
 
 	return intervalView{
-		Window:   formatTime(g.Window.From) + " → " + formatTime(g.Window.To),
+		Window:   intervalLabel(g.Window),
 		Phase:    g.Phase,
 		Count:    count,
 		Live:     live,
 		Findings: findings,
-	}
+	}, nil
 }
 
 func changeCountLabel(n int) string {
@@ -366,45 +397,53 @@ func changeCountLabel(n int) string {
 	return fmt.Sprintf("%d changes", n)
 }
 
-func newFindingView(d DriftEntry, dbType string) findingView {
-	objQ, objS := objectPath(d, dbType)
+func newFindingView(d DriftEntry, dbType string) (findingView, error) {
+	objQ, objS, err := objectPath(d, dbType)
+	if err != nil {
+		return findingView{}, err
+	}
+	severity, err := severityLabel(d.Severity)
+	if err != nil {
+		return findingView{}, err
+	}
 
 	fv := findingView{
-		KindClass:     kindClass(d.Operation),
 		KindLabel:     kindLabel(d.Type),
 		ObjQ:          objQ,
 		ObjS:          objS,
-		SeverityLabel: severityLabel(d.Severity),
+		SeverityLabel: severity,
 		Impact:        codeSpans(d.Impact),
 		Action:        codeSpans(d.Action),
 	}
 
 	switch d.Operation {
 	case schemadiff.OpAdded:
-		if def := stringifyValue(d.Attribute, d.NewValue, dbType); def != "" {
+		fv.KindClass = "k-add"
+		def, err := stringifyValue(d.Attribute, d.NewValue, dbType)
+		if err != nil {
+			return findingView{}, fmt.Errorf("new value: %w", err)
+		}
+		if def != "" {
 			fv.HasDef = true
 			fv.ValDef = def
 		}
 	case schemadiff.OpDropped:
-		// Deliberately empty: a drop has no value worth showing.
-	default: // OpChanged
+		// A drop has no value worth showing.
+		fv.KindClass = "k-rem"
+	case schemadiff.OpChanged:
+		fv.KindClass = "k-chg"
 		fv.HasChange = true
-		fv.ValOld = stringifyValue(d.Attribute, d.OldValue, dbType)
-		fv.ValNew = stringifyValue(d.Attribute, d.NewValue, dbType)
-	}
-
-	return fv
-}
-
-func kindClass(operation schemadiff.Operation) string {
-	switch operation {
-	case schemadiff.OpAdded:
-		return "k-add"
-	case schemadiff.OpDropped:
-		return "k-rem"
+		if fv.ValOld, err = stringifyValue(d.Attribute, d.OldValue, dbType); err != nil {
+			return findingView{}, fmt.Errorf("old value: %w", err)
+		}
+		if fv.ValNew, err = stringifyValue(d.Attribute, d.NewValue, dbType); err != nil {
+			return findingView{}, fmt.Errorf("new value: %w", err)
+		}
 	default:
-		return "k-chg"
+		return findingView{}, fmt.Errorf("unexpected operation %q", d.Operation)
 	}
+
+	return fv, nil
 }
 
 func kindLabel(diffType schemadiff.DiffType) string {
@@ -417,11 +456,17 @@ func kindLabel(diffType schemadiff.DiffType) string {
 //
 // Every part is minimally quoted, so a special identifier renders as valid SQL
 // (sales."MixedCase", not the ambiguous sales.MixedCase). q+s equals ForDisplay.
-func objectPath(d DriftEntry, dbType string) (q, s string) {
-	if d.ObjectType == schemadiff.ObjectTypeColumn {
-		return d.Object.ForDisplay(dbType) + ".", minQuoted(d.SubObject, dbType)
+func objectPath(d DriftEntry, dbType string) (q, s string, err error) {
+	if d.Object.Schema == "" || d.Object.Name == "" {
+		return "", "", fmt.Errorf("object identity %+v has an empty schema or name", d.Object)
 	}
-	return minQuoted(d.Object.Schema, dbType) + ".", minQuoted(d.Object.Name, dbType)
+	if d.ObjectType == schemadiff.ObjectTypeColumn {
+		if d.SubObject == "" {
+			return "", "", fmt.Errorf("column finding on %s has no column name", d.Object.ForDisplay(dbType))
+		}
+		return d.Object.ForDisplay(dbType) + ".", minQuoted(d.SubObject, dbType), nil
+	}
+	return minQuoted(d.Object.Schema, dbType) + ".", minQuoted(d.Object.Name, dbType), nil
 }
 
 // minQuoted renders a single identifier part with quotes only where they are
@@ -466,13 +511,12 @@ var severityLabelText = map[Severity]string{
 	SeverityBreaksUnrecoverable: "🚨 Breaks the migration — unrecoverable",
 }
 
-// severityLabel renders sev's emoji + label, falling back to the raw value for
-// anything outside the known vocabulary.
-func severityLabel(sev Severity) string {
-	if s, ok := severityLabelText[sev]; ok {
-		return s
+func severityLabel(sev Severity) (string, error) {
+	s, ok := severityLabelText[sev]
+	if !ok {
+		return "", fmt.Errorf("unexpected severity %q", sev)
 	}
-	return string(sev)
+	return s, nil
 }
 
 // stringifyValue renders a DriftEntry.OldValue/NewValue (an `any` whose
@@ -490,45 +534,45 @@ func severityLabel(sev Severity) string {
 //   - schemasnapshot.Table                     -> the table's full column list
 //     (TABLE_ADDED/DROPPED's whole added/dropped table), e.g.
 //     "id integer NOT NULL, email text"; "no columns" when it has none
-//   - anything else                          -> fmt.Sprintf("%v", value)
-func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) string {
+//   - anything else                          -> an error
+func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (string, error) {
 	switch v := value.(type) {
 	case nil:
-		return ""
+		return "", nil
 	case string:
-		return v
+		return v, nil
 	case bool:
 		if attribute == schemadiff.AttrNullability {
 			if v {
-				return "NOT NULL"
+				return "NOT NULL", nil
 			}
-			return "NULL"
+			return "NULL", nil
 		}
 		if v {
-			return "true"
+			return "true", nil
 		}
-		return "false"
+		return "false", nil
 	case schemasnapshot.ObjectRef:
-		return v.ForDisplay(dbType)
+		return v.ForDisplay(dbType), nil
 	case []schemasnapshot.ObjectRef:
 		parts := make([]string, len(v))
 		for i, ref := range v {
 			parts[i] = ref.ForDisplay(dbType)
 		}
-		return strings.Join(parts, ", ")
+		return strings.Join(parts, ", "), nil
 	case schemasnapshot.Column:
-		return stringifyColumnDef(v)
+		return stringifyColumnDef(v), nil
 	case schemasnapshot.Table:
 		if len(v.Columns) == 0 {
-			return "no columns"
+			return "no columns", nil
 		}
 		parts := make([]string, len(v.Columns))
 		for i, c := range v.Columns {
 			parts[i] = minQuoted(c.Name, dbType) + " " + stringifyColumnDef(c)
 		}
-		return strings.Join(parts, ", ")
+		return strings.Join(parts, ", "), nil
 	default:
-		return fmt.Sprintf("%v", v)
+		return "", fmt.Errorf("unexpected value type %T for attribute %q", value, attribute)
 	}
 }
 
