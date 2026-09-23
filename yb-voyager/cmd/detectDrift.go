@@ -723,9 +723,12 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhome.SchemaDriftPhasePayload {
 	driftPayload := callhome.SchemaDriftPhasePayload{
 		PayloadVersion:   callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION,
-		OutputFormats:    utils.CsvStringToSlice(driftOutputFormat),
 		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
 		ControlPlaneType: getControlPlaneType(),
+	}
+	// An invalid value is whatever the user typed, so it is not sent.
+	if validateDriftOutputFormat(driftOutputFormat) == nil {
+		driftPayload.OutputFormats = driftReportFormats(driftOutputFormat)
 	}
 	if report == nil {
 		return driftPayload
