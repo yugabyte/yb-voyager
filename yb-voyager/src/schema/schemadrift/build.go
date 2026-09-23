@@ -25,9 +25,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-// DetectionInput is the full, self-contained input to BuildReport. It carries no
+// DetectionConfig is the full, self-contained input to BuildReport. It carries no
 // live connections or file handles — every field is plain data.
-type DetectionInput struct {
+type DetectionConfig struct {
 	Source Source
 	// Oldest-first; BuildReport relies on the ordering. A nil Content is a failed
 	// capture: still a point on the timeline, never diffed. The live read, when
@@ -56,7 +56,7 @@ type DetectionInput struct {
 // Both are recorded on their CapturePoint so a reader sees the gap. Captures that
 // cover MORE than was requested are compared normally: the extra schemas' findings
 // are removed by Scope's schema dimension, not by declining the comparison.
-func BuildReport(p DetectionInput) Report {
+func BuildReport(p DetectionConfig) Report {
 	capturePoints := make([]CapturePoint, len(p.Snapshots))
 	for i, s := range p.Snapshots {
 		capturePoints[i] = CapturePoint{
@@ -109,7 +109,7 @@ func BuildReport(p DetectionInput) Report {
 				NewValue:   d.SideBValue,
 				Window:     intervalWindow,
 				Phase:      phase,
-				DriftInfo:  classify(d.Type),
+				DriftInfo:  getDriftInfo(d.Type),
 			})
 		}
 		prevIdx = i

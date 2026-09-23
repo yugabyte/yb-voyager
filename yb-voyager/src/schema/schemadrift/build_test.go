@@ -81,7 +81,7 @@ func fixtureHeader(label string, capturedAt time.Time, schemas ...string) schema
 // object type v1 emits. Scope is an exact keep-set, so a zero value keeps nothing
 // -- tests about intervals and phases say "unfiltered" here rather than repeating
 // the universe. A database type is set because Comparing renders identifiers.
-func buildUnfiltered(p DetectionInput) Report {
+func buildUnfiltered(p DetectionConfig) Report {
 	seen := make(map[schemasnapshot.ObjectRef]bool)
 	for _, sn := range p.Snapshots {
 		if sn.Content == nil {
@@ -125,7 +125,7 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: t1Content},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: t2Content},
@@ -141,13 +141,13 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 	assert.Equal(t, SeverityPotentialImpact, d.Severity)
 	assert.Equal(t, Window{From: t1(), To: t2()}, d.Window)
 	assert.Equal(t, "export data: pending", d.Phase)
-	assert.Equal(t, classify(schemadiff.TableAdded).Impact, d.Impact)
-	assert.Equal(t, classify(schemadiff.TableAdded).Action, d.Action)
+	assert.Equal(t, getDriftInfo(schemadiff.TableAdded).Impact, d.Impact)
+	assert.Equal(t, getDriftInfo(schemadiff.TableAdded).Action, d.Action)
 }
 
 func TestBuildReport_StampsGeneratedAt(t *testing.T) {
 	before := time.Now().UTC()
-	report := BuildReport(DetectionInput{})
+	report := BuildReport(DetectionConfig{})
 	after := time.Now().UTC()
 
 	// Bounded both ways: the lower bound also fails the zero value a dropped
@@ -164,7 +164,7 @@ func TestBuildReport_ZeroDiffIntervalProducesNoEntries(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: base},
 			// identical content: zero-diff interval
@@ -190,7 +190,7 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil},
@@ -213,7 +213,7 @@ func TestBuildReport_PlaceholderBridgesToNextContentBearingSnapshot(t *testing.T
 func TestBuildReport_PlaceholderAtChainEndProducesNoExtraEntries(t *testing.T) {
 	a := fixtureContent(fixtureTable("1", "public", "orders"))
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: nil},
@@ -238,7 +238,7 @@ func TestBuildReport_NonCoveringCaptureIsExcludedAndBridged(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	report := BuildReport(DetectionInput{
+	report := BuildReport(DetectionConfig{
 		Source: Source{DatabaseType: "postgresql"},
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before},
@@ -272,7 +272,7 @@ func TestBuildReport_SchemaScopeOrderInsensitive(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public", "sales"), Content: a},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "sales", "public"), Content: b},
@@ -291,7 +291,7 @@ func TestBuildReport_LivePairPhaseIsSinceLastCapture(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t1(), "public"), Content: a},
 			{
@@ -319,7 +319,7 @@ func TestBuildReport_SummaryCounts(t *testing.T) {
 		fixtureTable("3", "public", "invoices"),
 	)
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b},
@@ -352,7 +352,7 @@ func TestBuildReport_SchemaFilterKeepsOnlyRequestedSchemas(t *testing.T) {
 		fixtureTable("11", "sales", "invoices"),
 	)
 
-	report := BuildReport(DetectionInput{
+	report := BuildReport(DetectionConfig{
 		Source: Source{DatabaseType: "postgresql"},
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public", "sales"), Content: before},
@@ -388,7 +388,7 @@ func TestBuildReport_ComparedIntervalCount(t *testing.T) {
 	}
 
 	t.Run("two usable snapshots is one interval", func(t *testing.T) {
-		report := BuildReport(DetectionInput{
+		report := BuildReport(DetectionConfig{
 			Source: Source{DatabaseType: "postgresql"},
 			Snapshots: []schemasnapshot.SchemaSnapshot{
 				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: content},
@@ -405,7 +405,7 @@ func TestBuildReport_ComparedIntervalCount(t *testing.T) {
 		// the number of intervals examined. StoredCaptureCount says 2, because a
 		// placeholder is a persisted row -- it cannot tell the reader that nothing
 		// was looked at.
-		report := BuildReport(DetectionInput{
+		report := BuildReport(DetectionConfig{
 			Source: Source{DatabaseType: "postgresql"},
 			Snapshots: []schemasnapshot.SchemaSnapshot{
 				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: nil},
@@ -421,7 +421,7 @@ func TestBuildReport_ComparedIntervalCount(t *testing.T) {
 	})
 
 	t.Run("a bridged capture does not add an interval", func(t *testing.T) {
-		report := BuildReport(DetectionInput{
+		report := BuildReport(DetectionConfig{
 			Source: Source{DatabaseType: "postgresql"},
 			Snapshots: []schemasnapshot.SchemaSnapshot{
 				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: content},
@@ -440,7 +440,7 @@ func TestBuildReport_LiveComparedMeansActuallyCompared(t *testing.T) {
 	content := fixtureContent(fixtureTable("1", "public", "orders"))
 
 	t.Run("compared against a covering stored capture", func(t *testing.T) {
-		report := buildUnfiltered(DetectionInput{
+		report := buildUnfiltered(DetectionConfig{
 			Snapshots: []schemasnapshot.SchemaSnapshot{
 				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: content},
 				{Header: fixtureHeader(schemasnapshot.LabelSourceLive, t2(), "public"), Content: content},
@@ -453,7 +453,7 @@ func TestBuildReport_LiveComparedMeansActuallyCompared(t *testing.T) {
 		// The only stored capture failed, so the live read becomes the baseline and
 		// is never diffed. Reporting LiveCompared here would tell the user their
 		// source was checked against history when it was not.
-		report := buildUnfiltered(DetectionInput{
+		report := buildUnfiltered(DetectionConfig{
 			Snapshots: []schemasnapshot.SchemaSnapshot{
 				{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: nil},
 				{Header: fixtureHeader(schemasnapshot.LabelSourceLive, t2(), "public"), Content: content},
@@ -467,7 +467,7 @@ func TestBuildReport_LiveComparedMeansActuallyCompared(t *testing.T) {
 
 func TestBuildReport_SummaryLiveComparedFalseWhenNoLive(t *testing.T) {
 	a := fixtureContent(fixtureTable("1", "public", "orders"))
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
 		},
@@ -484,7 +484,7 @@ func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
 	b := fixtureContent(fixtureTable("1", "public", "orders"))
 	live := fixtureContent(fixtureTable("1", "public", "orders"))
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: a},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: b},
@@ -503,7 +503,7 @@ func TestBuildReport_WindowFromToReflectFirstAndLastCapture(t *testing.T) {
 
 func TestBuildReport_EmptyInputsProduceZeroValueWindowNoPanic(t *testing.T) {
 	require.NotPanics(t, func() {
-		report := BuildReport(DetectionInput{})
+		report := BuildReport(DetectionConfig{})
 		assert.Empty(t, report.CapturePoints)
 		assert.Empty(t, report.Drifts)
 		assert.True(t, report.Window.From.IsZero())
@@ -529,7 +529,7 @@ func TestBuildReport_DriftsFromEveryIntervalAreReported(t *testing.T) {
 		fixtureTable("4", "public", "payments"),
 	)
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: s1},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: s2},
@@ -576,7 +576,7 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 		ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
 	}
 
-	p := DetectionInput{
+	p := DetectionConfig{
 		Source: Source{DatabaseType: "postgresql"},
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before},

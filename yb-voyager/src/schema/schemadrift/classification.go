@@ -30,7 +30,7 @@ const (
 // migration is affected, and the "Impact & action" note explaining it. Severity and
 // wording have to agree, so they are declared together rather than in parallel maps.
 //
-// classify keys on the DiffType alone today, so every entry of a given type carries
+// getDriftInfo keys on the DiffType alone today, so every entry of a given type carries
 // the same three values. Deriving them per finding -- COLUMN_NULLABILITY_CHANGED
 // reads very differently for an added vs a dropped NOT NULL -- would not change this
 // shape. DriftEntry embeds it; encoding/json flattens an anonymous embed, so the
@@ -131,10 +131,10 @@ var infoByDiffType = map[schemadiff.DiffType]DriftInfo{
 	},
 }
 
-// classify falls back to SeverityAdvisory for an unmapped DiffType, the zero value
+// getDriftInfo falls back to SeverityAdvisory for an unmapped DiffType, the zero value
 // included, rather than dropping the change. The zero Impact/Action that comes with
 // it is deliberate: the report omits the note when there is nothing useful to say.
-func classify(t schemadiff.DiffType) DriftInfo {
+func getDriftInfo(t schemadiff.DiffType) DriftInfo {
 	if c, ok := infoByDiffType[t]; ok {
 		return c
 	}

@@ -98,7 +98,7 @@ const LabelSourceLive = "source_live" // accepts no reason; never persisted
 `BuildReport` takes `schemasnapshot.SchemaSnapshot` values directly -- a header plus content, where `Content` is nil for a failed capture. There is no wrapper type: the timeline identity of each point is its `Header.Label`, so nothing needs adding to what the snapshot already carries.
 
 ```go
-type DetectionInput struct {
+type DetectionConfig struct {
 	Source              Source
 	Snapshots           []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
 	Scope               schemadiff.Scope // the exact sets compared; Comparing is rendered from it
@@ -112,7 +112,7 @@ The complete input to `BuildReport`. Plain data, no connections or handles, so t
 `Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which now holds the exact sets either way, so they are not passed separately. The two booleans are the one fact `Scope` cannot carry: "these 12 tables" and "these 12 tables, which happen to be all of them" are the same set, and a reader of the report -- often not the person who ran the command -- needs to know which it was before concluding that no drift means none anywhere.
 
 ```go
-func BuildReport(p DetectionInput) Report
+func BuildReport(p DetectionConfig) Report
 ```
 
 Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on.
@@ -141,12 +141,12 @@ type DriftInfo struct {
 
 var infoByDiffType map[schemadiff.DiffType]DriftInfo
 
-func classify(t schemadiff.DiffType) DriftInfo
+func getDriftInfo(t schemadiff.DiffType) DriftInfo
 ```
 
-Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `classify` returns `SeverityAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
+Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `getDriftInfo` returns `SeverityAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
 
-`DriftInfo` is what enriches a raw `schemadiff.Difference` into drift: what the change means for the migration in flight. It is exported and embedded in `DriftEntry` rather than copied field by field. Today `classify` keys on the DiffType alone, so every entry of a given type carries the same three values; deriving them per finding (from the old/new values) would not change the shape.
+`DriftInfo` is what enriches a raw `schemadiff.Difference` into drift: what the change means for the migration in flight. It is exported and embedded in `DriftEntry` rather than copied field by field. Today `getDriftInfo` keys on the DiffType alone, so every entry of a given type carries the same three values; deriving them per finding (from the old/new values) would not change the shape.
 
 ### 3.5 `schemadrift` renderers (\#3813)
 
@@ -287,11 +287,11 @@ cmd.detectDrift()
  ├─ cmd.buildDriftTableCandidates(contents, live)             → table universe                                §5.5
  ├─ cmd.resolveDriftTableRefs / complementDriftTableRefs      → []ObjectRef, then schemadiff.Scope            §5.5
  │
- ├─ schemadrift.BuildReport(DetectionInput)                   → Report                   cmd → schemadrift
+ ├─ schemadrift.BuildReport(DetectionConfig)                  → Report                   cmd → schemadrift
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
- │      └─ per Difference: classify(d.Type)                   → DriftInfo, embedded in DriftEntry             §5.4
+ │      └─ per Difference: getDriftInfo(d.Type)               → DriftInfo, embedded in DriftEntry             §5.4
  │
  ├─ cmd.writeDriftReports(report, formats)
  │      ├─ schemadrift.RenderJSON(Report)                     → []byte                   cmd → schemadrift
@@ -305,7 +305,7 @@ Everything above `BuildReport` is `cmd` assembling plain data; everything inside
 
 ### 5.2 Which pairs are compared
 
-**Where:** `schemadrift.BuildReport`, the walk over `DetectionInput.Snapshots`. **In:** `[]schemasnapshot.SchemaSnapshot`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.CapturePoints`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
+**Where:** `schemadrift.BuildReport`, the walk over `DetectionConfig.Snapshots`. **In:** `[]schemasnapshot.SchemaSnapshot`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.CapturePoints`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
 
 The walk keeps a *baseline*: the most recent snapshot eligible to be the older side of a comparison.
 
@@ -346,7 +346,7 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 
 ### 5.4 Severity
 
-**Where:** `schemadrift.classify(t schemadiff.DiffType) DriftInfo`, backed by `infoByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
+**Where:** `schemadrift.getDriftInfo(t schemadiff.DiffType) DriftInfo`, backed by `infoByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
 
 | Severity | Meaning | DiffTypes |
 | :---- | :---- | :---- |
@@ -361,7 +361,7 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionInput.Scope`, and the resolved lists and flags for `Comparing`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`, and the resolved lists and flags for `Comparing`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
 The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report.
 
