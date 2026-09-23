@@ -170,9 +170,6 @@ func phaseFor(prev, next CapturePoint) string {
 	}
 }
 
-// isExportDataRunningStart reports whether series is one of the two labels
-// that may precede a LabelExportDataFromSourcePeriodic capture while export
-// data is running: the initial start capture, or a prior periodic capture.
 func isExportDataRunningEnd(series string) bool {
 	return series == schemasnapshot.LabelExportDataFromSourcePeriodic || series == schemasnapshot.LabelExportDataFromSourceExit
 }
