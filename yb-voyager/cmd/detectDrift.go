@@ -170,8 +170,8 @@ func init() {
 // state; validateDetectDriftFlags below only reads.
 //
 // A list flag that is empty once trimmed ("  ", ",") is the user passing nothing.
-// Left as-is it would read as "filtered" while resolving to no names at all, so
-// the report would claim a narrowing that never happened.
+// Left as-is it would count as set and resolve to an empty keep-set, which Scope
+// reads as "keep nothing": every finding dropped, reported as no drift.
 func resolveDetectDriftFlagDefaults() {
 	if source.DBType == "" {
 		source.DBType = POSTGRESQL

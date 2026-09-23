@@ -123,8 +123,8 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 
 func TestNormalizeDriftListFlag(t *testing.T) {
 	// The point of this helper is that a value which LOOKS set but names nothing
-	// is treated as unset -- otherwise the report reads as filtered while the
-	// resolved keep-set is empty, and Comparing claims a narrowing that never was.
+	// is treated as unset -- otherwise it resolves to an empty keep-set, and the
+	// run drops every finding and reports no drift.
 	tests := map[string]string{
 		"":                  "",
 		"   ":               "",

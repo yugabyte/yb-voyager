@@ -375,7 +375,7 @@ The set of tables a pattern can match is the union of three sources: the live ca
 
 `--object-type-list` and `--exclude-object-type-list` follow the same shape over `{TABLE, COLUMN}`.
 
-All four list flags are normalised before use: a value that is empty once trimmed (`"  "`, `","`) counts as unset, so it cannot report itself as a filter that narrowed nothing.
+All four list flags are normalised before use: a value that is empty once trimmed (`"  "`, `","`) counts as unset. Treated as set, it would resolve to an empty keep-set, and since `Scope` keeps nothing for an empty dimension the run would drop every finding and read as "no drift".
 
 ### 5.6 Live read
 
