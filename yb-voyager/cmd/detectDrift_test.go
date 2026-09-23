@@ -592,7 +592,7 @@ func TestCountDriftsBy(t *testing.T) {
 func TestBuildSchemaDriftPayload(t *testing.T) {
 	origFormat := driftOutputFormat
 	t.Cleanup(func() { driftOutputFormat = origFormat })
-	driftOutputFormat = "html,json"
+	driftOutputFormat = ""
 
 	report := schemadrift.Report{
 		Comparing: schemadrift.Comparing{
@@ -646,6 +646,15 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 		assert.Nil(t, got.DriftsByType)
 		assert.Nil(t, got.DriftsBySeverity)
 		assert.Contains(t, got.Error, "source is unreachable")
+	})
+
+	t.Run("an invalid --output-format is not sent", func(t *testing.T) {
+		orig := driftOutputFormat
+		t.Cleanup(func() { driftOutputFormat = orig })
+		driftOutputFormat = "some text the user typed"
+
+		got := buildSchemaDriftPayload(fmt.Errorf("invalid report output format"), nil)
+		assert.Nil(t, got.OutputFormats)
 	})
 }
 
