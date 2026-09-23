@@ -672,7 +672,7 @@ func buildAnonymizedTableNames(importTableList []sqlname.NameTuple) *utils.Struc
 		return anonymizedTableNames
 	}
 	for _, table := range importTableList {
-		schema, name := table.ForKeyTableSchema()
+		schema, name := table.ForCatalogQuery()
 		anonSchema, err := anonymizer.AnonymizeSchemaName(schema)
 		if err != nil {
 			log.Warnf("could not anonymize schema %q for conflict metric: %v", schema, err)
