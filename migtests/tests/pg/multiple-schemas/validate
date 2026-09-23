@@ -191,8 +191,11 @@ def migration_completed_checks(tgt):
 					expectedExtensions.append(age_ext)
 
 		# pg_parquet ships in 2025.2.0-2025.2.2 and 2025.2.5+, is dropped again in
-		# 2026.1.0-2026.1.1 and returns in 2026.1.2. Assert it only when reported.
-		if "pg_parquet" in extensions:
+		# 2026.1.0-2026.1.1, and returns in 2026.1.2
+		pgParquetVersion = Version(threeDotVersion)
+		if (Version("2025.2") <= pgParquetVersion < Version("2025.2.3")
+				or Version("2025.2.5") <= pgParquetVersion < Version("2026.1")
+				or pgParquetVersion >= Version("2026.1.2")):
 			expectedExtensions.append("pg_parquet")
 
 		if Version(threeDotVersion) >= Version("2026.1"):
