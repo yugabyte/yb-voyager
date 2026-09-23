@@ -18,12 +18,15 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
@@ -35,13 +38,9 @@ func TestComplementDriftTableRefs(t *testing.T) {
 	refA := schemasnapshot.ObjectRef{Schema: "public", Name: "a"}
 	refB := schemasnapshot.ObjectRef{Schema: "public", Name: "b"}
 	refC := schemasnapshot.ObjectRef{Schema: "public", Name: "c"}
-	refD := schemasnapshot.ObjectRef{Schema: "other", Name: "d"} // not among candidates
+	refD := schemasnapshot.ObjectRef{Schema: "other", Name: "d"} // not in universe
 
-	candidates := []driftTableCandidate{
-		{ref: refA},
-		{ref: refB},
-		{ref: refC},
-	}
+	universe := []schemasnapshot.ObjectRef{refA, refB, refC}
 
 	tests := []struct {
 		name     string
@@ -64,7 +63,7 @@ func TestComplementDriftTableRefs(t *testing.T) {
 			wantRefs: nil,
 		},
 		{
-			name:     "exclude a ref not in candidates is a no-op",
+			name:     "exclude a ref not in the universe is a no-op",
 			exclude:  []schemasnapshot.ObjectRef{refD},
 			wantRefs: []schemasnapshot.ObjectRef{refA, refB, refC},
 		},
@@ -72,7 +71,7 @@ func TestComplementDriftTableRefs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := complementDriftTableRefs(candidates, tt.exclude)
+			got := complementDriftTableRefs(universe, tt.exclude)
 			assert.Equal(t, tt.wantRefs, got)
 		})
 	}
@@ -266,11 +265,11 @@ func TestValidateDriftOutputFormat(t *testing.T) {
 	}
 }
 
-// ─── unionDriftTableCandidates (the universe fix) ────────────────────────────
+// ─── driftTableUniverse (the universe fix) ───────────────────────────────────
 
 // snapContent is a tiny helper to build a SnapshotContent whose Tables are the
 // given (schema, name) refs -- only the embedded ObjectRef is set, which is all
-// the union logic reads.
+// the union logic reads unless a test also attaches PartitionChildren.
 func snapContent(refs ...schemasnapshot.ObjectRef) *schemasnapshot.SnapshotContent {
 	c := &schemasnapshot.SnapshotContent{}
 	for _, r := range refs {
@@ -279,119 +278,69 @@ func snapContent(refs ...schemasnapshot.ObjectRef) *schemasnapshot.SnapshotConte
 	return c
 }
 
-func candidateRefs(candidates []driftTableCandidate) []schemasnapshot.ObjectRef {
-	refs := make([]schemasnapshot.ObjectRef, 0, len(candidates))
-	for _, c := range candidates {
-		refs = append(refs, c.ref)
-	}
-	return refs
-}
-
-func TestBuildDriftTableCandidates(t *testing.T) {
-	origDBType := source.DBType
-	t.Cleanup(func() { source.DBType = origDBType })
-	source.DBType = POSTGRESQL
-
+func TestDriftTableUniverse(t *testing.T) {
 	t.Run("listing error is returned", func(t *testing.T) {
 		failing := func(string) ([]string, error) { return nil, fmt.Errorf("connection reset") }
-		got, err := buildDriftTableCandidates(failing, []string{"public"}, "public", nil, nil)
+		got, err := driftTableUniverse(failing, []string{"public"}, nil, nil)
 		require.EqualError(t, err, `list the tables in schema "public": connection reset`)
 		assert.Nil(t, got)
 	})
 
-	t.Run("each schema's tables become candidates", func(t *testing.T) {
+	t.Run("each schema's tables become universe entries", func(t *testing.T) {
 		tablesBySchema := map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}
 		listing := func(schema string) ([]string, error) { return tablesBySchema[schema], nil }
-		got, err := buildDriftTableCandidates(listing, []string{"public", "Sales"}, "public", nil, nil)
+		got, err := driftTableUniverse(listing, []string{"public", "Sales"}, nil, nil)
 		require.NoError(t, err)
-		assert.Equal(t, []schemasnapshot.ObjectRef{
-			{Schema: "public", Name: "orders"},
-			{Schema: "Sales", Name: "Invoices"},
-		}, candidateRefs(got))
+		assert.Equal(t, map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}, got)
+	})
+
+	t.Run("snapshot-only (dropped) table is still in the universe; dedup across live+snapshot", func(t *testing.T) {
+		// Headline universe-fix case: products is present ONLY in a historical
+		// snapshot (dropped from the live catalog) yet must still be nameable.
+		// orders appears in both live catalog and snapshot => deduped to one.
+		listing := func(string) ([]string, error) { return []string{"orders", "customers"}, nil }
+		got, err := driftTableUniverse(listing, []string{"public"}, []*schemasnapshot.SnapshotContent{
+			snapContent(
+				schemasnapshot.ObjectRef{Schema: "public", Name: "products"},
+				schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+			),
+		}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"orders", "customers", "products"}, got["public"])
+	})
+
+	t.Run("live capture contributes an extra table", func(t *testing.T) {
+		listing := func(string) ([]string, error) { return []string{"orders"}, nil }
+		got, err := driftTableUniverse(listing, []string{"public"},
+			[]*schemasnapshot.SnapshotContent{snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})},
+			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "audit"}))
+		require.NoError(t, err)
+		assert.Equal(t, []string{"orders", "products", "audit"}, got["public"])
+	})
+
+	t.Run("same table in all three sources yields a single entry", func(t *testing.T) {
+		orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
+		listing := func(string) ([]string, error) { return []string{"orders"}, nil }
+		got, err := driftTableUniverse(listing, []string{"public"},
+			[]*schemasnapshot.SnapshotContent{snapContent(orders)}, snapContent(orders))
+		require.NoError(t, err)
+		assert.Equal(t, []string{"orders"}, got["public"])
+	})
+
+	t.Run("nil snapshot content is skipped", func(t *testing.T) {
+		listing := func(string) ([]string, error) { return []string{"orders"}, nil }
+		got, err := driftTableUniverse(listing, []string{"public"},
+			[]*schemasnapshot.SnapshotContent{nil, snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"orders", "products"}, got["public"])
 	})
 }
 
-func TestUnionDriftTableCandidates(t *testing.T) {
-	orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
-	customers := schemasnapshot.ObjectRef{Schema: "public", Name: "customers"}
-	products := schemasnapshot.ObjectRef{Schema: "public", Name: "products"} // dropped from live catalog
-	audit := schemasnapshot.ObjectRef{Schema: "public", Name: "audit"}       // only in live capture
+// ─── requireDriftTableListQualified ──────────────────────────────────────────
 
-	tests := []struct {
-		name             string
-		liveRefs         []schemasnapshot.ObjectRef
-		snapshotContents []*schemasnapshot.SnapshotContent
-		liveContent      *schemasnapshot.SnapshotContent
-		wantRefs         []schemasnapshot.ObjectRef
-	}{
-		{
-			// Headline universe-fix case: products is present ONLY in a historical
-			// snapshot (dropped from the live catalog) yet must still be a candidate.
-			// orders appears in both live catalog and snapshot => deduped to one.
-			name:             "snapshot-only (dropped) table is still a candidate; dedup across live+snapshot",
-			liveRefs:         []schemasnapshot.ObjectRef{orders, customers},
-			snapshotContents: []*schemasnapshot.SnapshotContent{snapContent(products, orders)},
-			liveContent:      nil,
-			wantRefs:         []schemasnapshot.ObjectRef{orders, customers, products},
-		},
-		{
-			// A non-nil live capture contributes an additional table (audit) not seen
-			// in the live catalog or the snapshot.
-			name:             "live capture contributes an extra table",
-			liveRefs:         []schemasnapshot.ObjectRef{orders},
-			snapshotContents: []*schemasnapshot.SnapshotContent{snapContent(products)},
-			liveContent:      snapContent(audit),
-			wantRefs:         []schemasnapshot.ObjectRef{orders, products, audit},
-		},
-		{
-			// The same table present in all three sources collapses to one candidate.
-			name:             "same table in all three sources yields a single candidate",
-			liveRefs:         []schemasnapshot.ObjectRef{orders},
-			snapshotContents: []*schemasnapshot.SnapshotContent{snapContent(orders)},
-			liveContent:      snapContent(orders),
-			wantRefs:         []schemasnapshot.ObjectRef{orders},
-		},
-		{
-			// A nil (placeholder / failed-to-load) snapshot in the chain is skipped.
-			name:             "nil snapshot content is skipped",
-			liveRefs:         []schemasnapshot.ObjectRef{orders},
-			snapshotContents: []*schemasnapshot.SnapshotContent{nil, snapContent(products)},
-			liveContent:      nil,
-			wantRefs:         []schemasnapshot.ObjectRef{orders, products},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := unionDriftTableCandidates("postgresql", "public", tt.liveRefs, tt.snapshotContents, tt.liveContent)
-			gotRefs := candidateRefs(got)
-
-			// Order is deterministic (live catalog -> snapshots -> live capture), so
-			// assert the exact ordered candidate set.
-			assert.Equal(t, tt.wantRefs, gotRefs)
-
-			// Each candidate carries a non-nil sqlname.ObjectName view for glob matching.
-			for _, c := range got {
-				assert.NotNil(t, c.name, "candidate %v should have a non-nil ObjectName", c.ref)
-			}
-		})
-	}
-}
-
-// ─── resolveDriftTableRefs ───────────────────────────────────────────────────
-
-func TestResolveDriftTableRefs(t *testing.T) {
-	// A multi-schema run with no "public": GetDefaultPGSchema reports no default,
-	// so an unqualified pattern can match nothing at all.
-	candidates := unionDriftTableCandidates("postgresql", "", nil, []*schemasnapshot.SnapshotContent{
-		snapContent(
-			schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
-			schemasnapshot.ObjectRef{Schema: "billing", Name: "invoices"},
-		),
-	}, nil)
-
+func TestRequireDriftTableListQualified(t *testing.T) {
 	t.Run("unqualified pattern without a default schema is rejected by name", func(t *testing.T) {
-		_, err := resolveDriftTableRefs(candidates, "orders", "table-list", false)
+		err := requireDriftTableListQualified("orders", "table-list", false)
 		require.Error(t, err)
 		// The old behaviour reported "unknown table name", which sent the user
 		// looking for a table that does exist.
@@ -399,39 +348,159 @@ func TestResolveDriftTableRefs(t *testing.T) {
 		assert.NotContains(t, err.Error(), "unknown table name")
 	})
 
-	t.Run("qualified patterns still resolve without a default schema", func(t *testing.T) {
-		refs, err := resolveDriftTableRefs(candidates, "sales.orders", "table-list", false)
-		require.NoError(t, err)
-		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "sales", Name: "orders"}}, refs)
+	t.Run("qualified pattern needs no default schema", func(t *testing.T) {
+		require.NoError(t, requireDriftTableListQualified("sales.orders", "table-list", false))
 	})
 
-	t.Run("a pattern matching nothing is still an unknown table", func(t *testing.T) {
-		_, err := resolveDriftTableRefs(candidates, "sales.nope", "table-list", false)
+	t.Run("unqualified pattern is fine once a default schema exists", func(t *testing.T) {
+		require.NoError(t, requireDriftTableListQualified("orders", "table-list", true))
+	})
+
+	t.Run("one unqualified entry among qualified ones still errors", func(t *testing.T) {
+		err := requireDriftTableListQualified("sales.orders,customers", "exclude-table-list", false)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown table name")
+		assert.Contains(t, err.Error(), `"customers"`)
+	})
+}
+
+// ─── table-list resolution via the in-memory registry + extractTableListFromString ──
+
+func TestDriftTableListResolutionViaRegistry(t *testing.T) {
+	universe := map[string][]string{
+		"sales":   {"orders"},
+		"billing": {"invoices"},
+	}
+	reg, err := namereg.NewInMemorySourceNameRegistry(POSTGRESQL, []string{"sales", "billing"}, universe)
+	require.NoError(t, err)
+	allTuples, err := reg.GetRegisteredTableList(false)
+	require.NoError(t, err)
+
+	t.Run("qualified pattern resolves", func(t *testing.T) {
+		refs, err := extractTableListFromString(allTuples, "sales.orders", "include")
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "sales", Name: "orders"}}, driftObjectRefs(refs))
+	})
+
+	t.Run("a pattern matching nothing is an UnknownTableErr", func(t *testing.T) {
+		_, err := extractTableListFromString(allTuples, "sales.nope", "include")
+		require.Error(t, err)
+		var unknownErr *errs.UnknownTableErr
+		assert.True(t, errors.As(err, &unknownErr))
 	})
 
 	t.Run("case-sensitive names match only under their own quoting", func(t *testing.T) {
-		mixed := unionDriftTableCandidates("postgresql", "public", nil, []*schemasnapshot.SnapshotContent{
-			snapContent(
-				schemasnapshot.ObjectRef{Schema: "public", Name: "Orders"},
-				schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
-			),
-		}, nil)
+		mixedReg, err := namereg.NewInMemorySourceNameRegistry(POSTGRESQL, []string{"public"},
+			map[string][]string{"public": {"Orders", "orders"}})
+		require.NoError(t, err)
+		mixedTuples, err := mixedReg.GetRegisteredTableList(false)
+		require.NoError(t, err)
 
 		// An unquoted pattern folds case, so it reaches both spellings.
-		refs, err := resolveDriftTableRefs(mixed, "orders", "table-list", true)
+		refs, err := extractTableListFromString(mixedTuples, "orders", "include")
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []schemasnapshot.ObjectRef{
 			{Schema: "public", Name: "Orders"},
 			{Schema: "public", Name: "orders"},
-		}, refs)
+		}, driftObjectRefs(refs))
 
 		// A quoted pattern is exact, so it reaches only the capitalised one.
-		refs, err = resolveDriftTableRefs(mixed, `public."Orders"`, "table-list", true)
+		refs, err = extractTableListFromString(mixedTuples, `public."Orders"`, "include")
 		require.NoError(t, err)
-		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "Orders"}}, refs)
+		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "Orders"}}, driftObjectRefs(refs))
 	})
+}
+
+// ─── partition expansion ─────────────────────────────────────────────────────
+
+var (
+	driftPartRoot  = schemasnapshot.ObjectRef{Schema: "public", Name: "events"}
+	driftPartMid   = schemasnapshot.ObjectRef{Schema: "public", Name: "events_2024"}
+	driftPartLeaf1 = schemasnapshot.ObjectRef{Schema: "public", Name: "events_2024_01"}
+	driftPartLeaf2 = schemasnapshot.ObjectRef{Schema: "public", Name: "events_2024_02"}
+	driftPartOther = schemasnapshot.ObjectRef{Schema: "public", Name: "customers"} // not a partition at all
+)
+
+// driftPartitionContent builds a SnapshotContent for the root -> mid -> {leaf1, leaf2}
+// hierarchy shared by the partition tests below, plus one unrelated table.
+func driftPartitionContent() *schemasnapshot.SnapshotContent {
+	return &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+		{ObjectRef: driftPartRoot, PartitionChildren: []schemasnapshot.ObjectRef{driftPartMid}},
+		{ObjectRef: driftPartMid, PartitionChildren: []schemasnapshot.ObjectRef{driftPartLeaf1, driftPartLeaf2}},
+		{ObjectRef: driftPartLeaf1},
+		{ObjectRef: driftPartLeaf2},
+		{ObjectRef: driftPartOther},
+	}}
+}
+
+func TestExpandDriftPartitions(t *testing.T) {
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil)
+
+	tests := []struct {
+		name string
+		refs []schemasnapshot.ObjectRef
+		want []schemasnapshot.ObjectRef
+	}{
+		{
+			name: "root in include expands to root + intermediate + leaves, depth-first",
+			refs: []schemasnapshot.ObjectRef{driftPartRoot},
+			want: []schemasnapshot.ObjectRef{driftPartRoot, driftPartMid, driftPartLeaf1, driftPartLeaf2},
+		},
+		{
+			name: "a leaf named alone expands to only itself",
+			refs: []schemasnapshot.ObjectRef{driftPartLeaf1},
+			want: []schemasnapshot.ObjectRef{driftPartLeaf1},
+		},
+		{
+			name: "a non-partitioned table is unaffected",
+			refs: []schemasnapshot.ObjectRef{driftPartOther},
+			want: []schemasnapshot.ObjectRef{driftPartOther},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, expandDriftPartitions(tt.refs, children))
+		})
+	}
+}
+
+func TestExpandDriftPartitionsThenComplement(t *testing.T) {
+	// Mirrors resolveDriftScope's exclude branch: the matched exclude refs are
+	// expanded to their full partition subtree before complementing against the
+	// universe, so excluding a root removes every partition beneath it too.
+	universe := []schemasnapshot.ObjectRef{driftPartRoot, driftPartMid, driftPartLeaf1, driftPartLeaf2, driftPartOther}
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil)
+
+	excludeExpanded := expandDriftPartitions([]schemasnapshot.ObjectRef{driftPartRoot}, children)
+	got := complementDriftTableRefs(universe, excludeExpanded)
+	assert.Equal(t, []schemasnapshot.ObjectRef{driftPartOther}, got)
+}
+
+func TestDriftPartitionChildrenUnionAcrossSnapshots(t *testing.T) {
+	// A partition present only in an older snapshot (dropped since) must still
+	// expand: driftPartitionChildren unions PartitionChildren across every content
+	// rather than letting a newer snapshot's list overwrite an older one's.
+	droppedLeaf := schemasnapshot.ObjectRef{Schema: "public", Name: "events_2023_12"}
+	older := &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+		{ObjectRef: driftPartRoot, PartitionChildren: []schemasnapshot.ObjectRef{driftPartMid, droppedLeaf}},
+	}}
+	newer := &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+		{ObjectRef: driftPartRoot, PartitionChildren: []schemasnapshot.ObjectRef{driftPartMid}},
+	}}
+
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{older, newer}, nil)
+	got := expandDriftPartitions([]schemasnapshot.ObjectRef{driftPartRoot}, children)
+	assert.Contains(t, got, droppedLeaf)
+}
+
+func TestExpandDriftPartitionsCaseSensitive(t *testing.T) {
+	root := schemasnapshot.ObjectRef{Schema: "Sales", Name: "Events"}
+	leaf := schemasnapshot.ObjectRef{Schema: "Sales", Name: "Events_2024"}
+	content := &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+		{ObjectRef: root, PartitionChildren: []schemasnapshot.ObjectRef{leaf}},
+	}}
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{content}, nil)
+
+	assert.Equal(t, []schemasnapshot.ObjectRef{root, leaf}, expandDriftPartitions([]schemasnapshot.ObjectRef{root}, children))
 }
 
 // ─── nothingComparedError ────────────────────────────────────────────────────

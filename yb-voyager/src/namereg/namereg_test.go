@@ -747,3 +747,118 @@ func TestNameRegistryJson(t *testing.T) {
 	// Read the JSON file and compare it with the expected JSON
 	testutils.CompareJson(t, outputFilePath, expectedJSON, exportDir)
 }
+
+func TestNewInMemorySourceNameRegistryNeverPersists(t *testing.T) {
+	reg, err := NewInMemorySourceNameRegistry(constants.POSTGRESQL, []string{"public"}, map[string][]string{"public": {"orders"}})
+	require.NoError(t, err)
+	assert.Empty(t, reg.params.FilePath)
+}
+
+func TestNewInMemorySourceNameRegistryLookup(t *testing.T) {
+	tests := []struct {
+		name           string
+		schemas        []string
+		tablesBySchema map[string][]string
+		lookupName     string
+		wantSchema     string
+		wantTable      string
+		wantErr        bool
+	}{
+		{
+			name:           "exact qualified name",
+			schemas:        []string{"public"},
+			tablesBySchema: map[string][]string{"public": {"orders"}},
+			lookupName:     "public.orders",
+			wantSchema:     "public",
+			wantTable:      "orders",
+		},
+		{
+			name:           "case-sensitive schema and table",
+			schemas:        []string{"Sales"},
+			tablesBySchema: map[string][]string{"Sales": {"Orders"}},
+			lookupName:     `"Sales"."Orders"`,
+			wantSchema:     "Sales",
+			wantTable:      "Orders",
+		},
+		{
+			name:           "single schema is the default; unqualified name resolves",
+			schemas:        []string{"sales"},
+			tablesBySchema: map[string][]string{"sales": {"orders"}},
+			lookupName:     "orders",
+			wantSchema:     "sales",
+			wantTable:      "orders",
+		},
+		{
+			name:    "multiple schemas with public: unqualified name resolves against public",
+			schemas: []string{"sales", "public"},
+			tablesBySchema: map[string][]string{
+				"sales":  {"orders"},
+				"public": {"customers"},
+			},
+			lookupName: "customers",
+			wantSchema: "public",
+			wantTable:  "customers",
+		},
+		{
+			name:    "multiple schemas without public: unqualified name has no default schema to resolve against",
+			schemas: []string{"sales", "billing"},
+			tablesBySchema: map[string][]string{
+				"sales":   {"orders"},
+				"billing": {"invoices"},
+			},
+			lookupName: "orders",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg, err := NewInMemorySourceNameRegistry(constants.POSTGRESQL, tt.schemas, tt.tablesBySchema)
+			require.NoError(t, err)
+			tuple, err := reg.LookupTableName(tt.lookupName)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantSchema, tuple.SourceName.SchemaName.Unquoted)
+			assert.Equal(t, tt.wantTable, tuple.SourceName.Unqualified.Unquoted)
+		})
+	}
+}
+
+func TestNewInMemorySourceNameRegistryDefaultSchema(t *testing.T) {
+	tests := []struct {
+		name        string
+		schemas     []string
+		wantDefault string
+	}{
+		{name: "single schema", schemas: []string{"sales"}, wantDefault: "sales"},
+		{name: "multiple schemas with public", schemas: []string{"sales", "public"}, wantDefault: "public"},
+		{name: "multiple schemas without public", schemas: []string{"sales", "billing"}, wantDefault: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tablesBySchema := make(map[string][]string)
+			for _, s := range tt.schemas {
+				tablesBySchema[s] = []string{"t1"}
+			}
+			reg, err := NewInMemorySourceNameRegistry(constants.POSTGRESQL, tt.schemas, tablesBySchema)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantDefault, reg.DefaultSourceDBSchemaName)
+		})
+	}
+}
+
+func TestNewInMemorySourceNameRegistryGetRegisteredTableList(t *testing.T) {
+	reg, err := NewInMemorySourceNameRegistry(constants.POSTGRESQL, []string{"sales", "Billing"}, map[string][]string{
+		"sales":   {"orders", "customers"},
+		"Billing": {"Invoices"},
+	})
+	tuples, err := reg.GetRegisteredTableList(false)
+	require.NoError(t, err)
+	require.Len(t, tuples, 3)
+
+	got := lo.Map(tuples, func(t sqlname.NameTuple, _ int) string { return t.ForKey() })
+	assert.ElementsMatch(t, []string{`"sales"."orders"`, `"sales"."customers"`, `"Billing"."Invoices"`}, got)
+}

@@ -285,8 +285,9 @@ cmd.detectDrift()
  │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelSourceLive})        cmd → schemasnapshot
  │         its Header.Label IS the timeline identity; appended as the last input
  │
- ├─ cmd.buildDriftTableCandidates(contents, live)             → table universe                                §5.5
- ├─ cmd.resolveDriftTableRefs / complementDriftTableRefs      → []ObjectRef, then schemadiff.Scope            §5.5
+ ├─ cmd.driftTableUniverse(contents, live)                    → table universe                                §5.5
+ ├─ namereg.NewInMemorySourceNameRegistry(universe)           → []NameTuple, cmd.extractTableListFromString,
+ │      cmd.expandDriftPartitions / complementDriftTableRefs  → []ObjectRef, then schemadiff.Scope            §5.5
  │
  ├─ schemadrift.BuildReport(DetectionConfig)                  → Report, error            cmd → schemadrift
  │      ├─ schemadiff.NewDiffer(Config{Scope})

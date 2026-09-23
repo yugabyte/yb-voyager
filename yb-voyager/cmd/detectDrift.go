@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -261,52 +262,36 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 
 // ─── Scope resolution ────────────────────────────────────────────────────────
 
-// driftTableCandidate pairs a table's identity (for building
-// schemasnapshot.ObjectRef / Scope entries) with the sqlname.ObjectName view of
-// it (for --table-list / --exclude-table-list glob matching).
-type driftTableCandidate struct {
-	ref  schemasnapshot.ObjectRef
-	name *sqlname.ObjectName
-}
+// driftTableUniverse builds the --table-list / --exclude-table-list matching
+// universe, deduped per schema, in the order live catalog -> snapshots -> live
+// capture.
+//
+// It is the union rather than the live catalog alone because a table dropped from
+// the source is gone from the catalog but must still be nameable, to see its own
+// drop reported. Only the stored snapshots still know about it.
+func driftTableUniverse(listTables func(schema string) ([]string, error), schemas []string,
+	snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) (map[string][]string, error) {
+	seen := make(map[string]map[string]bool)
+	universe := make(map[string][]string)
+	add := func(schema, name string) {
+		if seen[schema] == nil {
+			seen[schema] = make(map[string]bool)
+		}
+		if seen[schema][name] {
+			return
+		}
+		seen[schema][name] = true
+		universe[schema] = append(universe[schema], name)
+	}
 
-func buildDriftTableCandidates(listTables func(schema string) ([]string, error), schemas []string, defaultSchema string,
-	snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) ([]driftTableCandidate, error) {
-	var liveRefs []schemasnapshot.ObjectRef
 	for _, schema := range schemas {
 		names, err := listTables(schema)
 		if err != nil {
 			return nil, fmt.Errorf("list the tables in schema %q: %w", schema, err)
 		}
 		for _, name := range names {
-			liveRefs = append(liveRefs, schemasnapshot.ObjectRef{Schema: schema, Name: name})
+			add(schema, name)
 		}
-	}
-	return unionDriftTableCandidates(source.DBType, defaultSchema, liveRefs, snapshotContents, liveContent), nil
-}
-
-// unionDriftTableCandidates builds the --table-list / --exclude-table-list matching
-// universe, deduped by (schema, name), in the order live catalog -> snapshots ->
-// live capture.
-//
-// It is the union rather than the live catalog alone because a table dropped from
-// the source is gone from the catalog but must still be nameable, to see its own
-// drop reported. Only the stored snapshots still know about it.
-func unionDriftTableCandidates(dbType, defaultSchema string, liveRefs []schemasnapshot.ObjectRef, snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) []driftTableCandidate {
-	seen := make(map[schemasnapshot.ObjectRef]bool)
-	var candidates []driftTableCandidate
-
-	add := func(schema, name string) {
-		ref := schemasnapshot.ObjectRef{Schema: schema, Name: name}
-		if seen[ref] {
-			return
-		}
-		seen[ref] = true
-		objName := sqlname.NewObjectName(dbType, defaultSchema, schema, name)
-		candidates = append(candidates, driftTableCandidate{ref: ref, name: objName})
-	}
-
-	for _, r := range liveRefs {
-		add(r.Schema, r.Name)
 	}
 	for _, c := range snapshotContents {
 		if c == nil {
@@ -322,64 +307,104 @@ func unionDriftTableCandidates(dbType, defaultSchema string, liveRefs []schemasn
 		}
 	}
 
-	return candidates
+	return universe, nil
 }
 
-// resolveDriftTableRefs resolves a --table-list / --exclude-table-list glob
-// pattern list against candidates. Returns (nil, nil) for an empty pattern
-// list (meaning "no filter"). A pattern matching no candidate is reported as an
-// unknown table name, mirroring export/import's --table-list validation.
-func resolveDriftTableRefs(candidates []driftTableCandidate, patternList string, flagName string, hasDefaultSchema bool) ([]schemasnapshot.ObjectRef, error) {
-	if strings.TrimSpace(patternList) == "" {
-		return nil, nil
+// driftObjectRefs takes the unquoted source-side names, which is how schemadiff.Scope
+// and the snapshots identify a table.
+func driftObjectRefs(tuples []sqlname.NameTuple) []schemasnapshot.ObjectRef {
+	return lo.Map(tuples, func(t sqlname.NameTuple, _ int) schemasnapshot.ObjectRef {
+		return schemasnapshot.ObjectRef{Schema: t.SourceName.SchemaName.Unquoted, Name: t.SourceName.Unqualified.Unquoted}
+	})
+}
+
+// requireDriftTableListQualified rejects a --table-list / --exclude-table-list pattern
+// that is not schema-qualified when the registry has no default schema. Without this,
+// an unqualified pattern would silently match nothing (see ObjectName.MatchesPattern)
+// and get reported as an unknown table, rather than telling the user why.
+func requireDriftTableListQualified(patternList, flagName string, hasDefaultSchema bool) error {
+	if hasDefaultSchema {
+		return nil
 	}
-	var refs []schemasnapshot.ObjectRef
-	var unknown []string
 	for _, pattern := range utils.CsvStringToSlice(patternList) {
-		// An unqualified pattern only ever matches a candidate in the default
-		// schema (see ObjectName.MatchesPattern). With no default there is nothing
-		// for it to match, and it would otherwise be reported as an unknown table.
-		if !hasDefaultSchema && !strings.Contains(pattern, ".") {
-			return nil, goerrors.Errorf("--%s entry %q is not schema-qualified, and --source-db-schema names no "+
+		if !strings.Contains(pattern, ".") {
+			return goerrors.Errorf("--%s entry %q is not schema-qualified, and --source-db-schema names no "+
 				"default schema (no \"public\"); write it as schema.table", flagName, pattern)
 		}
-		matched := false
-		for _, c := range candidates {
-			ok, err := c.name.MatchesPattern(pattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid table name pattern %q in --%s: %w", pattern, flagName, err)
-			}
-			if ok {
-				refs = append(refs, c.ref)
-				matched = true
-			}
-		}
-		if !matched {
-			unknown = append(unknown, pattern)
-		}
 	}
-	if len(unknown) > 0 {
-		return nil, goerrors.Errorf("unknown table name(s) %v in --%s", unknown, flagName)
-	}
-	return lo.UniqBy(refs, func(r schemasnapshot.ObjectRef) string { return r.Schema + "." + r.Name }), nil
+	return nil
 }
 
-// complementDriftTableRefs returns every candidate ref NOT present in exclude --
-// the resolution of --exclude-table-list into the single positive allow-list the
+// driftPartitionChildren maps a partitioned table to every partition child recorded
+// against it in any content, live or historical. It is a union across sources: a
+// partition dropped since a given snapshot must still expand, so its parent's
+// children list from every content is merged and deduped.
+func driftPartitionChildren(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
+	children := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
+	seen := make(map[schemasnapshot.ObjectRef]map[schemasnapshot.ObjectRef]bool)
+	add := func(c *schemasnapshot.SnapshotContent) {
+		if c == nil {
+			return
+		}
+		for _, t := range c.Tables {
+			for _, child := range t.PartitionChildren {
+				if seen[t.ObjectRef] == nil {
+					seen[t.ObjectRef] = make(map[schemasnapshot.ObjectRef]bool)
+				}
+				if seen[t.ObjectRef][child] {
+					continue
+				}
+				seen[t.ObjectRef][child] = true
+				children[t.ObjectRef] = append(children[t.ObjectRef], child)
+			}
+		}
+	}
+	for _, c := range snapshotContents {
+		add(c)
+	}
+	add(liveContent)
+	return children
+}
+
+// expandDriftPartitions expands each ref matched by --table-list / --exclude-table-list
+// into itself plus every partition descendant at every level, depth-first, deduped via
+// seen so a cycle in the recorded hierarchy cannot recurse forever.
+func expandDriftPartitions(refs []schemasnapshot.ObjectRef, children map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
+	var out []schemasnapshot.ObjectRef
+	seen := make(map[schemasnapshot.ObjectRef]bool)
+	var visit func(ref schemasnapshot.ObjectRef)
+	visit = func(ref schemasnapshot.ObjectRef) {
+		if seen[ref] {
+			return
+		}
+		seen[ref] = true
+		out = append(out, ref)
+		for _, child := range children[ref] {
+			visit(child)
+		}
+	}
+	for _, ref := range refs {
+		visit(ref)
+	}
+	return out
+}
+
+// complementDriftTableRefs returns every universe ref NOT present in exclude -- the
+// resolution of --exclude-table-list into the single positive allow-list the
 // collapsed schemadiff.Scope expects.
 //
 // An EMPTY result means the user excluded the whole universe. Callers MUST
 // reject it rather than forward it: Scope keeps nothing for an empty dimension,
 // so the run would compare nothing and report a clean bill of health.
-func complementDriftTableRefs(candidates []driftTableCandidate, exclude []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
+func complementDriftTableRefs(universe []schemasnapshot.ObjectRef, exclude []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
 	excludeSet := make(map[schemasnapshot.ObjectRef]bool, len(exclude))
 	for _, r := range exclude {
 		excludeSet[r] = true
 	}
 	var out []schemasnapshot.ObjectRef
-	for _, c := range candidates {
-		if !excludeSet[c.ref] {
-			out = append(out, c.ref)
+	for _, r := range universe {
+		if !excludeSet[r] {
+			out = append(out, r)
 		}
 	}
 	return out
@@ -420,31 +445,50 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	if live != nil {
 		liveContent = live.Content
 	}
-	// noDefaultSchema is carried rather than discarded: without a default, an
-	// unqualified --table-list pattern can match nothing at all, and every other
-	// caller of GetDefaultPGSchema treats that as an error rather than a silent
-	// no-match.
-	defaultSchema, noDefaultSchema := GetDefaultPGSchema(source.Schemas)
 
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	candidates, err := buildDriftTableCandidates(source.DB().GetAllTableNamesRaw, schemas, defaultSchema, snapshotContents, liveContent)
+	universe, err := driftTableUniverse(source.DB().GetAllTableNamesRaw, schemas, snapshotContents, liveContent)
 	if err != nil {
 		return schemadiff.Scope{}, err
 	}
+	reg, err := namereg.NewInMemorySourceNameRegistry(source.DBType, schemas, universe)
+	if err != nil {
+		return schemadiff.Scope{}, err
+	}
+	allTuples, err := reg.GetRegisteredTableList(false)
+	if err != nil {
+		return schemadiff.Scope{}, err
+	}
+	// Map iteration inside the registry makes the list order random; sort it so
+	// every downstream ref list (the unfiltered Scope, the report's "Tables" line)
+	// is deterministic across runs.
+	sort.Slice(allTuples, func(i, j int) bool { return allTuples[i].ForKey() < allTuples[j].ForKey() })
+	allRefs := driftObjectRefs(allTuples)
+	hasDefaultSchema := reg.DefaultSourceDBSchemaName != ""
+	partitionChildren := driftPartitionChildren(snapshotContents, liveContent)
 
 	var includeTables []schemasnapshot.ObjectRef
 	switch {
 	case driftTableList != "":
-		if includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list", !noDefaultSchema); err != nil {
+		if err := requireDriftTableListQualified(driftTableList, "table-list", hasDefaultSchema); err != nil {
 			return schemadiff.Scope{}, err
 		}
+		includeTuples, err := extractTableListFromString(allTuples, driftTableList, "include")
+		if err != nil {
+			return schemadiff.Scope{}, err
+		}
+		includeTables = expandDriftPartitions(driftObjectRefs(includeTuples), partitionChildren)
 	case driftExcludeTableList != "":
-		var excludeTables []schemasnapshot.ObjectRef
-		if excludeTables, err = resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list", !noDefaultSchema); err != nil {
+		if err := requireDriftTableListQualified(driftExcludeTableList, "exclude-table-list", hasDefaultSchema); err != nil {
 			return schemadiff.Scope{}, err
 		}
-		includeTables = complementDriftTableRefs(candidates, excludeTables)
+		excludeTuples, err := extractTableListFromString(allTuples, driftExcludeTableList, "exclude")
+		if err != nil {
+			return schemadiff.Scope{}, err
+		}
+		excludeTables := expandDriftPartitions(driftObjectRefs(excludeTuples), partitionChildren)
+		includeTables = complementDriftTableRefs(allRefs, excludeTables)
 		if len(includeTables) == 0 {
 			return schemadiff.Scope{}, goerrors.Errorf(
 				"--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
@@ -463,7 +507,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	}
 
 	if driftTableList == "" && driftExcludeTableList == "" {
-		includeTables = lo.Map(candidates, func(c driftTableCandidate, _ int) schemasnapshot.ObjectRef { return c.ref })
+		includeTables = allRefs
 	}
 	if driftObjectTypeList == "" && driftExcludeObjectTypeList == "" {
 		objectTypes = allDriftObjectTypes
