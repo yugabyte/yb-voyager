@@ -408,23 +408,13 @@ func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.Ob
 	return out
 }
 
-// driftScopeResolution is what the --table-list / --object-type-list family
-// resolves to: the Scope itself, plus whether the user actually narrowed each
-// dimension. The booleans cannot be recovered from the Scope, because "these 12
-// tables" and "these 12 tables, which are all of them" are the same set.
-type driftScopeResolution struct {
-	scope               schemadiff.Scope
-	tablesFiltered      bool
-	objectTypesFiltered bool
-}
-
 // resolveDriftScope turns the flags into the single positive allow-list per
 // dimension that schemadiff.Scope takes. validateDetectDriftFlags has already
 // rejected passing both flags of a pair, so each dimension is either the
 // resolved include patterns, the complement of the resolved exclude patterns, or
 // -- when neither flag was passed -- the whole universe, spelled out rather than
 // left empty, because Scope keeps nothing for an empty dimension.
-func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasnapshot.SchemaSnapshot, schemas []string) (driftScopeResolution, error) {
+func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasnapshot.SchemaSnapshot, schemas []string) (schemadiff.Scope, error) {
 	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshots))
 	for _, si := range snapshots {
 		snapshotContents = append(snapshotContents, si.Content)
@@ -448,16 +438,16 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	switch {
 	case driftTableList != "":
 		if includeTables, err = resolveDriftTableRefs(candidates, driftTableList, "table-list", !noDefaultSchema); err != nil {
-			return driftScopeResolution{}, err
+			return schemadiff.Scope{}, err
 		}
 	case driftExcludeTableList != "":
 		var excludeTables []schemasnapshot.ObjectRef
 		if excludeTables, err = resolveDriftTableRefs(candidates, driftExcludeTableList, "exclude-table-list", !noDefaultSchema); err != nil {
-			return driftScopeResolution{}, err
+			return schemadiff.Scope{}, err
 		}
 		includeTables = complementDriftTableRefs(candidates, excludeTables)
 		if len(includeTables) == 0 {
-			return driftScopeResolution{}, goerrors.Errorf(
+			return schemadiff.Scope{}, goerrors.Errorf(
 				"--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
 		}
 	}
@@ -467,24 +457,19 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 		objectTypes = complementDriftObjectTypes(driftParsedFlags.excludeObjectTypes)
 		if len(objectTypes) == 0 {
 			supported := lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
-			return driftScopeResolution{}, goerrors.Errorf(
+			return schemadiff.Scope{}, goerrors.Errorf(
 				"--exclude-object-type-list %q excludes every supported object type (%s); nothing left to compare",
 				driftExcludeObjectTypeList, strings.Join(supported, ", "))
 		}
 	}
 
-	res := driftScopeResolution{
-		tablesFiltered:      driftTableList != "" || driftExcludeTableList != "",
-		objectTypesFiltered: driftObjectTypeList != "" || driftExcludeObjectTypeList != "",
-	}
-	if !res.tablesFiltered {
+	if driftTableList == "" && driftExcludeTableList == "" {
 		includeTables = lo.Map(candidates, func(c driftTableCandidate, _ int) schemasnapshot.ObjectRef { return c.ref })
 	}
-	if !res.objectTypesFiltered {
+	if driftObjectTypeList == "" && driftExcludeObjectTypeList == "" {
 		objectTypes = allDriftObjectTypes
 	}
-	res.scope = schemadiff.Scope{Schemas: schemas, Tables: includeTables, ObjectTypes: objectTypes}
-	return res, nil
+	return schemadiff.Scope{Schemas: schemas, Tables: includeTables, ObjectTypes: objectTypes}, nil
 }
 
 // ─── The run ─────────────────────────────────────────────────────────────────
@@ -569,7 +554,7 @@ func detectDrift() (driftFound bool, err error) {
 	// its tables to the candidate universe.
 	live := captureLiveSnapshotForDrift(schemas)
 
-	resolved, err := resolveDriftScope(snapshots, live, schemas)
+	scope, err := resolveDriftScope(snapshots, live, schemas)
 	if err != nil {
 		return false, err
 	}
@@ -578,7 +563,7 @@ func detectDrift() (driftFound bool, err error) {
 		snapshots = append(snapshots, *live)
 	}
 
-	report := schemadrift.BuildReport(schemadrift.DetectionInput{
+	report := schemadrift.BuildReport(schemadrift.DetectionConfig{
 		Source: schemadrift.Source{
 			DatabaseType:    source.DBType,
 			Host:            source.Host,
@@ -586,10 +571,8 @@ func detectDrift() (driftFound bool, err error) {
 			Database:        source.DBName,
 			DatabaseVersion: source.DBVersion,
 		},
-		Snapshots:           snapshots,
-		Scope:               resolved.scope,
-		TablesFiltered:      resolved.tablesFiltered,
-		ObjectTypesFiltered: resolved.objectTypesFiltered,
+		Snapshots: snapshots,
+		Scope:     scope,
 	})
 
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
@@ -748,7 +731,7 @@ func printDriftSummary(report schemadrift.Report, writtenPaths []string) {
 		"%d (live source comparison: %t)", report.Summary.ComparedIntervalCount, report.Summary.LiveCompared)
 	printDriftSummaryField("Schemas", utils.PrintAndLogf, "%s", joinOrAllDrift(report.Comparing.Schemas))
 	printDriftSummaryField("Tables", utils.PrintAndLogf, "%s",
-		driftScopeLine(report.Comparing.Tables, report.Comparing.TablesFiltered))
+		driftScopeLine(report.Comparing.Tables))
 
 	// The headline number carries the verdict, so colour it like one: green when
 	// the source still matches what was captured, yellow when it does not.
@@ -816,16 +799,12 @@ func wrapDriftValue(s string, width int) []string {
 // lives in the report.
 const maxDriftScopeNamesInSummary = 5
 
-// driftScopeLine renders the scope line: a count saying whether this is everything
-// or a filter's result, then the names while they fit.
-func driftScopeLine(names []string, filtered bool) string {
+// driftScopeLine renders the scope line: a count, then the names while they fit.
+func driftScopeLine(names []string) string {
 	if len(names) == 0 {
 		return "none"
 	}
-	head := fmt.Sprintf("all %d", len(names))
-	if filtered {
-		head = fmt.Sprintf("%d (filtered)", len(names))
-	}
+	head := fmt.Sprintf("%d", len(names))
 	if len(names) <= maxDriftScopeNamesInSummary {
 		return fmt.Sprintf("%s — %s", head, strings.Join(names, ", "))
 	}

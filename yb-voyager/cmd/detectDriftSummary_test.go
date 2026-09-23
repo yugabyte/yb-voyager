@@ -79,3 +79,12 @@ func TestWrapDriftValue(t *testing.T) {
 		})
 	}
 }
+
+// The line states a count, never "all": the report does not know whether a list
+// flag narrowed the set.
+func TestDriftScopeLine(t *testing.T) {
+	assert.Equal(t, "none", driftScopeLine(nil))
+	assert.Equal(t, "2 — sales.orders, sales.customers", driftScopeLine([]string{"sales.orders", "sales.customers"}))
+	assert.Equal(t, "6 — t1, t2, t3, t4, t5, ... (+1 more; see the report)",
+		driftScopeLine([]string{"t1", "t2", "t3", "t4", "t5", "t6"}))
+}
