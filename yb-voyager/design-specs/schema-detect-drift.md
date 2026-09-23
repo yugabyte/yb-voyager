@@ -174,7 +174,10 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Exit codes | `0` the report was written, whether or not it found drift · `1` error (flags, connection, unreadable snapshot). A script reads drift from `summary.change_count` in the JSON report. |
 | Config file | section `schema-detect-drift` with keys `log-level`, `output-format`, the four list flags; commented-out in the four migration templates |
 | Table scope | an unqualified `--table-list` entry needs a default schema, so `--source-db-schema` without `public` must qualify every entry as `schema.table` |
+| Schema list | `--source-db-schema` entries are trimmed and matched as `export schema` matches them |
+| Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
+| Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
 
 ## 4\. Data model
 
@@ -406,6 +409,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 
 | Situation | Behaviour | Why this and not the alternative |
 | :---- | :---- | :---- |
+| Export dir holds no migration project | error, exit 1; nothing is written | The command reads an existing migration. Creating a project there would leave a directory that looks like a migration that never ran. |
 | A capture fails during export | placeholder header written, export unaffected, warning logged | Capture is best effort and off the data path. It must never fail a migration. |
 | Placeholder in history | bridged (§5.2); appears on the timeline as a failed marker | Dropping it would hide that a capture was attempted; making it a boundary would hide real drift. |
 | Snapshot blob has an unsupported `Version` | error, exit 1 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
@@ -439,6 +443,7 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Partitioned table in a table list | expands to every partition beneath it | matches only that table | The flag means the same as in export data. Matching only the parent would drop drift on its partitions, and a dropped finding reads as no drift. |
 | HTML | embedded template, view model built in Go, no JavaScript | client-side rendering of the JSON | Opens anywhere, including air-gapped hosts. Grouping logic stays testable in Go. |
 | Exit codes | `0` report written · `1` error | `0` no drift · `1` drift found · `2` error | Every voyager command exits 1 on error, and so does every shared helper that fails through `utils.ErrExit`. Putting drift on 1 would make a failed run indistinguishable from a successful one that found drift. A script reads drift from `summary.change_count` in the JSON report. |
+| Export-dir lock | its own per-command lock | no lock | The report files are shared state between two runs on one export dir. The lock file is named per command, so it never blocks export or import. |
 | Command placement | new `schema` parent | top-level `detect-drift` | Leaves room for sibling schema tools without crowding the root. |
 
 ## 10\. Open questions
