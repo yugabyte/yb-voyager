@@ -26,6 +26,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -336,13 +337,22 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 // recordConflictMetricLocked increments the per-table conflict counter for the blocked
 // incoming event. Caller must hold the lock.
 func (c *ConflictDetectionCache) recordConflictMetricLocked(incomingEvent *tgtdb.Event) {
+	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup.ForOutput())
+
+	// The callhome conflict metric is best-effort: record it only when diagnostics are enabled
+	// AND the collector has been initialized. callhomeMetricsCollector is a global set up only
+	// by a full import run (see importData.go), so it is nil on paths/tests that never initialize
+	// it (e.g. import-data-to-source/source-replica, unit tests). This mirrors the nil guards at
+	// every other callhomeMetricsCollector call site.
+	if !callhome.SendDiagnostics || callhomeMetricsCollector == nil {
+		return
+	}
 	anonymizedTableName, ok := c.anonymizedTableNames.Get(incomingEvent.TableNameTup)
 	if !ok {
 		log.Warnf("no anonymized table name precomputed for %s; putting all such tables in the conflict metric as XXX", incomingEvent.TableNameTup.ForOutput())
 		anonymizedTableName = "XXX"
 	}
 
-	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup.ForOutput())
 	callhomeMetricsCollector.IncrementConflictCountForTable(anonymizedTableName)
 }
 
