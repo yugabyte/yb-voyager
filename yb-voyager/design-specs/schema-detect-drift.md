@@ -362,15 +362,19 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.driftTableUniverse`, `namereg.NewInMemorySourceNameRegistry`, export data's `cmd.extractTableListFromString`, `cmd.expandDriftPartitions`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
 The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing to read the live catalog is an error (exit 1).
+
+Names resolve the way export data resolves them. The universe is loaded into an in-memory name registry, which turns it into `NameTuple`s. The flags then go through export data's `extractTableListFromString`, so the glob matching and the unknown-table error are export's own. The registry is never written: the migration's `name_registry.json` lists only the tables present at export data's first run, so it cannot name a table created since.
+
+A partitioned table matched by either list brings every partition beneath it, at every level, as in export data. A partition matched on its own brings only itself. The hierarchy comes from `PartitionChildren` in the snapshots and the live read, not from the live catalog, so a partition dropped since is still expanded and its drop is still reported.
 
 | Flag | Resolution |
 | :---- | :---- |
 | neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set |
-| `--table-list` | patterns resolved against the universe with the same glob matcher as export; unknown pattern is an operational error |
-| `--exclude-table-list` | resolved the same way, then complemented against the universe; an empty result is an operational error (the report would be empty, so the command says so rather than emitting one) |
+| `--table-list` | patterns resolved against the universe by export data's matcher, then each matched partitioned table expanded to its partitions; unknown pattern is an operational error |
+| `--exclude-table-list` | resolved and expanded the same way, then complemented against the universe; an empty result is an operational error (the report would be empty, so the command says so rather than emitting one) |
 | both | operational error |
 
 `--object-type-list` and `--exclude-object-type-list` follow the same shape over `{TABLE, COLUMN}`.
@@ -430,6 +434,8 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
 | Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
+| Table-name resolution | in-memory name registry over the universe, then export data's matcher | the migration's `name_registry.json`; a matcher of its own | The stored registry cannot name a table created after export data's first run. A matcher of its own could drift from what the same flag means in export. |
+| Partitioned table in a table list | expands to every partition beneath it | matches only that table | The flag means the same as in export data. Matching only the parent would drop drift on its partitions, and a dropped finding reads as no drift. |
 | HTML | embedded template, view model built in Go, no JavaScript | client-side rendering of the JSON | Opens anywhere, including air-gapped hosts. Grouping logic stays testable in Go. |
 | Exit codes | `0` report written · `1` error | `0` no drift · `1` drift found · `2` error | Every voyager command exits 1 on error, and so does every shared helper that fails through `utils.ErrExit`. Putting drift on 1 would make a failed run indistinguishable from a successful one that found drift. A script reads drift from `summary.change_count` in the JSON report. |
 | Command placement | new `schema` parent | top-level `detect-drift` | Leaves room for sibling schema tools without crowding the root. |
