@@ -408,7 +408,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Live capture fails or the source is unreachable | connection failure is an error, exit 1; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
 | No or one stored snapshot | warning; report reflects only the live read or the single interval | Not an error: the user may simply not have enabled capture. The `--help` text names the prerequisite. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
-| The HTML renderer meets a state it cannot display (§3.5) | operational error, exit 2 | Rendering past it drops or misprints a finding in a report that still looks complete. |
+| The HTML renderer meets a state it cannot display (§3.5) | error, exit 1 | Rendering past it drops or misprints a finding in a report that still looks complete. |
 | Report file already exists | overwritten with a notice | Reports are regenerated, not versioned. |
 
 ## 8\. Hot-path statement
