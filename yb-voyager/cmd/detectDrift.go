@@ -140,8 +140,8 @@ func init() {
 		f.Usage = "source database server port number. Default: PostgreSQL(5432)"
 	}
 
-	detectDriftCmd.Flags().StringVar(&driftOutputFormat, "output-format", "html,json",
-		"comma-separated list of report formats to generate: ('html', 'json')")
+	detectDriftCmd.Flags().StringVar(&driftOutputFormat, "output-format", "",
+		"format in which the report is generated: ('html', 'json'). If not provided, reports are generated in both 'html' and 'json' formats.")
 
 	// KNOWN GAP: for a table renamed inside the compared window, neither name returns
 	// its full history; an unfiltered run shows both findings. See the KNOWN GAP note
@@ -211,24 +211,22 @@ func validateDetectDriftFlags() {
 	}
 }
 
-// validateDriftOutputFormat checks that format is a non-empty, comma-separated
-// list drawn from driftValidOutputFormats with no duplicates.
+// validateDriftOutputFormat accepts "" (both formats) or exactly one of
+// driftValidOutputFormats.
 func validateDriftOutputFormat(format string) error {
-	if strings.TrimSpace(format) == "" {
-		return goerrors.Errorf("--output-format cannot be empty; supported formats: %s", strings.Join(driftValidOutputFormats, ", "))
+	if format == "" || lo.Contains(driftValidOutputFormats, strings.ToLower(format)) {
+		return nil
 	}
-	seen := make(map[string]bool)
-	for _, f := range utils.CsvStringToSlice(format) {
-		f = strings.ToLower(f)
-		if !lo.Contains(driftValidOutputFormats, f) {
-			return goerrors.Errorf("invalid report output format: %s. Supported formats are %v", f, driftValidOutputFormats)
-		}
-		if seen[f] {
-			return goerrors.Errorf("duplicate report output format: %s", f)
-		}
-		seen[f] = true
+	return goerrors.Errorf("invalid report output format: %s. Supported formats are %v", format, driftValidOutputFormats)
+}
+
+// driftReportFormats returns the formats to write for an --output-format value
+// already accepted by validateDriftOutputFormat.
+func driftReportFormats(format string) []string {
+	if format == "" {
+		return driftValidOutputFormats
 	}
-	return nil
+	return []string{strings.ToLower(format)}
 }
 
 // normalizeDriftListFlag returns raw with its entries trimmed, or "" when nothing
@@ -617,7 +615,7 @@ func detectDrift() error {
 		return nothingComparedError(report)
 	}
 
-	writtenPaths, err := writeDriftReports(report, driftOutputFormat)
+	writtenPaths, err := writeDriftReports(report, driftReportFormats(driftOutputFormat))
 	if err != nil {
 		return err
 	}
@@ -694,17 +692,16 @@ func nothingComparedError(r schemadrift.Report) error {
 // ─── Output: report files and terminal summary ───────────────────────────────
 
 // writeDriftReports renders and writes report to <export-dir>/reports/ in each
-// of the comma-separated formats in formatSpec, creating the reports directory
-// if necessary. Returns the paths written, in the same order as formatSpec.
-func writeDriftReports(report schemadrift.Report, formatSpec string) ([]string, error) {
+// of formats, creating the reports directory if necessary. Returns the paths
+// written, in the same order as formats.
+func writeDriftReports(report schemadrift.Report, formats []string) ([]string, error) {
 	reportsDir := filepath.Join(exportDir, "reports")
 	if err := os.MkdirAll(reportsDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create reports directory %q: %w", reportsDir, err)
 	}
 
 	var written []string
-	for _, f := range utils.CsvStringToSlice(formatSpec) {
-		f = strings.ToLower(f)
+	for _, f := range formats {
 		var data []byte
 		var err error
 		switch f {
@@ -722,7 +719,7 @@ func writeDriftReports(report schemadrift.Report, formatSpec string) ([]string, 
 
 		path := filepath.Join(reportsDir, fmt.Sprintf("%s.%s", DRIFT_REPORT_FILE_NAME, f))
 		if utils.FileOrFolderExists(path) {
-			fmt.Printf("\n%s already exists, overwriting it with a new generated report\n", filepath.Base(path))
+			utils.PrintAndLogf("\n%s already exists, overwriting it with a new generated report\n", filepath.Base(path))
 		}
 		if err := os.WriteFile(path, data, 0644); err != nil {
 			return nil, fmt.Errorf("failed to write %s drift report to %q: %w", f, path, err)

@@ -608,9 +608,9 @@ finalize-schema-post-data-import:
 ### Uncomment the respective parameters when you want to configure additional detect drift options.
 # schema-detect-drift:
 
-  ### Formats in which the report is generated: ('html', 'json').
-  ### Default - both 'html' and 'json'
-  # output-format: html,json
+  ### Format in which the report is generated: ('html', 'json').
+  ### If not provided, reports are generated in both 'html' and 'json' formats.
+  # output-format: html
 
   ### Comma-separated list of tables to compare (glob patterns allowed).
   ### Only one of table-list and exclude-table-list can be specified.

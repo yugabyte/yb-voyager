@@ -96,7 +96,7 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
 		},
 		{
-			// detectDrift rejects this with an operational error rather than
+			// detectDrift rejects this with an error rather than
 			// forwarding it to schemadiff.Scope, which keeps nothing for an empty
 			// dimension -- the run would compare nothing and report it as clean.
 			name:    "exclude both yields empty",
@@ -225,25 +225,29 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 
 func TestValidateDriftOutputFormat(t *testing.T) {
 	tests := []struct {
-		name    string
-		format  string
-		wantErr bool
+		name        string
+		format      string
+		wantFormats []string
+		wantErr     bool
 	}{
 		{
-			name:   "html,json is valid",
-			format: "html,json",
+			name:        "unset writes both",
+			format:      "",
+			wantFormats: []string{"html", "json"},
 		},
 		{
-			name:   "single valid format",
-			format: "json",
+			name:        "json alone",
+			format:      "json",
+			wantFormats: []string{"json"},
 		},
 		{
-			name:   "case-insensitive",
-			format: "HTML,Json",
+			name:        "case-insensitive",
+			format:      "HTML",
+			wantFormats: []string{"html"},
 		},
 		{
-			name:    "empty string errors",
-			format:  "",
+			name:    "a list is not accepted",
+			format:  "html,json",
 			wantErr: true,
 		},
 		{
@@ -256,26 +260,17 @@ func TestValidateDriftOutputFormat(t *testing.T) {
 			format:  "xml",
 			wantErr: true,
 		},
-		{
-			name:    "duplicate format errors",
-			format:  "html,html",
-			wantErr: true,
-		},
-		{
-			name:    "duplicate format errors case-insensitively",
-			format:  "html,HTML",
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateDriftOutputFormat(tt.format)
 			if tt.wantErr {
-				assert.Error(t, err)
+				assert.ErrorContains(t, err, "invalid report output format")
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFormats, driftReportFormats(tt.format))
 		})
 	}
 }
