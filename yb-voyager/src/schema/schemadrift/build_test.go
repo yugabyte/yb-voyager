@@ -378,7 +378,7 @@ func TestBuildReport_SchemaFilterKeepsOnlyRequestedSchemas(t *testing.T) {
 	require.Len(t, report.Drifts, 1, "sales.invoices was added too, but sales was not requested")
 	assert.Equal(t, objRef("public", "items"), report.Drifts[0].Object)
 	assert.Equal(t, 1, report.Summary.ChangeCount,
-		"the count drives the exit code, so it must not include out-of-scope drift")
+		"ChangeCount is the report's drift total, so it must not include out-of-scope drift")
 	assert.Equal(t, []string{"public"}, report.Comparing.Schemas)
 }
 
