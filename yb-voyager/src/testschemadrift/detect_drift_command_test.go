@@ -97,7 +97,7 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 		`DROP TABLE IF EXISTS public.customers;`,
 	)
 
-	t.Run("an export dir with no migration project fails and stays one", func(t *testing.T) {
+	t.Run("an export dir with no migration project fails without creating one", func(t *testing.T) {
 		emptyDir := testutils.CreateTempExportDir()
 		defer testutils.RemoveTempExportDir(emptyDir)
 
