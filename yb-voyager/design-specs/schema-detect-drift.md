@@ -284,7 +284,7 @@ cmd.detectDrift()
  ├─ per header: schemasnapshot.LoadSnapshotByName(metaDB, name) → *SnapshotContent | nil  cmd → schemasnapshot
  │      each becomes a schemasnapshot.SchemaSnapshot{Header, Content}
  │
- ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SchemaSnapshot | nil                         §5.6
+ ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SchemaSnapshot, error                        §5.6
  │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelSourceLive})        cmd → schemasnapshot
  │         its Header.Label IS the timeline identity; appended as the last input
  │
@@ -389,9 +389,9 @@ All four list flags are normalised before use: a value that is empty once trimme
 
 ### 5.6 Live read
 
-**Where:** `cmd.captureLiveSnapshotForDrift(schemas) *schemasnapshot.SchemaSnapshot`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last snapshot, labelled `source_live`, or nil. **Decides:** whether the report ends at the last stored snapshot or at now.
+**Where:** `cmd.captureLiveSnapshotForDrift(schemas) (*schemasnapshot.SchemaSnapshot, error)`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last snapshot, labelled `source_live`, so the report always ends at now.
 
-The command captures the current source schema in memory under `LabelSourceLive` and appends it as the last input. It is captured with exactly `--source-db-schema`, so it always covers the request; history may cover more, and the extra schemas' findings are filtered rather than the comparison declined. If the live capture fails, the report is built from history alone and `LiveCompared` says so.
+The command captures the current source schema in memory under `LabelSourceLive` and appends it as the last input. It is captured with exactly `--source-db-schema`, so it always covers the request; history may cover more, and the extra schemas' findings are filtered rather than the comparison declined. If the live capture fails, the run fails with exit 1 and writes no report. The live read is the only comparison that covers drift since the last stored snapshot, so a report without it can show no drift while the source has drifted.
 
 ## 6\. Migration-flow matrix
 
@@ -417,7 +417,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Snapshot blob has an unsupported `Version` | error, exit 1 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
 | Snapshot header exists but blob cannot be loaded for any other reason | warning, treated like a placeholder | The moment is still on the timeline; the report bridges across it. |
 | A capture did not cover the requested schemas | bridged, and recorded on its `CapturePoint` (§5.2) | A requested table missing from it means nobody looked, not that it was dropped. Treating it as a boundary lost every interval around it. |
-| Live capture fails or the source is unreachable | connection failure is an error, exit 1; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
+| Live capture fails or the source is unreachable | error, exit 1; no report is written | The live read covers drift since the last stored snapshot. A report without it can show no drift while the source has drifted, and a script reading `summary.change_count` would not notice. |
 | One stored snapshot, and the live read makes it a pair | warning; report covers that single interval | Not an error: one stored capture plus the live read is a real interval. Zero stored snapshots gets no warning, because it can never form an interval and always lands on the row below. |
 | No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
@@ -439,6 +439,7 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Severity and note | one struct in one map | parallel maps keyed by `DiffType` | Parallel maps drift silently. A test asserts every mapped type has a note. |
 | Severity semantics | what the migration does | how alarming the DDL is | The user's question is "is my migration broken", not "was this a big change". |
 | Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
+| Live capture failure | error, exit 1 | warn and report history alone | Connecting and listing the source's tables both precede the capture, so a source that is down already fails the run. What is left is a capture that failed on a reachable source, and a report missing the newest interval reads as "no drift". |
 | Report formats | `--output-format` takes one value; unset writes both | a comma-separated list | Matches `analyze-schema`. With both as the default, a list only lets a user spell out the default. |
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
 | Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
