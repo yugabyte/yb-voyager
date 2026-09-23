@@ -97,6 +97,19 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 		`DROP TABLE IF EXISTS public.customers;`,
 	)
 
+	t.Run("an export dir with no migration project fails and stays one", func(t *testing.T) {
+		emptyDir := testutils.CreateTempExportDir()
+		defer testutils.RemoveTempExportDir(emptyDir)
+
+		_, err := testutils.RunVoyagerCommand(pg, "schema detect-drift", []string{
+			"--source-db-schema", driftTestSchema,
+			"--export-dir", emptyDir,
+		}, nil, false)
+		require.Error(t, err)
+		assert.NoFileExists(t, filepath.Join(emptyDir, "metainfo", "meta.db"))
+		assert.NoDirExists(t, filepath.Join(emptyDir, "schema"))
+	})
+
 	// Capture is off by default, so every command that should record a snapshot has
 	// to ask for it. Without this the run records no history and the command
 	// correctly reports no drift -- which would quietly satisfy a weaker assertion.
