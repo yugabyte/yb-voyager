@@ -164,7 +164,7 @@ type ConflictDetectionCache struct {
 	vsnToBuckets map[int64][]string
 }
 
-func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], importerRole string, anonymizedTableNames *utils.StructMap[sqlname.NameTuple, string]) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], importerRole string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
@@ -175,7 +175,6 @@ func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.Nam
 	c.vsnToBuckets = make(map[int64][]string)
 	c.tablePartitionKeyMap = tablePartitionKeyMap
 	c.importerRole = importerRole
-	c.anonymizedTableNames = anonymizedTableNames
 	return c
 }
 
@@ -338,12 +337,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 // The metric is best-effort: a missing precomputed name is logged and skipped rather than
 // failing the migration. Caller must hold the lock.
 func (c *ConflictDetectionCache) recordConflictMetricLocked(incomingEvent *tgtdb.Event) {
-	anonymizedTableName, ok := c.anonymizedTableNames.Get(incomingEvent.TableNameTup)
-	if !ok {
-		log.Warnf("no anonymized table name precomputed for %s; skipping conflict metric", incomingEvent.TableNameTup.ForOutput())
-		return
-	}
-	metrics.Get().RecordImportCDCConflict(c.importerRole, anonymizedTableName)
+	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup.ForOutput())
 }
 
 // Conflict describes the unique-index match that caused a value-path conflict.
