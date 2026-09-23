@@ -225,6 +225,17 @@ type Summary struct {
 }
 
 type DriftEntry struct {
+	Diff // what changed, on what, to what -- flattened by encoding/json
+
+	// When it was detected, and what the migration was doing then.
+	Window Window `json:"window"`          // the interval it was detected in
+	Phase  string `json:"phase,omitempty"` // §5.3
+
+	// What it means: Severity, Impact, Action -- flattened by encoding/json.
+	DriftInfo
+}
+
+type Diff struct {
 	// What changed, as the diff engine classified it.
 	Type       schemadiff.DiffType   `json:"type"`
 	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
@@ -236,13 +247,6 @@ type DriftEntry struct {
 	SubObject string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
 	OldValue  any                      `json:"old_value,omitempty"`
 	NewValue  any                      `json:"new_value,omitempty"`
-
-	// When it was detected, and what the migration was doing then.
-	Window Window `json:"window"`          // the interval it was detected in
-	Phase  string `json:"phase,omitempty"` // §5.3
-
-	// What it means: Severity, Impact, Action -- flattened by encoding/json.
-	DriftInfo
 }
 
 type CapturePoint struct {
@@ -259,7 +263,7 @@ type CapturePoint struct {
 
 `CapturePoint.Excluded` exists because a point the assembler bridged is otherwise indistinguishable from one that contributed nothing. It is `omitempty` because a normal run bridges nothing. The exclusion is recorded on the point, not on an interval: a bridged capture does not end an interval, so there is no un-compared span to list.
 
-The `schemadiff.Difference` is flattened into these fields rather than embedded. Its `ObjectA`/`ObjectB` are `ObjectIdent` interface values, which marshal but cannot be unmarshalled, and they hold a different shape per finding (a column's identity nests its table; a table's does not), so one JSON key would carry two schemas. `Difference` also carries no JSON tags, so embedding would publish Go field names into this contract and make every field later added to the diff engine part of it. Flattening also does once what every consumer would otherwise repeat: choosing the display side, and splitting a column into its table and its own name.
+`Diff` holds the `schemadiff.Difference` fields a report needs, flattened rather than embedding `Difference` itself. Its `ObjectA`/`ObjectB` are `ObjectIdent` interface values, which marshal but cannot be unmarshalled, and they hold a different shape per finding (a column's identity nests its table; a table's does not), so one JSON key would carry two schemas. `Difference` also carries no JSON tags, so embedding would publish Go field names into this contract and make every field later added to the diff engine part of it. Flattening also does once what every consumer would otherwise repeat: choosing the display side, and splitting a column into its table and its own name.
 
 `Object` and `SubObject` always identify the display side. For a change, that is the new identity; for a drop, the old one. A renamed column therefore appears under its new name with the old name in `OldValue`.
 

@@ -99,17 +99,19 @@ func BuildReport(p DetectionConfig) Report {
 		for _, d := range differ.Diff(prev.Content, next.Content) {
 			obj, subObj := splitIdentity(displayIdentity(d))
 			drifts = append(drifts, DriftEntry{
-				Type:       d.Type,
-				Operation:  d.Operation,
-				ObjectType: d.ObjectType,
-				Attribute:  d.Attribute,
-				Object:     obj,
-				SubObject:  subObj,
-				OldValue:   d.SideAValue,
-				NewValue:   d.SideBValue,
-				Window:     intervalWindow,
-				Phase:      phase,
-				DriftInfo:  getDriftInfo(d.Type),
+				Diff: Diff{
+					Type:       d.Type,
+					Operation:  d.Operation,
+					ObjectType: d.ObjectType,
+					Attribute:  d.Attribute,
+					Object:     obj,
+					SubObject:  subObj,
+					OldValue:   d.SideAValue,
+					NewValue:   d.SideBValue,
+				},
+				Window:    intervalWindow,
+				Phase:     phase,
+				DriftInfo: getDriftInfo(d.Type),
 			})
 		}
 		prevIdx = i

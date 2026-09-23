@@ -81,8 +81,21 @@ type Summary struct {
 	LiveCompared          bool `json:"live_compared"`
 }
 
-// DriftEntry is a schemadiff.Difference enriched into drift: what the change means
-// for the migration in flight, and the capture-pair interval it was detected in.
+// DriftEntry is a Diff enriched into drift: what the change means for the
+// migration in flight, and the capture-pair interval it was detected in.
+type DriftEntry struct {
+	Diff
+
+	// When it was detected, and what the migration was doing then.
+	Window Window `json:"window"`
+	Phase  string `json:"phase,omitempty"`
+
+	// What it means: Severity, Impact and Action, flattened by encoding/json.
+	DriftInfo
+}
+
+// Diff is one schemadiff.Difference as the report carries it. DriftEntry embeds
+// it, so encoding/json keeps these fields top-level.
 //
 // The Difference is flattened into these fields rather than embedded. Its
 // ObjectA/ObjectB are ObjectIdent interfaces -- they marshal but cannot be
@@ -91,7 +104,7 @@ type Summary struct {
 // field names into this contract and enlist every field later added to the diff
 // engine into it. Flattening additionally does once what each consumer would repeat:
 // choosing the display side, and splitting a column into its table and its own name.
-type DriftEntry struct {
+type Diff struct {
 	// What changed, as the diff engine classified it.
 	Type       schemadiff.DiffType   `json:"type"`
 	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
@@ -104,13 +117,6 @@ type DriftEntry struct {
 	SubObject string                   `json:"sub_object,omitempty"`
 	OldValue  any                      `json:"old_value,omitempty"`
 	NewValue  any                      `json:"new_value,omitempty"`
-
-	// When it was detected, and what the migration was doing then.
-	Window Window `json:"window"`
-	Phase  string `json:"phase,omitempty"`
-
-	// What it means: Severity, Impact and Action, flattened by encoding/json.
-	DriftInfo
 }
 
 // CapturePoint is one point on the report's timeline: a moment at which the
