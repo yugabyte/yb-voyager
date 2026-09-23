@@ -409,7 +409,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 
 | Situation | Behaviour | Why this and not the alternative |
 | :---- | :---- | :---- |
-| Export dir holds no migration project | error, exit 1; nothing is written | The command reads an existing migration. Creating a project there would leave a directory that looks like a migration that never ran. |
+| Export dir holds no migration project | error, exit 1, as for every command that needs a started migration; no project is created, only the run's log | The command reads an existing migration. Creating a project there would leave a directory that looks like a migration that never ran. |
 | A capture fails during export | placeholder header written, export unaffected, warning logged | Capture is best effort and off the data path. It must never fail a migration. |
 | Placeholder in history | bridged (§5.2); appears on the timeline as a failed marker | Dropping it would hide that a capture was attempted; making it a boundary would hide real drift. |
 | Snapshot blob has an unsupported `Version` | error, exit 1 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
