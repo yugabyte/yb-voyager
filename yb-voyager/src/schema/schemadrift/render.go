@@ -529,7 +529,7 @@ func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) st
 		}
 		parts := make([]string, len(v.Columns))
 		for i, c := range v.Columns {
-			parts[i] = c.Name + " " + stringifyColumnDef(c)
+			parts[i] = minQuoted(c.Name, dbType) + " " + stringifyColumnDef(c)
 		}
 		return strings.Join(parts, ", ")
 	default:

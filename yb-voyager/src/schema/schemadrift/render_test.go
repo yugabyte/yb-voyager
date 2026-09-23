@@ -350,6 +350,27 @@ func TestComparingSummary(t *testing.T) {
 	assert.Equal(t, "no schemas · no tables · no object types", comparingSummary(Comparing{}))
 }
 
+// An added table's definition names its columns, and a case-sensitive one must
+// stay quoted there too, or the printed definition is not valid SQL.
+func TestRenderHTML_AddedTableColumnsAreMinQuoted(t *testing.T) {
+	r := fixtureReport()
+	r.Drifts = r.Drifts[:1]
+	invoices := schemasnapshot.ObjectRef{Schema: "public", Name: "invoices"}
+	r.Drifts[0].NewValue = schemasnapshot.Table{
+		ObjectRef: invoices,
+		Columns: []schemasnapshot.Column{
+			{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: invoices, Name: "InvoiceNo"}, DataType: "text", NotNull: true},
+			{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: invoices, Name: "amount"}, DataType: "numeric"},
+		},
+	}
+	r.Summary.ChangeCount = 1
+
+	out, err := RenderHTML(r)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(out), "&#34;InvoiceNo&#34; text NOT NULL, amount numeric")
+}
+
 // An empty dimension compared nothing, so the dropdown must agree with the
 // summary's "no tables" instead of offering an "all" chip.
 func TestRenderHTML_EmptyScopeDimensionShowsNoChip(t *testing.T) {
