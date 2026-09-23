@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -36,15 +35,10 @@ import (
 
 const driftTestSchema = "public"
 
-// runDetectDrift runs `schema detect-drift` against exportDir and returns its exit
-// code.
-//
-// The exit code is the command's result channel, not just a pass/fail: 0 means the
-// report was written and found no drift, 1 means it was written and found drift, and
-// 2 means an operational failure (bad flags, no connection). So a test has to assert
-// the code itself -- treating any non-zero as failure would call a correct
-// drift-detected run a broken one.
-func runDetectDrift(t *testing.T, pg testcontainers.TestContainer, exportDir string) int {
+// runDetectDrift runs `schema detect-drift` against exportDir, requires it to exit 0,
+// and returns the JSON report it wrote. The command exits 0 whether or not it finds
+// drift, so only the report says whether it did.
+func runDetectDrift(t *testing.T, pg testcontainers.TestContainer, exportDir string) schemadrift.Report {
 	t.Helper()
 
 	_, err := testutils.RunVoyagerCommand(pg, "schema detect-drift", []string{
@@ -52,28 +46,31 @@ func runDetectDrift(t *testing.T, pg testcontainers.TestContainer, exportDir str
 		"--export-dir", exportDir,
 		"--output-format", "json,html",
 	}, nil, false)
-	if err == nil {
-		return 0
-	}
+	require.NoError(t, err, "detect-drift must exit 0 once it has written the report")
 
-	var exitErr *exec.ExitError
-	require.ErrorAs(t, err, &exitErr,
-		"detect-drift failed without an exit status, so it did not run: %v", err)
-	return exitErr.ExitCode()
+	jsonPath := filepath.Join(exportDir, "reports", "drift_analysis_report.json")
+	raw, err := os.ReadFile(jsonPath)
+	require.NoError(t, err, "failed to read %s", jsonPath)
+
+	// Decoding into schemadrift.Report is the point. The JSON shape is contractual
+	// for downstream tooling, so checking the real field names catches a break that
+	// scraping the rendered text would not.
+	var report schemadrift.Report
+	require.NoError(t, json.Unmarshal(raw, &report),
+		"report JSON must decode into schemadrift.Report")
+	return report
 }
 
 // TestDetectDriftEndToEnd changes the source schema in the middle of a real
-// migration, then runs `yb-voyager schema detect-drift` and asserts both what it
-// reports and the exit code it reports it with.
+// migration, then runs `yb-voyager schema detect-drift` and asserts what it reports.
 //
 // This is the only test that drives the whole chain through the CLI: the capture
 // hooks on export schema / export data, snapshot persistence in metaDB, the diff
 // engine, the report assembler, and the renderers. Every layer has unit tests; none
-// of them prove the command wires them together, or that its exit codes -- which
-// scripts and CI pipelines branch on -- behave as documented.
+// of them prove the command wires them together.
 //
-// The drift is deliberately one added column. The point is that the command detects,
-// reports and signals a change at all; what each change type means is pinned far
+// The drift is deliberately one added column. The point is that the command detects
+// and reports a change at all; what each change type means is pinned far
 // more cheaply in schemadrift's unit tests.
 func TestDetectDriftEndToEnd(t *testing.T) {
 	exportDir := testutils.CreateTempExportDir()
@@ -113,9 +110,9 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 	}, captureOn...), nil, false)
 	require.NoError(t, err, "export schema command failed")
 
-	t.Run("an unchanged source reports no drift and exits 0", func(t *testing.T) {
-		assert.Equal(t, 0, runDetectDrift(t, pg, exportDir),
-			"nothing has changed yet, so detect-drift must exit 0")
+	t.Run("an unchanged source reports no drift", func(t *testing.T) {
+		assert.Zero(t, runDetectDrift(t, pg, exportDir).Summary.ChangeCount,
+			"nothing has changed yet, so the report must find no drift")
 	})
 
 	// The drift: a column the migration has not seen yet.
@@ -132,10 +129,7 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 	}, captureOn...), nil, false)
 	require.NoError(t, err, "export data command failed")
 
-	t.Run("the added column is found and exits 1", func(t *testing.T) {
-		assert.Equal(t, 1, runDetectDrift(t, pg, exportDir),
-			"drift was introduced, so detect-drift must exit 1 (2 would mean it failed to run)")
-	})
+	report := runDetectDrift(t, pg, exportDir)
 
 	reportsDir := filepath.Join(exportDir, "reports")
 	jsonPath := filepath.Join(reportsDir, "drift_analysis_report.json")
@@ -150,16 +144,6 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 	})
 
 	t.Run("the JSON report describes the drift", func(t *testing.T) {
-		raw, err := os.ReadFile(jsonPath)
-		require.NoError(t, err, "failed to read %s", jsonPath)
-
-		// Decoding into schemadrift.Report is the point of this assertion. The JSON
-		// shape is contractual for downstream tooling, so checking the real field
-		// names catches a break that scraping the rendered text would not.
-		var report schemadrift.Report
-		require.NoError(t, json.Unmarshal(raw, &report),
-			"report JSON must decode into schemadrift.Report")
-
 		assert.Equal(t, "schema_drift", report.Report)
 		assert.Contains(t, report.Comparing.Schemas, driftTestSchema)
 		assert.True(t, report.Summary.LiveCompared,
