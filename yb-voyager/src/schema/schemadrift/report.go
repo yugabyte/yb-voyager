@@ -61,13 +61,11 @@ type Window struct {
 
 // Comparing states what was actually compared, not what the user typed: the
 // whole universe when unfiltered, the resolved keep-set when a --*-list
-// narrowed it. The *Filtered flags tell the two apart.
+// narrowed it.
 type Comparing struct {
-	Schemas             []string `json:"schemas"`
-	Tables              []string `json:"tables"`
-	TablesFiltered      bool     `json:"tables_filtered"`
-	ObjectTypes         []string `json:"object_types"`
-	ObjectTypesFiltered bool     `json:"object_types_filtered"`
+	Schemas     []string `json:"schemas"`
+	Tables      []string `json:"tables"`
+	ObjectTypes []string `json:"object_types"`
 }
 
 // Summary carries report-wide counters.

@@ -35,12 +35,6 @@ type DetectionConfig struct {
 	Snapshots []schemasnapshot.SchemaSnapshot
 	// The exact sets compared, filtered or not; Comparing is rendered from it.
 	Scope schemadiff.Scope
-	// Whether the user narrowed each dimension. This is the one fact Scope cannot
-	// carry: "these 12 tables" and "these 12 tables, which are all of them" are the
-	// same set, and a report that cannot tell them apart lets a reader take "no
-	// drift" across 12 of 400 tables for "no drift anywhere".
-	TablesFiltered      bool
-	ObjectTypesFiltered bool
 }
 
 // BuildReport assembles a Report from p, comparing each usable snapshot to the
@@ -133,11 +127,9 @@ func BuildReport(p DetectionConfig) Report {
 			Tables: lo.Map(p.Scope.Tables, func(r schemasnapshot.ObjectRef, _ int) string {
 				return r.ForDisplay(p.Source.DatabaseType)
 			}),
-			TablesFiltered: p.TablesFiltered,
 			ObjectTypes: lo.Map(p.Scope.ObjectTypes, func(t schemadiff.ObjectType, _ int) string {
 				return string(t)
 			}),
-			ObjectTypesFiltered: p.ObjectTypesFiltered,
 		},
 		Summary: Summary{
 			ChangeCount:           len(drifts),

@@ -582,8 +582,7 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: before},
 			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: after},
 		},
-		Scope:          scope,
-		TablesFiltered: true,
+		Scope: scope,
 	}
 
 	report := BuildReport(p)
@@ -594,8 +593,6 @@ func TestBuildReport_ScopeFilteringKeepsOnlyListedTable(t *testing.T) {
 	// Comparing is rendered from Scope, so it cannot disagree with what was filtered.
 	assert.Equal(t, []string{"public.invoices"}, report.Comparing.Tables)
 	assert.Equal(t, []string{"TABLE", "COLUMN"}, report.Comparing.ObjectTypes)
-	assert.True(t, report.Comparing.TablesFiltered)
-	assert.False(t, report.Comparing.ObjectTypesFiltered, "object types were not narrowed, even though the set is stated")
 }
 
 func TestPhaseFor(t *testing.T) {

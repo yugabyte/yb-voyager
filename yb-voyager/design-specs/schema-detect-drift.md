@@ -99,17 +99,15 @@ const LabelSourceLive = "source_live" // accepts no reason; never persisted
 
 ```go
 type DetectionConfig struct {
-	Source              Source
-	Snapshots           []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
-	Scope               schemadiff.Scope // the exact sets compared; Comparing is rendered from it
-	TablesFiltered      bool             // whether the user narrowed each dimension
-	ObjectTypesFiltered bool
+	Source    Source
+	Snapshots []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
+	Scope     schemadiff.Scope                // the exact sets compared; Comparing is rendered from it
 }
 ```
 
 The complete input to `BuildReport`. Plain data, no connections or handles, so the assembler is testable with fixtures.
 
-`Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which now holds the exact sets either way, so they are not passed separately. The two booleans are the one fact `Scope` cannot carry: "these 12 tables" and "these 12 tables, which happen to be all of them" are the same set, and a reader of the report -- often not the person who ran the command -- needs to know which it was before concluding that no drift means none anywhere.
+`Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which holds the exact sets compared, so they are not passed separately. The report does not say whether a list flag narrowed those sets: `Scope` cannot carry that, and the listed sets already tell a reader what "no drift" covers.
 
 ```go
 func BuildReport(p DetectionConfig) Report
@@ -210,11 +208,9 @@ type Window struct {
 }
 
 type Comparing struct {
-	Schemas             []string `json:"schemas"`
-	Tables              []string `json:"tables"`       // what was compared, not what was typed
-	TablesFiltered      bool     `json:"tables_filtered"`
-	ObjectTypes         []string `json:"object_types"`
-	ObjectTypesFiltered bool     `json:"object_types_filtered"`
+	Schemas     []string `json:"schemas"`
+	Tables      []string `json:"tables"` // what was compared, not what was typed
+	ObjectTypes []string `json:"object_types"`
 }
 
 type Summary struct {
@@ -257,7 +253,7 @@ type CapturePoint struct {
 }
 ```
 
-`Comparing` states what was compared, not what the user typed. Unfiltered, `Tables` is the whole universe; filtered, it is the resolved keep-set. The `*Filtered` flags tell the two apart so an empty list never has to mean two things.
+`Comparing` states what was compared, not what the user typed. Unfiltered, `Tables` is the whole universe; filtered, it is the resolved keep-set.
 
 `CapturePoints` is every point on the timeline, not only the ones holding schema: a stored capture, a stored placeholder (the capture failed, so nothing is behind it), and the live read (never persisted). `StoredCaptureCount` counts the first two -- a placeholder is a persisted row -- so it is a count of stored records, not of usable snapshots.
 
@@ -365,13 +361,13 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`, and the resolved lists and flags for `Comparing`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
 The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report.
 
 | Flag | Resolution |
 | :---- | :---- |
-| neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set, `TablesFiltered=false` |
+| neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set |
 | `--table-list` | patterns resolved against the universe with the same glob matcher as export; unknown pattern is an operational error |
 | `--exclude-table-list` | resolved the same way, then complemented against the universe; an empty result is an operational error (the report would be empty, so the command says so rather than emitting one) |
 | both | operational error |
