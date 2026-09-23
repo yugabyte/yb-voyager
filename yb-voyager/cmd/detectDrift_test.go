@@ -565,9 +565,9 @@ func TestNothingComparedError(t *testing.T) {
 
 func TestCountDriftsBy(t *testing.T) {
 	drifts := []schemadrift.DriftEntry{
-		{Type: schemadiff.ColumnAdded, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
-		{Type: schemadiff.ColumnAdded, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
-		{Type: schemadiff.TableDropped, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
+		{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+		{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+		{Diff: schemadrift.Diff{Type: schemadiff.TableDropped}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
 	}
 
 	byType := countDriftsBy(drifts, func(d schemadrift.DriftEntry) string { return string(d.Type) })
@@ -607,8 +607,8 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 			LiveCompared:          true,
 		},
 		Drifts: []schemadrift.DriftEntry{
-			{Type: schemadiff.ColumnAdded, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
-			{Type: schemadiff.TableDropped, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
+			{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+			{Diff: schemadrift.Diff{Type: schemadiff.TableDropped}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
 		},
 	}
 
