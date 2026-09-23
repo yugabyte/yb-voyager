@@ -186,31 +186,25 @@ func sourceLine(s Source) string {
 }
 
 // comparingSummary renders the banner's collapsed summary line, e.g.
-// "public · all 12 tables · all 2 object types". Counts rather than a bare "all",
-// so the reader learns how much was actually compared.
+// "public · 12 tables · 2 object types". Counts rather than a bare "all", so the
+// reader learns how much was actually compared.
 func comparingSummary(c Comparing) string {
 	return strings.Join([]string{
 		schemaLabel(c.Schemas),
-		scopeCountLabel(len(c.Tables), c.TablesFiltered, "table"),
-		scopeCountLabel(len(c.ObjectTypes), c.ObjectTypesFiltered, "object type"),
+		scopeCountLabel(len(c.Tables), "table"),
+		scopeCountLabel(len(c.ObjectTypes), "object type"),
 	}, " · ")
 }
 
-// scopeCountLabel renders one dimension: "all 12 tables", or "12 tables (filtered)".
-// An empty set reads "no tables" rather than claiming "all".
-func scopeCountLabel(n int, filtered bool, noun string) string {
+func scopeCountLabel(n int, noun string) string {
 	plural := noun + "s"
 	if n == 1 {
 		plural = noun
 	}
-	switch {
-	case n == 0:
+	if n == 0 {
 		return "no " + plural
-	case filtered:
-		return fmt.Sprintf("%d %s (filtered)", n, plural)
-	default:
-		return fmt.Sprintf("all %d %s", n, plural)
 	}
+	return fmt.Sprintf("%d %s", n, plural)
 }
 
 // schemaLabel names the schemas compared, capped like every other list in the
@@ -235,17 +229,9 @@ const maxScopeChips = 50
 // enumerate the names actually compared.
 func comparingScope(c Comparing) []scopeRow {
 	return []scopeRow{
-		{Label: scopeRowLabel("Tables", len(c.Tables), c.TablesFiltered), Chips: cappedChips(c.Tables)},
-		{Label: scopeRowLabel("Object types", len(c.ObjectTypes), c.ObjectTypesFiltered), Chips: cappedChips(c.ObjectTypes)},
+		{Label: fmt.Sprintf("Tables (%d)", len(c.Tables)), Chips: cappedChips(c.Tables)},
+		{Label: fmt.Sprintf("Object types (%d)", len(c.ObjectTypes)), Chips: cappedChips(c.ObjectTypes)},
 	}
-}
-
-// scopeRowLabel marks whether the count is everything there was, or a filter's result.
-func scopeRowLabel(title string, n int, filtered bool) string {
-	if filtered {
-		return fmt.Sprintf("%s (%d, filtered)", title, n)
-	}
-	return fmt.Sprintf("%s (%d)", title, n)
 }
 
 // cappedChips truncates to maxScopeChips, appending a "+N more" chip.

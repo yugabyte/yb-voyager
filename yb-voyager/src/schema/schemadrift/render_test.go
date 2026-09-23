@@ -338,3 +338,14 @@ func TestRenderHTML_EmptyReportDoesNotPanic(t *testing.T) {
 		assert.NotEmpty(t, out)
 	})
 }
+
+// The scope line states counts only: the report does not know whether a list
+// flag narrowed the set, so it must not claim "all".
+func TestComparingSummary(t *testing.T) {
+	assert.Equal(t, "schema public · 2 tables · 1 object type", comparingSummary(Comparing{
+		Schemas:     []string{"public"},
+		Tables:      []string{"public.orders", "public.invoices"},
+		ObjectTypes: []string{"TABLE"},
+	}))
+	assert.Equal(t, "no schemas · no tables · no object types", comparingSummary(Comparing{}))
+}
