@@ -44,7 +44,6 @@ func runDetectDrift(t *testing.T, pg testcontainers.TestContainer, exportDir str
 	_, err := testutils.RunVoyagerCommand(pg, "schema detect-drift", []string{
 		"--source-db-schema", driftTestSchema,
 		"--export-dir", exportDir,
-		"--output-format", "json,html",
 	}, nil, false)
 	require.NoError(t, err, "detect-drift must exit 0 once it has written the report")
 
@@ -148,7 +147,7 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 	jsonPath := filepath.Join(reportsDir, "drift_analysis_report.json")
 	htmlPath := filepath.Join(reportsDir, "drift_analysis_report.html")
 
-	t.Run("both requested formats are written", func(t *testing.T) {
+	t.Run("both formats are written by default", func(t *testing.T) {
 		for _, path := range []string{jsonPath, htmlPath} {
 			info, err := os.Stat(path)
 			require.NoError(t, err, "expected a report at %s", path)
