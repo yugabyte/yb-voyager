@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -290,14 +292,13 @@ func buildTimeline(capturePoints []CapturePoint, groups []intervalGroup, dbType 
 	groupFrom := make(map[time.Time]intervalGroup, len(groups))
 	for _, g := range groups {
 		if _, ok := capturePointAt[g.Window.From]; !ok {
-			return nil, fmt.Errorf("interval %s: no capture point opens it", intervalLabel(g.Window))
+			return nil, goerrors.Errorf("interval %s: no capture point opens it", intervalLabel(g.Window))
 		}
 		if _, ok := capturePointAt[g.Window.To]; !ok {
-			return nil, fmt.Errorf("interval %s: no capture point closes it", intervalLabel(g.Window))
+			return nil, goerrors.Errorf("interval %s: no capture point closes it", intervalLabel(g.Window))
 		}
 		if other, ok := groupFrom[g.Window.From]; ok {
-			return nil, fmt.Errorf("intervals %s and %s open at the same capture point",
-				intervalLabel(other.Window), intervalLabel(g.Window))
+			return nil, goerrors.Errorf("intervals %s and %s open at the same capture point", intervalLabel(other.Window), intervalLabel(g.Window))
 		}
 		groupFrom[g.Window.From] = g
 	}
@@ -440,7 +441,7 @@ func newFindingView(d DriftEntry, dbType string) (findingView, error) {
 			return findingView{}, fmt.Errorf("new value: %w", err)
 		}
 	default:
-		return findingView{}, fmt.Errorf("unexpected operation %q", d.Operation)
+		return findingView{}, goerrors.Errorf("unexpected operation %q", d.Operation)
 	}
 
 	return fv, nil
@@ -458,11 +459,11 @@ func kindLabel(diffType schemadiff.DiffType) string {
 // (sales."MixedCase", not the ambiguous sales.MixedCase). q+s equals ForDisplay.
 func objectPath(d DriftEntry, dbType string) (q, s string, err error) {
 	if d.Object.Schema == "" || d.Object.Name == "" {
-		return "", "", fmt.Errorf("object identity %+v has an empty schema or name", d.Object)
+		return "", "", goerrors.Errorf("object identity %+v has an empty schema or name", d.Object)
 	}
 	if d.ObjectType == schemadiff.ObjectTypeColumn {
 		if d.SubObject == "" {
-			return "", "", fmt.Errorf("column finding on %s has no column name", d.Object.ForDisplay(dbType))
+			return "", "", goerrors.Errorf("column finding on %s has no column name", d.Object.ForDisplay(dbType))
 		}
 		return d.Object.ForDisplay(dbType) + ".", minQuoted(d.SubObject, dbType), nil
 	}
@@ -514,7 +515,7 @@ var severityLabelText = map[Severity]string{
 func severityLabel(sev Severity) (string, error) {
 	s, ok := severityLabelText[sev]
 	if !ok {
-		return "", fmt.Errorf("unexpected severity %q", sev)
+		return "", goerrors.Errorf("unexpected severity %q", sev)
 	}
 	return s, nil
 }
@@ -572,7 +573,7 @@ func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (s
 		}
 		return strings.Join(parts, ", "), nil
 	default:
-		return "", fmt.Errorf("unexpected value type %T for attribute %q", value, attribute)
+		return "", goerrors.Errorf("unexpected value type %T for attribute %q", value, attribute)
 	}
 }
 
