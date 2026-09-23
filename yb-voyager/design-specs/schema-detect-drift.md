@@ -364,7 +364,7 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 **Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
-The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing to read the live catalog is an operational error (exit 2): exit 1 means "drift found", so a failed query must never exit with it.
+The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing to read the live catalog is an error (exit 1).
 
 | Flag | Resolution |
 | :---- | :---- |

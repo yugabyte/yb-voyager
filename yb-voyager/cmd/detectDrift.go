@@ -27,9 +27,7 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
@@ -94,15 +92,16 @@ applies anything on the target, it only writes report files.
 PREREQUISITE: those snapshots are only recorded when capture is enabled, which is currently
 off by default. Pass --disable-schema-snapshot-capture=false to export schema and export
 data. Capture cannot be turned on after the fact: a migration that ran without it has no
-history, and this command exits 2 rather than reporting a misleading "no drift".
+history, and this command fails rather than reporting a misleading "no drift".
 
 The report groups each change by the interval between the two captures that bracket it, and
 labels the interval with what Voyager was doing at the time (for example "export data:
 running"). Every change carries a severity, what the migration will do if the change is not
 reconciled on the target, and the corrective step.
 
-Exit codes: 0 = success, no drift found; 1 = success, drift found; 2 = operational error
-(bad flags, unreachable source, unsupported source type, etc.).`,
+Exit codes: 0 = the report was written, whether or not it found drift (a script reads
+summary.change_count in the JSON report); 1 = error (bad flags, unreachable source,
+unsupported source type, etc.).`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		resolveDetectDriftFlagDefaults()
@@ -116,14 +115,8 @@ Exit codes: 0 = success, no drift found; 1 = success, drift found; 2 = operation
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		driftFound, err := detectDrift()
-		if err != nil {
-			exitDriftOperationalError("%v", err)
-		}
-		if driftFound {
-			// Not a failure: the report is already on disk and says so. Exiting
-			// here rather than inside detectDrift lets its defers unwind first.
-			atexit.Exit(1)
+		if err := detectDrift(); err != nil {
+			utils.ErrExit("%w", err)
 		}
 	},
 }
@@ -193,26 +186,26 @@ func resolveDetectDriftFlagDefaults() {
 // source's table list and so happens later, inside resolveDriftScope.
 func validateDetectDriftFlags() {
 	if source.DBType != POSTGRESQL {
-		exitDriftOperationalError("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
+		utils.ErrExit("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
 	}
 
 	if driftTableList != "" && driftExcludeTableList != "" {
-		exitDriftOperationalError("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
+		utils.ErrExit("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
 	}
 	if driftObjectTypeList != "" && driftExcludeObjectTypeList != "" {
-		exitDriftOperationalError("--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them.")
+		utils.ErrExit("--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them.")
 	}
 
 	if err := validateDriftOutputFormat(driftOutputFormat); err != nil {
-		exitDriftOperationalError("%v", err)
+		utils.ErrExit("%w", err)
 	}
 
 	var err error
 	if driftParsedFlags.objectTypes, err = parseDriftObjectTypeList(driftObjectTypeList); err != nil {
-		exitDriftOperationalError("invalid --object-type-list: %v", err)
+		utils.ErrExit("invalid --object-type-list: %v", err)
 	}
 	if driftParsedFlags.excludeObjectTypes, err = parseDriftObjectTypeList(driftExcludeObjectTypeList); err != nil {
-		exitDriftOperationalError("invalid --exclude-object-type-list: %v", err)
+		utils.ErrExit("invalid --exclude-object-type-list: %v", err)
 	}
 }
 
@@ -276,10 +269,6 @@ type driftTableCandidate struct {
 	name *sqlname.ObjectName
 }
 
-// buildDriftTableCandidates reads the live catalog and hands the union off to
-// unionDriftTableCandidates. It lists tables through an error-returning call
-// rather than GetAllTableNames, which exits 1 on a query failure -- the code this
-// command reserves for "drift found".
 func buildDriftTableCandidates(listTables func(schema string) ([]string, error), schemas []string, defaultSchema string,
 	snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) ([]driftTableCandidate, error) {
 	var liveRefs []schemasnapshot.ObjectRef
@@ -484,12 +473,9 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 
 // ─── The run ─────────────────────────────────────────────────────────────────
 
-// detectDrift runs the command and reports whether drift was found. It never
-// exits: returning lets its defers unwind and leaves the exit code to the caller,
-// which is also what gives the atexit handlers (callhome among them) a chance to
-// run on every path. driftFound is only meaningful when err is nil, and by then
-// the report is already on disk.
-func detectDrift() (driftFound bool, err error) {
+// detectDrift runs the command. It returns rather than exits, so its defers
+// unwind before the caller exits.
+func detectDrift() error {
 	// CreateMigrationProjectIfNotExists is idempotent: it's a no-op (aside from
 	// mkdir -p) if this export-dir already has a migration project. detect-drift
 	// only ever writes to <export-dir>/reports/ afterwards; it never touches
@@ -502,19 +488,19 @@ func detectDrift() (driftFound bool, err error) {
 	sqlname.SourceDBType = source.DBType
 
 	if err := source.DB().Connect(); err != nil {
-		return false, fmt.Errorf("failed to connect to source database: %w", err)
+		return fmt.Errorf("failed to connect to source database: %w", err)
 	}
 	defer source.DB().Disconnect()
 
-	source.FetchSourceInfo() // best-effort; populates source.DBVersion (used non-fatally elsewhere)
+	source.FetchSourceInfo()
 
 	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 	if err != nil {
-		return false, fmt.Errorf("failed to fetch schema names from source: %w", err)
+		return fmt.Errorf("failed to fetch schema names from source: %w", err)
 	}
 	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 	if err != nil {
-		return false, err
+		return err
 	}
 	// Raw (unquoted) names: compared against catalog values, never interpolated into
 	// SQL. The quoted form matches nothing -- see srcdb.Source.GetSchemaListUnquoted.
@@ -526,7 +512,7 @@ func detectDrift() (driftFound bool, err error) {
 	// from the live catalog still appears.
 	headers, err := schemasnapshot.ListSnapshots(metaDB)
 	if err != nil {
-		return false, fmt.Errorf("failed to list schema snapshots: %w", err)
+		return fmt.Errorf("failed to list schema snapshots: %w", err)
 	}
 	// Only the one-snapshot case gets a warning. With none at all the run cannot
 	// form an interval however the live read goes, so it always ends at
@@ -548,7 +534,7 @@ func detectDrift() (driftFound bool, err error) {
 			case lerr == nil:
 				content = c
 			case errors.Is(lerr, schemasnapshot.ErrSnapshotVersionUnsupported):
-				return false, fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr)
+				return fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr)
 			case errors.Is(lerr, schemasnapshot.ErrPlaceholderSnapshot), errors.Is(lerr, schemasnapshot.ErrSnapshotNotFound):
 				utils.PrintAndLogfWarning("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			default:
@@ -564,7 +550,7 @@ func detectDrift() (driftFound bool, err error) {
 
 	scope, err := resolveDriftScope(snapshots, live, schemas)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if live != nil {
@@ -583,23 +569,23 @@ func detectDrift() (driftFound bool, err error) {
 		Scope:     scope,
 	})
 	if err != nil {
-		return false, fmt.Errorf("build the drift report: %w", err)
+		return fmt.Errorf("build the drift report: %w", err)
 	}
 
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
 	// examined.
 	if report.Summary.ComparedIntervalCount == 0 {
-		return false, nothingComparedError(report)
+		return nothingComparedError(report)
 	}
 
 	writtenPaths, err := writeDriftReports(report, driftOutputFormat)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	printDriftSummary(report, writtenPaths)
 
-	return report.Summary.ChangeCount > 0, nil
+	return nil
 }
 
 // captureLiveSnapshotForDrift attempts a best-effort, in-memory-only schema
@@ -631,22 +617,6 @@ func captureLiveSnapshotForDrift(schemas []string) *schemasnapshot.SchemaSnapsho
 		return nil
 	}
 	return snap
-}
-
-// exitDriftOperationalError prints the given error to stderr (and the log) and
-// exits with code 2, the contractual exit code for detect-drift operational
-// errors (bad flags, unreachable source, unsupported source type, etc.).
-//
-// It deliberately does not use utils.ErrExit, which exits with code 1 -- that
-// would collide with detect-drift's own "success, drift found" exit code. It
-// still leaves via atexit, so the handlers main.go registers (callhome, child
-// cleanup, terminal restore after a password prompt) run as they do for every
-// other command.
-func exitDriftOperationalError(format string, args ...interface{}) {
-	msg := fmt.Sprintf(format, args...)
-	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
-	log.Errorf("schema detect-drift: %s", msg)
-	atexit.Exit(2)
 }
 
 // nothingComparedError explains why the run examined no interval, reading the

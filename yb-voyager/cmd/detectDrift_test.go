@@ -287,8 +287,6 @@ func candidateRefs(candidates []driftTableCandidate) []schemasnapshot.ObjectRef 
 	return refs
 }
 
-// A catalog read that fails must come back as an error: the caller turns it into
-// exit 2, where the old GetAllTableNames path exited 1, which means "drift found".
 func TestBuildDriftTableCandidates(t *testing.T) {
 	origDBType := source.DBType
 	t.Cleanup(func() { source.DBType = origDBType })
