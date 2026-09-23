@@ -440,14 +440,10 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	for _, si := range snapshots {
 		snapshotContents = append(snapshotContents, si.Content)
 	}
-	var liveContent *schemasnapshot.SnapshotContent
-	if live != nil {
-		liveContent = live.Content
-	}
 
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	universe, err := driftTableUniverse(source.DB().GetAllTableNamesRaw, schemas, snapshotContents, liveContent)
+	universe, err := driftTableUniverse(source.DB().GetAllTableNamesRaw, schemas, snapshotContents, live.Content)
 	if err != nil {
 		return schemadiff.Scope{}, err
 	}
@@ -465,7 +461,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	sort.Slice(allTuples, func(i, j int) bool { return allTuples[i].ForKey() < allTuples[j].ForKey() })
 	allRefs := driftObjectRefs(allTuples)
 	hasDefaultSchema := reg.DefaultSourceDBSchemaName != ""
-	partitionChildren := driftPartitionChildren(snapshotContents, liveContent)
+	partitionChildren := driftPartitionChildren(snapshotContents, live.Content)
 
 	var includeTables []schemasnapshot.ObjectRef
 	switch {
@@ -581,18 +577,18 @@ func detectDrift() error {
 		snapshots = append(snapshots, schemasnapshot.SchemaSnapshot{Header: h, Content: content})
 	}
 
-	// Must also precede Scope resolution: a live capture that succeeded contributes
-	// its tables to the candidate universe.
-	live := captureLiveSnapshotForDrift(schemas)
+	// Must also precede Scope resolution: the live capture contributes its tables
+	// to the candidate universe.
+	live, err := captureLiveSnapshotForDrift(schemas)
+	if err != nil {
+		return err
+	}
 
 	scope, err := resolveDriftScope(snapshots, live, schemas)
 	if err != nil {
 		return err
 	}
-
-	if live != nil {
-		snapshots = append(snapshots, *live)
-	}
+	snapshots = append(snapshots, *live)
 
 	report, err := schemadrift.BuildReport(schemadrift.DetectionConfig{
 		Source: schemadrift.Source{
@@ -625,23 +621,17 @@ func detectDrift() error {
 	return nil
 }
 
-// captureLiveSnapshotForDrift attempts a best-effort, in-memory-only schema
-// capture of the source for comparison against the historical snapshot chain.
-// Unlike CaptureAndSaveSnapshot, the result is never persisted. Any failure
-// (unsupported source type, capture error) is logged as a note and yields a nil
-// result -- the source being briefly unreachable (or the capture racing DDL)
-// must never fail the whole command, since the snapshot-only comparison is
-// still useful on its own.
-func captureLiveSnapshotForDrift(schemas []string) *schemasnapshot.SchemaSnapshot {
+// captureLiveSnapshotForDrift captures the source schema in memory for comparison
+// against the stored snapshots. Unlike CaptureAndSaveSnapshot, the result is never
+// persisted.
+func captureLiveSnapshotForDrift(schemas []string) (*schemasnapshot.SchemaSnapshot, error) {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
-		utils.PrintAndLogfWarning("Note: live schema capture is only supported for PostgreSQL sources; skipping live comparison.\n")
-		return nil
+		return nil, goerrors.Errorf("live schema capture: source is %T, expected *srcdb.PostgreSQL", source.DB())
 	}
 	db := pg.GetDB()
 	if db == nil {
-		utils.PrintAndLogfWarning("Note: no active database handle for live schema capture; skipping live comparison.\n")
-		return nil
+		return nil, goerrors.Errorf("live schema capture: no database handle after a successful connect")
 	}
 	snap, err := schemasnapshot.Capture(context.Background(), db, schemasnapshot.CaptureParams{
 		DatabaseType: source.DBType,
@@ -650,10 +640,9 @@ func captureLiveSnapshotForDrift(schemas []string) *schemasnapshot.SchemaSnapsho
 		Label:        schemasnapshot.LabelSourceLive,
 	})
 	if err != nil {
-		utils.PrintAndLogfWarning("Note: could not capture live schema for comparison: %v; continuing with snapshot-only comparison.\n", err)
-		return nil
+		return nil, fmt.Errorf("failed to capture the live source schema for comparison: %w", err)
 	}
-	return snap
+	return snap, nil
 }
 
 // nothingComparedError explains why the run examined no interval, reading the
@@ -746,7 +735,7 @@ func printDriftSummary(report schemadrift.Report, writtenPaths []string) {
 	printDriftSummaryField("Captures stored", utils.PrintAndLogf, "%d", report.Summary.StoredCaptureCount)
 	printDriftSummaryField("Intervals compared", utils.PrintAndLogf,
 		"%d (live source comparison: %t)", report.Summary.ComparedIntervalCount, report.Summary.LiveCompared)
-	printDriftSummaryField("Schemas", utils.PrintAndLogf, "%s", joinOrAllDrift(report.Comparing.Schemas))
+	printDriftSummaryField("Schemas", utils.PrintAndLogf, "%s", driftScopeLine(report.Comparing.Schemas))
 	printDriftSummaryField("Tables", utils.PrintAndLogf, "%s",
 		driftScopeLine(report.Comparing.Tables))
 
@@ -837,11 +826,4 @@ func formatDriftTimestamp(t time.Time) string {
 		return "-"
 	}
 	return t.Format(time.RFC3339)
-}
-
-func joinOrAllDrift(items []string) string {
-	if len(items) == 0 {
-		return "all"
-	}
-	return strings.Join(items, ", ")
 }
