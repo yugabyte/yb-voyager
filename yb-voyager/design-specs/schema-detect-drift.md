@@ -75,7 +75,7 @@ type Scope struct {
 }
 ```
 
-One positive allow-list per dimension, each holding the **exact** set to keep. The previous shape carried an include and an exclude list per dimension; "empty" was ambiguous and callers could pass combinations with no defined meaning. Resolving a user's `--exclude-*` flag into a keep-set is the caller's job because only the caller knows the full universe.
+One positive allow-list per dimension, each holding the **exact** set to keep. There is no exclude counterpart: an include and an exclude list together would leave "empty" ambiguous and admit combinations with no defined meaning. Resolving a user's `--exclude-*` flag into a keep-set is the caller's job because only the caller knows the full universe.
 
 **Empty means empty, not "all".** An unfiltered run passes the whole universe explicitly. The alternative -- reading an empty list as "keep everything" -- makes empty carry two meanings, "the user did not filter" and "the user excluded everything", and the second is a legitimate request the caller would then have to intercept before the engine inverted it.
 
