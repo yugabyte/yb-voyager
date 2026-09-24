@@ -79,9 +79,9 @@ var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, sc
 
 var detectDriftCmd = &cobra.Command{
 	Use: "detect-drift",
-	Short: "Report source schema changes made during the migration, and what to do about each one " +
+	Short: "[TECH PREVIEW] Report source schema changes made during the migration, and what to do about each one " +
 		"(needs --disable-schema-snapshot-capture=false on the export commands)",
-	Long: `Reports how the PostgreSQL source schema changed while the migration was running, and
+	Long: `[TECH PREVIEW] Reports how the PostgreSQL source schema changed while the migration was running, and
 what to do about each change.
 
 Voyager records a schema snapshot at each migration milestone -- export schema, export data

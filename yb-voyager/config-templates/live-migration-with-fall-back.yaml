@@ -680,8 +680,9 @@ initiate-cutover-to-source:
   restart-data-migration-source-target: false
 
 
-# Schema Drift Detection Configuration
-# ----------------------------------------------------------
+# ---------------------------------------------------------
+# [TECH PREVIEW] Schema Drift Detection Configuration
+# ---------------------------------------------------------
 
 ### Report how the source schema changed while the migration was running.
 ### Requires the export commands to have run with --disable-schema-snapshot-capture=false;
