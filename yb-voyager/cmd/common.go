@@ -1945,8 +1945,8 @@ func driftDetectionHint() string {
 	return fmt.Sprintf("\t%s --export-dir %q (with your source connection flags)", detectDriftCmd.CommandPath(), exportDir)
 }
 
-// Capture is off by default, so without this gate every hint below would send users to
-// a command that fails with "holds no schema snapshots". Placeholders are
+// Capture can be turned off, and older export dirs hold none, so without this gate a hint
+// below could send users to a command that fails with "holds no schema snapshots". Placeholders are
 // failed-capture markers carrying no schema, so they do not count.
 //
 // A listing failure is only logged, not returned: these hints are advisory, and the
