@@ -1930,6 +1930,10 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendComparePerformancePayload(status, exitErr, nil)
 	case archiveChangesCmd.CommandPath():
 		packAndSendArchiveChangesPayload(status, exitErr, metaDB, migrationUUID)
+	case detectDriftCmd.CommandPath():
+		// nil report: a run that built one has already sent it, so reaching here
+		// means it failed earlier (or that send failed).
+		packAndSendSchemaDriftPayload(status, exitErr, nil)
 	}
 }
 
