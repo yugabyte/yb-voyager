@@ -150,7 +150,7 @@ func setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t *testing.T
 		TargetDBType: YUGABYTEDB,
 		SSLMode:      "disable",
 	}
-	testYugabyteDBTarget = &TestTargetDB{
+	testYugabyteDBTarget = &testutils.TestTargetDB{
 		Tconf:         targetConf,
 		TestContainer: testYugabyteDBSource.TestContainer,
 		TargetDB:      tgtdb.NewTargetDB(&targetConf),
