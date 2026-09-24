@@ -242,6 +242,8 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 	err = nextIterationMetaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 		record.TableToCDCPartitionKey = parentImportDataStatusRecord.TableToCDCPartitionKey
 		record.CdcExpressionUniqueIndexTables = parentImportDataStatusRecord.CdcExpressionUniqueIndexTables
+		record.CdcPartitionKeyOverridesConfig = parentImportDataStatusRecord.CdcPartitionKeyOverridesConfig
+		record.CdcPartitioningStrategyConfig = parentImportDataStatusRecord.CdcPartitioningStrategyConfig
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update iteration import data status record: %w", err)
