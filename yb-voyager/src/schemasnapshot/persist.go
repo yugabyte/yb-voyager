@@ -33,6 +33,10 @@ const currentSnapshotVersion = 1
 var (
 	ErrSnapshotNotFound    = errors.New("snapshot not found")
 	ErrPlaceholderSnapshot = errors.New("snapshot is a placeholder: no schema content captured")
+	// ErrSnapshotVersionUnsupported means the stored snapshot cannot be read by
+	// this binary at all, as opposed to being absent or empty. Callers must not
+	// treat it as a skippable gap.
+	ErrSnapshotVersionUnsupported = errors.New("snapshot version is not supported by this yb-voyager")
 )
 
 // SaveSnapshot persists a fully-populated SchemaSnapshot (header + schema content) to the
@@ -144,10 +148,10 @@ func DecodeSnapshot(data []byte) (*SnapshotContent, error) {
 		return nil, fmt.Errorf("unmarshal snapshot: %w", err)
 	}
 	if snap.Version == 0 {
-		return nil, goerrors.Errorf("snapshot has no version set (Version 0 or missing); this library requires Version %d", currentSnapshotVersion)
+		return nil, fmt.Errorf("%w: no version set (Version 0 or missing); this library requires Version %d", ErrSnapshotVersionUnsupported, currentSnapshotVersion)
 	}
 	if snap.Version > currentSnapshotVersion {
-		return nil, goerrors.Errorf("snapshot Version %d is newer than this library understands (expected Version %d); upgrade yb-voyager", snap.Version, currentSnapshotVersion)
+		return nil, fmt.Errorf("%w: Version %d is newer than this library understands (expected Version %d); upgrade yb-voyager", ErrSnapshotVersionUnsupported, snap.Version, currentSnapshotVersion)
 	}
 	return &snap, nil
 }

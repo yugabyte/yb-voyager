@@ -379,6 +379,7 @@ var exportDirInitialisedCheckNeededList = []string{
 	"yb-voyager initiate cutover to source",
 	"yb-voyager initiate cutover to source-replica",
 	"yb-voyager initiate cutover to target",
+	"yb-voyager schema detect-drift",
 }
 
 var noLockNeededList = []string{
@@ -397,6 +398,7 @@ var noLockNeededList = []string{
 	"yb-voyager initiate",
 	"yb-voyager end",
 	"yb-voyager archive",
+	"yb-voyager schema",
 }
 
 var noPersistentPreRunNeededList = []string{
@@ -413,6 +415,7 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager cutover",
 	"yb-voyager archive",
 	"yb-voyager end",
+	"yb-voyager schema",
 }
 
 func shouldLock(cmd *cobra.Command) bool {

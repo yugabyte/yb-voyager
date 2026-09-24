@@ -61,13 +61,8 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before export. (only valid for PostgreSQL) Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.")
 
-	// Defaults to true (capture off) for now: nothing consumes the snapshots until the
-	// detect-drift command ships. Flip to false to enable capture by default once it does.
-	BoolVar(cmd.Flags(), &disableSchemaSnapshotCapture, "disable-schema-snapshot-capture", true,
-		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
-	// Hidden for now: capture is off by default and nothing consumes the snapshots until
-	// the detect-drift command ships. Still settable via CLI/config for internal use.
-	mustMarkFlagHidden(cmd, "disable-schema-snapshot-capture")
+	BoolVar(cmd.Flags(), &disableSchemaSnapshotCapture, "disable-schema-snapshot-capture", false,
+		"disable best-effort schema-snapshot capture during export. 'schema detect-drift' reads these snapshots. (only valid for PostgreSQL)")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -275,9 +270,6 @@ func registerExportDataFlags(cmd *cobra.Command) {
 func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
 		"interval (in minutes, must be at least 1) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
-	// Hidden for now: capture is off by default and nothing consumes the snapshots until
-	// the detect-drift command ships. Still settable via CLI/config for internal use.
-	mustMarkFlagHidden(cmd, "schema-snapshot-capture-interval")
 }
 
 // validateSchemaSnapshotCaptureInterval rejects an interval that would silently turn
