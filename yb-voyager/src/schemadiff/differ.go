@@ -16,11 +16,14 @@ package schemadiff
 
 import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 
-// Config configures a Differ. The zero value applies no filtering (pass-through).
-// Scope is the only knob today; future post-diff controls (e.g. IgnoreRules) will
-// land here as sibling fields, keeping NewDiffer's signature stable.
+// Config configures a Differ. Scope is the only knob today; future post-diff
+// controls (e.g. IgnoreRules) will land here as sibling fields, keeping NewDiffer's
+// signature stable.
+//
+// There is no useful zero value: Scope holds the exact set to keep, so a zero Config
+// keeps nothing. Callers pass the whole universe to run unfiltered.
 type Config struct {
-	Scope Scope // post-diff table/object-type scope; zero value keeps everything
+	Scope Scope // post-diff table/object-type scope; see Scope
 }
 
 // Differ is the configured entry point: it runs Diff and applies the configured
@@ -30,14 +33,14 @@ type Differ struct {
 	cfg Config
 }
 
-// NewDiffer constructs a Differ with the given Config. A zero Config yields a
-// pass-through Differ whose Diff output matches the package-level Diff function.
+// NewDiffer constructs a Differ with the given Config. To match the package-level
+// Diff function, pass a Scope listing every table and object type in play.
 func NewDiffer(cfg Config) *Differ {
 	return &Differ{cfg: cfg}
 }
 
 // Diff computes the differences between snapshots a and b and applies the
-// configured filters. With a zero Config it is equivalent to the package-level Diff.
+// configured filters.
 func (d *Differ) Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 	return FilterByScope(Diff(a, b), d.cfg.Scope)
 }
