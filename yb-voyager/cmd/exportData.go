@@ -363,6 +363,14 @@ func startNextIterationImportDataToTarget() {
 		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
+	if importDataStatusRecord.CdcPartitioningStrategyConfig != "" {
+		cmd = append(cmd, "--cdc-partition-key", importDataStatusRecord.CdcPartitioningStrategyConfig)
+	}
+
+	if importDataStatusRecord.CdcPartitionKeyOverridesConfig != "" {
+		cmd = append(cmd, "--cdc-partition-key-overrides", importDataStatusRecord.CdcPartitionKeyOverridesConfig)
+	}
+
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
 	utils.PrintAndLogfPhase("\nStarting import data to target on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
 	fmt.Println()
