@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package importdata
 
 import (
 	"bufio"
@@ -32,6 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -56,16 +57,30 @@ metainfo/import_data_state/table::<table_name>/file::<base_name>:<path_hash>/
 	link -> dataFile
 	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<cum_byte_offset_end>.<state>
 */
+// ImportDataStateConfig holds the values ImportDataState, and the Batch objects it
+// creates, read. They used to be cmd package-level variables; cmd copies them in.
+type ImportDataStateConfig struct {
+	ExportDir          string
+	ImporterRole       string
+	Tdb                tgtdb.TargetDB
+	Tconf              tgtdb.TargetConf
+	MigrationUUID      uuid.UUID
+	TruncateSplits     utils.BoolStr
+	DataFileDescriptor *datafile.Descriptor
+}
+
 type ImportDataState struct {
+	cfg                     ImportDataStateConfig
 	exportDir               string
 	stateDir                string
 	inProgressTaskImporters map[int]fileTaskImportStatusChecker // used to fetch in-memory status from FileTaskImporter
 }
 
-func NewImportDataState(exportDir string) *ImportDataState {
+func NewImportDataState(cfg ImportDataStateConfig) *ImportDataState {
 	return &ImportDataState{
-		exportDir:               exportDir,
-		stateDir:                filepath.Join(exportDir, "metainfo", "import_data_state", importerRole),
+		cfg:                     cfg,
+		exportDir:               cfg.ExportDir,
+		stateDir:                filepath.Join(cfg.ExportDir, "metainfo", "import_data_state", cfg.ImporterRole),
 		inProgressTaskImporters: make(map[int]fileTaskImportStatusChecker),
 	}
 }
@@ -158,7 +173,7 @@ func (s *ImportDataState) GetFileImportState(filePath string, tableNameTup sqlna
 		} else if batch.IsErrored() {
 			errorCount++
 		}
-		if batch.Number == LAST_SPLIT_NUM {
+		if batch.Number == constants.LAST_SPLIT_NUM {
 			batchGenerationCompleted = true
 		}
 	}
@@ -199,7 +214,7 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 			offsetStart is the line in original datafile from where current split starts
 			offsetEnd   is the line in original datafile from where next split starts
 		*/
-		if batch.Number == LAST_SPLIT_NUM {
+		if batch.Number == constants.LAST_SPLIT_NUM {
 			fileFullySplit = true
 		}
 		if batch.Number > lastBatchNumber {
@@ -332,15 +347,16 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 				continue
 			}
 			batch := &Batch{
-				SchemaName:    "",
-				TableNameTup:  tableNameTup,
-				FilePath:      filepath.Join(fileStateDir, file.Name()),
-				BaseFilePath:  filePath,
-				Number:        batchNum,
-				LineOffsetStart: offsetEnd - recordCount,
-				LineOffsetEnd:   offsetEnd,
-				ByteCount:     byteCount,
-				RecordCount:   recordCount,
+				cfg:              s.batchConfig(),
+				SchemaName:       "",
+				TableNameTup:     tableNameTup,
+				FilePath:         filepath.Join(fileStateDir, file.Name()),
+				BaseFilePath:     filePath,
+				Number:           batchNum,
+				LineOffsetStart:  offsetEnd - recordCount,
+				LineOffsetEnd:    offsetEnd,
+				ByteCount:        byteCount,
+				RecordCount:      recordCount,
 				CumByteOffsetEnd: cumByteOffsetEnd,
 			}
 			result = append(result, batch)
@@ -451,7 +467,7 @@ func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.U
 	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
 		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	var numInserts, numUpdates, numDeletes int64
-	err := tdb.QueryRow(query).Scan(&numInserts, &numUpdates, &numDeletes)
+	err := s.cfg.Tdb.QueryRow(query).Scan(&numInserts, &numUpdates, &numDeletes)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
@@ -471,11 +487,11 @@ func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numCha
 	if startClean {
 		// TODO: common definition for these batch metadata name tuples
 		evChanMetadataTbl := EVENT_CHANNELS_METADATA_TABLE_NAME
-		if tconf.TargetDBType == ORACLE {
+		if s.cfg.Tconf.TargetDBType == constants.ORACLE {
 			evChanMetadataTbl = strings.ToUpper(evChanMetadataTbl)
 		}
 		parts := strings.Split(evChanMetadataTbl, ".")
-		evChanMetadataTblName := sqlname.NewObjectName(tconf.TargetDBType, "public", parts[0], parts[1])
+		evChanMetadataTblName := sqlname.NewObjectName(s.cfg.Tconf.TargetDBType, "public", parts[0], parts[1])
 		evChanNt := sqlname.NameTuple{
 			CurrentName: evChanMetadataTblName,
 			SourceName:  nil,
@@ -487,11 +503,11 @@ func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numCha
 		}
 
 		evTblMetadataTbl := EVENTS_PER_TABLE_METADATA_TABLE_NAME
-		if tconf.TargetDBType == ORACLE {
+		if s.cfg.Tconf.TargetDBType == constants.ORACLE {
 			evTblMetadataTbl = strings.ToUpper(evTblMetadataTbl)
 		}
 		parts = strings.Split(evTblMetadataTbl, ".")
-		evTblMetadataTblName := sqlname.NewObjectName(tconf.TargetDBType, "public", parts[0], parts[1])
+		evTblMetadataTblName := sqlname.NewObjectName(s.cfg.Tconf.TargetDBType, "public", parts[0], parts[1])
 		evTblNt := sqlname.NameTuple{
 			CurrentName: evTblMetadataTblName,
 			SourceName:  nil,
@@ -516,7 +532,7 @@ func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numCha
 
 func (s *ImportDataState) clearMigrationStateFromTable(tableNameTup sqlname.NameTuple, migrationUUID uuid.UUID) error {
 	stmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", tableNameTup.ForUserQuery(), migrationUUID)
-	rowsAffected, err := tdb.Exec(stmt)
+	rowsAffected, err := s.cfg.Tdb.Exec(stmt)
 	if err != nil {
 		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 	}
@@ -548,7 +564,7 @@ func (s *ImportDataState) initChannelMetaInfo(migrationUUID uuid.UUID, numChans 
 		log.Info("event channels meta info already created. Skipping init.")
 		return nil
 	}
-	err = tdb.WithTx(func(tx *sql.Tx) error {
+	err = s.cfg.Tdb.WithTx(func(tx *sql.Tx) error {
 		for c := 0; c < numChans; c++ {
 			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
 			_, err := tx.Exec(insertStmt)
@@ -573,7 +589,7 @@ func (s *ImportDataState) getEventChannelsRowCount(migrationUUID uuid.UUID) (int
 	rowsStmt := fmt.Sprintf(
 		"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	var rowCount int64
-	err := tdb.QueryRow(rowsStmt).Scan(&rowCount)
+	err := s.cfg.Tdb.QueryRow(rowsStmt).Scan(&rowCount)
 	if err != nil {
 		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
 	}
@@ -590,7 +606,7 @@ func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID,
 		tableRowCount.Put(tableNameTup, rowCount)
 	}
 
-	return tdb.WithTx(func(tx *sql.Tx) error {
+	return s.cfg.Tdb.WithTx(func(tx *sql.Tx) error {
 		for _, tableNameTup := range tableNameTups {
 			rowCount, _ := tableRowCount.Get(tableNameTup)
 			if rowCount > 0 {
@@ -615,7 +631,7 @@ func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUI
 		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableNameTup.ForKey())
 	var rowCount int64
-	err := tdb.QueryRow(rowsStmt).Scan(&rowCount)
+	err := s.cfg.Tdb.QueryRow(rowsStmt).Scan(&rowCount)
 	if err != nil {
 		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
 	}
@@ -627,8 +643,8 @@ func (s *ImportDataState) cleanFileImportStateFromDB(filePath string, tableNameT
 	sname, tname := tableNameTup.ForCatalogQuery()
 	cmd := fmt.Sprintf(
 		`DELETE FROM %s WHERE migration_uuid = '%s' AND data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		BATCH_METADATA_TABLE_NAME, migrationUUID, filePath, sname, tname)
-	rowsAffected, err := tdb.Exec(cmd)
+		BATCH_METADATA_TABLE_NAME, s.cfg.MigrationUUID, filePath, sname, tname)
+	rowsAffected, err := s.cfg.Tdb.Exec(cmd)
 	if err != nil {
 		return fmt.Errorf("remove %q related entries from %s: %w", tableNameTup, BATCH_METADATA_TABLE_NAME, err)
 	}
@@ -640,9 +656,9 @@ func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableNameTup sqlna
 	var snapshotRowCount int64
 	sname, tname := tableNameTup.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT COALESCE(SUM(rows_imported),0) FROM %s where migration_uuid='%s' AND schema_name='%s' AND table_name='%s'`,
-		BATCH_METADATA_TABLE_NAME, migrationUUID, sname, tname)
+		BATCH_METADATA_TABLE_NAME, s.cfg.MigrationUUID, sname, tname)
 	log.Infof("query to get total row count for snapshot import of table %s: %s", tableNameTup, query)
-	err := tdb.QueryRow(query).Scan(&snapshotRowCount)
+	err := s.cfg.Tdb.QueryRow(query).Scan(&snapshotRowCount)
 	if err != nil {
 		log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableNameTup, err)
 		return 0, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableNameTup, err)
@@ -660,7 +676,7 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 	metainfo := map[int]EventChannelMetaInfo{}
 
 	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	rows, err := tdb.Query(query)
+	rows, err := s.cfg.Tdb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
 	}
@@ -680,7 +696,7 @@ func (s *ImportDataState) IsEventBatchAlreadyImported(batch *tgtdb.EventBatch, m
 	query := fmt.Sprintf("SELECT last_applied_vsn FROM %s WHERE migration_uuid='%s' AND channel_no=%d",
 		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, batch.ChanNo)
 	var lastAppliedVsnInChan int64
-	err := tdb.QueryRow(query).Scan(&lastAppliedVsnInChan)
+	err := s.cfg.Tdb.QueryRow(query).Scan(&lastAppliedVsnInChan)
 	if err != nil {
 		return false, err
 	}
@@ -692,7 +708,7 @@ func (s *ImportDataState) GetImportedEventsStatsForTable(tableNameTup sqlname.Na
 	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
 		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableNameTup.ForKey(), migrationUUID)
 	log.Infof("query to get import stats for table %s: %s", tableNameTup.ForKey(), query)
-	err := tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
+	err := s.cfg.Tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
 		&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
 	if err != nil {
 		log.Errorf("error in getting import stats from target db: %v", err)
@@ -720,7 +736,7 @@ func (s *ImportDataState) GetImportedEventsStatsForTableList(tableNameTupList []
 	query := fmt.Sprintf(`SELECT table_name, SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
 		WHERE migration_uuid='%s' GROUP BY table_name HAVING table_name in ('%s')`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableListQuery)
 	log.Infof("query to get import stats for tables '%s': %s", tableListQuery, query)
-	rows, err := tdb.Query(query)
+	rows, err := s.cfg.Tdb.Query(query)
 	if err != nil {
 		log.Errorf("error in getting import stats from target db: %v", err)
 		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
@@ -803,7 +819,7 @@ func (bw *BatchWriter) Init() error {
 		return goerrors.Errorf("create file %q: %w", currTmpFileName, err)
 	}
 	bw.outFile = outFile
-	bw.w = bufio.NewWriterSize(outFile, 4*MB)
+	bw.w = bufio.NewWriterSize(outFile, 4*constants.MB)
 	return nil
 }
 
@@ -851,7 +867,7 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, 
 
 	batchNumber := bw.batchNumber
 	if isLastBatch {
-		batchNumber = LAST_SPLIT_NUM
+		batchNumber = constants.LAST_SPLIT_NUM
 	}
 	fileStateDir := bw.state.getFileStateDir(bw.filePath, bw.tableName)
 	batchFilePath := fmt.Sprintf("%s/batch::%d.%d.%d.%d.%d.C",
@@ -862,15 +878,16 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64, 
 		return nil, goerrors.Errorf("rename %q to %q: %w", tmpFileName, batchFilePath, err)
 	}
 	batch := &Batch{
-		SchemaName:    "",
-		TableNameTup:  bw.tableName,
-		FilePath:      batchFilePath,
-		BaseFilePath:  bw.filePath,
-		Number:        batchNumber,
-		LineOffsetStart: offsetEnd - bw.NumRecordsWritten,
-		LineOffsetEnd:   offsetEnd,
-		RecordCount:   bw.NumRecordsWritten,
-		ByteCount:     byteCount,
+		cfg:              bw.state.batchConfig(),
+		SchemaName:       "",
+		TableNameTup:     bw.tableName,
+		FilePath:         batchFilePath,
+		BaseFilePath:     bw.filePath,
+		Number:           batchNumber,
+		LineOffsetStart:  offsetEnd - bw.NumRecordsWritten,
+		LineOffsetEnd:    offsetEnd,
+		RecordCount:      bw.NumRecordsWritten,
+		ByteCount:        byteCount,
 		CumByteOffsetEnd: cumByteOffsetEnd,
 	}
 	return batch, nil
@@ -883,18 +900,34 @@ const (
 	PARTIAL_BATCH_ERROR_NOTE = "NOTE: It is possible that the batch was partially ingested. Therefore, some of the rows in this batch may have been imported successfully."
 )
 
+// batchConfig is the subset of ImportDataStateConfig the Batch methods read.
+type batchConfig struct {
+	MigrationUUID      uuid.UUID
+	TruncateSplits     utils.BoolStr
+	DataFileDescriptor *datafile.Descriptor
+}
+
+func (s *ImportDataState) batchConfig() batchConfig {
+	return batchConfig{
+		MigrationUUID:      s.cfg.MigrationUUID,
+		TruncateSplits:     s.cfg.TruncateSplits,
+		DataFileDescriptor: s.cfg.DataFileDescriptor,
+	}
+}
+
 type Batch struct {
-	Number        int64
-	TableNameTup  sqlname.NameTuple
-	SchemaName    string
-	FilePath      string // Path of the batch file.
-	BaseFilePath  string // Path of the original data file.
-	LineOffsetStart int64
-	LineOffsetEnd   int64
-	RecordCount   int64
-	ByteCount     int64
+	cfg              batchConfig
+	Number           int64
+	TableNameTup     sqlname.NameTuple
+	SchemaName       string
+	FilePath         string // Path of the batch file.
+	BaseFilePath     string // Path of the original data file.
+	LineOffsetStart  int64
+	LineOffsetEnd    int64
+	RecordCount      int64
+	ByteCount        int64
 	CumByteOffsetEnd int64 // Absolute byte position in the original data file after this batch.
-	Interrupted   bool
+	Interrupted      bool
 }
 
 func (batch *Batch) Open() (*os.File, error) {
@@ -909,7 +942,7 @@ func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
 		return nil, goerrors.Errorf("open batch file %q: %w", batch.GetFilePath(), err)
 	}
 
-	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, dataFileDescriptor, 0)
+	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, batch.cfg.DataFileDescriptor, 0)
 	if err != nil {
 		return nil, goerrors.Errorf("create datafile for %q: %w", batch.GetFilePath(), err)
 	}
@@ -1003,7 +1036,7 @@ func (batch *Batch) MarkDone() error {
 		return fmt.Errorf("rename %q => %q: %w", inProgressFilePath, doneFilePath, err)
 	}
 
-	if truncateSplits {
+	if batch.cfg.TruncateSplits {
 		err = os.Truncate(doneFilePath, 0)
 		if err != nil {
 			log.Warnf("truncate file %q: %s", doneFilePath, err)
@@ -1018,7 +1051,7 @@ func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 	query := fmt.Sprintf(
 		"SELECT rows_imported FROM %s "+
 			"WHERE migration_uuid = '%s' AND data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
-		BATCH_METADATA_TABLE_NAME, migrationUUID, batch.BaseFilePath, batch.Number, schemaName, tableName)
+		BATCH_METADATA_TABLE_NAME, batch.cfg.MigrationUUID, batch.BaseFilePath, batch.Number, schemaName, tableName)
 
 	return query
 }
@@ -1029,7 +1062,7 @@ func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 	cmd := fmt.Sprintf(
 		`INSERT INTO %s (migration_uuid, data_file_name, batch_number, schema_name, table_name, rows_imported)
 			VALUES ('%s', '%s', %d, '%s', '%s', %v)`,
-		BATCH_METADATA_TABLE_NAME, migrationUUID, batch.BaseFilePath, batch.Number, schemaName, tableName, rowsAffected)
+		BATCH_METADATA_TABLE_NAME, batch.cfg.MigrationUUID, batch.BaseFilePath, batch.Number, schemaName, tableName, rowsAffected)
 
 	return cmd
 }

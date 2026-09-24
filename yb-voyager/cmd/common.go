@@ -372,7 +372,7 @@ func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor.Save()
 }
 
-func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) {
+func displayImportedRowCountSnapshot(state *importdata.ImportDataState, tasks []*importdata.ImportFileTask, errorHandler importdata.ImportDataErrorHandler) {
 	if importerRole == IMPORT_FILE_ROLE {
 		fmt.Printf("import report\n")
 	} else {
@@ -1129,7 +1129,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 	case "source-replica":
 		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	}
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	var snapshotDataFileDescriptor *datafile.Descriptor
 
 	if dataFileDescriptor != nil {
@@ -1211,7 +1211,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 
 func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { //used for import data file case right now
 	importerRole = IMPORT_FILE_ROLE
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	dataFileDescriptor, err := prepareDummyDescriptor(state)
 	if err != nil {
 		return nil, fmt.Errorf("prepare dummy descriptor: %w", err)

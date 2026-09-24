@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package importdata
 
 import (
 	"errors"
@@ -25,14 +25,15 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -83,7 +84,23 @@ FileTaskImporter is responsible for importing an ImportFileTask.
 It uses a FileBatchProducer to produce batches. It submits each batch to a provided
 worker pool for processing. It also maintains and updates the progress of the task.
 */
+// FileTaskImporterConfig holds the values FileTaskImporter reads. They used to be
+// cmd package-level variables; cmd copies them in.
+type FileTaskImporterConfig struct {
+	ImporterRole          string
+	Tdb                   tgtdb.TargetDB
+	Tconf                 tgtdb.TargetConf
+	ExportDir             string
+	MigrationUUID         uuid.UUID
+	DataFileDescriptor    *datafile.Descriptor
+	ReportProgressInBytes bool
+	ControlPlane          cp.ControlPlane
+	TableToColumnNames    *utils.StructMap[sqlname.NameTuple, []string]
+	TableNameToSchema     *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
+}
+
 type FileTaskImporter struct {
+	cfg   FileTaskImporterConfig
 	state *ImportDataState
 
 	task                 *ImportFileTask
@@ -98,28 +115,28 @@ type FileTaskImporter struct {
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
 
-	errorHandler             importdata.ImportDataErrorHandler
+	errorHandler             ImportDataErrorHandler
 	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 
 	resumeInfoShown bool
 }
 
-func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProducer FileBatchProducer, workerPool *pool.Pool,
+func NewFileTaskImporter(cfg FileTaskImporterConfig, task *ImportFileTask, state *ImportDataState, batchProducer FileBatchProducer, workerPool *pool.Pool,
 	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
-	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
-	totalProgressAmount := getTotalProgressAmount(task)
+	errorHandler ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
+	totalProgressAmount := GetTotalProgressAmount(task, cfg.ReportProgressInBytes)
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
-	currentProgressAmount := getImportedProgressAmount(task, state)
+	currentProgressAmount := getImportedProgressAmount(task, state, cfg.ReportProgressInBytes)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
 	if currentProgressAmount == 0 {
-		metrics.Get().SetImportSnapshotTableStarted(importerRole, task.TableNameTup)
+		metrics.Get().SetImportSnapshotTableStarted(cfg.ImporterRole, task.TableNameTup)
 	}
 
 	resumeInfoShown := false
 	if currentProgressAmount > 0 {
 		var resumeMsg string
-		if reportProgressInBytes {
+		if cfg.ReportProgressInBytes {
 			resumeMsg = "Resuming"
 		} else {
 			resumeMsg = fmt.Sprintf("Resuming: %d rows imported", currentProgressAmount)
@@ -129,13 +146,14 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	}
 
 	fti := &FileTaskImporter{
+		cfg:                       cfg,
 		state:                     state,
 		task:                      task,
 		batchProducer:             batchProducer,
 		workerPool:                workerPool,
 		colocatedImportBatchQueue: colocatedImportBatchQueue,
 		isTableColocated:          isTableColocated,
-		importBatchArgsProto:      getImportBatchArgsProto(task.TableNameTup, task.FilePath),
+		importBatchArgsProto:      getImportBatchArgsProto(cfg, task.TableNameTup, task.FilePath),
 		progressReporter:          progressReporter,
 		totalProgressAmount:       totalProgressAmount,
 		currentProgressAmount:     currentProgressAmount,
@@ -167,14 +185,14 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 func (fti *FileTaskImporter) recommendationForBatchError(ibe errs.ImportBatchError) string {
 	switch ibe.ErrorType() {
 	case errs.ERROR_TYPE_PK_VIOLATION:
-		return importdata.PK_VIOLATION_RECOMMENDATION_MESSAGE
+		return PK_VIOLATION_RECOMMENDATION_MESSAGE
 	case errs.ERROR_TYPE_FOREIGN_KEY_VIOLATION:
-		if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-			return importdata.FK_VIOLATION_RECOMMENDATION_MESSAGE
+		if fti.cfg.ImporterRole == constants.TARGET_DB_IMPORTER_ROLE || fti.cfg.ImporterRole == constants.IMPORT_FILE_ROLE {
+			return FK_VIOLATION_RECOMMENDATION_MESSAGE
 		}
-		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+		return STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
 	default:
-		return importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+		return STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
 	}
 }
 
@@ -207,7 +225,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		fti.workerPool.Go(importBatchFunc)
 	}
 
-	metrics.Get().RecordImportSnapshotBatchSubmitted(importerRole, fti.task.TableNameTup)
+	metrics.Get().RecordImportSnapshotBatchSubmitted(fti.cfg.ImporterRole, fti.task.TableNameTup)
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
@@ -265,10 +283,10 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		If that also fails then batch gets executed as fast path recovery due to attempt > 0 from here.
 	*/
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
+		tableSchema, _ := fti.cfg.TableNameToSchema.Get(batch.TableNameTup)
 		isRecoveryCandidate := (recoveryBatch || attempt > 0)
-		rowsAffected, err, isPartialBatchIngestionPossibleOnError = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
-		if err == nil || tdb.IsNonRetryableCopyError(err) {
+		rowsAffected, err, isPartialBatchIngestionPossibleOnError = fti.cfg.Tdb.ImportBatch(batch, &importBatchArgs, fti.cfg.ExportDir, tableSchema, isRecoveryCandidate)
+		if err == nil || fti.cfg.Tdb.IsNonRetryableCopyError(err) {
 			break
 		}
 		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
@@ -283,7 +301,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
-			msg := importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
+			msg := STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE
 			var ibe errs.ImportBatchError
 			if errors.As(err, &ibe) {
 				msg = fti.recommendationForBatchError(ibe)
@@ -316,7 +334,7 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 
 	// Update basic progress update for progress bar and control plane.
 	var progressAmount int64
-	if reportProgressInBytes {
+	if fti.cfg.ReportProgressInBytes {
 		progressAmount = batch.ByteCount
 	} else {
 		progressAmount = batch.RecordCount
@@ -327,7 +345,7 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 
 	// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
 	if fti.totalProgressAmount > fti.currentProgressAmount {
-		fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_IN_PROGRESS)
+		fti.updateProgressInControlPlane(constants.ROW_UPDATE_STATUS_IN_PROGRESS)
 	}
 
 	// update callhome metrics collector
@@ -335,8 +353,8 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 
-	metrics.Get().RecordImportSnapshotBatchIngested(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
-	metrics.Get().ObserveImportSnapshotBatchSize(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
+	metrics.Get().RecordImportSnapshotBatchIngested(fti.cfg.ImporterRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
+	metrics.Get().ObserveImportSnapshotBatchSize(fti.cfg.ImporterRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
@@ -344,25 +362,25 @@ func (fti *FileTaskImporter) PostProcess() {
 		fti.batchProducer.Close()
 	}
 
-	fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_COMPLETED)
+	fti.updateProgressInControlPlane(constants.ROW_UPDATE_STATUS_COMPLETED)
 
-	metrics.Get().SetImportSnapshotTableCompleted(importerRole, fti.task.TableNameTup)
+	metrics.Get().SetImportSnapshotTableCompleted(fti.cfg.ImporterRole, fti.task.TableNameTup)
 
 	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
 }
 
 func (fti *FileTaskImporter) updateProgressInControlPlane(status int) {
-	if importerRole == TARGET_DB_IMPORTER_ROLE {
+	if fti.cfg.ImporterRole == constants.TARGET_DB_IMPORTER_ROLE {
 		importDataTableMetrics := createImportDataTableMetrics(fti.task.TableNameTup,
-			fti.currentProgressAmount, fti.totalProgressAmount, status)
-		controlPlane.UpdateImportedRowCount(
+			fti.currentProgressAmount, fti.totalProgressAmount, status, fti.cfg.MigrationUUID)
+		fti.cfg.ControlPlane.UpdateImportedRowCount(
 			[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
 	}
 }
 
 // ============================================================================= //
 
-func getTotalProgressAmount(task *ImportFileTask) int64 {
+func GetTotalProgressAmount(task *ImportFileTask, reportProgressInBytes bool) int64 {
 	if reportProgressInBytes {
 		return task.FileSize
 	} else {
@@ -370,7 +388,7 @@ func getTotalProgressAmount(task *ImportFileTask) int64 {
 	}
 }
 
-func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int64 {
+func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState, reportProgressInBytes bool) int64 {
 	if reportProgressInBytes {
 		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
 		if err != nil {
@@ -387,7 +405,7 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 }
 
 func createImportDataTableMetrics(tableNameTup sqlname.NameTuple, countLiveRows int64, countTotalRows int64,
-	status int) cp.UpdateImportedRowCountEvent {
+	status int, migrationUUID uuid.UUID) cp.UpdateImportedRowCountEvent {
 
 	//Earlier we were parsing the ForKey format of qualified table name for schema and table name
 	//now we are using the ForKeyTableSchema method to get same the schema and table name
@@ -409,9 +427,9 @@ func createImportDataTableMetrics(tableNameTup sqlname.NameTuple, countLiveRows 
 	return result
 }
 
-func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
-	columns, _ := TableToColumnNames.Get(tableNameTup)
-	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
+func getImportBatchArgsProto(cfg FileTaskImporterConfig, tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
+	columns, _ := cfg.TableToColumnNames.Get(tableNameTup)
+	columns, err := cfg.Tdb.QuoteAttributeNames(tableNameTup, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %w", err)
 	}
@@ -422,23 +440,23 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
 	*/
 	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup})
+	tableToPKColumns, err := cfg.Tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup})
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}
 	pkColumns, _ := tableToPKColumns.Get(tableNameTup)
-	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
+	pkColumns, err = cfg.Tdb.QuoteAttributeNames(tableNameTup, pkColumns)
 	if err != nil {
 		utils.ErrExit("if required quote primary key column names: %w", err)
 	}
 
-	pkConstraintNames, err := tdb.GetPrimaryKeyConstraintNames(tableNameTup)
+	pkConstraintNames, err := cfg.Tdb.GetPrimaryKeyConstraintNames(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key constraint name for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}
 
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
-	fileFormat := dataFileDescriptor.FileFormat
+	fileFormat := cfg.DataFileDescriptor.FileFormat
 
 	// from export data with ora2pg, it comes as an SQL file, with COPY command having data.
 	// Import-data also reads it appropriately with the help of sqlDataFile.
@@ -451,13 +469,13 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		Columns:           columns,
 		PrimaryKeyColumns: pkColumns,
 		PKConstraintNames: pkConstraintNames,
-		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
+		PKConflictAction:  cfg.Tconf.OnPrimaryKeyConflictAction,
 		FileFormat:        fileFormat,
-		Delimiter:         dataFileDescriptor.Delimiter,
-		HasHeader:         dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:         dataFileDescriptor.QuoteChar,
-		EscapeChar:        dataFileDescriptor.EscapeChar,
-		NullString:        dataFileDescriptor.NullString,
+		Delimiter:         cfg.DataFileDescriptor.Delimiter,
+		HasHeader:         cfg.DataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
+		QuoteChar:         cfg.DataFileDescriptor.QuoteChar,
+		EscapeChar:        cfg.DataFileDescriptor.EscapeChar,
+		NullString:        cfg.DataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto

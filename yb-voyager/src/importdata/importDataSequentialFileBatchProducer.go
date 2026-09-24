@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package importdata
 
 import (
 	"errors"
@@ -26,17 +26,33 @@ import (
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const FIRST_BATCH_NUM = 1
 
+// SequentialFileBatchProducerConfig holds the values the batch producers read. They
+// used to be cmd package-level variables; cmd copies them in.
+type SequentialFileBatchProducerConfig struct {
+	ImporterRole       string
+	Tdb                tgtdb.TargetDB
+	Tconf              tgtdb.TargetConf
+	DataFileDescriptor *datafile.Descriptor
+	DataStore          datastore.DataStore
+	BatchSizeInNumRows int64
+	ValueConverter     dbzm.SnapshotPhaseValueConverter
+	TableToColumnNames *utils.StructMap[sqlname.NameTuple, []string]
+}
+
 type SequentialFileBatchProducer struct {
+	cfg   SequentialFileBatchProducerConfig
 	task  *ImportFileTask
 	state *ImportDataState
 
@@ -60,7 +76,7 @@ type SequentialFileBatchProducer struct {
 	isRowTransformationRequired bool
 	rowProcessor                rowProcessor // in case transformations are required, we use this to read line string -> column values and write column values -> line string
 
-	errorHandler importdata.ImportDataErrorHandler
+	errorHandler ImportDataErrorHandler
 
 	//required to print some information for users to display during batch production
 	progressReporter *ImportDataProgressReporter
@@ -71,7 +87,7 @@ type rowProcessor interface {
 	WriteRow(columnValues []string) (string, error)
 }
 
-func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler importdata.ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*SequentialFileBatchProducer, error) {
+func NewSequentialFileBatchProducer(cfg SequentialFileBatchProducerConfig, task *ImportFileTask, state *ImportDataState, isRowTransformationRequired bool, errorHandler ImportDataErrorHandler, progressReporter *ImportDataProgressReporter) (*SequentialFileBatchProducer, error) {
 	if errorHandler == nil {
 		return nil, goerrors.Errorf("errorHandler must not be nil")
 	}
@@ -99,6 +115,7 @@ func NewSequentialFileBatchProducer(task *ImportFileTask, state *ImportDataState
 	}
 
 	return &SequentialFileBatchProducer{
+		cfg:                         cfg,
 		task:                        task,
 		state:                       state,
 		pendingBatches:              pendingBatches,
@@ -187,15 +204,15 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 		// TODO: fix. Here we compare line_bytes with max_batch_size_bytes
 		// but below we compare header_bytes+line_bytes with max_batch_size_bytes
 		// and that can result in disregarding the row and adding it to the next batch (lineFromPreviousBatch)
-		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
+		if currentBytesRead > p.cfg.Tdb.MaxBatchSizeInBytes() {
 			//If a row is itself larger than MaxBatchSizeInBytes erroring out
 			ybSpecificMsg := ""
-			if tconf.TargetDBType == YUGABYTEDB {
+			if p.cfg.Tconf.TargetDBType == constants.YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			errMsg := goerrors.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			errMsg := goerrors.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, p.cfg.Tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 			if p.errorHandler.ShouldAbort() {
-				return nil, fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+				return nil, fmt.Errorf("%w\n%s", errMsg, color.YellowString(STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 			}
 			err := p.handleRowProcessingErrorAndResetBytes(batchNum, line, errMsg, currentBytesRead)
 			if err != nil {
@@ -205,13 +222,13 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
-			columnNames, _ := TableToColumnNames.Get(p.task.TableNameTup)
+			columnNames, _ := p.cfg.TableToColumnNames.Get(p.task.TableNameTup)
 			lineBeforeConversion := line
 			line, err = p.transformRow(line, columnNames)
 			if err != nil {
 				errMsg := goerrors.Errorf("transforming line number=%d for table: %q in file %s: %w", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 				if p.errorHandler.ShouldAbort() {
-					return nil, fmt.Errorf("%w\n%s", errMsg, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+					return nil, fmt.Errorf("%w\n%s", errMsg, color.YellowString(STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 				}
 				err := p.handleRowProcessingErrorAndResetBytes(batchNum, lineBeforeConversion, errMsg, currentBytesRead)
 				if err != nil {
@@ -225,8 +242,8 @@ func (p *SequentialFileBatchProducer) produceNextBatch() (*Batch, error) {
 			}
 
 			// Check if adding this record exceeds the max batch size
-			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
-				batchBytesCount > tdb.MaxBatchSizeInBytes() {
+			if batchWriter.NumRecordsWritten == p.cfg.BatchSizeInNumRows ||
+				batchBytesCount > p.cfg.Tdb.MaxBatchSizeInBytes() {
 
 				// Finalize the current batch without adding the record.
 				// cumByteOffsetEnd must exclude the carried-forward line's bytes so that
@@ -287,7 +304,7 @@ func (p *SequentialFileBatchProducer) transformRow(row string, columnNames []str
 	if err != nil {
 		return "", fmt.Errorf("reading input row to columns: %w", err)
 	}
-	err = valueConverter.ConvertRow(p.task.TableNameTup, columnNames, columnValues)
+	err = p.cfg.ValueConverter.ConvertRow(p.task.TableNameTup, columnNames, columnValues)
 	if err != nil {
 		return "", fmt.Errorf("converting row in value converter: %w", err)
 	}
@@ -310,18 +327,18 @@ func (p *SequentialFileBatchProducer) openDataFile() error {
 // the header if HasHeader is true. Returns the opened DataFile positioned after
 // the header (or at byte 0 if no header).
 func (p *SequentialFileBatchProducer) openDataFileAndReadHeaderIfRequired() (datafile.DataFile, error) {
-	reader, err := dataStore.Open(p.task.FilePath)
+	reader, err := p.cfg.DataStore.Open(p.task.FilePath)
 	if err != nil {
 		return nil, goerrors.Errorf("preparing reader for file: %q: %w", p.task.FilePath, err)
 	}
 
-	df, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, 0)
+	df, err := datafile.NewDataFile(p.task.FilePath, reader, p.cfg.DataFileDescriptor, 0)
 	if err != nil {
 		_ = reader.Close() // best-effort cleanup on the error path
 		return nil, goerrors.Errorf("open datafile: %q: %w", p.task.FilePath, err)
 	}
 
-	if dataFileDescriptor.HasHeader {
+	if p.cfg.DataFileDescriptor.HasHeader {
 		p.header = df.GetHeader()
 		p.headerByteCount = df.GetBytesRead()
 		df.ResetBytesRead(0)
@@ -333,7 +350,7 @@ func (p *SequentialFileBatchProducer) openDataFileAndReadHeaderIfRequired() (dat
 // Used when lastBatchCumByteOffsetEnd > 0.
 func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 	// Read header before seeking (seek jumps past it).
-	if dataFileDescriptor.HasHeader {
+	if p.cfg.DataFileDescriptor.HasHeader {
 		headerDataFile, err := p.openDataFileAndReadHeaderIfRequired()
 		if err != nil {
 			return err
@@ -343,7 +360,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 
 	// Seek to byte offset. Falls back to SkipLines if datastore doesn't support OpenAt yet.
 	log.Infof("Seeking to byte offset %d in %q", p.lastBatchCumByteOffsetEnd, p.task.FilePath)
-	reader, err := dataStore.OpenAt(p.task.FilePath, p.lastBatchCumByteOffsetEnd)
+	reader, err := p.cfg.DataStore.OpenAt(p.task.FilePath, p.lastBatchCumByteOffsetEnd)
 	if err != nil {
 		if errors.Is(err, datastore.ErrOpenAtNotImplemented) {
 			log.Warnf("OpenAt not implemented for current datastore, falling back to SkipLines for %q", p.task.FilePath)
@@ -354,7 +371,7 @@ func (p *SequentialFileBatchProducer) openDataFileAtByteOffset() error {
 
 	// Build a fresh DataFile on the seeked reader, passing the offset so that
 	// format-specific logic (e.g., SQL assuming mid-COPY) is handled internally.
-	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, dataFileDescriptor, p.lastBatchCumByteOffsetEnd)
+	dataFile, err := datafile.NewDataFile(p.task.FilePath, reader, p.cfg.DataFileDescriptor, p.lastBatchCumByteOffsetEnd)
 	if err != nil {
 		_ = reader.Close() // best-effort cleanup on the error path
 		return goerrors.Errorf("open datafile after seek: %q: %w", p.task.FilePath, err)
@@ -403,7 +420,7 @@ func (p *SequentialFileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 		return nil, goerrors.Errorf("initializing batch writer for table: %q: %w", p.task.TableNameTup, err)
 	}
 	// Write the header if necessary
-	if p.header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
+	if p.header != "" && p.cfg.DataFileDescriptor.FileFormat == datafile.CSV {
 		err = batchWriter.WriteHeader(p.header)
 		if err != nil {
 			utils.ErrExit("writing header for table: %q: %w", p.task.TableNameTup, err)
@@ -435,7 +452,7 @@ func (p *SequentialFileBatchProducer) finalizeBatch(batchWriter *BatchWriter, is
 		utils.ErrExit("finalizing batch %d: %w", batchNum, err)
 	}
 
-	metrics.Get().RecordImportSnapshotBatchCreated(importerRole, p.task.TableNameTup)
+	metrics.Get().RecordImportSnapshotBatchCreated(p.cfg.ImporterRole, p.task.TableNameTup)
 
 	batchWriter = nil
 	p.lastBatchNumber = batchNum

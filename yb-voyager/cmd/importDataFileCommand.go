@@ -30,6 +30,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -130,7 +131,7 @@ func storeFileTableMapAndDataDirInMSR() {
 	}
 }
 
-func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
+func prepareForImportDataCmd(importFileTasks []*importdata.ImportFileTask) {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		source.DBType = POSTGRESQL
 		record.SourceDBConf = source.Clone()
@@ -163,7 +164,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 	setDataIsExported()
 }
 
-func getFileSizeInfo(importFileTasks []*ImportFileTask) []*datafile.FileEntry {
+func getFileSizeInfo(importFileTasks []*importdata.ImportFileTask) []*datafile.FileEntry {
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, task := range importFileTasks {
 		filePath := task.FilePath
@@ -181,7 +182,7 @@ func getFileSizeInfo(importFileTasks []*ImportFileTask) []*datafile.FileEntry {
 	return dataFileList
 }
 
-func setImportTableListFlag(importFileTasks []*ImportFileTask) {
+func setImportTableListFlag(importFileTasks []*importdata.ImportFileTask) {
 	tableList := map[string]bool{}
 	for _, task := range importFileTasks {
 		//TODO:TABLENAME
@@ -190,8 +191,8 @@ func setImportTableListFlag(importFileTasks []*ImportFileTask) {
 	tconf.TableList = strings.Join(maps.Keys(tableList), ",")
 }
 
-func getImportFileTasks(currFileTableMapping string) []*ImportFileTask {
-	result := []*ImportFileTask{}
+func getImportFileTasks(currFileTableMapping string) []*importdata.ImportFileTask {
+	result := []*importdata.ImportFileTask{}
 	if currFileTableMapping == "" {
 		return result
 	}
@@ -215,7 +216,7 @@ func getImportFileTasks(currFileTableMapping string) []*ImportFileTask {
 			if err != nil {
 				utils.ErrExit("calculating file size in bytes: %q: %w", filePath, err)
 			}
-			task := &ImportFileTask{
+			task := &importdata.ImportFileTask{
 				ID:           idCounter,
 				FilePath:     filePath,
 				TableNameTup: tableNameTuple,

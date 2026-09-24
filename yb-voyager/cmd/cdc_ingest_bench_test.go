@@ -37,6 +37,7 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -47,7 +48,7 @@ import (
 func BenchmarkCDCIngest(b *testing.B) {
 	// state shared between Bootstrap and StreamAll within one run
 	var run struct {
-		state                *ImportDataState
+		state                *importdata.ImportDataState
 		tableList            []sqlname.NameTuple
 		tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]
 		tableToPKColumns     *utils.StructMap[sqlname.NameTuple, []string]
@@ -87,8 +88,8 @@ func BenchmarkCDCIngest(b *testing.B) {
 			if err != nil {
 				return fmt.Errorf("get import table list: %w", err)
 			}
-			run.state = NewImportDataState(exportDir)
 			tdb = mock
+			run.state = newImportDataStateFromGlobals()
 
 			// make sure the mock has the same table list as the real target DB
 			run.tableToUniqueIndexes, err = tdb.GetTableToUniqueIndexesMap(run.tableList)
