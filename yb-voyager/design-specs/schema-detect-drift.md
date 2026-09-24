@@ -181,7 +181,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 
 ### 3.7 Guidance hints (\#3815)
 
-Three commands point the user at `schema detect-drift`. All three share one precondition: the export dir already holds at least one real (non-placeholder) schema snapshot. Capture is off by default, so without that check every hint would point at a command that fails with "holds no schema snapshots". A command that dies before metaDB is opened prints nothing for the same reason.
+Three commands point the user at `schema detect-drift`. All three share one precondition: the export dir already holds at least one real (non-placeholder) schema snapshot. Capture can be turned off, and an export dir from a voyager version that did not capture by default holds none, so without that check a hint could point at a command that fails with "holds no schema snapshots". A command that dies before metaDB is opened prints nothing for the same reason.
 
 The failure hints print from the process exit handler, ahead of everything callhome does there, so they are independent of `--send-diagnostics` and of whether a payload has already been sent.
 
