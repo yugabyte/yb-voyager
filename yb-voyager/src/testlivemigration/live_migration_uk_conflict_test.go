@@ -2393,7 +2393,7 @@ func TestLiveMigrationCustomCdcPartitionKeyNoConflictIterativeCutover(t *testing
 	// metaDB; the cdc-partition-key/overrides are NOT re-supplied on the CLI. Wait for that
 	// import to start (which persists its resolved config), then assert the overrides carried
 	// over and still resolve to the custom strategy.
-	nextIterationImportStatus == nil
+	nextIterationImportStatus = nil
 	ok = utils.RetryWorkWithTimeout(2, 180, func() bool {
 		err = lm.WithMetaDB(2, func(m *metadb.MetaDB) error {
 			rec, err := m.GetImportDataStatusRecord()
