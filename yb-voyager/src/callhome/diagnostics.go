@@ -359,6 +359,8 @@ type ImportDataPhasePayload struct {
 	Error                      string          `json:"error"`
 	ControlPlaneType           string          `json:"control_plane_type"`
 	CutoverTimings             *CutoverTimings `json:"cutover_timings,omitempty"`
+
+	CdcPartitionKeyMap map[string]string `json:"cdc_partition_key_map"`
 }
 
 type ImportDataMetrics struct {

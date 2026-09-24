@@ -2008,6 +2008,30 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	// Set table list count
 	dataMetrics.TableListCount = len(importTableList)
 
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		log.Infof("callhome: error getting import data status record for cdc partition key map: %v", err)
+	}
+
+	cdcPartitionKeyMap := make(map[string]string)
+	if importDataStatusRecord != nil {
+		i := 0
+		anonymizedTableNames := buildAnonymizedTableNames(importTableList)
+		for table, partitionKey := range importDataStatusRecord.TableToCDCPartitionKey {
+			nameTuple, err := namereg.NameReg.LookupTableName(table)
+			if err != nil {
+				log.Warnf("lookup for table name in name reg: %v with: %v", table, err)
+				continue
+			}
+			anonymizedTableName, ok := anonymizedTableNames.Get(nameTuple)
+			if !ok {
+				log.Warnf("no anonymized table name precomputed for %s; putting all such tables in the conflict metric as XXX", nameTuple.ForOutput())
+				anonymizedTableName = fmt.Sprintf("XXX_%d", i)
+			}
+			cdcPartitionKeyMap[anonymizedTableName] = partitionKey.Strategy
+			i++
+		}
+	}
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:             callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:               int64(tconf.Parallelism),
@@ -2023,6 +2047,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
 		DataMetrics:                 dataMetrics,
 		Phase:                       importPhase,
+		CdcPartitionKeyMap:          cdcPartitionKeyMap,
 	}
 
 	var err2 error
