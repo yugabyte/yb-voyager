@@ -57,6 +57,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -1881,6 +1882,12 @@ func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
+	// Must stay above the payload-sent guard: that flag is only set once a payload
+	// actually goes out, so anything below it differs with --send-diagnostics off and on.
+	if utils.ErrExitErr != nil {
+		printSchemaDriftErrorHintOnExit(currentCommand)
+	}
+
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
@@ -1924,6 +1931,83 @@ func PackAndSendCallhomePayloadOnExit() {
 	case archiveChangesCmd.CommandPath():
 		packAndSendArchiveChangesPayload(status, exitErr, metaDB, migrationUUID)
 	}
+}
+
+// Named because the export branch uses one directly: routing it through
+// schemaDriftErrorHintLeadIn would make exportDataCmd's initializer depend on a
+// function naming exportDataCmd, which Go rejects as an initialization cycle.
+const (
+	exportDataDriftHintLeadIn = "export data exited with an error."
+	importDataDriftHintLeadIn = "import data exited with an error."
+)
+
+func driftDetectionHint() string {
+	return fmt.Sprintf("\t%s --export-dir %q (with your source connection flags)", detectDriftCmd.CommandPath(), exportDir)
+}
+
+// Capture can be turned off, and older export dirs hold none, so without this gate a hint
+// below could send users to a command that fails with "holds no schema snapshots". Placeholders are
+// failed-capture markers carrying no schema, so they do not count.
+//
+// A listing failure is only logged, not returned: these hints are advisory, and the
+// call site that matters most is an exit path with nothing left to fail.
+func schemaDriftGuidanceIsUseful() bool {
+	if metaDB == nil {
+		return false
+	}
+	headers, err := schemasnapshot.ListSnapshots(metaDB)
+	if err != nil {
+		log.Warnf("schema-drift guidance: could not list schema snapshots: %v", err)
+		return false
+	}
+	return lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder })
+}
+
+func printSchemaDriftErrorHint(firstLine string) {
+	if !schemaDriftGuidanceIsUseful() {
+		return
+	}
+	utils.PrintAndLog(fmt.Sprintf("%s If the source schema may have changed since export began, review schema drift before retrying or cutting over:\n%s",
+		firstLine, driftDetectionHint()))
+}
+
+// The source exporter's exit capture is the last source-schema snapshot the migration
+// records -- `export data from target` takes none -- and it is not written until after
+// this prompt, so detect-drift's live source read is the only thing covering the
+// window up to cutover.
+func printCutoverSchemaDriftRecommendation() {
+	if !schemaDriftGuidanceIsUseful() {
+		return
+	}
+	utils.PrintAndLog(fmt.Sprintf("Recommendation: cutover to target ends schema capture on the source. Consider reviewing schema drift on the source before proceeding:\n%s",
+		driftDetectionHint()))
+}
+
+// Only the forward path qualifies. `import data to source`, `import data to
+// source-replica` and `export data from target` all run after cutover to target, past
+// the last source capture, which the design spec puts out of scope for v1.
+func schemaDriftErrorHintLeadIn(commandPath string) (string, bool) {
+	switch commandPath {
+	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
+		return importDataDriftHintLeadIn, true
+	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
+		if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+			return "", false
+		}
+		return exportDataDriftHintLeadIn, true
+	default:
+		return "", false
+	}
+}
+
+// Called from the process exit path, the only place that sees the export and import
+// data failures which go through utils.ErrExit instead of a return value.
+func printSchemaDriftErrorHintOnExit(commandPath string) {
+	leadIn, ok := schemaDriftErrorHintLeadIn(commandPath)
+	if !ok {
+		return
+	}
+	printSchemaDriftErrorHint(leadIn)
 }
 
 func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {

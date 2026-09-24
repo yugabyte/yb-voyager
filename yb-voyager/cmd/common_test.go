@@ -812,3 +812,103 @@ func Int64Ptr(i int64) *int64 {
 func StringPtr(s string) *string {
 	return &s
 }
+
+// TestSchemaDriftErrorHintLeadIn pins which commands get a drift hint on failure.
+// The post-cutover importers and the target exporter must stay out: they run past the
+// last source capture, so the hint would point at a report that cannot cover them.
+func TestSchemaDriftErrorHintLeadIn(t *testing.T) {
+	origRole := exporterRole
+	t.Cleanup(func() { exporterRole = origRole })
+
+	tests := []struct {
+		name        string
+		commandPath string
+		role        string
+		wantLeadIn  string
+		wantOK      bool
+	}{
+		{
+			name:        "import data",
+			commandPath: importDataCmd.CommandPath(),
+			wantLeadIn:  "import data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "import data to target",
+			commandPath: importDataToTargetCmd.CommandPath(),
+			wantLeadIn:  "import data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "import data to source is post-cutover",
+			commandPath: importDataToSourceCmd.CommandPath(),
+			wantOK:      false,
+		},
+		{
+			name:        "import data to source-replica is post-cutover",
+			commandPath: importDataToSourceReplicaCmd.CommandPath(),
+			wantOK:      false,
+		},
+		{
+			name:        "export data as the source exporter",
+			commandPath: exportDataCmd.CommandPath(),
+			role:        SOURCE_DB_EXPORTER_ROLE,
+			wantLeadIn:  "export data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "export data from source",
+			commandPath: exportDataFromSrcCmd.CommandPath(),
+			role:        SOURCE_DB_EXPORTER_ROLE,
+			wantLeadIn:  "export data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "export data under the fall-back target exporter",
+			commandPath: exportDataCmd.CommandPath(),
+			role:        TARGET_DB_EXPORTER_FB_ROLE,
+			wantOK:      false,
+		},
+		{
+			name:        "export data from target",
+			commandPath: exportDataFromTargetCmd.CommandPath(),
+			role:        TARGET_DB_EXPORTER_FB_ROLE,
+			wantOK:      false,
+		},
+		{
+			name:        "import data file has no source schema",
+			commandPath: importDataFileCmd.CommandPath(),
+			wantOK:      false,
+		},
+		{
+			name:        "import schema is out of scope",
+			commandPath: importSchemaCmd.CommandPath(),
+			wantOK:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exporterRole = tt.role
+			leadIn, ok := schemaDriftErrorHintLeadIn(tt.commandPath)
+			assert.Equal(t, tt.wantOK, ok)
+			if !tt.wantOK {
+				// A caller that ignored ok must not get a printable sentence.
+				assert.Equal(t, "", leadIn)
+				return
+			}
+			assert.Equal(t, tt.wantLeadIn, leadIn)
+		})
+	}
+}
+
+// TestSchemaDriftGuidanceIsUsefulWithoutMetaDB covers the commands that die before the
+// export dir is opened. metaDB is nil there, and a hint would point at a report that
+// no snapshot backs.
+func TestSchemaDriftGuidanceIsUsefulWithoutMetaDB(t *testing.T) {
+	orig := metaDB
+	t.Cleanup(func() { metaDB = orig })
+
+	metaDB = nil
+	assert.False(t, schemaDriftGuidanceIsUseful())
+}
