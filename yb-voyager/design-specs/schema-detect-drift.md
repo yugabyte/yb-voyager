@@ -169,6 +169,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 |  |  |
 | :---- | :---- |
 | Parent | new `schema` command for standalone schema tooling outside the export/import workflow |
+| Maturity | Tech Preview: `[TECH PREVIEW]` leads the command help and the command's section in the four migration config templates |
 | Source type | PostgreSQL only; any other value is an error, exit 1 |
 | Output | `<export-dir>/reports/drift_analysis_report.html` and `.json`, overwritten on each run. `--output-format html` or `json` writes only that one; unset writes both |
 | Exit codes | `0` the report was written, whether or not it found drift · `1` error (flags, connection, unreadable snapshot). A script reads drift from `summary.change_count` in the JSON report. |
