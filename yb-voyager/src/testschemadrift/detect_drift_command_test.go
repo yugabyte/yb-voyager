@@ -109,17 +109,15 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 		assert.NoDirExists(t, filepath.Join(emptyDir, "schema"))
 	})
 
-	// Capture is off by default, so every command that should record a snapshot has
-	// to ask for it. Without this the run records no history and the command
-	// correctly reports no drift -- which would quietly satisfy a weaker assertion.
-	captureOn := []string{"--disable-schema-snapshot-capture", "false"}
+	// No capture flag is passed: the export commands capture by default, and this test
+	// is what shows it. Without that history the drift assertions below would fail.
 
 	// export schema: the first capture, taken before the schema changes.
-	_, err := testutils.RunVoyagerCommand(pg, "export schema", append([]string{
+	_, err := testutils.RunVoyagerCommand(pg, "export schema", []string{
 		"--source-db-schema", driftTestSchema,
 		"--export-dir", exportDir,
 		"--yes",
-	}, captureOn...), nil, false)
+	}, nil, false)
 	require.NoError(t, err, "export schema command failed")
 
 	t.Run("an unchanged source reports no drift", func(t *testing.T) {
@@ -132,13 +130,13 @@ func TestDetectDriftEndToEnd(t *testing.T) {
 
 	// export data: start and exit captures, both taken after the ALTER, so the
 	// export_schema -> export_data_start pair is where the change shows up.
-	_, err = testutils.RunVoyagerCommand(pg, "export data", append([]string{
+	_, err = testutils.RunVoyagerCommand(pg, "export data", []string{
 		"--source-db-schema", driftTestSchema,
 		"--export-dir", exportDir,
 		"--export-type", "snapshot-only",
 		"--disable-pb", "true",
 		"--yes",
-	}, captureOn...), nil, false)
+	}, nil, false)
 	require.NoError(t, err, "export data command failed")
 
 	report := runDetectDrift(t, pg, exportDir)
