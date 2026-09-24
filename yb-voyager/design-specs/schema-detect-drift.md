@@ -28,8 +28,7 @@ This design adds the layer above the diff engine that owns *drift*: which snapsh
 - Sources other than PostgreSQL.  
 - Detecting drift on the target, or on the source after cutover-to-target.  
 - Applying, suggesting, or generating DDL. The report says what to do; the user does it.  
-- Preventing drift (event triggers, locks). Tracked separately in [\#3681](https://github.com/yugabyte/yb-voyager/issues/3681).  
-- Turning capture on by default. It stays behind `--disable-schema-snapshot-capture=false`.
+- Preventing drift (event triggers, locks). Tracked separately in [\#3681](https://github.com/yugabyte/yb-voyager/issues/3681).
 
 ## 2\. Where it sits
 
@@ -161,7 +160,7 @@ JSON is the indented marshalling of `Report`. HTML is a single self-contained pa
 yb-voyager schema detect-drift --export-dir <dir> \
     --source-db-user <u> --source-db-name <db> --source-db-schema <s>[,...] \
     [--source-db-host --source-db-port --source-db-password ...] \
-    [--output-format html,json] \
+    [--output-format html|json] \
     [--table-list <globs> | --exclude-table-list <globs>] \
     [--object-type-list TABLE,COLUMN | --exclude-object-type-list ...]
 ```
@@ -169,11 +168,16 @@ yb-voyager schema detect-drift --export-dir <dir> \
 |  |  |
 | :---- | :---- |
 | Parent | new `schema` command for standalone schema tooling outside the export/import workflow |
-| Source type | PostgreSQL only; any other value is an operational error |
-| Output | `<export-dir>/reports/drift_analysis_report.html` and `.json`, overwritten on each run |
+| Maturity | Tech Preview: `[TECH PREVIEW]` leads the command help and the command's section in the four migration config templates |
+| Source type | PostgreSQL only; any other value is an error, exit 1 |
+| Output | `<export-dir>/reports/drift_analysis_report.html` and `.json`, overwritten on each run. `--output-format html` or `json` writes only that one; unset writes both |
 | Exit codes | `0` the report was written, whether or not it found drift · `1` error (flags, connection, unreadable snapshot). A script reads drift from `summary.change_count` in the JSON report. |
-| Config file | section `schema-detect-drift` with keys `log-level`, `output-format`, the four list flags |
+| Config file | section `schema-detect-drift` with keys `log-level`, `output-format`, the four list flags; commented-out in the four migration templates |
+| Table scope | an unqualified `--table-list` entry needs a default schema, so `--source-db-schema` without `public` must qualify every entry as `schema.table` |
+| Schema list | `--source-db-schema` entries are trimmed and matched as `export schema` matches them |
+| Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
+| Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
 
 ## 4\. Data model
 
@@ -280,18 +284,21 @@ cmd.detectDrift()
  ├─ per header: schemasnapshot.LoadSnapshotByName(metaDB, name) → *SnapshotContent | nil  cmd → schemasnapshot
  │      each becomes a schemasnapshot.SchemaSnapshot{Header, Content}
  │
- ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SchemaSnapshot | nil                         §5.6
+ ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SchemaSnapshot, error                        §5.6
  │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelSourceLive})        cmd → schemasnapshot
  │         its Header.Label IS the timeline identity; appended as the last input
  │
- ├─ cmd.buildDriftTableCandidates(contents, live)             → table universe                                §5.5
- ├─ cmd.resolveDriftTableRefs / complementDriftTableRefs      → []ObjectRef, then schemadiff.Scope            §5.5
+ ├─ cmd.driftTableUniverse(contents, live)                    → table universe                                §5.5
+ ├─ namereg.NewInMemorySourceNameRegistry(universe)           → []NameTuple, cmd.extractTableListFromString,
+ │      cmd.expandDriftPartitions / complementDriftTableRefs  → []ObjectRef, then schemadiff.Scope            §5.5
  │
  ├─ schemadrift.BuildReport(DetectionConfig)                  → Report, error            cmd → schemadrift
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
  │      └─ per Difference: getDriftInfo(d.Type)               → DriftInfo, embedded in DriftEntry             §5.4
+ │
+ ├─ if Summary.ComparedIntervalCount == 0: cmd.nothingComparedError(report) → error, exit 1; no file is written   §7
  │
  ├─ cmd.writeDriftReports(report, formats)
  │      ├─ schemadrift.RenderJSON(Report)                     → []byte                   cmd → schemadrift
@@ -361,30 +368,34 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.driftTableUniverse`, `namereg.NewInMemorySourceNameRegistry`, export data's `cmd.extractTableListFromString`, `cmd.expandDriftPartitions`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
-The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report.
+The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing to read the live catalog is an error (exit 1).
+
+Names resolve the way export data resolves them. The universe is loaded into an in-memory name registry, which turns it into `NameTuple`s. The flags then go through export data's `extractTableListFromString`, so the glob matching and the unknown-table error are export's own. The registry is never written: the migration's `name_registry.json` lists only the tables present at export data's first run, so it cannot name a table created since.
+
+A partitioned table matched by either list brings every partition beneath it, at every level, as in export data. A partition matched on its own brings only itself. The hierarchy comes from `PartitionChildren` in the snapshots and the live read, not from the live catalog, so a partition dropped since is still expanded and its drop is still reported.
 
 | Flag | Resolution |
 | :---- | :---- |
 | neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set |
-| `--table-list` | patterns resolved against the universe with the same glob matcher as export; unknown pattern is an operational error |
-| `--exclude-table-list` | resolved the same way, then complemented against the universe; an empty result is an operational error (the report would be empty, so the command says so rather than emitting one) |
-| both | operational error |
+| `--table-list` | patterns resolved against the universe by export data's matcher, then each matched partitioned table expanded to its partitions; unknown pattern is an error, exit 1 |
+| `--exclude-table-list` | resolved and expanded the same way, then complemented against the universe; an empty result is an error, exit 1 (the report would be empty, so the command says so rather than emitting one) |
+| both | error, exit 1 |
 
 `--object-type-list` and `--exclude-object-type-list` follow the same shape over `{TABLE, COLUMN}`.
 
-All four list flags are normalised before use: a value that is empty once trimmed (`"  "`, `","`) counts as unset, so it cannot report itself as a filter that narrowed nothing.
+All four list flags are normalised before use: a value that is empty once trimmed (`"  "`, `","`) counts as unset. Treated as set, it would resolve to an empty keep-set, and since `Scope` keeps nothing for an empty dimension the run would drop every finding and read as "no drift".
 
 ### 5.6 Live read
 
-**Where:** `cmd.captureLiveSnapshotForDrift(schemas) *schemasnapshot.SchemaSnapshot`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last snapshot, labelled `source_live`, or nil. **Decides:** whether the report ends at the last stored snapshot or at now.
+**Where:** `cmd.captureLiveSnapshotForDrift(schemas) (*schemasnapshot.SchemaSnapshot, error)`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last snapshot, labelled `source_live`, so the report always ends at now.
 
-The command captures the current source schema in memory under `LabelSourceLive` and appends it as the last input. It is captured with exactly `--source-db-schema`, so it always covers the request; history may cover more, and the extra schemas' findings are filtered rather than the comparison declined. If the live capture fails, the report is built from history alone and `LiveCompared` says so.
+The command captures the current source schema in memory under `LabelSourceLive` and appends it as the last input. It is captured with exactly `--source-db-schema`, so it always covers the request; history may cover more, and the extra schemas' findings are filtered rather than the comparison declined. If the live capture fails, the run fails with exit 1 and writes no report. The live read is the only comparison that covers drift since the last stored snapshot, so a report without it can show no drift while the source has drifted.
 
 ## 6\. Migration-flow matrix
 
-Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It is a no-op unless `--disable-schema-snapshot-capture=false` and the source is PostgreSQL. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
+Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
 
 | Flow | Captures | detect-drift | Notes |
 | :---- | :---- | :---- | :---- |
@@ -393,20 +404,22 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
 | Live with fall-forward | same as fall-back | same |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered |  |
-| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. |
+| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
 | Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | Oracle and MySQL are non-goals (§1). |
 
 ## 7\. Failure modes
 
 | Situation | Behaviour | Why this and not the alternative |
 | :---- | :---- | :---- |
+| Export dir holds no migration project | error, exit 1, as for every command that needs a started migration; no project is created, only the run's log | The command reads an existing migration. Creating a project there would leave a directory that looks like a migration that never ran. |
 | A capture fails during export | placeholder header written, export unaffected, warning logged | Capture is best effort and off the data path. It must never fail a migration. |
 | Placeholder in history | bridged (§5.2); appears on the timeline as a failed marker | Dropping it would hide that a capture was attempted; making it a boundary would hide real drift. |
 | Snapshot blob has an unsupported `Version` | error, exit 1 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
 | Snapshot header exists but blob cannot be loaded for any other reason | warning, treated like a placeholder | The moment is still on the timeline; the report bridges across it. |
 | A capture did not cover the requested schemas | bridged, and recorded on its `CapturePoint` (§5.2) | A requested table missing from it means nobody looked, not that it was dropped. Treating it as a boundary lost every interval around it. |
-| Live capture fails or the source is unreachable | connection failure is an error, exit 1; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
-| No or one stored snapshot | warning; report reflects only the live read or the single interval | Not an error: the user may simply not have enabled capture. The `--help` text names the prerequisite. |
+| Live capture fails or the source is unreachable | error, exit 1; no report is written | The live read covers drift since the last stored snapshot. A report without it can show no drift while the source has drifted, and a script reading `summary.change_count` would not notice. |
+| One stored snapshot, and the live read makes it a pair | warning; report covers that single interval | Not an error: one stored capture plus the live read is a real interval. Zero stored snapshots gets no warning, because it can never form an interval and always lands on the row below. |
+| No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
 | The HTML renderer meets a state it cannot display (§3.5) | error, exit 1 | Rendering past it drops or misprints a finding in a report that still looks complete. |
 | Report file already exists | overwritten with a notice | Reports are regenerated, not versioned. |
@@ -426,10 +439,15 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Severity and note | one struct in one map | parallel maps keyed by `DiffType` | Parallel maps drift silently. A test asserts every mapped type has a note. |
 | Severity semantics | what the migration does | how alarming the DDL is | The user's question is "is my migration broken", not "was this a big change". |
 | Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
+| Live capture failure | error, exit 1 | warn and report history alone | Connecting and listing the source's tables both precede the capture, so a source that is down already fails the run. What is left is a capture that failed on a reachable source, and a report missing the newest interval reads as "no drift". |
+| Report formats | `--output-format` takes one value; unset writes both | a comma-separated list | Matches `analyze-schema`. With both as the default, a list only lets a user spell out the default. |
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
 | Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
+| Table-name resolution | in-memory name registry over the universe, then export data's matcher | the migration's `name_registry.json`; a matcher of its own | The stored registry cannot name a table created after export data's first run. A matcher of its own could drift from what the same flag means in export. |
+| Partitioned table in a table list | expands to every partition beneath it | matches only that table | The flag means the same as in export data. Matching only the parent would drop drift on its partitions, and a dropped finding reads as no drift. |
 | HTML | embedded template, view model built in Go, no JavaScript | client-side rendering of the JSON | Opens anywhere, including air-gapped hosts. Grouping logic stays testable in Go. |
 | Exit codes | `0` report written · `1` error | `0` no drift · `1` drift found · `2` error | Every voyager command exits 1 on error, and so does every shared helper that fails through `utils.ErrExit`. Putting drift on 1 would make a failed run indistinguishable from a successful one that found drift. A script reads drift from `summary.change_count` in the JSON report. |
+| Export-dir lock | its own per-command lock | no lock | The report files are shared state between two runs on one export dir. The lock file is named per command, so it never blocks export or import. |
 | Command placement | new `schema` parent | top-level `detect-drift` | Leaves room for sibling schema tools without crowding the root. |
 
 ## 10\. Open questions

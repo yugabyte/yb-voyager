@@ -18,6 +18,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,9 +26,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -753,6 +757,52 @@ func TestParseObjectNamesToPayload(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func nameTupleForTest(schema, table string) sqlname.NameTuple {
+	obj := sqlname.NewObjectName(POSTGRESQL, schema, schema, table)
+	return sqlname.NameTuple{SourceName: obj, CurrentName: obj}
+}
+
+func TestExtractTableListFromString(t *testing.T) {
+	fullTableList := []sqlname.NameTuple{
+		nameTupleForTest("public", "orders"),
+		nameTupleForTest("public", "customers"),
+		nameTupleForTest("Sales", "Invoices"),
+	}
+
+	t.Run("empty flag means no filter", func(t *testing.T) {
+		got, err := extractTableListFromString(fullTableList, "", "include")
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("matches a qualified pattern", func(t *testing.T) {
+		got, err := extractTableListFromString(fullTableList, "public.orders", "include")
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, "orders", got[0].SourceName.Unqualified.Unquoted)
+	})
+
+	t.Run("matches a case-sensitive quoted pattern", func(t *testing.T) {
+		got, err := extractTableListFromString(fullTableList, `"Sales"."Invoices"`, "include")
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		assert.Equal(t, "Invoices", got[0].SourceName.Unqualified.Unquoted)
+	})
+
+	t.Run("unknown table name is an UnknownTableErr, not a process exit", func(t *testing.T) {
+		_, err := extractTableListFromString(fullTableList, "public.nope", "exclude")
+		require.Error(t, err)
+		var unknownErr *errs.UnknownTableErr
+		assert.True(t, errors.As(err, &unknownErr))
+	})
+
+	t.Run("invalid glob pattern is returned as an error, not utils.ErrExit", func(t *testing.T) {
+		_, err := extractTableListFromString(fullTableList, "public.[bad", "include")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `invalid table name pattern "public.[bad"`)
+	})
 }
 
 func Int64Ptr(i int64) *int64 {

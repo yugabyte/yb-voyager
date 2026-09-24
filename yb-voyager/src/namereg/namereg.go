@@ -146,6 +146,25 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 	return false, nil
 }
 
+// NewInMemorySourceNameRegistry builds a source-exporter-role NameRegistry from a given
+// table universe and never reads or writes name_registry.json, which cannot name a table
+// created after export data's first run.
+func NewInMemorySourceNameRegistry(dbType string, schemas []string, tablesBySchema map[string][]string) (*NameRegistry, error) {
+	reg := &NameRegistry{
+		SourceDBType:       dbType,
+		SourceDBTableNames: tablesBySchema,
+		params: NameRegistryParams{
+			Role:           SOURCE_DB_EXPORTER_ROLE,
+			SourceDBType:   dbType,
+			SourceDBSchema: schemas,
+		},
+	}
+	if err := reg.initSourceDBSchemaNames(); err != nil {
+		return nil, fmt.Errorf("init source db schema names: %w", err)
+	}
+	return reg, nil
+}
+
 func (reg *NameRegistry) UnRegisterYBNames() error {
 	log.Info("unregistering YB names")
 	reg.YBTableNames = nil

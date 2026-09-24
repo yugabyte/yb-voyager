@@ -2189,20 +2189,26 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 	if flagTableList == "" {
 		return result, nil
 	}
-	findPatternMatchingTables := func(pattern string) []sqlname.NameTuple {
-		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
+	findPatternMatchingTables := func(pattern string) ([]sqlname.NameTuple, error) {
+		var matched []sqlname.NameTuple
+		for _, tableName := range fullTableList {
 			ok, err := tableName.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern: %q: %w", pattern, err)
+				return nil, fmt.Errorf("invalid table name pattern %q: %w", pattern, err)
 			}
-			return ok
-		})
-		return result
+			if ok {
+				matched = append(matched, tableName)
+			}
+		}
+		return matched, nil
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
 	var unknownTableNames []string
 	for _, pattern := range tableList {
-		tables := findPatternMatchingTables(pattern)
+		tables, err := findPatternMatchingTables(pattern)
+		if err != nil {
+			return nil, err
+		}
 		if len(tables) == 0 {
 			unknownTableNames = append(unknownTableNames, pattern)
 		}

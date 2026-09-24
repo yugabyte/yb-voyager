@@ -536,6 +536,37 @@ finalize-schema-post-data-import:
   # log-level: info                                     
 
 # ---------------------------------------------------------
+# [TECH PREVIEW] Schema Drift Detection Configuration
+# ---------------------------------------------------------
+
+### Report how the source schema changed while the migration was running.
+### Reads the schema snapshots export schema and export data record by default. A migration
+### whose export commands ran with disable-schema-snapshot-capture: true has none to compare.
+
+### Uncomment the respective parameters when you want to configure additional detect drift options.
+# schema-detect-drift:
+
+  ### Format in which the report is generated: ('html', 'json').
+  ### If not provided, reports are generated in both 'html' and 'json' formats.
+  # output-format: html
+
+  ### Comma-separated list of tables to compare (glob patterns allowed).
+  ### Only one of table-list and exclude-table-list can be specified.
+  # table-list: <table-list>
+  # exclude-table-list: <exclude-table-list>
+
+  ### Comma-separated list of object types to compare: (TABLE, COLUMN).
+  ### Only one of object-type-list and exclude-object-type-list can be specified.
+  # object-type-list: TABLE,COLUMN
+  # exclude-object-type-list: <exclude-object-type-list>
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic)
+  ### Default - info
+  # log-level: info
+
+# ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------
 
