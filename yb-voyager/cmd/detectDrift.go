@@ -78,9 +78,8 @@ var driftObjectTypesByName = map[string]schemadiff.ObjectType{
 var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
 
 var detectDriftCmd = &cobra.Command{
-	Use: "detect-drift",
-	Short: "[TECH PREVIEW] Report source schema changes made during the migration, and what to do about each one " +
-		"(needs --disable-schema-snapshot-capture=false on the export commands)",
+	Use:   "detect-drift",
+	Short: "[TECH PREVIEW] Report source schema changes made during the migration, and what to do about each one",
 	Long: `[TECH PREVIEW] Reports how the PostgreSQL source schema changed while the migration was running, and
 what to do about each change.
 
@@ -90,10 +89,9 @@ snapshots, plus a final comparison against a live read of the source, and writes
 to <export-dir>/reports/. It is read-only: it never modifies migration state and never
 applies anything on the target, it only writes report files.
 
-PREREQUISITE: those snapshots are only recorded when capture is enabled, which is currently
-off by default. Pass --disable-schema-snapshot-capture=false to export schema and export
-data. Capture cannot be turned on after the fact: a migration that ran without it has no
-history, and this command fails rather than reporting a misleading "no drift".
+Snapshots are recorded by default. A migration whose export commands ran with
+--disable-schema-snapshot-capture=true has no history, and this command fails rather than
+reporting a misleading "no drift".
 
 The report groups each change by the interval between the two captures that bracket it, and
 labels the interval with what Voyager was doing at the time (for example "export data:
@@ -665,8 +663,8 @@ func nothingComparedError(r schemadrift.Report) error {
 	switch {
 	case len(r.CapturePoints) == 0:
 		return goerrors.Errorf("this export directory holds no schema snapshots, so there is nothing to compare. " +
-			"Snapshots are recorded only while `export schema` and `export data` run, and only when " +
-			"--disable-schema-snapshot-capture=false was passed to them")
+			"Snapshots are recorded while `export schema` and `export data` run, unless they ran with " +
+			"--disable-schema-snapshot-capture=true or on a voyager version that did not capture by default")
 	case len(reasons) == 0:
 		return goerrors.Errorf("only %d of %d captures is usable, and a single capture forms no interval, "+
 			"so there was nothing to compare", usable, len(r.CapturePoints))

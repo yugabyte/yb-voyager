@@ -737,8 +737,8 @@ export-data-from-target:
 # ---------------------------------------------------------
 
 ### Report how the source schema changed while the migration was running.
-### Requires the export commands to have run with --disable-schema-snapshot-capture=false;
-### capture cannot be enabled after a migration has already run.
+### Reads the schema snapshots export schema and export data record by default. A migration
+### whose export commands ran with disable-schema-snapshot-capture: true has none to compare.
 
 ### Uncomment the respective parameters when you want to configure additional detect drift options.
 # schema-detect-drift:
