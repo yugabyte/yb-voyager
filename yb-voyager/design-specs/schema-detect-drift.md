@@ -85,82 +85,66 @@ The schema filter is applied AFTER diffing, never by narrowing the snapshot cont
 
 **A finding with no anchor table passes the `Tables` filter.** A top-level object -- a view, a function, a sequence -- has no host table, so `--table-list` has nothing to say about it; `--object-type-list` is the dimension that selects object kinds. Dropping such findings because a table list was given would make drift disappear from the report silently, which is the worse failure for a tool whose job is to report it.
 
-### 3.2 `schemasnapshot.LabelDetectDrift` (added in \#3814)
+### 3.2 `schemasnapshot.LabelSourceLive` (added in \#3812)
 
 ```go
-const LabelDetectDrift = "detect_drift" // accepts no reason; never persisted
+const LabelSourceLive = "source_live" // accepts no reason; never persisted
 ```
 
-`Capture` validates its label against the known vocabulary. The live read taken by `detect-drift` needs a label to pass that validation, and must not collide with a persisted label.
+`Capture` validates its label against the known vocabulary, so the live read taken by `detect-drift` needs one. It is named for what the snapshot **is** -- a live read of the source -- rather than for the command that takes it, which is what makes it usable as the timeline identity directly: every point on the timeline is identified by its `Header.Label`, and nothing has to carry a second identity alongside it.
 
 ### 3.3 `schemadrift` inputs
 
-```go
-const SeriesSourceLive = "source_live"
-```
-
-The `Series` value of the live read. Stored snapshots use their capture label as Series.
+`BuildReport` takes `schemasnapshot.SchemaSnapshot` values directly -- a header plus content, where `Content` is nil for a failed capture. There is no wrapper type: the timeline identity of each point is its `Header.Label`, so nothing needs adding to what the snapshot already carries.
 
 ```go
-type SnapshotInput struct {
-	Header  schemasnapshot.SnapshotHeader
-	Content *schemasnapshot.SnapshotContent // nil for a failed capture
-	Series  string                          // Header.Label for stored snapshots, SeriesSourceLive for the live read
-}
-```
-
-One point in the chronological sequence handed to `BuildReport`.
-
-```go
-type BuildParams struct {
-	Source              Source
-	Schemas             []string        // display only
-	Snapshots           []SnapshotInput // oldest first; the live read, if any, is last
-	Scope               schemadiff.Scope
-	Tables              []string        // what was compared, resolved; see Comparing
-	TablesFiltered      bool
-	ObjectTypes         []string
-	ObjectTypesFiltered bool
-	GeneratedAt         time.Time
+type DetectionConfig struct {
+	Source    Source
+	Snapshots []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
+	Scope     schemadiff.Scope                // the exact sets compared; Comparing is rendered from it
 }
 ```
 
 The complete input to `BuildReport`. Plain data, no connections or handles, so the assembler is testable with fixtures.
 
+`Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which holds the exact sets compared, so they are not passed separately. The report does not say whether a list flag narrowed those sets: `Scope` cannot carry that, and the listed sets already tell a reader what "no drift" covers.
+
 ```go
-func BuildReport(p BuildParams) Report
+func BuildReport(p DetectionConfig) (Report, error)
 ```
 
-Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2.
+Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on. It returns an error for a finding whose identity is neither a table nor a table-scoped object: that is a new engine object kind the report does not know how to place, and emitting it with an empty object would read as a real finding on nothing.
 
 ### 3.4 `schemadrift` classification
 
 ```go
-type Status string
+type Severity string
 
 const (
-	StatusAdvisory            Status = "advisory"
-	StatusPotentialImpact     Status = "potential_impact"
-	StatusBreaksRecoverable   Status = "breaks_migration_recoverable"
-	StatusBreaksUnrecoverable Status = "breaks_migration_unrecoverable"
+	SeverityAdvisory            Severity = "advisory"
+	SeverityPotentialImpact     Severity = "potential_impact"
+	SeverityBreaksRecoverable   Severity = "breaks_migration_recoverable"
+	SeverityBreaksUnrecoverable Severity = "breaks_migration_unrecoverable"
 )
 ```
 
 Severity answers "what does the migration do about this change", not "how alarming is the DDL". Vocabulary in §5.4.
 
 ```go
-type classification struct {
-	Status Status
-	Impact string
-	Action string
+type DriftInfo struct {
+	Severity Severity `json:"severity"`
+	Impact   string   `json:"impact,omitempty"`
+	Action   string   `json:"action,omitempty"`
 }
 
-var classificationByDiffType map[schemadiff.DiffType]classification
+var infoByDiffType map[schemadiff.DiffType]DriftInfo
 
-func classify(t schemadiff.DiffType) classification
+func getDriftInfo(t schemadiff.DiffType) DriftInfo
 ```
 
-Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `classify` returns `StatusAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
+Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `getDriftInfo` returns `SeverityAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
+
+`DriftInfo` is what enriches a raw `schemadiff.Difference` into drift: what the change means for the migration in flight. It is exported and embedded in `DriftEntry` rather than copied field by field. Today `getDriftInfo` keys on the DiffType alone, so every entry of a given type carries the same three values; deriving them per finding (from the old/new values) would not change the shape.
 
 ### 3.5 `schemadrift` renderers (\#3813)
 
@@ -195,20 +179,19 @@ yb-voyager schema detect-drift --export-dir <dir> \
 
 ### 4.1 Report
 
-The JSON report is an output file, not migration state, so upgrades never read an old report with a new binary. The compatibility concern is the other way: users and tooling parse the JSON. Field names and tags are contractual; changes are additive and any non-additive change bumps `version`.
+The JSON report is an output file, not migration state, so upgrades never read an old report with a new binary. The compatibility concern is the other way: users and tooling parse the JSON. Field names and tags are contractual from the first release that ships the command; until then the shape is still being settled and `version` stays 1. After that, changes are additive and any non-additive change bumps `version`.
 
 ```go
 type Report struct {
-	Report      string            `json:"report"`   // always "schema_drift"
-	Version     int               `json:"version"`  // 1
-	GeneratedAt time.Time         `json:"generated_at"`
-	Source      Source            `json:"source"`
-	Window      Window            `json:"window"`   // first capture to last capture
-	Comparing   Comparing         `json:"comparing"`
-	Summary     Summary           `json:"summary"`
-	Diffs       []DiffEntry       `json:"diffs"`
-	Captures    []Capture         `json:"captures"` // every point on the timeline, placeholders included
-	Skipped     []SkippedInterval `json:"skipped,omitempty"`
+	Report        string            `json:"report"`   // always "schema_drift"
+	Version       int               `json:"version"`  // 1
+	GeneratedAt   time.Time         `json:"generated_at"`
+	Source        Source            `json:"source"`
+	Window        Window            `json:"window"`   // first capture to last capture
+	Comparing     Comparing         `json:"comparing"`
+	Summary       Summary           `json:"summary"`
+	Drifts        []DriftEntry      `json:"drifts"`
+	CapturePoints []CapturePoint    `json:"capture_points"` // every point on the timeline, placeholders included
 }
 
 type Source struct {
@@ -225,53 +208,58 @@ type Window struct {
 }
 
 type Comparing struct {
-	Schemas             []string `json:"schemas"`
-	Tables              []string `json:"tables"`       // what was compared, not what was typed
-	TablesFiltered      bool     `json:"tables_filtered"`
-	ObjectTypes         []string `json:"object_types"`
-	ObjectTypesFiltered bool     `json:"object_types_filtered"`
+	Schemas     []string `json:"schemas"`
+	Tables      []string `json:"tables"` // what was compared, not what was typed
+	ObjectTypes []string `json:"object_types"`
 }
 
 type Summary struct {
-	ChangeCount  int  `json:"change_count"`
-	CaptureCount int  `json:"capture_count"` // stored snapshots only, live read excluded
-	LiveCompared bool `json:"live_compared"`
+	ChangeCount           int  `json:"change_count"`
+	ComparedIntervalCount int  `json:"compared_interval_count"` // intervals actually diffed
+	StoredCaptureCount    int  `json:"stored_capture_count"`    // placeholders included; live read excluded
+	LiveCompared          bool `json:"live_compared"`
 }
 
-type DiffEntry struct {
-	Seq        int                      `json:"seq"`                 // 1-based, continuous across intervals
-	Type       string                   `json:"type"`                // schemadiff.DiffType
-	Operation  string                   `json:"operation"`           // ADDED | DROPPED | CHANGED
-	ObjectType string                   `json:"object_type"`         // TABLE | COLUMN
-	Attribute  string                   `json:"attribute,omitempty"` // "" for ADDED/DROPPED
-	Object     schemasnapshot.ObjectRef `json:"object"`              // the table
-	SubObject  string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
-	Status     string                   `json:"status"`              // Status
-	OldValue   any                      `json:"old_value,omitempty"`
-	NewValue   any                      `json:"new_value,omitempty"`
-	Window     Window                   `json:"window"`              // the interval it was detected in
-	Phase      string                   `json:"phase,omitempty"`     // §5.3
-	Impact     string                   `json:"impact,omitempty"`
-	Action     string                   `json:"action,omitempty"`
+type DriftEntry struct {
+	Diff // what changed, on what, to what -- flattened by encoding/json
+
+	// When it was detected, and what the migration was doing then.
+	Window Window `json:"window"`          // the interval it was detected in
+	Phase  string `json:"phase,omitempty"` // §5.3
+
+	// What it means: Severity, Impact, Action -- flattened by encoding/json.
+	DriftInfo
 }
 
-type SkippedInterval struct {
-	From   string `json:"from"`   // Series of the earlier capture
-	To     string `json:"to"`
-	Window Window `json:"window"`
-	Reason string `json:"reason"`
+type Diff struct {
+	// What changed, as the diff engine classified it.
+	Type       schemadiff.DiffType   `json:"type"`
+	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
+	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN
+	Attribute  schemadiff.Attribute  `json:"attribute,omitempty"` // "" for ADDED/DROPPED
+
+	// What it changed on, and to what.
+	Object    schemasnapshot.ObjectRef `json:"object"`               // the table
+	SubObject string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
+	OldValue  any                      `json:"old_value,omitempty"`
+	NewValue  any                      `json:"new_value,omitempty"`
 }
 
-type Capture struct {
-	Series     string    `json:"series"`
+type CapturePoint struct {
+	Label      string    `json:"label"`
 	Reason     string    `json:"reason,omitempty"`
 	CapturedAt time.Time `json:"captured_at"`
+	Excluded   string    `json:"excluded,omitempty"` // why it was bridged; empty when used
 }
 ```
 
-`Comparing` states what was compared, not what the user typed. Unfiltered, `Tables` is the whole universe; filtered, it is the resolved keep-set. The `*Filtered` flags tell the two apart so an empty list never has to mean two things.
+`Comparing` states what was compared, not what the user typed. Unfiltered, `Tables` is the whole universe; filtered, it is the resolved keep-set. Every identifier in the report -- `Comparing.Schemas`, `Comparing.Tables`, and the schema names in `CapturePoint.Excluded` -- is minimally quoted for the source engine, so a mixed-case schema reads `"Sales"` everywhere it appears. Matching itself uses the raw catalog names.
 
-`Skipped` exists because an interval the assembler declined to compare is otherwise indistinguishable from one that had no changes. It is `omitempty` because a normal run has none.
+`CapturePoints` is every point on the timeline, not only the ones holding schema: a stored capture, a stored placeholder (the capture failed, so nothing is behind it), and the live read (never persisted). `StoredCaptureCount` counts the first two -- a placeholder is a persisted row -- so it is a count of stored records, not of usable snapshots.
+
+`CapturePoint.Excluded` exists because a point the assembler bridged is otherwise indistinguishable from one that contributed nothing. It is `omitempty` because a normal run bridges nothing. The exclusion is recorded on the point, not on an interval: a bridged capture does not end an interval, so there is no un-compared span to list.
+
+`Diff` holds the `schemadiff.Difference` fields a report needs, flattened rather than embedding `Difference` itself. Its `ObjectA`/`ObjectB` are `ObjectIdent` interface values, which marshal but cannot be unmarshalled, and they hold a different shape per finding (a column's identity nests its table; a table's does not), so one JSON key would carry two schemas. `Difference` also carries no JSON tags, so embedding would publish Go field names into this contract and make every field later added to the diff engine part of it. Flattening also does once what every consumer would otherwise repeat: choosing the display side, and splitting a column into its table and its own name.
 
 `Object` and `SubObject` always identify the display side. For a change, that is the new identity; for a drop, the old one. A renamed column therefore appears under its new name with the old name in `OldValue`.
 
@@ -290,20 +278,20 @@ cmd.detectDrift()
  │
  ├─ schemasnapshot.ListSnapshots(metaDB)                      → []SnapshotHeader         cmd → schemasnapshot
  ├─ per header: schemasnapshot.LoadSnapshotByName(metaDB, name) → *SnapshotContent | nil  cmd → schemasnapshot
- │      each becomes schemadrift.SnapshotInput{Header, Content, Series: Header.Label}
+ │      each becomes a schemasnapshot.SchemaSnapshot{Header, Content}
  │
- ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SnapshotInput | nil                          §5.6
- │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelDetectDrift})       cmd → schemasnapshot
- │         result carries Series: SeriesSourceLive; appended as the last input
+ ├─ cmd.captureLiveSnapshotForDrift(schemas)                  → *SchemaSnapshot | nil                         §5.6
+ │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelSourceLive})        cmd → schemasnapshot
+ │         its Header.Label IS the timeline identity; appended as the last input
  │
  ├─ cmd.buildDriftTableCandidates(contents, live)             → table universe                                §5.5
  ├─ cmd.resolveDriftTableRefs / complementDriftTableRefs      → []ObjectRef, then schemadiff.Scope            §5.5
  │
- ├─ schemadrift.BuildReport(BuildParams)                      → Report                   cmd → schemadrift
+ ├─ schemadrift.BuildReport(DetectionConfig)                  → Report, error            cmd → schemadrift
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
- │      └─ per Difference: classify(d.Type)                   → classification, folded into DiffEntry        §5.4
+ │      └─ per Difference: getDriftInfo(d.Type)               → DriftInfo, embedded in DriftEntry             §5.4
  │
  ├─ cmd.writeDriftReports(report, formats)
  │      ├─ schemadrift.RenderJSON(Report)                     → []byte                   cmd → schemadrift
@@ -317,32 +305,36 @@ Everything above `BuildReport` is `cmd` assembling plain data; everything inside
 
 ### 5.2 Which pairs are compared
 
-**Where:** `schemadrift.BuildReport`, the walk over `BuildParams.Snapshots`. **In:** `[]SnapshotInput`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.Skipped` and `Report.Captures`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
+**Where:** `schemadrift.BuildReport`, the walk over `DetectionConfig.Snapshots`. **In:** `[]schemasnapshot.SchemaSnapshot`, oldest first. **Out:** the `(prev, next)` pairs handed to `Differ.Diff`, plus `Report.CapturePoints`. **Decides:** which two snapshots form an interval, and what to do with inputs that cannot be an interval's side.
 
 The walk keeps a *baseline*: the most recent snapshot eligible to be the older side of a comparison.
 
 | Current input | Baseline | Action |
 | :---- | :---- | :---- |
-| `Content == nil` (failed capture) | any | Record as a `Capture`. Leave the baseline alone, so the next real snapshot compares back across the gap. |
-| has content | none yet | Becomes the baseline. Nothing to compare. |
-| has content, `Header.Schemas` set differs from baseline's | set | Record a `SkippedInterval` with the reason. Current becomes the baseline. |
-| has content, same schema set | set | Diff baseline → current through `Differ` with `p.Scope`. Each `Difference` becomes a `DiffEntry` carrying the interval's `Window` and `Phase`. Current becomes the baseline. |
+| `Content == nil` (failed capture) | any | Set `CapturePoint.Excluded`. Leave the baseline alone, so the next usable snapshot compares back across the gap. |
+| `Header.Schemas` does not cover `Scope.Schemas` | any | Set `CapturePoint.Excluded` naming what it did and did not cover. Leave the baseline alone -- bridged, exactly like a failed capture. |
+| covers, no baseline yet | none | Becomes the baseline. Nothing to compare. |
+| covers | set | Diff baseline → current through `Differ` with `p.Scope`. Each `Difference` becomes a `DriftEntry` carrying the interval's `Window` and `Phase`. Current becomes the baseline. |
 
 A failed capture is *bridged*, not a boundary. The drift that happened around it is still real; what is lost is only the ability to say which side of the failed capture it fell on, and the wider `Window` on the entry says so.
 
-A schema-set mismatch is *skipped*, not compared. Two snapshots covering different schemas would report every table in the extra schema as added or dropped. Set comparison ignores order and duplicates.
+A capture that does not COVER the requested schemas is bridged for the same reason a failed one is: a requested table missing from it is not evidence of a drop, only evidence that nobody looked. Covering MORE than was requested is not a mismatch -- those captures are compared normally, and the extra schemas' findings are removed by `Scope.Schemas` (§3.1) rather than by declining the comparison. Coverage ignores order and duplicates.
 
-`Seq` increments across the whole report, including across intervals that produced no entries, so a reader can refer to "finding 7" unambiguously.
+The test is coverage, not equality. A run narrowed at detect-drift time has a live read carrying exactly `--source-db-schema` while history carries whatever export used, so requiring equal schema sets would reject every interval and report no drift at all.
 
-`Report.Window` spans the first to the last `Capture`, placeholders and the live read included. `Summary.CaptureCount` counts stored snapshots only; the live read is reported through `LiveCompared`.
+`Report.Window` spans the first to the last `CapturePoint`, placeholders and the live read included. `Summary.StoredCaptureCount` counts the stored captures, placeholders included -- a placeholder is a persisted row; only the live read is excluded, and it is reported through `LiveCompared`.
+
+`Summary.ComparedIntervalCount` is how many intervals were actually diffed. It is the honest counterpart to `ChangeCount`: zero changes over zero intervals is not a clean report, it is a report that examined nothing, and without this field a reader has to scan `capture_points[].excluded` to notice. `StoredCaptureCount` cannot stand in -- placeholders count toward it, so two failed captures read as two snapshots examined.
+
+`Summary.LiveCompared` means the live read was actually DIFFED against a baseline, not merely that one was taken. A live read that is bridged, or that is the first usable snapshot and so has nothing behind it, reports false -- otherwise the summary claims the source was checked against history when it was not.
 
 ### 5.3 Phase
 
-**Where:** `schemadrift.phaseFor(prev, next Capture) string`, called once per interval from `BuildReport`. **In:** the two `Capture.Series` values bracketing an interval. **Out:** `DiffEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
+**Where:** `schemadrift.phaseFor(prev, next CapturePoint) string`, called once per interval from `BuildReport`. **In:** the two `CapturePoint.Label` values bracketing an interval. **Out:** `DriftEntry.Phase`. **Decides:** what the migration was doing while the interval's drift appeared.
 
 Unlisted pairs get `""` and the renderer shows the window alone.
 
-| Earlier Series | Later Series | Phase |
+| Earlier Label | Later Label | Phase |
 | :---- | :---- | :---- |
 | `export_schema` | `export_data_from_source_start` | `export data: pending` |
 | `…_start` or `…_periodic` | `…_periodic` or `…_exit` | `export data: running` |
@@ -354,9 +346,9 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 
 ### 5.4 Severity
 
-**Where:** `schemadrift.classify(t schemadiff.DiffType) classification`, backed by `classificationByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** `DiffEntry.Status`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
+**Where:** `schemadrift.getDriftInfo(t schemadiff.DiffType) DriftInfo`, backed by `infoByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
 
-| Status | Meaning | DiffTypes |
+| Severity | Meaning | DiffTypes |
 | :---- | :---- | :---- |
 | `breaks_migration_unrecoverable` | `export data` keeps running but cannot be restarted; the migration must restart from scratch | `TABLE_DROPPED`, `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED` |
 | `breaks_migration_recoverable` | `import data` can fail until the same DDL is applied on the target, then resumes | `COLUMN_ADDED`, `COLUMN_NAME_CHANGED`, `COLUMN_TYPE_CHANGED`, `COLUMN_NULLABILITY_CHANGED` |
@@ -369,13 +361,13 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `BuildParams.Scope`, and the resolved lists and flags for `Comparing`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.buildDriftTableCandidates`, `cmd.resolveDriftTableRefs`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
 The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report.
 
 | Flag | Resolution |
 | :---- | :---- |
-| neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set, `TablesFiltered=false` |
+| neither list flag | `Scope.Tables` \= the whole universe, passed explicitly; `Comparing.Tables` is that same set |
 | `--table-list` | patterns resolved against the universe with the same glob matcher as export; unknown pattern is an operational error |
 | `--exclude-table-list` | resolved the same way, then complemented against the universe; an empty result is an operational error (the report would be empty, so the command says so rather than emitting one) |
 | both | operational error |
@@ -386,9 +378,9 @@ All four list flags are normalised before use: a value that is empty once trimme
 
 ### 5.6 Live read
 
-**Where:** `cmd.captureLiveSnapshotForDrift(schemas) *schemadrift.SnapshotInput`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last `SnapshotInput`, with Series `source_live`, or nil. **Decides:** whether the report ends at the last stored snapshot or at now.
+**Where:** `cmd.captureLiveSnapshotForDrift(schemas) *schemasnapshot.SchemaSnapshot`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last snapshot, labelled `source_live`, or nil. **Decides:** whether the report ends at the last stored snapshot or at now.
 
-The command captures the current source schema in memory under `LabelDetectDrift` and appends it as the last input. It uses the same schema list as the stored snapshots so the pair is comparable. If the live capture fails, the report is built from history alone and the summary says so.
+The command captures the current source schema in memory under `LabelSourceLive` and appends it as the last input. It is captured with exactly `--source-db-schema`, so it always covers the request; history may cover more, and the extra schemas' findings are filtered rather than the comparison declined. If the live capture fails, the report is built from history alone and `LiveCompared` says so.
 
 ## 6\. Migration-flow matrix
 
@@ -412,7 +404,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Placeholder in history | bridged (§5.2); appears on the timeline as a failed marker | Dropping it would hide that a capture was attempted; making it a boundary would hide real drift. |
 | Snapshot blob has an unsupported `Version` | error, exit 1 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
 | Snapshot header exists but blob cannot be loaded for any other reason | warning, treated like a placeholder | The moment is still on the timeline; the report bridges across it. |
-| Schema sets differ between consecutive snapshots | interval skipped and recorded (§5.2) | Comparing would report every table in the differing schema; dropping the interval silently would look like "no changes". |
+| A capture did not cover the requested schemas | bridged, and recorded on its `CapturePoint` (§5.2) | A requested table missing from it means nobody looked, not that it was dropped. Treating it as a boundary lost every interval around it. |
 | Live capture fails or the source is unreachable | connection failure is an error, exit 1; capture failure after connecting warns and continues history-only | The user asked for the live comparison, but history alone is still a useful report. |
 | No or one stored snapshot | warning; report reflects only the live read or the single interval | Not an error: the user may simply not have enabled capture. The `--help` text names the prerequisite. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
@@ -428,10 +420,11 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | :---- | :---- | :---- | :---- |
 | Scope shape | one allow-list per dimension | include \+ exclude lists per dimension | Empty was ambiguous; callers could pass undefined combinations. Only the CLI knows the universe needed to complement an exclude list. |
 | Failed capture | bridge across it | treat as an interval boundary; drop it from the timeline | Drift around it is real. The wider window is the honest answer. |
-| Schema-set mismatch | skip and record | compare anyway; error out | Comparing produces noise; erroring blocks the whole report for one bad pair. |
+| Capture does not cover the requested schemas | bridge it, record on the point | skip the interval; compare anyway; error out | Bridging keeps the intervals either side, which skipping lost. Comparing anyway reports tables nobody looked for as dropped. Erroring blocks a report that is still useful. |
+| Narrowing to a subset of the captured schemas | filter findings after diffing | project each snapshot's content first | Projection turns a cross-schema move into a false `TABLE_DROPPED` (§3.1). |
 | Severity and note | one struct in one map | parallel maps keyed by `DiffType` | Parallel maps drift silently. A test asserts every mapped type has a note. |
 | Severity semantics | what the migration does | how alarming the DDL is | The user's question is "is my migration broken", not "was this a big change". |
-| Live read identity | new `LabelDetectDrift`, never persisted; timeline identity is a separate `Series` | reuse an existing label; add a label that is also persisted | `Capture` validates labels and a persisted label would file the live read as history. |
+| Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
 | Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
 | HTML | embedded template, view model built in Go, no JavaScript | client-side rendering of the JSON | Opens anywhere, including air-gapped hosts. Grouping logic stays testable in Go. |
