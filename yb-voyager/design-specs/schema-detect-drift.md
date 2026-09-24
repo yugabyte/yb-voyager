@@ -28,8 +28,7 @@ This design adds the layer above the diff engine that owns *drift*: which snapsh
 - Sources other than PostgreSQL.  
 - Detecting drift on the target, or on the source after cutover-to-target.  
 - Applying, suggesting, or generating DDL. The report says what to do; the user does it.  
-- Preventing drift (event triggers, locks). Tracked separately in [\#3681](https://github.com/yugabyte/yb-voyager/issues/3681).  
-- Turning capture on by default. It stays behind `--disable-schema-snapshot-capture=false`.
+- Preventing drift (event triggers, locks). Tracked separately in [\#3681](https://github.com/yugabyte/yb-voyager/issues/3681).
 
 ## 2\. Where it sits
 
@@ -396,7 +395,7 @@ The command captures the current source schema in memory under `LabelSourceLive`
 
 ## 6\. Migration-flow matrix
 
-Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It is a no-op unless `--disable-schema-snapshot-capture=false` and the source is PostgreSQL. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
+Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
 
 | Flow | Captures | detect-drift | Notes |
 | :---- | :---- | :---- | :---- |
@@ -405,7 +404,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
 | Live with fall-forward | same as fall-back | same |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered |  |
-| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. |
+| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
 | Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | Oracle and MySQL are non-goals (§1). |
 
 ## 7\. Failure modes
