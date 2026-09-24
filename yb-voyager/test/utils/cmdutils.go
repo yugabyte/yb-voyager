@@ -17,7 +17,7 @@ func CreateTempExportDir() string {
 	// Create a temporary directory for export inside /tmp
 	exportDir, err := os.MkdirTemp("", "yb-voyager-export")
 	if err != nil {
-		utils.ErrExit("failed to create temp export dir for testing: %v", err)
+		utils.ErrExit("failed to create temp export dir for testing: %w", err)
 	}
 
 	return exportDir
@@ -35,10 +35,14 @@ func CreateBackupDir(t *testing.T) string {
 }
 
 func RemoveTempExportDir(exportDir string) {
+	if os.Getenv("YB_VOYAGER_KEEP_EXPORT_DIR") == "1" {
+		fmt.Printf("Keeping export dir for debugging: %s\n", exportDir)
+		return
+	}
 	// Remove the temporary directory
 	err := os.RemoveAll(exportDir)
 	if err != nil {
-		utils.ErrExit("failed to remove temp export dir: %v", err)
+		utils.ErrExit("failed to remove temp export dir: %w", err)
 	}
 }
 
@@ -54,7 +58,7 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 		// Gather DB connection info.
 		host, port, err = container.GetHostPort()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get host port for container: %v", err)
+			return nil, fmt.Errorf("failed to get host port for container: %w", err)
 		}
 
 		config = container.GetConfig()
@@ -99,7 +103,9 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	// Do not send callhome diagnostics during tests.
-	cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+	cmd.Env = append(os.Environ(),
+		"YB_VOYAGER_SEND_DIAGNOSTICS=false",
+		"DEBEZIUM_SOURCE_YB_LOAD_BALANCE_CONNECTIONS=false")
 
 	// Start the Voyager command asynchronously.
 	if err = cmd.Start(); err != nil {

@@ -30,6 +30,26 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+// UniqueIndex describes a single unique index/constraint on a table: its ordered
+// list of columns and whether it was declared with NULLS NOT DISTINCT (PG 15+).
+// When NullsNotDistinct is true, two NULL values are treated as equal (i.e. they
+// conflict); with the default NULLS DISTINCT semantics NULLs never conflict.
+type UniqueIndex struct {
+	IndexName        string
+	Columns          []string
+	NullsNotDistinct bool
+}
+
+// String renders the index as "index_name(col1, col2)", suffixed with
+// "[nulls not distinct]" when NULLS NOT DISTINCT is set.
+func (u UniqueIndex) String() string {
+	s := fmt.Sprintf("%s(%s)", u.IndexName, strings.Join(u.Columns, ", "))
+	if u.NullsNotDistinct {
+		s += " [nulls not distinct]"
+	}
+	return s
+}
+
 type TargetDB interface {
 	Init() error
 	Finalize()
@@ -43,10 +63,22 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
-	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
+	// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key
+	// columns in PK-definition order (batched single-query variant of GetPrimaryKeyColumns).
+	GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	GetPrimaryKeyConstraintNames(tableNameTup sqlname.NameTuple) ([]string, error)
+	// GetTableToUniqueIndexesMap returns, for each table, the list of unique
+	// indexes/constraints (each an ordered column list plus its NULLS NOT DISTINCT
+	// property), fetched live from the import target which is the DB that actually
+	// enforces the constraints. It is used by live-migration conflict detection. For
+	// partitioned tables the unique indexes defined on leaf partitions are merged
+	// into their root table (import events only reference the root). Oracle targets
+	// return an empty map: Oracle sources always use PARTITION_BY_TABLE during live
+	// migration, so conflict detection never runs for them.
+	GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
+	FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesNameToLastValue *utils.StructMap[sqlname.NameTuple, int64]) error
@@ -74,6 +106,10 @@ const (
 	MYSQL      = "mysql"
 	POSTGRESQL = "postgresql"
 	YUGABYTEDB = "yugabytedb"
+	// YUGABYTEDB_AMP (yb-amp) is YugabyteDB AMP — a PostgreSQL-compatible
+	// compute backed by YugabyteDB storage. It reuses the PostgreSQL target
+	// driver (see newTargetYugabyteDBAmp).
+	YUGABYTEDB_AMP = "yugabytedb-amp"
 )
 
 type Batch interface {
@@ -93,6 +129,8 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 		return newTargetPostgreSQL(tconf)
 	case YUGABYTEDB:
 		return newTargetYugabyteDB(tconf)
+	case YUGABYTEDB_AMP:
+		return newTargetYugabyteDBAmp(tconf)
 	}
 	return nil
 }

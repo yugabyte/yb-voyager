@@ -48,6 +48,13 @@ type DefferedSqlStmt struct {
 
 var finalFailedSqlStmts []string
 
+// Pre-built `SET search_path = <target schemas>` stmt appended to
+// sessionVariables when importing FUNCTION/PROCEDURE files, so PL/pgSQL body
+// validation can resolve unqualified %TYPE / %ROWTYPE refs against the right
+// path. Populated by createTargetSchemas; empty stmt means not populated
+// (createTargetSchemas not called, or no target schemas resolved).
+var importTargetSearchPathStmt sqlInfo
+
 // The client message (NOTICE/WARNING) from psql is stored in this global variable.
 // as part of the noticeHandler function for every query executed.
 var notice *pgconn.Notice
@@ -55,8 +62,22 @@ var notice *pgconn.Notice
 func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) error {
 	schemaDir := filepath.Join(exportDir, "schema")
+
 	for _, importObjectType := range importObjectList {
 		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
+		// yb-amp is PostgreSQL-compatible and rejects the YugabyteDB-specific
+		// optimizations (colocation, `SET yb_*` sharding steering) that
+		// export-schema bakes into the main schema files. Whenever export-schema
+		// transformed an object file it also retained the plain pre-transformation
+		// original as backup_<base>; for yb-amp, prefer that plain original purely
+		// by its existence (an object type with nothing to transform has no backup,
+		// so its normal file is already plain).
+		if tconf.TargetDBType == YUGABYTEDB_AMP {
+			if origPath := originalSchemaFilePath(importObjectFilePath); utils.FileOrFolderExists(origPath) {
+				log.Infof("yb-amp target: importing pre-transformation original %q instead of %q", origPath, importObjectFilePath)
+				importObjectFilePath = origPath
+			}
+		}
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
@@ -68,7 +89,23 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 	return nil
 }
 
+// originalSchemaFilePath returns the backup_<base> sibling that export-schema
+// writes alongside any schema file it transforms (tables, indexes, mviews).
+func originalSchemaFilePath(filePath string) string {
+	return filepath.Join(filepath.Dir(filePath), "backup_"+filepath.Base(filePath))
+}
+
 func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
+	// The analyze-schema report is YugabyteDB-version-oriented: its version parsing
+	// expects the YugabyteDB "<pg>-YB-<yb>-<build>" string, which non-YB targets
+	// don't report (yb-amp reports a plain "PostgreSQL 17.x"). Only generate it for
+	// a real YugabyteDB target; returning an empty path also drops the YB-flavored
+	// analyze nudge downstream.
+	if tconf.TargetDBType != YUGABYTEDB {
+		log.Infof("skipping analyze-schema report generation for non-YugabyteDB target %q", tconf.TargetDBType)
+		return "", nil
+	}
+
 	//check if schema is already analyzed
 	path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
 	reportPath, ok := utils.FilePathForAnyFileExistsInGlobPattern(path) // basic check if report files exists then return that only
@@ -103,11 +140,11 @@ func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 func isNotValidConstraint(stmt string) (bool, error) {
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
-		return false, goerrors.Errorf("error parsing the ddl[%s]: %v", stmt, err)
+		return false, goerrors.Errorf("error parsing the ddl[%s]: %w", stmt, err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
-		return false, goerrors.Errorf("error in process DDL[%s]:%v", stmt, err)
+		return false, goerrors.Errorf("error in process DDL[%s]:%w", stmt, err)
 	}
 	alter, ok := ddlObj.(*queryparser.AlterTable)
 	if !ok {
@@ -136,9 +173,19 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 	defer func() {
 		if tgtConn != nil {
-			tgtConn.Close(context.Background())
+			_ = tgtConn.Close(context.Background()) // teardown; close error is not actionable
 		}
 	}()
+
+	// PL/pgSQL function body validation runs at CREATE FUNCTION time and needs
+	// a populated search_path to resolve unqualified %TYPE / %ROWTYPE refs.
+	// pg_dump's preamble emits `SELECT set_config('search_path','',false)` that
+	// clobbers the connection's path mid-file; appending the pre-built SET
+	// search_path stmt to sessionVariables makes ApplySessionVariables re-apply
+	// it before every DDL, winning over the SELECT by the next CREATE FUNCTION.
+	if (objType == "FUNCTION" || objType == "PROCEDURE") && importTargetSearchPathStmt.stmt != "" {
+		sessionVariables = append(sessionVariables, importTargetSearchPathStmt)
+	}
 	for _, sqlInfo := range sqlInfoArr {
 		if tgtConn == nil {
 			tgtConn = newTargetConn()
@@ -150,7 +197,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		// Check if the statement should be skipped
 		skip, err := shouldSkipDDL(sqlInfo.stmt, objType)
 		if err != nil {
-			return goerrors.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
+			return goerrors.Errorf("error checking whether to skip DDL for statement [%s]: %w", sqlInfo.stmt, err)
 		}
 		if skip {
 			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
@@ -159,7 +206,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		ok, err := isSessionVariable(sqlInfo.stmt)
 		if err != nil {
-			return goerrors.Errorf("error checking whether statement is a session variable: %v", err)
+			return goerrors.Errorf("error checking whether statement is a session variable: %w", err)
 		}
 		if ok {
 			sessionVariables = append(sessionVariables, sqlInfo)
@@ -175,6 +222,10 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 }
 
 func isSessionVariable(stmt string) (bool, error) {
+	stmtForCheck := strings.TrimSpace(strings.ToUpper(stmt))
+	if !strings.HasPrefix(stmtForCheck, "SET") {
+		return false, nil
+	}
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
 		return false, fmt.Errorf("error parsing statement: %w", err)
@@ -207,9 +258,17 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	if skipReplicaIdentity {
 		return true, nil
 	}
+	stmtForCheck := strings.TrimSpace(strings.ToUpper(stmt))
+	if !strings.HasPrefix(stmtForCheck, "ALTER TABLE") {
+		//We should not use parser for every statement as some DDL statement can have YB specific syntax like SPLIT INTO x tablets, PRIMARY KEY (x HASH)
+		//but we right now use PG parser to parse the statement so it fails with syntax error for such statements so we are skipping the parser for such statements
+		//and only parsing the ALTER statements as ALTER most doesn't have support for any YB specific syntax as per docs, but one case where it is possible is
+		//ALTER TABLE ADD PRIMARY KEY (x HASH), but in most cases we don't have ADD PK DDL via voyager schema export
+		return bool(flagPostSnapshotImport), nil
+	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
-		return false, goerrors.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
+		return false, goerrors.Errorf("error checking whether stmt is to add not valid constraint: %w", err)
 	}
 	skipNotValidWithoutPostImport := isNotValid && !bool(flagPostSnapshotImport)
 	skipOtherDDLsWithPostImport := (bool(flagPostSnapshotImport) && !isNotValid)
@@ -229,20 +288,30 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 
 	err = (*tgtConn).ApplySessionVariables(sessionVariables)
 	if err != nil {
-		return goerrors.Errorf("error applying session variable: %v", err)
+		return goerrors.Errorf("error applying session variable: %w", err)
 	}
 
-	defer func(conn *ImportSchemaTargetConn) error {
-		if conn != nil {
+	// NOTE (errcheck): the closure's error return has always been discarded — a
+	// deferred call's return value cannot be observed. Made explicit with `_ =`
+	// below. `(*tgtConn)` MUST stay a defer-time argument (evaluated eagerly,
+	// always non-nil here): reading it at exit time would arm the closure body
+	// on the error paths that set `(*tgtConn) = nil`, nil-dereferencing in
+	// ResetSessionVariables. Pre-existing oddity flagged for a follow-up: the
+	// `conn != nil` early-return means the reset body only ever runs when conn
+	// is nil, so the closure has always been a no-op.
+	defer func(conn *ImportSchemaTargetConn) {
+		_ = func() error {
+			if conn != nil {
+				return nil
+			}
+			// Reset all session variables on the connection for next stmt
+			log.Infof("Resetting all session variables on the connection for next stmt")
+			err = conn.ResetSessionVariables(sessionVariables)
+			if err != nil {
+				return goerrors.Errorf("error resetting all session variables on connection: %w", err)
+			}
 			return nil
-		}
-		// Reset all session variables on the connection for next stmt
-		log.Infof("Resetting all session variables on the connection for next stmt")
-		err = conn.ResetSessionVariables(sessionVariables)
-		if err != nil {
-			return goerrors.Errorf("error resetting all session variables on connection: %v", err)
-		}
-		return nil
+		}()
 	}((*tgtConn))
 
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
@@ -255,7 +324,7 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
 			err = beforeIndexCreation(sqlInfo, (*tgtConn).GetConn(), objType)
 			if err != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
 				return fmt.Errorf("before index creation: %w", err)
 			}
@@ -270,33 +339,33 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmt, err)
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
-			(*tgtConn).Close(context.Background())
+			_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 			(*tgtConn) = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
-			(*tgtConn).Close(context.Background())
+			_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 			(*tgtConn) = newTargetConn()
 
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
-				return goerrors.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+				return goerrors.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
 			// `err` is already being used for retries, so using `err2`
 			err2 := dropIdx((*tgtConn).GetConn(), fullyQualifiedObjName)
 			if err2 != nil {
-				(*tgtConn).Close(context.Background())
+				_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 				(*tgtConn) = nil
 				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
 			continue
-		} else if missingRequiredSchemaObject(err) {
+		} else if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
 			deferredSqlStmts = append(deferredSqlStmts, DefferedSqlStmt{
 				sqlStmt:          sqlInfo,
@@ -313,9 +382,9 @@ func executeSqlStmtWithRetries(tgtConn **ImportSchemaTargetConn, sqlInfo sqlInfo
 		break // no more iteration in case of non retriable error
 	}
 	if err != nil {
-		(*tgtConn).Close(context.Background())
+		_ = (*tgtConn).Close(context.Background()) // conn is being discarded
 		(*tgtConn) = nil
-		if missingRequiredSchemaObject(err) {
+		if missingRequiredSchemaObject(err) || isPercentTypeResolutionError(err) {
 			// Do nothing for deferred case
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType),
@@ -535,7 +604,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 	for _, sessionVariable := range sessionVariables {
 		sessionVarName, err := queryparser.GetSessionVariableName(sessionVariable.stmt)
 		if err != nil {
-			return goerrors.Errorf("error getting session variable name: %v", err)
+			return goerrors.Errorf("error getting session variable name: %w", err)
 		}
 		resetSessionVariable := fmt.Sprintf("RESET %s", sessionVarName)
 		_, err = (*tc.conn).Exec(context.Background(), resetSessionVariable)
@@ -545,7 +614,7 @@ func (tc *ImportSchemaTargetConn) ResetSessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping resetting unrecognized configuration: %s", sessionVariable.stmt)
 				continue
 			}
-			return goerrors.Errorf("error resetting session variable: %v", err)
+			return goerrors.Errorf("error resetting session variable: %w", err)
 		}
 	}
 	return nil
@@ -559,7 +628,7 @@ func (tc *ImportSchemaTargetConn) ApplySessionVariables(sessionVariables []sqlIn
 				log.Warnf("Skipping unrecognized configuration: %s", sessionVariable.stmt)
 				return nil
 			}
-			return goerrors.Errorf("run query: %q on target %q: %s", sessionVariable.stmt, tconf.Host, err)
+			return goerrors.Errorf("run query: %q on target %q: %w", sessionVariable.stmt, tconf.Host, err)
 		}
 	}
 	return nil
@@ -606,7 +675,7 @@ func newTargetConn() *ImportSchemaTargetConn {
 		if err != nil {
 			utils.WaitChannel <- 1
 			<-utils.WaitChannel
-			utils.ErrExit("connect to target db: %s", err)
+			utils.ErrExit("connect to target db: %w", err)
 		}
 	}
 
@@ -645,7 +714,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query: %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tconf.Host, err)
 	} else if cntSchemaName < len(tconf.Schemas) {
 		utils.ErrExit("schemas do not exist in target: %q", schemas)
 	}
@@ -654,7 +723,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", setSchemas)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, tconf.Host, err)
 	}
 }
 
@@ -663,6 +732,6 @@ func setOrafceSearchPath(conn *pgx.Conn) {
 	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 	_, err := conn.Exec(context.Background(), updateSearchPath)
 	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		utils.ErrExit("unable to update search_path for orafce extension: %w", err)
 	}
 }

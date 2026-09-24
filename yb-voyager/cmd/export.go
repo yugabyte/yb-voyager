@@ -18,24 +18,21 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strconv"
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // source struct will be populated by CLI arguments parsing
 var source srcdb.Source
-
-const MIN_REQUIRED_JAVA_VERSION = 17
 
 // to disable progress bar during data export and import
 var disablePb utils.BoolStr
@@ -44,7 +41,8 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
-var pgExportCommands = []string{"pg_dump", "pg_restore", "psql"}
+var schemaSnapshotCaptureInterval int
+var disableSchemaSnapshotCapture utils.BoolStr
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -61,7 +59,15 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")
 
-	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before export. (only valid for PostgreSQL)")
+	BoolVar(cmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before export. (only valid for PostgreSQL) Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.")
+
+	// Defaults to true (capture off) for now: nothing consumes the snapshots until the
+	// detect-drift command ships. Flip to false to enable capture by default once it does.
+	BoolVar(cmd.Flags(), &disableSchemaSnapshotCapture, "disable-schema-snapshot-capture", true,
+		"disable best-effort schema-snapshot capture during export. (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	mustMarkFlagHidden(cmd, "disable-schema-snapshot-capture")
 }
 
 func registerCommonSourceDBConnFlags(cmd *cobra.Command) {
@@ -253,6 +259,69 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 	BoolVar(cmd.Flags(), &source.AllowOracleClobDataExport, "allow-oracle-clob-data-export", false,
 		"[EXPERIMENTAL][Oracle only] Allow exporting data of CLOB columns in offline migration.")
+
+	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
+}
+
+// registerSchemaSnapshotIntervalFlag registers the periodic-capture interval.
+//
+// Deliberately NOT in registerExportDataFlags, which `export data from target`
+// shares: capture is source-side only, so the flag would be accepted there and do
+// nothing. It also can't join --disable-schema-snapshot-capture in
+// registerCommonExportFlags, which export schema calls — that has no interval.
+//
+// Config-file key: "export-data.schema-snapshot-capture-interval".
+func registerSchemaSnapshotIntervalFlag(cmd *cobra.Command) {
+	cmd.Flags().IntVar(&schemaSnapshotCaptureInterval, "schema-snapshot-capture-interval", 60,
+		"interval (in minutes, must be at least 1) at which voyager periodically captures a source schema snapshot throughout export data (both snapshot and streaming phases; offline and live). (only valid for PostgreSQL)")
+	// Hidden for now: capture is off by default and nothing consumes the snapshots until
+	// the detect-drift command ships. Still settable via CLI/config for internal use.
+	mustMarkFlagHidden(cmd, "schema-snapshot-capture-interval")
+}
+
+// validateSchemaSnapshotCaptureInterval rejects an interval that would silently turn
+// periodic capture off, so a bad value fails at startup instead of looking accepted.
+//
+// Scoped by flag presence on `cmd`: `export data from target` shares these package
+// globals but never registers this flag, so Lookup returns nil and the guard no-ops
+// there -- there is no value the user could have got wrong. The scoping is defensive
+// rather than load-bearing: IntVar writes its default into the global at registration,
+// which init() does on the source-side commands, so the global reads 60 process-wide.
+func validateSchemaSnapshotCaptureInterval(cmd *cobra.Command) error {
+	if cmd.Flags().Lookup("schema-snapshot-capture-interval") == nil {
+		return nil
+	}
+	if schemaSnapshotCaptureInterval <= 0 {
+		return goerrors.Errorf("--schema-snapshot-capture-interval must be at least 1 (minute), got %d",
+			schemaSnapshotCaptureInterval)
+	}
+	return nil
+}
+
+// sourceCapture resolves the command globals into an export.SchemaSnapshotCapture, which
+// holds the capture policy itself. This adapter is the only place that reads them, so
+// the policy stays testable without command state.
+func sourceCapture() export.SchemaSnapshotCapture {
+	// Non-PostgreSQL source: the zero value's own gate makes every capture a no-op, so
+	// nothing else is worth resolving. Only the assertion short-circuits -- a
+	// PostgreSQL source with no open connection still has to go through the capture.
+	pg, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return export.SchemaSnapshotCapture{}
+	}
+	return export.SchemaSnapshotCapture{
+		DB:     pg.GetDB(),
+		MetaDB: metaDB,
+		Params: schemasnapshot.CaptureParams{
+			DatabaseType: source.DBType,
+			DBMetadata: schemasnapshot.DBMetadata{
+				Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User,
+			},
+			Schemas: source.GetSchemaListUnquoted(),
+		},
+		Disabled: bool(disableSchemaSnapshotCapture),
+	}
 }
 
 func validateSourceDBType() {
@@ -355,7 +424,7 @@ func getAndStoreSourceDBPasswordInSourceConf(cmd *cobra.Command) {
 	var err error
 	source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting source-db-password: %v", err)
+		utils.ErrExit("error in getting source-db-password: %w", err)
 	}
 }
 
@@ -363,21 +432,28 @@ func getAndStoreTargetDBPasswordInSourceConf(cmd *cobra.Command) {
 	var err error
 	source.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting target-db-password: %v", err)
+		utils.ErrExit("error in getting target-db-password: %w", err)
 	}
 }
 
 func markFlagsRequired(cmd *cobra.Command) {
+	// `export data from target` borrows exportDataCmd's PreRun but registers no
+	// source-* connection flags; its connection info comes from the MSR. Matched
+	// by path literal: referencing exportDataFromTargetCmd here would create a
+	// package initialization cycle back through exportDataCmd.
+	if cmd.CommandPath() == "yb-voyager export data from target" {
+		return
+	}
 	// mandatory for all
-	cmd.MarkFlagRequired("source-db-type")
-	cmd.MarkFlagRequired("source-db-user")
+	mustMarkFlagRequired(cmd, "source-db-type")
+	mustMarkFlagRequired(cmd, "source-db-user")
 
 	switch source.DBType {
 	case POSTGRESQL, ORACLE: // schema and database names are mandatory
-		cmd.MarkFlagRequired("source-db-name")
-		cmd.MarkFlagRequired("source-db-schema")
+		mustMarkFlagRequired(cmd, "source-db-name")
+		mustMarkFlagRequired(cmd, "source-db-schema")
 	case MYSQL:
-		cmd.MarkFlagRequired("source-db-name")
+		mustMarkFlagRequired(cmd, "source-db-name")
 	}
 }
 
@@ -407,136 +483,6 @@ func saveExportTypeInMSR() {
 		}
 	})
 	if err != nil {
-		utils.ErrExit("error while updating export type in meta db: %v", err)
+		utils.ErrExit("error while updating export type in meta db: %w", err)
 	}
-}
-
-func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
-	var missingTools []string
-	switch source.DBType {
-	case POSTGRESQL:
-		sourceDBVersion := source.DB().GetVersion()
-		for _, binary := range pgExportCommands {
-			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
-			if err != nil {
-				return nil, err
-			} else if binaryCheckIssue != "" {
-				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
-			}
-		}
-
-		missingTools = utils.CheckTools("strings")
-
-	case MYSQL:
-		// In case if it is not a live migration, then we need to check for ora2pg
-		if !(changeStreamingIsEnabled(exportType) || useDebezium) {
-			missingTools = utils.CheckTools("ora2pg")
-		}
-
-	case ORACLE:
-		// In case if it is not a live migration, then we need to check for ora2pg
-		if !(changeStreamingIsEnabled(exportType) || useDebezium) {
-			missingTools = utils.CheckTools("ora2pg", "sqlplus")
-		} else {
-			missingTools = utils.CheckTools("sqlplus")
-		}
-
-	case YUGABYTEDB:
-		missingTools = utils.CheckTools("strings")
-
-	default:
-		return nil, goerrors.Errorf("unknown source database type %q", source.DBType)
-	}
-
-	binaryCheckIssues = append(binaryCheckIssues, missingTools...)
-
-	if changeStreamingIsEnabled(exportType) || useDebezium {
-		// Check for java
-		javaIssue, err := checkJavaVersion()
-		if err != nil {
-			return nil, err
-		}
-		if javaIssue != "" {
-			binaryCheckIssues = append(binaryCheckIssues, javaIssue)
-		}
-	}
-
-	if len(binaryCheckIssues) > 0 {
-		binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again")
-	}
-
-	if changeStreamingIsEnabled(exportType) || useDebezium {
-		// Check for debezium
-		// FindDebeziumDistribution returns an error only if the debezium distribution is not found
-		// So its error mesage will be added to problems
-		err = dbzm.FindDebeziumDistribution(source.DBType, false)
-		if err != nil {
-			if len(binaryCheckIssues) > 0 {
-				binaryCheckIssues = append(binaryCheckIssues, "")
-			}
-			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
-			binaryCheckIssues = append(binaryCheckIssues, "Please check your Voyager installation and try again")
-		}
-	}
-
-	return binaryCheckIssues, nil
-}
-
-func checkJavaVersion() (binaryCheckIssue string, err error) {
-	javaBinary := "java"
-	if javaHome := os.Getenv("JAVA_HOME"); javaHome != "" {
-		javaBinary = javaHome + "/bin/java"
-	}
-
-	// Execute `java -version` to get the version
-	cmd := exec.Command(javaBinary, "-version")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Sprintf("java: required version >= %d", MIN_REQUIRED_JAVA_VERSION), nil
-	}
-
-	// Example output
-	// java version "11.0.16" 2022-07-19 LTS
-	// Java(TM) SE Runtime Environment (build 11.0.16+8-LTS-211)
-	// Java HotSpot(TM) 64-Bit Server VM (build 11.0.16+8-LTS-211, mixed mode, sharing)
-
-	// Convert output to string
-	versionOutput := string(output)
-
-	// Extract the line with the version
-	var versionLine string
-	lines := strings.Split(versionOutput, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "version") {
-			versionLine = line
-			break
-		}
-	}
-	if versionLine == "" {
-		return "", goerrors.Errorf("unable to find java version in output: %s", versionOutput)
-	}
-
-	// Extract version string from the line (mimics awk -F '"' '/version/ {print $2}')
-	startIndex := strings.Index(versionLine, "\"")
-	endIndex := strings.LastIndex(versionLine, "\"")
-	if startIndex == -1 || endIndex == -1 || startIndex >= endIndex {
-		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
-	}
-	version := versionLine[startIndex+1 : endIndex]
-
-	// Extract major version
-	versionNumbers := strings.Split(version, ".")
-	if len(versionNumbers) < 1 {
-		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
-	}
-	majorVersion, err := strconv.Atoi(versionNumbers[0])
-	if err != nil {
-		return "", goerrors.Errorf("unexpected java version output: %s", versionOutput)
-	}
-
-	if majorVersion < MIN_REQUIRED_JAVA_VERSION {
-		return fmt.Sprintf("java: required version >= %d; current version: %s", MIN_REQUIRED_JAVA_VERSION, version), nil
-	}
-
-	return "", nil
 }

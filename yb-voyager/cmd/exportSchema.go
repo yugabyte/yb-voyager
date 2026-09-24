@@ -18,6 +18,7 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,10 +36,13 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -126,7 +130,12 @@ func exportSchema(cmd *cobra.Command) error {
 		}
 
 		// Check if required binaries are installed.
-		binaryCheckIssues, err := checkDependenciesForExport()
+		binaryCheckIssues, err := export.CheckDependencies(
+			source.DBType,
+			source.DB().GetVersion(),
+			exportType,
+			useDebezium,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to check dependencies for export schema: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
@@ -144,20 +153,14 @@ func exportSchema(cmd *cobra.Command) error {
 	}
 
 	checkSourceDBCharset()
-	sourceDBVersion := source.DB().GetVersion()
-	source.DBVersion = sourceDBVersion
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-
-	// Get PostgreSQL system identifier while still connected
-	source.FetchDBSystemIdentifier()
-	utils.PrintAndLogf("%s version: %s\n", source.DBType, sourceDBVersion)
+	source.FetchSourceInfo()
+	utils.PrintAndLogf("%s version: %s\n", source.DBType, source.DBVersion)
 
 	// Check if the source database has the required permissions for exporting schema.
 	if source.RunGuardrailsChecks {
-		checkIfSchemasHaveUsagePermissions()
+		if err := srcdb.CheckSchemasHaveUsagePermissions(&source, export.ChangeStreamingIsEnabled(exportType)); err != nil {
+			return fmt.Errorf("schema usage permission check failed: %w", err)
+		}
 		missingPerms, err := source.DB().GetMissingExportSchemaPermissions("")
 		if err != nil {
 			return fmt.Errorf("failed to get missing export schema permissions: %w", err)
@@ -235,6 +238,10 @@ func exportSchema(cmd *cobra.Command) error {
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
+
+	if err := sourceCapture().Capture(context.Background(), schemasnapshot.LabelExportSchema, "", true); err != nil {
+		log.Warnf("schema-snapshot capture failed, export schema unaffected: %v", err)
+	}
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
@@ -378,7 +385,7 @@ func init() {
 	// temporary flag to disable this change if user encounters any issues
 	BoolVar(exportSchemaCmd.Flags(), &assessSchemaBeforeExport, "assess-schema-before-export", true,
 		"run migration assessment before exporting schema. (default true)")
-	exportSchemaCmd.Flags().MarkHidden("assess-schema-before-export") // hide this flag from help output
+	mustMarkFlagHidden(exportSchemaCmd, "assess-schema-before-export") // hide this flag from help output
 }
 
 func schemaIsExported() bool {
@@ -555,16 +562,16 @@ func applyShardedTablesRecommendation(shardedTables []string, colocatedTables []
 		}
 	}
 
-	// rename existing table.sql file to table.sql.orig
-	backupPath := filePath + ".orig"
-	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
-	err := os.Rename(filePath, filePath+".orig")
+	// Back up the pristine original (skip-if-exists, consistent backup_<base> name)
+	// before overwriting it with the colocation-modified schema, so a
+	// PostgreSQL-compatible target (yb-amp) can import the un-transformed DDL.
+	backupPath, err := sqltransformer.EnsurePlainBackup(filePath)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("error renaming file %s: %w", filePath, err)
+		return nil, nil, "", fmt.Errorf("backing up original schema file %s: %w", filePath, err)
 	}
 
-	// create new table.sql file for modified schema
-	log.Infof("creating file %q to store the modified recommended schema", filePath)
+	// overwrite filePath with the modified (colocation-applied) schema
+	log.Infof("writing the modified recommended schema to %q", filePath)
 	file, err := os.Create(filePath)
 	if err != nil {
 		return nil, nil, "", fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
@@ -605,7 +612,7 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
 	if err != nil {
-		return formattedStmt, false, false, "", goerrors.Errorf("error parsing the stmt-%s: %v", stmt, err)
+		return formattedStmt, false, false, "", goerrors.Errorf("error parsing the stmt-%s: %w", stmt, err)
 	}
 
 	if len(parseTree.Stmts) == 0 {
@@ -788,6 +795,9 @@ func applyMviewFileTransformations(modifiedMviews []string, colocatedMviews []st
 	mviewTransformer := sqltransformer.NewMviewFileTransformer()
 	mviewTransformer.ShardedMviews = modifiedMviews
 	mviewTransformer.ColocatedMviews = colocatedMviews
+	// mviewBackupPath is the plain backup_<base> the colocation step created (if it
+	// ran via EnsurePlainBackup). The mview file is only ever mutated by that step,
+	// so this transformer applies no content changes — it just carries metadata.
 	mviewTransformer.BackupFilePath = mviewBackupPath
 	mviewTransformer.ColocationRecommendationsApplied = assessmentRecommendationsApplied
 	return mviewTransformer, nil
@@ -808,9 +818,7 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	//fetching redundanant indexes from assessment db
 	//assuming that assessment is run and fetched the redundant indexes
 	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
-	var err error
-	redundantIndexToResolvedExistingIndex := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, string]()
-	redundantIndexToResolvedExistingIndex, err = fetchRedundantIndexMapFromAssessmentDB()
+	redundantIndexToResolvedExistingIndex, err := fetchRedundantIndexMapFromAssessmentDB()
 	if err != nil {
 		if skipPerfOptimizations {
 			//this is done to handle errors but if skip is used we need to put the redundant indexes in the schema optimization report

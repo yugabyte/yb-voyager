@@ -113,6 +113,9 @@ func CheckTableStructureSqlite(db *sql.DB, tableName string, expectedColumns map
 			Default:    cp.Default,
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterating table info for %s: %w", tableName, err)
+	}
 
 	// Compare actual columns with expected columns
 	for colName, expectedProps := range expectedColumns {
@@ -175,6 +178,9 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 		}
 		actualColumns[colName] = col
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("Failed iterating column metadata: %v", err)
+	}
 
 	// Compare columns
 	for colName, expectedProps := range expectedColumns {
@@ -191,7 +197,7 @@ func CheckTableStructurePG(t *testing.T, db *sql.DB, schema, table string, expec
 	// Check for extra columns
 	for actualName := range actualColumns {
 		found := false
-		for expectedName, _ := range expectedColumns {
+		for expectedName := range expectedColumns {
 			if actualName == expectedName {
 				found = true
 				break
@@ -239,6 +245,9 @@ func checkPrimaryKeyOfTablePG(t *testing.T, db *sql.DB, schema, table string, ex
 		for _, col := range columns {
 			primaryKeyColumns[col] = true
 		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("Failed iterating primary keys: %v", err)
 	}
 
 	// Check if the primary key columns match the expected primary key columns
@@ -420,7 +429,7 @@ func CreateTempFile(dir string, fileContents string, fileFormat string) (string,
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }() // backstop; the success path checks Close below
 
 	// Write some text to the file
 	_, err = file.WriteString(fileContents)
@@ -428,6 +437,10 @@ func CreateTempFile(dir string, fileContents string, fileFormat string) (string,
 		return "", err
 	}
 
+	err = file.Close()
+	if err != nil {
+		return "", err
+	}
 	return file.Name(), nil
 }
 
@@ -525,6 +538,18 @@ func CompareRowCount(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableNam
 	}
 	if srcCount != tgtCount {
 		return fmt.Errorf("row count mismatch for table %s: source has %d rows, target has %d rows", tableName, srcCount, tgtCount)
+	}
+	return nil
+}
+
+func AssertRowCount(ctx context.Context, db *sql.DB, tableName string, expected int) error {
+	var count int
+	err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("counting rows in table %s: %w", tableName, err)
+	}
+	if count != expected {
+		return fmt.Errorf("row count mismatch for table %s: expected %d, got %d", tableName, expected, count)
 	}
 	return nil
 }

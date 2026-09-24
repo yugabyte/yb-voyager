@@ -51,7 +51,7 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to create temp schema file: %w", err)
 	}
-	defer tmpFile.Close()
+	defer utils.CloseAndLogOnError(tmpFile.Name(), tmpFile)
 
 	if _, err := tmpFile.Write(mysqlInitSchemaFile); err != nil {
 		return fmt.Errorf("failed to write to temp schema file: %w", err)
@@ -117,12 +117,12 @@ func (ms *MysqlContainer) Stop(ctx context.Context) error {
 }
 
 func (ms *MysqlContainer) Terminate(ctx context.Context) {
-	ms.mutex.Lock()
-	defer ms.mutex.Unlock()
-
 	if ms == nil {
 		return
 	}
+
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 
 	err := ms.container.Terminate(ctx)
 	if err != nil {
@@ -156,7 +156,7 @@ func (ms *MysqlContainer) GetConfig() ContainerConfig {
 func (ms *MysqlContainer) GetConnectionString() string {
 	host, port, err := ms.GetHostPort()
 	if err != nil {
-		utils.ErrExit("failed to get host port for mysql connection string: %v", err)
+		utils.ErrExit("failed to get host port for mysql connection string: %w", err)
 	}
 
 	// DSN format: user:password@tcp(host:port)/dbname
@@ -227,7 +227,7 @@ func (ms *MysqlContainer) Query(sql string, args ...interface{}) (*sql.Rows, err
 	}
 	defer db.Close()
 
-	rows, err := db.Query(sql, args...)
+	rows, err := db.Query(sql, args...) //nolint:sqlclosecheck // rows are returned to and closed by the caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}

@@ -11,68 +11,132 @@ jobs:
     uses: ./.github/workflows/prepare-versions.yml
 
   failpoint-tests:
-    name: Failpoint Tests
+    name: "Failpoint: ${{ matrix.group_name }}"
     needs: [prepare-versions]
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: failpoint_export
+            group_name: "Export"
+          - tag: failpoint_import
+            group_name: "Import"
+          - tag: failpoint_cutover
+            group_name: "Cutover"
+
     env:
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
-      
+
       - name: Install Byteman
         run: |
           BYTEMAN_VERSION="4.0.22"
           cd /tmp
-          wget -q https://downloads.jboss.org/byteman/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip
-          unzip -q byteman-download-${BYTEMAN_VERSION}-bin.zip
-          echo "BYTEMAN_JAR=/tmp/byteman-download-${BYTEMAN_VERSION}/lib/byteman.jar" >> $GITHUB_ENV
-      
-      - name: Cache local Maven repository
-        uses: actions/cache@v4
+          
+          # Corrected Maven Central URL (includes -download)
+          MAVEN_URL="https://repo1.maven.org/maven2/org/jboss/byteman/byteman-download/${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip"
+          # Backup URL from GitHub (very reliable)
+          GITHUB_URL="https://github.com/bytemanproject/byteman/releases/download/v${BYTEMAN_VERSION}/byteman-download-${BYTEMAN_VERSION}-bin.zip"
+          
+          echo "Attempting to download Byteman..."
+          
+          # Try Maven first, fallback to GitHub if it fails
+          wget --tries=3 --waitretry=2 -O byteman.zip "$MAVEN_URL" || \
+          wget --tries=3 --waitretry=2 -O byteman.zip "$GITHUB_URL"
+          
+          if [ ! -s byteman.zip ]; then
+            echo "::error::All download sources failed!"
+            exit 1
+          fi
+
+          unzip -q byteman.zip
+          
+          # This handles both naming conventions (byteman-4.0.22 or byteman-download-4.0.22)
+          DIR_NAME=$(ls -d byteman* | head -n 1)
+          echo "BYTEMAN_JAR=/tmp/${DIR_NAME}/lib/byteman.jar" >> $GITHUB_ENV
+          echo "Byteman installed at /tmp/${DIR_NAME}"
+
+      - name: Compute Maven cache key
+        id: maven-cache-key
+        # Computed once, before the build, so the restore and save steps agree on it.
+        # The Debezium build writes into debezium-server-voyager/target/, and
+        # hashFiles() is evaluated over the workspace, so re-evaluating it after the
+        # installer has run risks saving under a key no restore ever looks for.
+        run: echo "key=${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore local Maven repository
+        id: maven-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          key: ${{ steps.maven-cache-key.outputs.key }}
+          # Prefix fallback, so a PR that does change the cached inputs still
+          # restores most of the dependency tree and only fetches the delta.
           restore-keys: |
             ${{ runner.os }}-maven-
-      
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ needs.prepare-versions.outputs.go_version }}
-      
+
       - name: Install failpoint-ctl
-        run: go install github.com/pingcap/failpoint/failpoint-ctl@latest
-      
+        run: |
+          go install github.com/pingcap/failpoint/failpoint-ctl@latest
+
       - name: Enable failpoint code generation
         run: |
           cd yb-voyager
           failpoint-ctl enable
-      
+
       - name: Run installer script to setup voyager and dependencies
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source
           sudo rm /usr/bin/pg_dump
-          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/18/bin/pg_dump /usr/bin/pg_dump
           sudo rm /usr/bin/pg_restore
-          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/18/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
           pg_restore --version
           psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-      
+
+      # Save only from the default branch (or a PR labelled `cache-maven`).
+      # This gate is load-bearing: ~/.m2 is ~1.3 GiB against a 10 GiB repo budget,
+      # so when every PR saved its own copy, 8 duplicates of the same key filled the
+      # budget (measured 10.43 GiB), LRU eviction took out main's entry, ~95% of jobs
+      # then missed, and each miss wrote another copy that evicted the next one.
+      # A run falls back to the default branch's cache, so one entry on main serves
+      # every PR. Label a PR `cache-maven` if it legitimately changes the cached
+      # inputs (e.g. a Debezium ref bump) and needs to populate its own entry.
+      #
+      # success() is explicit because a custom `if:` drops the implicit success()
+      # check, and a ~/.m2 left behind by a failed build must never be cached.
+      - name: Save local Maven repository
+        if: >-
+          success() &&
+          steps.maven-cache.outputs.cache-hit != 'true' &&
+          (github.ref == 'refs/heads/main' ||
+          contains(github.event.pull_request.labels.*.name, 'cache-maven'))
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.maven-cache-key.outputs.key }}
+
       - name: Free disk space
         run: |
           df -h /
@@ -81,14 +145,35 @@ jobs:
           sudo docker builder prune -a
           df -h /
       
-      - name: Run failpoint tests
+      - name: Set up gotestfmt
+        uses: GoTestTools/gotestfmt-action@v2
+  
+      - name: Run failpoint tests (${{ matrix.group_name }})
         env:
-          YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
-          PG_VERSION: "14"
+           YB_VERSION: ${{ needs.prepare-versions.outputs.yb_latest_stable }}
+           PG_VERSION: "17"
+           ORACLE_VERSION: "21"
+           MYSQL_VERSION: "8.4"
         run: |
+          set -euo pipefail
           cd yb-voyager
-          go test -v -tags=failpoint ./cmd --parallel 4 -timeout 30m
-      
+          go test -json -v -tags=${{ matrix.tag }} ./... --parallel 5 -timeout 50m 2>/tmp/gotest-stderr.log | tee /tmp/gotest.log | gotestfmt
+          if [ -s /tmp/gotest-stderr.log ]; then
+            echo "::group::stderr output (docker/testcontainer logs)"
+            cat /tmp/gotest-stderr.log
+            echo "::endgroup::"
+          fi
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failpoint-test-logs
+          path: |
+            /tmp/gotest.log
+            /tmp/gotest-stderr.log
+          retention-days: 7
+
       - name: Cleanup failpoint code
         if: always()
         run: |

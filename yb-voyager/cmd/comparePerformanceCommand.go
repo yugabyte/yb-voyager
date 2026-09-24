@@ -73,7 +73,7 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %v", err)
+		utils.ErrExit("Failed to get migration status record: %w", err)
 	}
 
 	// TODO scenario: what if user provided assessment-metadata-dir flag in assessment command if they manually ran the gather scripts?
@@ -81,13 +81,13 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 	migassessment.AssessmentDir = assessmentDirPath
 	assessmentDB, err := migassessment.NewAssessmentDB()
 	if err != nil {
-		utils.ErrExit("Failed to create assessment database: %v", err)
+		utils.ErrExit("Failed to create assessment database: %w", err)
 	}
 
 	targetDB := tgtdb.NewTargetDB(&tconf)
 	err = targetDB.Init()
 	if err != nil {
-		utils.ErrExit("Failed to initialize target database: %v", err)
+		utils.ErrExit("Failed to initialize target database: %w", err)
 	}
 	defer targetDB.Finalize()
 	ybTarget, ok := targetDB.(*tgtdb.TargetYugabyteDB)
@@ -97,21 +97,21 @@ func comparePerformanceCommandFn(cmd *cobra.Command, args []string) {
 
 	comparator, err := compareperf.NewQueryPerformanceComparator(msr, assessmentDB, ybTarget)
 	if err != nil {
-		utils.ErrExit("Failed to create query performance comparator: %v", err)
+		utils.ErrExit("Failed to create query performance comparator: %w", err)
 	}
 	err = comparator.Compare()
 	if err != nil {
-		utils.ErrExit("Failed to perform performance comparison: %v", err)
+		utils.ErrExit("Failed to perform performance comparison: %w", err)
 	}
 	utils.PrintAndLogf("generating performance reports...\n")
 	err = comparator.GenerateReport(exportDir)
 	if err != nil {
-		utils.ErrExit("Failed to generate performance reports: %v", err)
+		utils.ErrExit("Failed to generate performance reports: %w", err)
 	}
 
 	err = SetPerformanceComparisonDone()
 	if err != nil {
-		utils.ErrExit("Failed to mark performance comparison as done: %v", err)
+		utils.ErrExit("Failed to mark performance comparison as done: %w", err)
 	}
 
 	targetDBDetails = targetDB.GetCallhomeTargetDBInfo()
@@ -125,7 +125,7 @@ func validateComparePerfPrerequisites() {
 	// Handle start-clean flag and existing reports before doing any other checks (TODO refactor to be the same in assess-migration start clean code)
 	err := handleStartCleanForComparePerf()
 	if err != nil {
-		utils.ErrExit("Failed to handle start-clean: %v", err)
+		utils.ErrExit("Failed to handle start-clean: %w", err)
 	}
 
 	utils.PrintAndLogf("validating the setup for performance comparison...")
@@ -133,7 +133,7 @@ func validateComparePerfPrerequisites() {
 	// Check 1: assess-migration must have been run
 	hasAssessment, err := IsMigrationAssessmentDoneDirectly(metaDB)
 	if err != nil {
-		utils.ErrExit("Failed to check if assess-migration has been run: %v", err)
+		utils.ErrExit("Failed to check if assess-migration has been run: %w", err)
 	}
 	if !hasAssessment {
 		utils.ErrExit("Migration assessment not found. Please run 'assess-migration' command before performing performance comparison.")
@@ -153,11 +153,11 @@ func validateComparePerfPrerequisites() {
 	}
 	adb, err := migassessment.NewAssessmentDB()
 	if err != nil {
-		utils.ErrExit("Failed to open assessment database: %v", err)
+		utils.ErrExit("Failed to open assessment database: %w", err)
 	}
 	hasData, err := adb.HasSourceQueryStats()
 	if err != nil {
-		utils.ErrExit("Failed to verify pg_stat_statements data in assessment database: %v", err)
+		utils.ErrExit("Failed to verify pg_stat_statements data in assessment database: %w", err)
 	}
 	if !hasData {
 		utils.ErrExit("No query statistics found in assessment database. Please ensure pg_stat_statements extension was enabled during assess-migration and that workload was executed on the source database.")
@@ -170,7 +170,7 @@ func validateComparePerfPrerequisites() {
 	tdb := tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
-		utils.ErrExit("Failed to initialize target database: %v", err)
+		utils.ErrExit("Failed to initialize target database: %w", err)
 	}
 	defer tdb.Finalize()
 

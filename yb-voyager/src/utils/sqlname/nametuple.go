@@ -27,7 +27,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
-//================================================
+// ================================================
+var NIL_NAME_TUPLE = NameTuple{}
 
 // Can be a name of a table, sequence, materialised view, etc.
 type ObjectName struct {
@@ -265,7 +266,7 @@ func (t NameTuple) Key() string {
 // ================================================
 func quote2(dbType, name string) string {
 	switch dbType {
-	case constants.POSTGRESQL, constants.YUGABYTEDB,
+	case constants.POSTGRESQL, constants.YUGABYTEDB, constants.YUGABYTEDB_AMP,
 		constants.ORACLE, constants.MYSQL:
 		return `"` + name + `"`
 	default:
@@ -275,7 +276,7 @@ func quote2(dbType, name string) string {
 
 func minQuote2(objectName, sourceDBType string) string {
 	switch sourceDBType {
-	case constants.YUGABYTEDB, constants.POSTGRESQL:
+	case constants.YUGABYTEDB, constants.POSTGRESQL, constants.YUGABYTEDB_AMP:
 		if IsAllLowercase(objectName) && !IsReservedKeywordPG(objectName) {
 			return objectName
 		} else {

@@ -51,8 +51,11 @@ UPDATE datatypes2
 SET v1 = '{"updated": true}', v2 = B'0101010101', v5 = B'101010101010101010101010101010', v3 = ARRAY[5, 6, 7, 8], v4 = '{{"e", "f"}, {"g", "h"}}'
 WHERE v1 IS NULL;
 
-UPDATE hstore_example 
-SET data = data || 'key3 => value3'
+-- 'key_with_null_value => NULL' covers an hstore entry whose value is SQL NULL, which is a
+-- distinct value from both an absent key and an empty string. Debezium delivers it as a null
+-- entry in the map, which used to crash the exporter's MAP converter with an NPE.
+UPDATE hstore_example
+SET data = data || 'key3 => value3, key_with_null_value => NULL'
 WHERE id = 1;
 
 UPDATE hstore_example 

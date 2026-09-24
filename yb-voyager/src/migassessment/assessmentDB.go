@@ -240,6 +240,23 @@ func NewAssessmentDB() (*AssessmentDB, error) {
 	return &AssessmentDB{db: db}, nil
 }
 
+func (adb *AssessmentDB) Close() error {
+	return adb.db.Close()
+}
+
+func InitAndOpenAssessmentDB() (*AssessmentDB, error) {
+	err := InitAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("error creating and initializing assessment DB: %w", err)
+	}
+
+	assessmentDB, err := NewAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("error creating assessment DB instance: %w", err)
+	}
+	return assessmentDB, nil
+}
+
 func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	if len(records) == 0 {
 		return nil
@@ -251,9 +268,9 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	}
 
 	defer func() {
-		err = tx.Rollback()
-		if err != nil && errors.Is(err, sql.ErrTxDone) {
-			log.Warnf("error while rollback the BulkInsert txn: %v", err)
+		errRollBack := tx.Rollback()
+		if errRollBack != nil && !errors.Is(errRollBack, sql.ErrTxDone) {
+			log.Warnf("error while rollback the BulkInsert txn: %v", errRollBack)
 		}
 	}()
 
@@ -265,6 +282,7 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 	if err != nil {
 		return fmt.Errorf("error preparing statement for bulk insert into %s: %w", table, err)
 	}
+	defer stmt.Close()
 
 	for rowNum := 1; rowNum < len(records); rowNum++ {
 		row := utils.ConvertStringSliceToInterface(records[rowNum])
@@ -453,7 +471,7 @@ func (adb *AssessmentDB) LoadCSVFileIntoTable(filePath, tableName string) error 
 	if err != nil {
 		return fmt.Errorf("error opening file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(filePath, file)
 
 	csvReader := csv.NewReader(file)
 	csvReader.ReuseRecord = true
@@ -608,17 +626,6 @@ func (adb *AssessmentDB) CheckIfTableExists(tableName string) error {
 	}
 
 	return nil
-}
-
-// columnExists checks if a column exists in a SQLite table (for backward compatibility checks)
-func (adb *AssessmentDB) columnExists(tableName, columnName string) (bool, error) {
-	query := `SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`
-	var count int
-	err := adb.db.QueryRow(query, tableName, columnName).Scan(&count)
-	if err != nil {
-		return false, fmt.Errorf("failed to check if column %s exists in table %s: %w", columnName, tableName, err)
-	}
-	return count > 0, nil
 }
 
 // HasSourceQueryStats checks if query stats data exists in the assessment database (source-db type agnostic)

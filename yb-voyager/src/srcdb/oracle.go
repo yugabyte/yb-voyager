@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -61,6 +60,9 @@ func (ora *Oracle) Connect() error {
 	}
 
 	db, err := sql.Open("godror", ora.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(ora.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ora.db = db
@@ -90,7 +92,7 @@ func (ora *Oracle) Query(query string) (*sql.Rows, error) {
 
 func (ora *Oracle) GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error) {
 	schemas := make([]sqlname.Identifier, 0)
-	query := fmt.Sprintf("SELECT username FROM ALL_USERS")
+	query := "SELECT username FROM ALL_USERS"
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for schema names: %q: %w\n", query, err)
@@ -348,6 +350,15 @@ func (ora *Oracle) GetDatabaseSize() (int64, error) {
 	}
 	log.Infof("Total Database size of Oracle sourceDB: %d", dbSize.Int64)
 	return dbSize.Int64, nil
+}
+
+func (ora *Oracle) FetchDBID() error {
+	//Not implemented for oracle
+	return nil
+}
+
+func (ora *Oracle) FetchSchemaOids() error {
+	return nil
 }
 
 func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
@@ -620,94 +631,6 @@ func (ora *Oracle) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-var oraQueryTmplForUniqCols = `
-WITH unique_constraints AS (
-    SELECT
-        consCols.TABLE_NAME,
-        consCols.COLUMN_NAME
-    FROM
-        ALL_CONS_COLUMNS consCols
-    JOIN
-        ALL_CONSTRAINTS cons ON cons.CONSTRAINT_NAME = consCols.CONSTRAINT_NAME
-    WHERE
-        cons.CONSTRAINT_TYPE = 'U'
-        AND cons.OWNER = '%s'
-        AND consCols.TABLE_NAME IN ('%s')
-),
-unique_indexes AS (
-    SELECT
-        indCols.TABLE_NAME,
-        indCols.COLUMN_NAME
-    FROM
-        ALL_IND_COLUMNS indCols
-    JOIN
-        ALL_INDEXES ind ON ind.INDEX_NAME = indCols.INDEX_NAME
-		AND ind.TABLE_OWNER = indCols.TABLE_OWNER
-	LEFT JOIN
-		ALL_CONSTRAINTS cons ON cons.INDEX_NAME = ind.INDEX_NAME
-		AND cons.OWNER = indCols.TABLE_OWNER
-		AND cons.CONSTRAINT_TYPE = 'P' -- Primary key constraint
-    WHERE
-        ind.UNIQUENESS = 'UNIQUE'
-		AND cons.CONSTRAINT_TYPE IS NULL -- Ensure it's not a primary key
-        AND ind.TABLE_OWNER = '%s'
-        AND indCols.TABLE_NAME IN ('%s')
-)
-SELECT * FROM unique_constraints
-UNION
-SELECT * FROM unique_indexes
-`
-
-func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var queryTableList []string
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
-	for _, table := range tableList {
-		_, tname := table.ForCatalogQuery()
-		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[tname] = table
-	}
-	query := fmt.Sprintf(oraQueryTmplForUniqCols, ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"),
-		ora.source.Schemas[0].Unquoted, strings.Join(queryTableList, "','"))
-	log.Infof("query to get unique key columns for tables: %q", query)
-	rows, err := ora.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	for rows.Next() {
-		var tableName string
-		var columnName string
-		err := rows.Scan(&tableName, &columnName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableName)
-		}
-		cols, ok := result.Get(tableNameTuple)
-		if !ok {
-			cols = []string{}
-		}
-		cols = append(cols, columnName)
-		result.Put(tableNameTuple, cols)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
-	}
-	log.Infof("unique key columns for tables: %+v", result)
-	return result, nil
-}
-
 const DROP_TABLE_IF_EXISTS_QUERY = `BEGIN
 EXECUTE IMMEDIATE 'DROP TABLE %s ';
 EXCEPTION
@@ -732,6 +655,20 @@ func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string
 		return fmt.Errorf("drop table %s: %w", logMiningFlushTableName, err)
 	}
 	return nil
+}
+
+// GetPrimaryKeyColumns is a no-op for Oracle: the partition-aware caller in
+// reportUnsupportedTablesForLiveMigration only iterates leaves built by
+// addLeafPartitionsInTableList, which is itself a no-op for non-PG/YB sources.
+func (ora *Oracle) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
+}
+
+// GetGeneratedStoredColumns is a no-op for Oracle: STORED generated columns and the CDC
+// custom/pk partitioning that consumes this info are only supported for a PostgreSQL source
+// (Oracle live migration always uses PARTITION_BY_TABLE).
+func (ora *Oracle) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
 }
 
 func (ora *Oracle) GetNonPKTables() ([]string, error) {
@@ -786,8 +723,8 @@ func (ora *Oracle) GetMissingExportDataPermissions(exportType string, finalTable
 	return nil, false, nil
 }
 
-func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
-	return nil, false, nil
+func (ora *Oracle) GetMissingAssessMigrationPermissions() ([]string, error) {
+	return nil, nil
 }
 
 func (ora *Oracle) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
@@ -795,5 +732,9 @@ func (ora *Oracle) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, used
 }
 
 func (ora *Oracle) GetSchemasMissingUsagePermissions() ([]string, error) {
+	return nil, nil
+}
+
+func (ora *Oracle) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }

@@ -33,11 +33,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -83,7 +83,8 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 	}
 
-	tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+	// column-list assembly for the Debezium config; the callback never returns an error
+	_ = tablesColumnList.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		for _, column := range v {
 			columnName := fmt.Sprintf("%s.%s", k.AsQualifiedCatalogName(), column)
 			if column == "*" {
@@ -104,7 +105,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
-		return nil, nil, goerrors.Errorf("getting column to sequence mapping %s", err)
+		return nil, nil, goerrors.Errorf("getting column to sequence mapping %w", err)
 	}
 
 	err = prepareSSLParamsForDebezium(absExportDir)
@@ -116,13 +117,21 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
 
+	partitionToRootMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
+
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {
 		// dbzm does not support fatal/panic log levels
 		dbzmLogLevel = config.ERROR
 	}
+	// Read before the local `config` variable below shadows the config package.
+	dbzmLogMaxSizeMB, dbzmLogMaxBackups := config.LogMaxSizeMB, config.LogMaxBackups
 	config := &dbzm.Config{
 		LogLevel:           dbzmLogLevel,
+		LogMaxSizeMB:       dbzmLogMaxSizeMB,
+		LogMaxBackups:      dbzmLogMaxBackups,
 		MigrationUUID:      migrationUUID,
 		RunId:              runId,
 		SourceDBType:       source.DBType,
@@ -135,12 +144,13 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		Username:           source.User,
 		Password:           source.Password,
 
-		DatabaseName:          source.DBName,
-		SchemaNames:           sqlname.JoinIdentifiersUnquoted(source.Schemas, "|"),
-		TableList:             dbzmTableList,
-		ColumnList:            dbzmColumnList,
-		ColumnSequenceMapping: columnSequenceMapping,
-		TableRenameMapping:    tableRenameMapping,
+		DatabaseName:           source.DBName,
+		SchemaNames:            sqlname.JoinIdentifiersUnquoted(source.Schemas, "|"),
+		TableList:              dbzmTableList,
+		ColumnList:             dbzmColumnList,
+		ColumnSequenceMapping:  columnSequenceMapping,
+		TableRenameMapping:     tableRenameMapping,
+		PartitionToRootMapping: partitionToRootMapping,
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,
@@ -396,7 +406,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 			record.SnapshotMechanism = "debezium"
 		})
 		if err != nil {
-			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %s", err)
+			return goerrors.Errorf("update SnapshotMechanism: update migration status record: %w", err)
 		}
 	}
 
@@ -477,7 +487,8 @@ func reportStreamingProgress(ctx context.Context) {
 		fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		tableWriter.Flush()
+		// console status table redraw; nothing actionable on a flush error
+		_ = tableWriter.Flush()
 		select {
 		case <-ctx.Done():
 			tableWriter.Stop()
@@ -489,10 +500,15 @@ func reportStreamingProgress(ctx context.Context) {
 
 func calculateStreamingProgress(ctx context.Context) {
 	var err error
+	var lastRecordedEventCount int64
 	for {
 		totalEventCount, totalEventCountRun, err = metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
+		}
+		if delta := totalEventCountRun - lastRecordedEventCount; delta > 0 {
+			metrics.Get().RecordExportCDCEvents(exporterRole, delta)
+			lastRecordedEventCount = totalEventCountRun
 		}
 
 		throughputInLast3Min, err = metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
@@ -507,12 +523,7 @@ func calculateStreamingProgress(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			if disablePb && callhome.SendDiagnostics {
-				// to not do unneccessary frequent calls to metadb in case we only require this info for callhome
-				time.Sleep(12 * time.Minute)
-			} else {
-				time.Sleep(10 * time.Second)
-			}
+			time.Sleep(10 * time.Second)
 		}
 	}
 
@@ -521,6 +532,9 @@ func calculateStreamingProgress(ctx context.Context) {
 func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker, ctx context.Context) (bool, error) {
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
+	}
+	if triggered, fpErr := injectSnapshotToCDCTransitionError(); triggered {
+		return false, fpErr
 	}
 	exportPhase = dbzm.MODE_STREAMING
 	if config.SnapshotMode != "never" {
@@ -555,6 +569,10 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 					}
 				}
 
+				if triggered, fpErr := injectExportFromTargetStartupError(); triggered {
+					return false, fpErr
+				}
+
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
 						record.ExportFromTargetFallBackStarted = true
@@ -580,9 +598,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 		}
 
 		utils.PrintAndLogfInfo("streaming changes to a local queue file...")
-		if !disablePb || callhome.SendDiagnostics {
-			go calculateStreamingProgress(ctx)
-		}
+		go calculateStreamingProgress(ctx)
 		if !disablePb {
 			go reportStreamingProgress(ctx)
 		}
@@ -670,7 +686,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 		record.YBPublicationName = publicationName
 	})
 	if err != nil {
-		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %s", err)
+		return goerrors.Errorf("update YBReplicationSlotName: update migration status record: %w", err)
 	}
 	return nil
 }

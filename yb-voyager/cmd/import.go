@@ -26,7 +26,10 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -34,7 +37,9 @@ var targetDBPassword string
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
-var prometheusMetricsPort int
+var prometheusMetricsPort int            // deprecated alias for --metrics-port
+var metricsPort int                      // bound to --metrics-port; 0 = disabled
+var importUsePartitionRoot utils.BoolStr // default is true for backward compatibility
 
 var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
 var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
@@ -58,6 +63,7 @@ func init() {
 func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
+	validateAmpTargetSourceCompatibility()
 
 	validateConflictsBetweenTableListFlags(tconf.TableList, tconf.ExcludeTableList)
 
@@ -98,7 +104,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	case SOURCE_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
-	validateParallelismFlags()
+	validateParallelismFlags(cmd)
 
 	return nil
 }
@@ -117,24 +123,221 @@ func validateImportDataFlags() error {
 	return nil
 }
 
-var validCdcPartitioningStrategies = []string{"pk", "table", "auto"}
+// validateAmpTargetSourceCompatibility ensures yugabytedb-amp is only used with a
+// PostgreSQL source. yb-amp is a PG-wire compute; the offline PG->amp path is the
+// only flow that has been audited/supported (see ACTION_ITEMS.md). Other sources
+// (oracle/mysql) bring schema/type transforms and YB-specific assumptions that have
+// not been validated for amp. This runs from validateImportFlags, which is invoked
+// by the import-schema, import-data / ...toTarget, and finalize PreRuns *after*
+// sourceDBType is populated from the MSR, so it covers all import-side commands.
+func validateAmpTargetSourceCompatibility() {
+	if tconf.TargetDBType != YUGABYTEDB_AMP {
+		return
+	}
+	if sourceDBType != POSTGRESQL {
+		utils.ErrExit("--target-db-type %s is only supported with a PostgreSQL source (detected source: %q)", YUGABYTEDB_AMP, sourceDBType)
+	}
+}
 
-func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
+// validateAmpUnsupportedFlags rejects, fail-fast, the import-data flags that have no
+// meaning for a yugabytedb-amp target. yb-amp is a stateless PG17 compute with none of
+// the YB cluster features these flags drive (no per-node fan-out, no upsert fast-path,
+// no ON CONFLICT-aware COPY), so honoring them silently would be wrong:
+//   - --target-endpoints / --use-public-ip: no multi-node cluster to distribute across.
+//   - --enable-upsert: a silent no-op on the PG COPY path — never actually honored.
+//   - --on-primary-key-conflict (non ERROR-POLICY, e.g. IGNORE): amp's snapshot path is
+//     plain COPY and cannot honor ON CONFLICT, so IGNORE would degrade and then ABORT on
+//     a duplicate key. (Validity of the value itself is checked separately in
+//     validateOnPrimaryKeyConflictFlag.)
+//
+// Only relevant for the target-import role (these are import-data flags). Invoked from
+// the import-data PreRun (shared by importDataCmd and importDataToTargetCmd).
+func validateAmpUnsupportedFlags(cmd *cobra.Command) {
+	if tconf.TargetDBType != YUGABYTEDB_AMP || importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
+
+	notApplicable := func(flag string) {
+		utils.ErrExit("--%s is not applicable for --target-db-type %s", flag, YUGABYTEDB_AMP)
+	}
+
+	if tconf.TargetEndpoints != "" {
+		notApplicable("target-endpoints")
+	}
+	if bool(tconf.UsePublicIP) {
+		notApplicable("use-public-ip")
+	}
+	if bool(tconf.EnableUpsert) {
+		notApplicable("enable-upsert")
+	}
+	// --on-primary-key-conflict has already been upper-cased by validateOnPrimaryKeyConflictFlag
+	// when it runs (validateImportDataFlags -> validateOnPrimaryKeyConflictFlag); normalize here
+	// too so we are order-independent. Anything other than ERROR-POLICY (i.e. IGNORE / future
+	// UPDATE) cannot be honored by amp's plain-COPY snapshot path.
+	if strings.ToUpper(tconf.OnPrimaryKeyConflictAction) != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY {
+		notApplicable("on-primary-key-conflict")
+	}
+	// Only the default `abort` error policy is validated for amp. `stash-and-continue`
+	// (stashing errored snapshot rows and continuing) has not been tested on amp's
+	// plain-COPY path, so reject it explicitly rather than silently allowing it.
+	if errorPolicySnapshotFlag == importdata.StashAndContinueErrorPolicy {
+		utils.ErrExit("--error-policy-snapshot %s is not supported for --target-db-type %s; only the default %s error policy is supported",
+			importdata.StashAndContinueErrorPolicy, YUGABYTEDB_AMP, importdata.AbortErrorPolicy)
+	}
+}
+
+func validateImportUsePartitionRootFlag() error {
+	// --use-partition-root flag is only valid for live migration with a PostgreSQL source
+	//and only for the CDC streaming phase and snapshot part isn't supported right now.
+	if !importUsePartitionRoot {
+		// Only validate when flag is explicitly set to false (non-default)
+		// Read the export type from MSR since importType may not be set yet in PreRun
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return goerrors.Errorf("failed to get migration status record: %w", err)
+		}
+		exportTypeFromSource := msr.ExportTypeFromSource
+		if !changeStreamingIsEnabled(exportTypeFromSource) {
+			return goerrors.Errorf("'--use-partition-root false' is only valid for live migration")
+		}
+		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+			return goerrors.Errorf("'--use-partition-root false' is not supported for source-replica")
+		}
+		// --use-partition-root controls how PostgreSQL declarative-partitioned tables are
+		// streamed; it is meaningful only when the source database is PostgreSQL. The target
+		// engine (yugabytedb / yugabytedb-amp / a PG fall-back target) is irrelevant here.
+		if sourceDBType != POSTGRESQL {
+			return goerrors.Errorf("'--use-partition-root false' is only valid when the source database is PostgreSQL")
+		}
+	}
+	tconf.UsePartitionRoot = bool(importUsePartitionRoot)
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return nil
 	}
-	if !changeStreamingIsEnabled(importType) {
-		if cmd.Flags().Changed("cdc-partitioning-strategy") {
-			utils.ErrExit("--cdc-partitioning-strategy is not supported for offline migration. Re-run the command without this flag.")
+	return metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
+		record.TargetUsePartitionRoot = bool(importUsePartitionRoot)
+	})
+}
+
+var validCdcPartitionKeys = []string{PARTITION_BY_PK, PARTITION_BY_TABLE, "auto"}
+
+// cdcPartitionKeyOverride is a single parsed per-table override from
+// --cdc-partition-key-overrides. Strategy is one of PARTITION_BY_PK,
+// PARTITION_BY_TABLE or PARTITION_BY_CUSTOM. Columns is set (non-empty, in the
+// user-specified order) only when Strategy == PARTITION_BY_CUSTOM.
+type cdcPartitionKeyOverride struct {
+	Strategy string
+	Columns  []string
+}
+
+// parseCdcPartitionKeyOverrides parses "schema.table:pk;schema.other:(col1,col2)".
+// Each value is either pk, table, or a parenthesized comma-separated custom column
+// list (custom key), e.g. (col1,col2).
+func parseCdcPartitionKeyOverrides(overrides string) (map[string]cdcPartitionKeyOverride, error) {
+	result := make(map[string]cdcPartitionKeyOverride)
+	overrides = strings.TrimSpace(overrides)
+	if overrides == "" {
+		return result, nil
+	}
+
+	for _, entry := range strings.Split(overrides, ";") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, ":", 2)
+		if len(parts) != 2 {
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: expected format schema.table:pk|table|(col1,col2,...)", entry)
+		}
+		tableName := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if tableName == "" || value == "" {
+			return nil, goerrors.Errorf("invalid cdc-partition-key-overrides entry %q: table and strategy/columns must both be non-empty", entry)
+		}
+
+		override, err := parseCdcPartitionKeyOverrideValue(tableName, value)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, exists := result[tableName]; exists {
+			return nil, goerrors.Errorf("duplicate table %q in cdc-partition-key-overrides", tableName)
+		}
+		result[tableName] = override
+	}
+	return result, nil
+}
+
+// parseCdcPartitionKeyOverrideValue interprets a single override value. "pk" and
+// "table" map to the corresponding strategy; a custom key column list must be wrapped
+// in parentheses, e.g. (col1,col2), and maps to PARTITION_BY_CUSTOM.
+func parseCdcPartitionKeyOverrideValue(tableName, value string) (cdcPartitionKeyOverride, error) {
+	switch value {
+	case PARTITION_BY_PK:
+		return cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK}, nil
+	case PARTITION_BY_TABLE:
+		return cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE}, nil
+	}
+
+	// A custom key column list must be parenthesized: (col1,col2,...).
+	if !strings.HasPrefix(value, "(") || !strings.HasSuffix(value, ")") {
+		return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value %q for table %q: expected pk, table, or a parenthesized custom key column list like (col1,col2)", value, tableName)
+	}
+	value = strings.TrimSpace(value[1 : len(value)-1])
+	if value == "" {
+		return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value for table %q: custom key column list is empty", tableName)
+	}
+
+	rawColumns := strings.Split(value, ",")
+	columns := make([]string, 0, len(rawColumns))
+	seen := make(map[string]bool)
+	for _, col := range rawColumns {
+		col = strings.TrimSpace(col)
+		if col == "" {
+			return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value %q for table %q: empty column name in custom key", value, tableName)
+		}
+		if seen[col] {
+			return cdcPartitionKeyOverride{}, goerrors.Errorf("invalid cdc-partition-key-overrides value %q for table %q: duplicate column %q in custom key", value, tableName, col)
+		}
+		seen[col] = true
+		columns = append(columns, col)
+	}
+	return cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: columns}, nil
+}
+
+func validateCdcPartitionKeyFlags(cmd *cobra.Command) error {
+	globalPassed := cmd.Flags().Changed("cdc-partition-key")
+	overridesPassed := cmd.Flags().Changed("cdc-partition-key-overrides")
+	anyPassed := globalPassed || overridesPassed
+
+	if importerRole != TARGET_DB_IMPORTER_ROLE || tconf.TargetDBType != YUGABYTEDB {
+		if anyPassed {
+			return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are only supported for import data to target")
 		}
 		return nil
 	}
-	if cdcPartitioningStrategy == "" {
-		utils.ErrExit("cdc partitioning strategy is required")
+
+	if !changeStreamingIsEnabled(importType) {
+		if anyPassed {
+			return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are not supported for offline migration. Re-run the command without these flags.")
+		}
+		return nil
 	}
 
-	if !lo.Contains(validCdcPartitioningStrategies, cdcPartitioningStrategy) {
-		utils.ErrExit("invalid cdc partitioning strategy: %s. Supported values are: %s", cdcPartitioningStrategy, strings.Join(validCdcPartitioningStrategies, ", "))
+	if sourceDBType != POSTGRESQL && anyPassed {
+		return goerrors.Errorf("--cdc-partition-key / --cdc-partition-key-overrides are only supported for PostgreSQL source")
+	}
+
+	if cdcPartitionKey == "" {
+		return goerrors.Errorf("cdc-partition-key is required")
+	}
+	if !lo.Contains(validCdcPartitionKeys, cdcPartitionKey) {
+		return goerrors.Errorf("invalid cdc-partition-key: %s. Supported values are: %s", cdcPartitionKey, strings.Join(validCdcPartitionKeys, ", "))
+	}
+
+	// Syntax-only parse of overrides (table list / namereg / expr-UK validated in prepareCdcPartitionKey before snapshot).
+	if _, err := parseCdcPartitionKeyOverrides(cdcPartitionKeyOverrides); err != nil {
+		utils.ErrExit("%w", err)
 	}
 
 	importDataStatus, err := metaDB.GetImportDataStatusRecord()
@@ -143,19 +346,20 @@ func validateCdcPartitioningStrategyFlag(cmd *cobra.Command) error {
 	}
 
 	if importDataStatus == nil || !importDataStatus.ImportDataStarted || bool(startClean) {
-		//if import data has not started or start-clean flag is used, allow the change in cdc partitioning strategy
 		return nil
 	}
 	if importDataStatus.CdcPartitioningStrategyConfig == "" {
-		//if not a first run and the cdc partitioning strategy is not set
-		//this can be the case when the import data is resumed from an earlier version of yb-voyager
-		//So we should use the cdc partitioning strategy as pk to be upgrade safe
-		utils.ErrExit("Resuming from an earlier version of yb-voyager is not supported as cdc partition strategy was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
+		return goerrors.Errorf("Resuming from an earlier version of yb-voyager is not supported as cdc partition key was not set. Use --start-clean to start a fresh import with the new yb-voyager version.")
 	}
-	if cdcPartitioningStrategy != importDataStatus.CdcPartitioningStrategyConfig {
-		utils.ErrExit("changing the cdc partitioning strategy is not allowed after the import data has started. Current strategy: %s, new strategy: %s\n Use --start-clean to start a fresh import with the new strategy.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitioningStrategy)
+	if cdcPartitionKey != importDataStatus.CdcPartitioningStrategyConfig {
+		return goerrors.Errorf("changing cdc-partition-key is not allowed after the import data has started. Current: %s, new: %s\n Use --start-clean to start a fresh import with the new partition key.", importDataStatus.CdcPartitioningStrategyConfig, cdcPartitionKey)
 	}
-	log.Infof("cdc partitioning strategy: %s", cdcPartitioningStrategy)
+	// cdc-partition-key-overrides is intentionally NOT compared here as a raw string: two
+	// different strings (ordering, quoting/casing, whitespace) can resolve to the same
+	// effective per-table strategy. The semantic comparison against the persisted per-table
+	// map is done in prepareCdcPartitionKey, which has the import table list + name registry
+	// needed to resolve overrides into effective per-table strategies.
+	log.Infof("cdc-partition-key: %s, cdc-partition-key-overrides: %q", cdcPartitionKey, cdcPartitionKeyOverrides)
 	return nil
 }
 
@@ -163,7 +367,19 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
 
-	BoolVar(cmd.Flags(), &tconf.RunGuardrailsChecks, "run-guardrails-checks", true, "Run guardrails checks during import")
+	BoolVar(cmd.Flags(), &tconf.RunGuardrailsChecks, "run-guardrails-checks", true, "Run guardrails checks during import. Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.")
+}
+
+// registerTargetDBTypeFlag registers --target-db-type. It is intentionally
+// NOT part of registerTargetDBConnFlags: the choice of target engine is only
+// meaningful for the commands that import schema/data into the target
+// (import schema, import data / ...toTarget, finalize-schema-post-data-import).
+// Commands like import-data-file and compare-performance always target a real
+// YugabyteDB, so they don't expose it.
+func registerTargetDBTypeFlag(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
+		fmt.Sprintf("type of the target database to import into. Supported values: %s (default), %s (YugabyteDB AMP — a PostgreSQL-compatible compute over YugabyteDB storage)",
+			YUGABYTEDB, YUGABYTEDB_AMP))
 }
 
 func registerTargetDBConnFlags(cmd *cobra.Command) {
@@ -175,7 +391,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
-	cmd.MarkFlagRequired("target-db-user")
+	mustMarkFlagRequired(cmd, "target-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
@@ -218,7 +434,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
 		"username with which to connect to the Source-Replica DB server")
-	cmd.MarkFlagRequired("source-replica-db-user")
+	mustMarkFlagRequired(cmd, "source-replica-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "source-replica-db-password", "",
 		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
@@ -292,11 +508,25 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		"Disable transactional writes in tables for faster data ingestion (default false)\n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 	// Hidden for beta2.0 release (and onwards until further notice).
-	cmd.Flags().MarkHidden("disable-transactional-writes")
+	mustMarkFlagHidden(cmd, "disable-transactional-writes")
 
 	BoolVar(cmd.Flags(), &truncateSplits, "truncate-splits", true,
 		"Truncate splits after importing")
-	cmd.Flags().MarkHidden("truncate-splits")
+	mustMarkFlagHidden(cmd, "truncate-splits")
+}
+
+func registerImportUsePartitionRootFlagToTarget(cmd *cobra.Command) {
+	BoolVar(cmd.Flags(), &importUsePartitionRoot, "use-partition-root", true,
+		"For partitioned tables during live migration:\n"+
+			"  - true (default): Import CDC data only via the root table.\n"+
+			"  - false: Import CDC data only via child partitions\n(Note: this flag is only supported for YugabyteDB target version 2025.2.3.0 and above)")
+}
+
+func registerImportUsePartitionRootFlagToSource(cmd *cobra.Command) {
+	BoolVar(cmd.Flags(), &importUsePartitionRoot, "use-partition-root", true,
+		"For partitioned tables during live migration:\n"+
+			"  - true (default): Import CDC data only via the root table.\n"+
+			"  - false: Import CDC data only via child partitions\n")
 }
 
 func registerImportDataToTargetFlags(cmd *cobra.Command) {
@@ -314,21 +544,35 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
 
 	cmd.Flags().IntVar(&maxConcurrentBatchProductionsConfig, "max-concurrent-batch-productions", 10, "Maximum number of concurrent batch productions to allow while importing data (default 10)")
-	cmd.Flags().MarkHidden("max-concurrent-batch-productions")
+	mustMarkFlagHidden(cmd, "max-concurrent-batch-productions")
 
 	BoolVar(cmd.Flags(), &enableRandomBatchProduction, "enable-random-batch-production", true, "Enable random batch production during data import (default true)")
-	cmd.Flags().MarkHidden("enable-random-batch-production")
+	mustMarkFlagHidden(cmd, "enable-random-batch-production")
 
-	cmd.Flags().StringVar(&cdcPartitioningStrategy, "cdc-partitioning-strategy", "auto",
-		`The desired partitioning strategy to use while importing cdc events parallelly. The supported values are: pk, table. (default auto-detect)
-		\tauto: Automatically detect the partitioning strategy based on the table having expression or normal unique indexes.
-		\tpk: Partition the cdc events by primary key.
-		\ttable: Partition the cdc events by table.`)
-	cmd.Flags().MarkHidden("cdc-partitioning-strategy")
+	cmd.Flags().StringVar(&cdcPartitionKey, "cdc-partition-key", "auto",
+		`Global strategy for how CDC events are hashed across parallel channels. Supported values: auto, pk, table.
+		auto: Automatically pick pk or table per table (expression unique-index tables use table).
+		pk: Partition CDC events by primary key.
+		table: Partition CDC events by table (all events for a table share one channel).`)
+
+	cmd.Flags().StringVar(&cdcPartitionKeyOverrides, "cdc-partition-key-overrides", "",
+		`Optional per-table CDC partition-key overrides as schema.table:strategy pairs, separated by ';'.
+		strategy is one of: pk, table, or a custom key column list wrapped in parentheses (col1,col2).
+		pk: Partition CDC events by primary key.
+		table: Partition CDC events by table (all events for a table share one channel).
+		(col1,col2): Partition CDC events by the given column values (immutable columns).
+		Example: public.orders:table;sales.events:pk;public.payments:(customer_id,region). Unlisted tables keep the global --cdc-partition-key.`)
 
 	cmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9101)")
-	cmd.Flags().MarkHidden("prometheus-metrics-port")
+	mustMarkFlagHidden(cmd, "prometheus-metrics-port")
+
+	BoolVar(cmd.Flags(), &tconf.DisableSequentialScanOnUpdateDeletes, "disable-sequential-scan-on-update-deletes", true,
+		"Disable sequential scan on update and delete operations to avoid retryable errors during concurrent writes in repeatable isolation level (default true)")
+	mustMarkFlagHidden(cmd, "disable-sequential-scan-on-update-deletes")
+
+	cmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -351,9 +595,9 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 
 	// --post-snapshot-import and --refresh-mviews flags will now be handled by the command post-data-import-finalize-schema
 	// Not removing these flags and just deprecating them for backward compatibility.
-	cmd.Flags().MarkDeprecated("post-snapshot-import",
+	mustMarkFlagDeprecated(cmd, "post-snapshot-import",
 		"use the command 'finalize-schema-post-data-import' instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
-	cmd.Flags().MarkDeprecated("refresh-mviews",
+	mustMarkFlagDeprecated(cmd, "refresh-mviews",
 		"it is no longer supported in the 'import schema' command. Use the 'finalize-schema-post-data-import' command instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
 
 }
@@ -366,6 +610,10 @@ func validateTargetPortRange() {
 			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
 		} else if tconf.TargetDBType == POSTGRESQL {
 			tconf.Port = POSTGRES_DEFAULT_PORT
+		} else if tconf.TargetDBType == YUGABYTEDB_AMP {
+			// yb-amp compute endpoints are assigned deployment-specific ports
+			// (there is no canonical default like YSQL's 5433), so require it.
+			utils.ErrExit("--target-db-port is required for --target-db-type %s (yb-amp compute endpoints use deployment-specific ports)", YUGABYTEDB_AMP)
 		}
 		return
 	}
@@ -386,17 +634,36 @@ func validateTargetSchemaFlag() {
 	}
 
 	if tconf.SchemaConfig == "" {
-		if tconf.TargetDBType == YUGABYTEDB {
+		if tconf.TargetDBType == YUGABYTEDB || tconf.TargetDBType == YUGABYTEDB_AMP {
+			// yb-amp follows the PostgreSQL/YugabyteDB convention: default
+			// schema is "public" and PG-source schemas are preserved.
 			tconf.SchemaConfig = YUGABYTEDB_DEFAULT_SCHEMA
 		} else if tconf.TargetDBType == ORACLE {
 			tconf.SchemaConfig = tconf.User
 		}
 		return
-	} else if tconf.TargetDBType != POSTGRESQL {
+	} else if tconf.TargetDBType != POSTGRESQL && tconf.TargetDBType != YUGABYTEDB_AMP {
 		splits := strings.Split(tconf.SchemaConfig, ",")
 		if len(splits) > 1 {
 			utils.ErrExit("Error --target-db-schema flag can only contain one schema name. Got: %s", tconf.SchemaConfig)
 		}
+	}
+}
+
+// validateTargetDBTypeFlag ensures --target-db-type holds a value that is
+// supported for import-to-target. Fall-forward / fall-back roles derive
+// TargetDBType from the source DB type (oracle/postgresql/yugabytedb), so
+// this guardrail only applies to the target-import roles.
+func validateTargetDBTypeFlag() {
+	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+		return
+	}
+	switch tconf.TargetDBType {
+	case YUGABYTEDB, YUGABYTEDB_AMP:
+		// supported target types for import-to-target
+	default:
+		utils.ErrExit("unsupported --target-db-type %q for import to target. Supported values: %s, %s",
+			tconf.TargetDBType, YUGABYTEDB, YUGABYTEDB_AMP)
 	}
 }
 
@@ -470,7 +737,8 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().Var(&tconf.AdaptiveParallelismMode, "adaptive-parallelism",
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster."+
 			"\n"+
-			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive (default balanced)"+
+			"Specify the mode for adaptive parallelism behavior: disabled, balanced, aggressive "+
+			"(default: balanced for YugabyteDB, disabled for YugabyteDB AMP)"+
 			"\n"+
 			"\tbalanced: Operate with moderate thresholds. Recommended to be used when there are other workloads running on the cluster.\n"+
 			"\taggressive: Operate with aggressive max-CPU thresholds for better performance. Recommended to be used when there are no other workloads running on the cluster.\n"+
@@ -495,8 +763,8 @@ Supported values:
 ERROR-POLICY(default): Handle error as per configured error-policy, if any primary key conflict is encountered.
 IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
 
-	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
-	cmd.Flags().MarkHidden("skip-node-health-checks")
+	mustMarkFlagHidden(cmd, "skip-disk-usage-health-checks")
+	mustMarkFlagHidden(cmd, "skip-node-health-checks")
 }
 
 func registerFlagsForSourceAndSourceReplica(cmd *cobra.Command) {
@@ -541,7 +809,37 @@ func validateFFDBSchemaFlag() {
 	}
 }
 
-func validateParallelismFlags() {
+// defaultAdaptiveParallelismMode returns the adaptive-parallelism mode to use when the
+// user did NOT pass --adaptive-parallelism. Adaptive parallelism relies on the YugabyteDB
+// cluster control API (yb_servers(), tserver metrics), so it is the recommended default
+// (Balanced) ONLY for a real YugabyteDB target. Every other target — yb-amp (stateless
+// PG17 compute) and the PostgreSQL fall-forward/fall-back targets — has no such API, so it
+// defaults to Disabled; --parallel-jobs controls import parallelism there.
+//
+// Defaulting non-YB targets to Disabled is also what lets a user pass --parallel-jobs for
+// them without having to also pass --adaptive-parallelism disabled (validateParallelismFlags
+// only conflicts --parallel-jobs with an *enabled* adaptive mode).
+func defaultAdaptiveParallelismMode(targetDBType string) types.AdaptiveParallelismMode {
+	if targetDBType == YUGABYTEDB {
+		return types.BalancedAdaptiveParallelismMode
+	}
+	return types.DisabledAdaptiveParallelismMode
+}
+
+func validateParallelismFlags(cmd *cobra.Command) {
+	// yb-amp has no YB cluster control API, so adaptive parallelism cannot work
+	// there. Reject any explicit request for it (CLI or config — Flags().Changed()
+	// is true in both, since config values are applied via Flags().Set()), pointing
+	// the user to --parallel-jobs. An explicit `--adaptive-parallelism disabled` is
+	// fine (not IsEnabled()).
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		if cmd.Flags().Changed("adaptive-parallelism") && tconf.AdaptiveParallelismMode.IsEnabled() {
+			utils.ErrExit("adaptive parallelism is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs to control import parallelism.", YUGABYTEDB_AMP)
+		}
+		if cmd.Flags().Changed("adaptive-parallelism-max") {
+			utils.ErrExit("--adaptive-parallelism-max is only supported for YugabyteDB targets. For --target-db-type %s, use --parallel-jobs.", YUGABYTEDB_AMP)
+		}
+	}
 	if tconf.AdaptiveParallelismMode.IsEnabled() {
 		if tconf.Parallelism > 0 {
 			utils.ErrExit("Error --parallel-jobs flag cannot be used when adaptive-parallelism is enabled (balanced/aggressive). If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --adaptive-parallelism disabled")

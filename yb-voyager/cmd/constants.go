@@ -35,6 +35,7 @@ const (
 	MYSQL                           = "mysql"
 	POSTGRESQL                      = "postgresql"
 	YUGABYTEDB                      = "yugabytedb"
+	YUGABYTEDB_AMP                  = "yugabytedb-amp" // YugabyteDB AMP (yb-amp): PostgreSQL-compatible compute over YugabyteDB storage
 	LAST_SPLIT_NUM                  = 0
 	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*.[0-9]*"
@@ -78,6 +79,7 @@ const (
 	ASSESS_MIGRATION_PHASE           = "assess-migration"
 	ASSESS_MIGRATION_BULK_PHASE      = "assess-migration-bulk"
 	IMPORT_DATA_FILE_PHASE           = "import-data-file"
+	ARCHIVE_CHANGES_PHASE            = "archive-changes"
 	//...more phases
 	OFFLINE        = "offline"
 	LIVE_MIGRATION = "live-migration"

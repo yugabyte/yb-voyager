@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 
-import yb
-import common
 import sys
+
+from packaging.version import Version
+
+import common
+import yb
 
 live_migration = 'false'
 def main():
@@ -48,7 +51,7 @@ def migration_completed_checks_fb():
 	print("Running tests on PG source")
 	yb.run_checks(migration_completed_checks, db_type="source")
 
-def check_validations_per_schema(tgt,schema_name):
+def check_validations_per_schema(tgt, schema_name, threeDotVersion):
 	table_list = tgt.get_table_names(schema_name)
 	print("table_list:", table_list)
 	assert len(table_list) == 7 
@@ -64,7 +67,15 @@ def check_validations_per_schema(tgt,schema_name):
 
 	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
 	print(f"count of fetched procedures/functions - {len(fetched_procedures_functions)}")
-	chk_conditions = (len(fetched_procedures_functions) == 40 and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
+	# an extra routine ships from YB 2025.2.4, bumping the count from 40 to 41
+	schema2_count = 41 if (threeDotVersion and Version(threeDotVersion) >= Version("2025.2.4")) else 40
+	# pgcrypto ships an extra function on PG 18, so the fall-forward/fallback
+	# checks against the source/source-replica also see 41 (threeDotVersion is
+	# empty there — it is derived from the YB-x.y.z token, absent on plain PG)
+	version_string = tgt.get_target_version()
+	if "YB" not in version_string and int(version_string.split()[1].split(".")[0]) >= 18:
+		schema2_count = 41
+	chk_conditions = (len(fetched_procedures_functions) == schema2_count and schema_name == 'schema2') or (len(fetched_procedures_functions) == 4 and schema_name == 'public')
 	assert chk_conditions == True
 
 	res_total_proc = tgt.execute_query(f"select total();")
@@ -104,7 +115,9 @@ def check_validations_per_schema(tgt,schema_name):
 
 def migration_completed_checks(tgt):
 	global test_type_flags
-	check_validations_per_schema(tgt, "public")
+	tgtVersion = tgt.get_target_version()
+	threeDotVersion = yb.get_three_dot_version(tgtVersion)
+	check_validations_per_schema(tgt, "public", threeDotVersion)
 
 	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('enum_kind', 'item_details', 'person_name');"
 	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
@@ -120,7 +133,7 @@ def migration_completed_checks(tgt):
 	print(f"schema set in search_path - {schema_set}")
 	assert schema_set == 'schema2'
 
-	check_validations_per_schema(tgt, "schema2")
+	check_validations_per_schema(tgt, "schema2", threeDotVersion)
 
 	# in live migration, sequences are only applied at cutover.
 	if not live_migration == 'true':
@@ -150,8 +163,8 @@ def migration_completed_checks(tgt):
 		extensions = tgt.get_available_extensions()
 		print(f"expected extensions: {expectedExtensions}")
 		print(f"reported extensions: {extensions}")
-		tgtVersion = tgt.get_target_version()
 		print(f"target version: {tgtVersion}")
+		print(f"three dot version: {threeDotVersion}")
 		
 		# Handle PG15 merge versions (preview >= 2.25 or stable >= 2025.1)
 		if yb.has_pg15_merge(tgtVersion):
@@ -169,11 +182,27 @@ def migration_completed_checks(tgt):
 			expectedExtensions.extend(["yb_ycql_utils"])
 
 		if "2025.2" in tgtVersion:
-			expectedExtensions.extend(["pg_parquet"])
-			
+			# pg_parquet ships in 2025.2.0–2025.2.2, is absent in 2025.2.3–2025.2.4,
+			# and is back from 2025.2.5
+			if threeDotVersion and (Version(threeDotVersion) < Version("2025.2.3") or Version(threeDotVersion) >= Version("2025.2.5")):
+				expectedExtensions.extend(["pg_parquet"])
+
+		if Version(threeDotVersion) >= Version("2025.2.3"):
+			expectedExtensions.append("pg_dist_rag")
+			# The graph extension ships as 'age' in some builds, 'mage' in others,
+			# and is absent in a few (e.g. 2025.2.5). Only assert it when actually
+			# reported, so the check doesn't break as YB renames it.
+			for age_ext in ("age", "mage"):
+				if age_ext in extensions:
+					expectedExtensions.append(age_ext)
+
+		if Version(threeDotVersion) >= Version("2026.1"):
+			expectedExtensions.extend(["anon", "dummy_seclabel", "documentdb", "documentdb_core",
+				"documentdb_distributed", "documentdb_extended_rum", "xml2"])
+
 		for extension in expectedExtensions:
 			assert extension in extensions, f"expected extension is not reported: {extension}"
-		
+
 		# Check for extra/unexpected extensions
 		extra_extensions = set(extensions) - set(expectedExtensions)
 		if extra_extensions:

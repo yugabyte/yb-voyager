@@ -13,19 +13,16 @@ jobs:
   run-pg-17-migration-tests:
     needs: [prepare-versions]
     strategy:
+      # Without this, one failing matrix leg cancels every sibling leg, so a single
+      # flaky leg destroys the result for all the other YB versions in the matrix.
+      fail-fast: false
       matrix:
         yb_version: ${{ fromJSON(needs.prepare-versions.outputs.yb_versions) }}
-        BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
           - live-migration
-        exclude:
-          # Exclude BETA_FAST_DATA_EXPORT=1 for live migration tests (redundant/not-required)
-          - BETA_FAST_DATA_EXPORT: 1
-            test_group: live-migration
 
     env:
-      BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
     runs-on: ubuntu-22.04
     services:
@@ -52,11 +49,22 @@ jobs:
           java-version: ${{ needs.prepare-versions.outputs.java_version }}
           check-latest: true
 
-      - name: Cache local Maven repository
-        uses: actions/cache@v4
+      - name: Compute Maven cache key
+        id: maven-cache-key
+        # Computed once, before the build, so the restore and save steps agree on it.
+        # The Debezium build writes into debezium-server-voyager/target/, and
+        # hashFiles() is evaluated over the workspace, so re-evaluating it after the
+        # installer has run risks saving under a key no restore ever looks for.
+        run: echo "key=${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore local Maven repository
+        id: maven-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          key: ${{ steps.maven-cache-key.outputs.key }}
+          # Prefix fallback, so a PR that does change the cached inputs still
+          # restores most of the dependency tree and only fetches the delta.
           restore-keys: |
             ${{ runner.os }}-maven-
 
@@ -87,14 +95,36 @@ jobs:
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           sudo rm /usr/bin/pg_dump
-          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/18/bin/pg_dump /usr/bin/pg_dump
           sudo rm /usr/bin/pg_restore
-          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/18/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
           pg_restore --version
           psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+      # Save only from the default branch (or a PR labelled `cache-maven`).
+      # This gate is load-bearing: ~/.m2 is ~1.3 GiB against a 10 GiB repo budget,
+      # so when every PR saved its own copy, 8 duplicates of the same key filled the
+      # budget (measured 10.43 GiB), LRU eviction took out main's entry, ~95% of jobs
+      # then missed, and each miss wrote another copy that evicted the next one.
+      # A run falls back to the default branch's cache, so one entry on main serves
+      # every PR. Label a PR `cache-maven` if it legitimately changes the cached
+      # inputs (e.g. a Debezium ref bump) and needs to populate its own entry.
+      #
+      # success() is explicit because a custom `if:` drops the implicit success()
+      # check, and a ~/.m2 left behind by a failed build must never be cached.
+      - name: Save local Maven repository
+        if: >-
+          success() &&
+          steps.maven-cache.outputs.cache-hit != 'true' &&
+          (github.ref == 'refs/heads/main' ||
+          contains(github.event.pull_request.labels.*.name, 'cache-maven'))
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.maven-cache-key.outputs.key }}
 
       - name: Test PostgreSQL Connection
         run: |
@@ -248,76 +278,76 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'live-migration' }}
         run: migtests/scripts/live-migration-run-test.sh pg/case-sensitivity-reserved-words --run-via-config-file
 
-      - name: "TEST: pg-basic-non-public-live-migration-test (2.20/2.25/2024.1 with gRPC)"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+      - name: "TEST: pg-basic-non-public-live-migration-test (2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
           export USE_YB_GRPC_CONNECTOR=true
           migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
       - name: "TEST: pg-basic-non-public-live-migration-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.12.0-b30' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
-      - name: "TEST: pg-basic-public-fall-forward-test (2.20/2.25/2024.1 with gRPC)"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+      - name: "TEST: pg-basic-public-fall-forward-test (2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
           export USE_YB_GRPC_CONNECTOR=true
           migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test --run-via-config-file
 
       - name: "TEST: pg-basic-public-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.12.0-b30' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test --run-via-config-file
 
-      - name: "TEST: pg-datatypes-fall-forward-test (2.20/2.25/2024.1 with gRPC)"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+      - name: "TEST: pg-datatypes-fall-forward-test (2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
           export USE_YB_GRPC_CONNECTOR=true
           migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes --run-via-config-file
 
       - name: "TEST: pg-datatypes-fall-forward-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.12.0-b30' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes --run-via-config-file
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
-      - name: "TEST: pg-datatypes-fall-back-test (2.20/2.25/2024.1 with gRPC)"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+      - name: "TEST: pg-datatypes-fall-back-test (2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
           export USE_YB_GRPC_CONNECTOR=true
           migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes --run-via-config-file
 
       - name: "TEST: pg-datatypes-fall-back-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.12.0-b30' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes --run-via-config-file
 
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
-      - name: "TEST: pg-live-migration-multiple-schemas (2.20/2.25/2024.1 with gRPC)"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+      - name: "TEST: pg-live-migration-multiple-schemas (2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
           export USE_YB_GRPC_CONNECTOR=true
           EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas --run-via-config-file
 
       - name: "TEST: pg-live-migration-multiple-schemas"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.12.0-b30' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas --run-via-config-file
 
-      - name: "TEST: pg-unique-key-conflicts-test (2.20/2.25/2024.1 with gRPC)"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+      - name: "TEST: pg-unique-key-conflicts-test (2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
           export USE_YB_GRPC_CONNECTOR=true
           migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test --run-via-config-file
 
       - name: "TEST: pg-unique-key-conflicts-test"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.12.0-b30' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test --run-via-config-file
 
-      - name: "TEST: pg-live-migration-partitions-fall-forward (2.20/2.25/2024.1 with gRPC)"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.20.12.0-b30' || matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
+      - name: "TEST: pg-live-migration-partitions-fall-forward (2.25/2024.1 with gRPC)"
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && (matrix.yb_version == '2.25.2.0-b359' || matrix.yb_version == '2024.1.6.1-b2') }}
         run: |
           export USE_YB_GRPC_CONNECTOR=true
           migtests/scripts/live-migration-fallf-run-test.sh pg/partitions --run-via-config-file
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
-        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.20.12.0-b30' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
+        if: ${{ !cancelled() && matrix.test_group == 'live-migration' && matrix.yb_version != '2.25.2.0-b359' && matrix.yb_version != '2024.1.6.1-b2' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions --run-via-config-file

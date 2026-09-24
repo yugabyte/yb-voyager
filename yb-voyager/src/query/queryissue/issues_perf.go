@@ -21,6 +21,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 const (
@@ -46,6 +47,15 @@ var hotspotsOnDateIndexes = issue.Issue{
 	Description: HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION,
 	GH:          "",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
+	},
+	MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
+	},
+	EnablingFlags: []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"},
 }
 
 func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string, colName string, usageCategory string) QueryIssue {
@@ -53,8 +63,11 @@ func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStateme
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
+	internalDetails := map[string]interface{}{
+		RECOMMENDED_RESOLUTION: "bucket-based indexes",
+	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, internalDetails, usageCategory)
 }
 
 var hotspotsOnTimestampPrimaryOrUniqueKeyConstraint = issue.Issue{
@@ -100,6 +113,15 @@ var hotspotsOnTimestampIndexes = issue.Issue{
 	Description: HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION,
 	GH:          "",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_2: ybversion.V2025_2_1_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
+	},
+	MinimumVersionsFixedInEA: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
+	},
+	EnablingFlags: []string{"yb_enable_derived_saops=true", "yb_max_saop_merge_streams=64"},
 }
 
 func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string, colName string, usageCategory string) QueryIssue {
@@ -107,8 +129,11 @@ func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlSt
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
+	internalDetails := map[string]interface{}{
+		RECOMMENDED_RESOLUTION: "bucket-based indexes",
+	}
 
-	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{}, usageCategory)
+	return newQueryIssueWithUsageCategory(issue, objectType, objectName, sqlStatement, details, internalDetails, usageCategory)
 }
 
 var redundantIndexesIssue = issue.Issue{

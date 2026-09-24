@@ -28,7 +28,7 @@ import (
 
 // Reference - https://docs.yugabyte.com/preview/releases/ybdb-releases/
 var supportedYBVersionStableSeriesOld = []string{SERIES_2_14, SERIES_2_18, SERIES_2_20}
-var supportedYBVersionStableSeries = []string{SERIES_2024_1, SERIES_2024_2, SERIES_2025_1, SERIES_2025_2}
+var supportedYBVersionStableSeries = []string{SERIES_2024_1, SERIES_2024_2, SERIES_2025_1, SERIES_2025_2, SERIES_2026_1}
 var supportedYBVersionPreviewSeries = []string{SERIES_2_21, SERIES_2_23, SERIES_2_25}
 
 var allSupportedYBVersionSeries = lo.Flatten([][]string{supportedYBVersionStableSeries, supportedYBVersionPreviewSeries, supportedYBVersionStableSeriesOld})
@@ -48,6 +48,22 @@ functionality.
 */
 type YBVersion struct {
 	*version.Version
+}
+
+// SeriesVersion reduces a YB version to its release series in the YEAR.TRACK.0.0 form
+// NewYBVersion accepts, dropping everything after the first two segments. CDC connector
+// compatibility is per-series, so only YEAR.TRACK is compared.
+// Examples: "2025.2.3"->"2025.2.0.0", "2025.2"->"2025.2.0.0", "2.25.2.0"->"2.25.0.0".
+func SeriesVersion(v string) string {
+	segments := strings.Split(v, ".")
+	if len(segments) > 2 {
+		segments = segments[:2]
+	}
+	for len(segments) < 2 {
+		segments = append(segments, "0")
+	}
+	segments = append(segments, "0", "0")
+	return strings.Join(segments, ".")
 }
 
 func NewYBVersion(v string) (*YBVersion, error) {

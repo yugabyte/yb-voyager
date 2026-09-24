@@ -26,6 +26,7 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5/pgconn"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -55,6 +56,7 @@ var importSchemaCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		validateTargetDBTypeFlag()
 
 		err := retrieveMigrationUUID()
 		if err != nil {
@@ -82,6 +84,7 @@ func init() {
 	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerTargetDBConnFlags(importSchemaCmd)
+	registerTargetDBTypeFlag(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
@@ -153,7 +156,12 @@ func importSchema() error {
 	if err != nil {
 		return fmt.Errorf("failed to get target db version: %w", err)
 	}
-	utils.PrintAndLogf("YugabyteDB version: %s\n", importTargetDBVersion)
+	if tconf.TargetDBType == YUGABYTEDB_AMP {
+		// yb-amp is a PostgreSQL-compatible compute; version() reports "PostgreSQL 17.x".
+		utils.PrintAndLogf("Target (yugabytedb-amp) version: %s\n", importTargetDBVersion)
+	} else {
+		utils.PrintAndLogf("YugabyteDB version: %s\n", importTargetDBVersion)
+	}
 
 	if err := promptIfColocatedTablesInNonColocatedDB(conn); err != nil {
 		log.Warnf("failed to prompt for colocated tables in non-colocated DB: %v", err)
@@ -298,7 +306,7 @@ func packAndSendImportSchemaPayload(status string, errMsg error) {
 		return
 	}
 	//Basic details in the payload
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationPhase = IMPORT_SCHEMA_PHASE
 	payload.Status = status
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
@@ -369,6 +377,13 @@ func assessmentRecommendedColocatedTables() (bool, error) {
 }
 
 func promptIfColocatedTablesInNonColocatedDB(conn *pgx.Conn) error {
+	// Colocation is a YugabyteDB-only concept; the underlying check runs
+	// yb_is_database_colocated(), a YB-only function absent on non-YB targets
+	// like yb-amp's PG17 compute (it would fatally ErrExit). Only run it for a
+	// real YugabyteDB target.
+	if tconf.TargetDBType != YUGABYTEDB {
+		return nil
+	}
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
 		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %w", err)
@@ -518,6 +533,14 @@ func createTargetSchemas(conn *pgx.Conn) {
 
 	}
 
+	// Pre-build the `SET search_path = …` that executeSqlFile will append to
+	// sessionVariables for FUNCTION/PROCEDURE files only. Populated once here
+	// so the consumer doesn't need to re-derive the list from analysis state.
+	if len(targetSchemas) > 0 {
+		setStmt := fmt.Sprintf("SET search_path = %s", sqlname.JoinIdentifiersMinQuoted(targetSchemas, ", "))
+		importTargetSearchPathStmt = sqlInfo{stmt: setStmt, formattedStmt: setStmt}
+	}
+
 	utils.PrintAndLogf("schemas to be present in target database %q: %v\n", tconf.DBName, sqlname.JoinIdentifiersMinQuoted(targetSchemas, ", "))
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
@@ -534,7 +557,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 				utils.PrintAndLogf("dropping schema '%s' in target database", targetSchema.MinQuoted)
 				_, err := conn.Exec(context.Background(), dropSchemaQuery)
 				if err != nil {
-					utils.ErrExit("Failed to drop schema: %q: %s", targetSchema, err)
+					utils.ErrExit("Failed to drop schema: %q: %w", targetSchema, err)
 				}
 			} else {
 				utils.PrintAndLogf("schema '%s' already present in target database, continuing with it..\n", targetSchema.MinQuoted)
@@ -552,7 +575,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 				utils.PrintAndLogf("creating schema '%s' in target database...", targetSchema.MinQuoted)
 				_, err := conn.Exec(context.Background(), createSchemaQuery)
 				if err != nil {
-					utils.ErrExit("Failed to create schema in the target DB: %q: %s", targetSchema, err)
+					utils.ErrExit("Failed to create schema in the target DB: %q: %w", targetSchema, err)
 				}
 			}
 
@@ -573,7 +596,7 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema sqlname.Identifier) 
 	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedSchema == "") {
 		return false
 	} else if err != nil {
-		utils.ErrExit("Failed to check if schema exists: %q: %s", targetSchema, err)
+		utils.ErrExit("Failed to check if schema exists: %q: %w", targetSchema, err)
 	}
 
 	return fetchedSchema == targetSchema.Unquoted
@@ -581,6 +604,18 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema sqlname.Identifier) 
 
 func missingRequiredSchemaObject(err error) bool {
 	return strings.Contains(err.Error(), "does not exist")
+}
+
+// PL/pgSQL %TYPE / %ROWTYPE resolution failure under empty or missing
+// search_path surfaces as SQLSTATE 42601 with `invalid type name "X%TYPE"`
+func isPercentTypeResolutionError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "42601" {
+		return false
+	}
+	text := pgErr.Message + " " + pgErr.Where
+	return strings.Contains(text, "invalid type name") &&
+		(strings.Contains(text, "%TYPE") || strings.Contains(text, "%ROWTYPE"))
 }
 
 func isAlreadyExists(errString string) bool {

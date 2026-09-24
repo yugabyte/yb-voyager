@@ -127,7 +127,7 @@ func (pg *TargetPostgreSQL) Init() error {
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		return goerrors.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
+		return goerrors.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()
@@ -263,7 +263,11 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 		// works fine as we check the support of any session variable before using it in the script.
 		// So upsert and disable transaction will never be used for PG
 	}
-	pg.connPool = NewConnectionPool(params)
+	var err error
+	pg.connPool, err = NewConnectionPool(params)
+	if err != nil {
+		return fmt.Errorf("creating connection pool: %w", err)
+	}
 	return nil
 }
 
@@ -333,46 +337,343 @@ outer:
 	return nil
 }
 
-// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
-// primary‑key definition of the given table.
-// Implementing this for completion but not used in Postgres fall-forward/fall-back
-// This info is only used in fast path import of batches(Target YugabyteDB)
-func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	var primaryKeyColumns []string
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT a.attname
-		FROM pg_index i
-		JOIN pg_class      c ON c.oid = i.indrelid
-		JOIN pg_namespace  n ON n.oid = c.relnamespace
-		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-		WHERE n.nspname = '%s'
-			AND c.relname  = '%s'
-			AND i.indisprimary;`, schemaName, tableName)
+// pgQueryTmplPKColumnsForTables returns the PK columns of all tables matching the given
+// schema/table filter lists.
+// Only key columns are returned: indkey also holds INCLUDE (covering) columns
+// (e.g. PRIMARY KEY (id) INCLUDE (region)), which are filtered out via indnkeyatts.
+// ORDER BY array_position(indkey, attnum) is essential: (id, region) and (region, id) are
+// different keys, and the PK column order is used to build conflict-bucket keys during
+// live-migration conflict detection.
+// The schema and table filters are applied independently (like pgQueryTmplForUniqIndexes),
+// so a cross-schema over-match is possible; callers map results back via the
+// partition->root catalog map and drop anything not under a requested root.
+// It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is PG-compatible
+// at the catalog level.
+const pgQueryTmplPKColumnsForTables = `
+SELECT n.nspname, c.relname, a.attname
+FROM pg_index i
+JOIN pg_class      c ON c.oid = i.indrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+WHERE (n.nspname || '.' || c.relname) IN ('%s')
+  AND i.indisprimary
+  AND array_position(i.indkey, a.attnum) + 1 <= i.indnkeyatts -- indkey is 0-indexed; exclude INCLUDE columns
+ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 
-	rows, err := pg.Query(query)
+// queryPGPrimaryKeyColumnsByCatalog runs the PG/YB primary-key discovery query for the
+// given tables and returns a map keyed by table to its primary-key columns in
+// PK-definition order. Shared by the PostgreSQL and YugabyteDB target drivers (each passes
+// its own Query function) so the query and scan logic live in exactly one place.
+//
+// A partitioned table's primary key can live only on its leaf partitions when the root has
+// no primary key of its own (e.g. children carry PKs, imported via --use-partition-root).
+// Import events reference the root, so we discover the PK of every leaf partition (and the
+// root/normal tables themselves) and attribute it to the root. A root's own primary key is
+// authoritative; a leaf's PK is used only when the root has none (partitions of the same
+// table share the same PK definition).
+func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tables) == 0 {
+		return result, nil
+	}
+
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tables, a
+	// mapping of its catalog name ("schema.table") to its root's catalog name. This includes
+	// each leaf partition -> root, and each root/normal table -> itself.
+	//TODO: need to separate this out of this function 
+	tableToRootMap, err := getPartitionTableToRootTableMap(queryFn, tables)
 	if err != nil {
-		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	var fullTableList []string
+	for _, table := range tables {
+		fullTableList = append(fullTableList, table.AsQualifiedCatalogName())
+	}
+
+	for leaf := range tableToRootMap {
+		fullTableList = append(fullTableList, leaf)
+	}
+
+	tableListStr := strings.Join(fullTableList, "','")
+
+	query := fmt.Sprintf(pgQueryTmplPKColumnsForTables, tableListStr)
+	rows, err := queryFn(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for tables %v: %w", tables, err)
 	}
 	defer rows.Close()
 
+	// PK columns per catalog table, in PK-definition order (query is ordered by array_position).
+	catalogToPKColumns := make(map[string][]string)
 	for rows.Next() {
-		var col string
-		if err := rows.Scan(&col); err != nil {
-			return nil, fmt.Errorf("scan PK column: %w", err)
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row: %w", err)
 		}
-		primaryKeyColumns = append(primaryKeyColumns, col)
+		catalogName := fmt.Sprintf("%s.%s", schema, table)
+		catalogToPKColumns[catalogName] = append(catalogToPKColumns[catalogName], col)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("iterate PK column rows: %w", err)
 	}
 
-	return primaryKeyColumns, nil
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple, len(tables))
+	for _, t := range tables {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	// Attribute each table's PK to its root, preferring the root's own PK over a leaf's.
+	rootHasOwnPK := make(map[string]bool)
+	for catalogName, pkColumns := range catalogToPKColumns {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any requested root (cross-schema over-match from the filter); skip.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		if catalogName == rootCatalogName {
+			// Root's own PK is authoritative; overwrite any PK previously taken from a leaf.
+			result.Put(rootTuple, pkColumns)
+			rootHasOwnPK[rootCatalogName] = true
+			continue
+		}
+		if rootHasOwnPK[rootCatalogName] {
+			continue
+		}
+		if _, alreadySet := result.Get(rootTuple); !alreadySet {
+			result.Put(rootTuple, pkColumns)
+		}
+	}
+
+	return result, nil
+}
+
+// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
+// in PK-definition order.
+// Implementing this for completion but not used in Postgres fall-forward/fall-back;
+// this info is only used in fast path import of batches (Target YugabyteDB).
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(pg.Query, tables)
 }
 
 // No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
 func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
 	return nil, nil
+}
+
+func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
+	log.Infof("getting unique indexes from target Postgres for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
+	// Unique indexes on a partitioned table are often defined on its leaf partitions
+	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
+	// events only reference the root table, we discover the unique indexes of every leaf
+	// partition (and the root/normal tables themselves) and merge them into the root.
+	//
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
+	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
+	// includes each leaf partition -> root, and each root/normal table -> itself.
+	tableToRootMap, err := getPartitionTableToRootTableMap(pg.Query, tableList)
+	if err != nil {
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	}
+
+	// Fetch unique indexes for all leaves + roots and key them by catalog name.
+	querySchemaList, queryTableList := catalogNamesToSchemaAndTableLists(lo.Keys(tableToRootMap))
+	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(pg.Query, querySchemaList, queryTableList)
+	if err != nil {
+		return nil, err
+	}
+
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableList {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
+	for catalogName, indexes := range catalogToIndexes {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any of the requested roots (possible cross-schema
+			// over-match from the query filter); skip it.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		existing, _ := result.Get(rootTuple)
+		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
+	}
+
+	log.Infof("unique indexes from postgres for tables: %s", formatTableToUniqueIndexesForLog(result))
+	return result, nil
+}
+
+// pgQueryTmplForUniqIndexes returns, for the given schema/table lists, every unique
+// constraint and unique index (excluding primary keys) with its ordered column list.
+// Unique constraints are included via their backing unique indexes in pg_index
+// (contype 'u'); only primary-key indexes (contype 'p') are excluded.
+// It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
+// PG-compatible at the catalog level.
+// Note: this query doesn't include the key columns having expression in it.
+const pgQueryTmplForUniqIndexes = `
+WITH unique_indexes AS (
+    SELECT
+        n.nspname AS table_schema,
+        t.relname AS table_name,
+        i.relname AS index_key,
+        a.attname AS column_name,
+        MIN(array_position(ix.indkey, a.attnum) + 1) AS ordinal_position,
+        -- UNIQUE constraints/indexes can be declared with NULLS NOT DISTINCT (PG 15+);
+        -- the flag lives on pg_index.indnullsnotdistinct.
+        bool_or(COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false)) AS nulls_not_distinct
+    FROM
+        pg_index ix
+    JOIN
+        pg_class i ON i.oid = ix.indexrelid
+    JOIN
+        pg_class t ON t.oid = ix.indrelid
+    JOIN
+        pg_namespace n ON n.oid = t.relnamespace
+    JOIN
+        pg_attribute a ON a.attrelid = t.oid
+        AND a.attnum = ANY(ix.indkey)
+    LEFT JOIN
+        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
+    WHERE
+        ix.indisunique = TRUE
+        AND c.contype IS NULL
+        -- indkey (int2vector) is 0-indexed, so array_position returns a 0-based position
+        -- (matching the "+ 1" used for ordinal_position above). Only the first indnkeyatts
+        -- entries are key columns; the rest are INCLUDE (covering) columns, so exclude them.
+        AND array_position(ix.indkey, a.attnum) + 1 <= ix.indnkeyatts
+        AND n.nspname = ANY('{%s}')
+        AND t.relname = ANY('{%s}')
+    GROUP BY
+        n.nspname, t.relname, i.relname, a.attname
+)
+SELECT
+    table_schema,
+    table_name,
+    index_key,
+    array_agg(column_name ORDER BY ordinal_position) AS columns,
+    bool_or(nulls_not_distinct) AS nulls_not_distinct
+FROM unique_indexes
+GROUP BY table_schema, table_name, index_key
+ORDER BY table_schema, table_name, index_key;
+`
+
+// dedupeUniqueIndexes removes duplicate index definitions, keyed by the ordered
+// column signature. When the same column signature appears more than once (e.g.
+// merged from multiple leaf partitions), the NullsNotDistinct flags are OR-ed so
+// that a stricter (NULLS NOT DISTINCT) definition on any partition wins.
+func dedupeUniqueIndexes(indexes []UniqueIndex) []UniqueIndex {
+	indexByKey := make(map[string]int)
+	result := make([]UniqueIndex, 0, len(indexes))
+	for _, idx := range indexes {
+		key := strings.Join(idx.Columns, ",")
+		if pos, ok := indexByKey[key]; ok {
+			result[pos].NullsNotDistinct = result[pos].NullsNotDistinct || idx.NullsNotDistinct
+			continue
+		}
+		indexByKey[key] = len(result)
+		result = append(result, idx)
+	}
+	return result
+}
+
+// formatTableToUniqueIndexesForLog renders the unique indexes of each table as
+// "table: index(col1, col2) [nulls not distinct]; table2: ...", sorted by table name.
+func formatTableToUniqueIndexesForLog(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []UniqueIndex]) string {
+	var tableEntries []string
+	// the callback never returns an error, so IterKVSorted cannot fail here.
+	_ = tableToUniqueIndexes.IterKVSorted(func(a, b sqlname.NameTuple) bool {
+		return a.ForOutput() < b.ForOutput()
+	}, func(table sqlname.NameTuple, indexes []UniqueIndex) (bool, error) {
+		indexEntries := lo.Map(indexes, func(index UniqueIndex, _ int) string {
+			return index.String()
+		})
+		tableEntries = append(tableEntries, fmt.Sprintf("%s: %s", table.ForOutput(), strings.Join(indexEntries, ", ")))
+		return true, nil
+	})
+	if len(tableEntries) == 0 {
+		return "none"
+	}
+	return strings.Join(tableEntries, "; ")
+}
+
+// mergeUniqueIndexes merges two index lists, deduplicating by column signature.
+func mergeUniqueIndexes(existing, additional []UniqueIndex) []UniqueIndex {
+	return dedupeUniqueIndexes(append(existing, additional...))
+}
+
+// catalogNamesToSchemaAndTableLists splits a list of "schema.table" catalog names
+// into de-duplicated, parallel-usable schema and table lists suitable for the
+// pgQueryTmplForUniqIndexes filter (which filters schema and table independently).
+func catalogNamesToSchemaAndTableLists(catalogNames []string) (schemaList, tableList []string) {
+	for _, catalogName := range catalogNames {
+		parts := strings.SplitN(catalogName, ".", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		schemaList = append(schemaList, parts[0])
+		tableList = append(tableList, parts[1])
+	}
+	return lo.Uniq(schemaList), lo.Uniq(tableList)
+}
+
+// queryPGUniqueIndexesByCatalog runs the PG/YB unique-index discovery query for the
+// given schema/table filter lists and returns a map keyed by "schema.table" catalog
+// name to its list of unique indexes (each an ordered, de-duplicated column list).
+func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error), schemaList, tableList []string) (map[string][]UniqueIndex, error) {
+	if len(schemaList) == 0 || len(tableList) == 0 {
+		return map[string][]UniqueIndex{}, nil
+	}
+
+	query := fmt.Sprintf(pgQueryTmplForUniqIndexes,
+		strings.Join(schemaList, ","), strings.Join(tableList, ","))
+	rows, err := queryFn(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique indexes: %w", err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Errorf("closing rows for unique indexes: %v", closeErr)
+		}
+	}()
+
+	result := make(map[string][]UniqueIndex)
+	for rows.Next() {
+		var schemaName, tableName, indexKey string
+		var columnsPgTypeArray pgtype.TextArray
+		var nullsNotDistinct bool
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray, &nullsNotDistinct)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique index: %w", err)
+		}
+		columns := utils.ConvertPgTextArrayToStringSlice(columnsPgTypeArray)
+		if len(columns) == 0 {
+			continue
+		}
+		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		result[catalogName] = append(result[catalogName], UniqueIndex{
+			IndexName:        indexKey,
+			Columns:          columns,
+			NullsNotDistinct: nullsNotDistinct,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows for unique indexes: %w", err)
+	}
+
+	for catalogName, indexes := range result {
+		result[catalogName] = dedupeUniqueIndexes(indexes)
+	}
+	return result, nil
 }
 
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -425,7 +726,7 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	if err != nil {
 		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	//setting the schema so that COPY command can acesss the table
 	pg.setTargetSchema(conn)
@@ -506,6 +807,10 @@ func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+func (pg *TargetPostgreSQL) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return pg.FindBestMatchingColumnName(columnName, targetTableColumns)
+}
+
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 	if err == nil {
 		return false
@@ -526,7 +831,8 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal *utils.StructMap[s
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+	// batch assembly; the callback never returns an error
+	_ = sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
 			return true, nil
@@ -570,20 +876,24 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt, err := event.GetSQLStmt(pg)
+			stmt, err := event.GetSQLStmt(pg, pg.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(pg, pg.tconf.TargetDBType, pg.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
-				stmtToPrepare[event.GetPreparedStmtName()] = stmt
+				psName, err := event.GetPreparedStmtName(pg.tconf.UsePartitionRoot)
+				if err != nil {
+					return fmt.Errorf("get prepared stmt name: %w", err)
+				}
+				stmtToPrepare[psName] = stmt
 			}
 			ybBatch.Queue(stmt, params...)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): PREPARED STMT:[%s] PARAMS:[%s]", batch.ID(), event.Vsn, stmt, event.GetParamsString())
@@ -598,8 +908,8 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
-			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 
@@ -639,7 +949,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				}
 				log.Errorf("%s : %v", errorMsg, err)
-				closeBatch()
+				_ = closeBatch() // best-effort; the original error below takes precedence
 				return false, fmt.Errorf("%s: %w", errorMsg, err)
 			}
 			switch true {
@@ -1229,4 +1539,70 @@ func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string
 	}
 
 	return enabledTriggers, enabledFks, nil
+}
+
+// The three methods below satisfy namereg.YBDBInterface, which the name
+// registry requires of every import-to-target driver. They use standard
+// PostgreSQL catalog queries, so they are valid for any PostgreSQL-compatible
+// target — vanilla PostgreSQL and YugabyteDB AMP (which embeds this driver)
+// alike. TargetYugabyteDB keeps its own equivalents.
+
+func (pg *TargetPostgreSQL) GetAllSchemaNamesRaw() ([]string, error) {
+	query := "SELECT schema_name FROM information_schema.schemata"
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target for schema names: %w", err)
+	}
+	defer rows.Close()
+
+	var schemaNames []string
+	for rows.Next() {
+		var schemaName string
+		if err = rows.Scan(&schemaName); err != nil {
+			return nil, fmt.Errorf("scanning schema name: %w", err)
+		}
+		schemaNames = append(schemaNames, schemaName)
+	}
+	return schemaNames, rows.Err()
+}
+
+func (pg *TargetPostgreSQL) GetAllTableNamesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema = '%s';`, schemaName)
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target (%q) for table names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	for rows.Next() {
+		var tableName string
+		if err = rows.Scan(&tableName); err != nil {
+			return nil, fmt.Errorf("scanning table name: %w", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	return tableNames, rows.Err()
+}
+
+func (pg *TargetPostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
+	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences WHERE schemaname = '%s';`, schemaName)
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying target (%q) for sequence names: %w", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceNames []string
+	for rows.Next() {
+		var sequenceName string
+		if err = rows.Scan(&sequenceName); err != nil {
+			return nil, fmt.Errorf("scanning sequence name: %w", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	return sequenceNames, rows.Err()
 }

@@ -22,6 +22,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/fatih/color"
@@ -53,11 +54,18 @@ var (
 	lockFile                           *lockfile.Lockfile
 	migrationUUID                      uuid.UUID
 	perfProfile                        utils.BoolStr
-	ProcessShutdownRequested           bool
 	controlPlane                       cp.ControlPlane
 	currentCommand                     string
 	callHomeErrorOrCompletePayloadSent bool
 	controlPlaneConfig                 map[string]string // Holds control plane configuration from config file
+	suppressInfoMessages               bool              // set by commands that render their own banner (e.g. assess-migration)
+)
+
+// Set by main.go's signal goroutine and read from others -- the export exit-snapshot
+// classifier, the atexit hooks, main after Execute -- so both are atomic.
+var (
+	ProcessShutdownRequested  atomic.Bool
+	EndMigrationStopRequested atomic.Bool
 )
 
 var envVarValuesToObfuscateInLogs = []string{
@@ -79,6 +87,8 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		suppressInfoMessages = cmd.Name() == "assess-migration"
+
 		// Save before initConfig, which also marks flags as Changed when applying config values.
 		sendDiagnosticsSetByCLI := cmd.Flags().Changed("send-diagnostics")
 
@@ -101,6 +111,12 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 		currentCommand = cmd.CommandPath()
 
+		// Validate the logging settings before anything can initialise logging with them:
+		// resolveToActiveIterationIfRequired() below calls InitLogging.
+		if shouldRunPersistentPreRun(cmd) {
+			validateLogFlags()
+		}
+
 		if isLiveMigrationIterationCommand(cmd) {
 			err := resolveToActiveIterationIfRequired(cmd)
 			if err != nil {
@@ -114,20 +130,15 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 		if isBulkAssessmentCommand(cmd) {
 			validateBulkAssessmentDirFlag()
-			err := config.ValidateLogLevel()
-			if err != nil {
-				// not using utils.ErrExit as logging is not initialized yet
-				fmt.Printf("ERROR: %v\n", err)
-				atexit.Exit(1)
-			}
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
 				//lockFile.Lock()
 			}
-			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+			err := InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd), config.LogMaxSizeMB, config.LogMaxBackups)
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -144,21 +155,16 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 		} else {
 			validateExportDirFlag()
-			err := config.ValidateLogLevel()
-			if err != nil {
-				// not using utils.ErrExit as logging is not initialized yet
-				fmt.Printf("ERROR: %v\n", err)
-				atexit.Exit(1)
-			}
 			schemaDir = filepath.Join(exportDir, "schema")
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
 				//lockFile.Lock()
 			}
-			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+			err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd), config.LogMaxSizeMB, config.LogMaxBackups)
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %w", err)
+				// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+				utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -221,7 +227,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
-			cmd.Help()
+			_ = cmd.Help() // help printing; nothing actionable on error
 			os.Exit(0)
 		}
 	},
@@ -257,9 +263,10 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 		return nil
 	}
 	//this is just for any logs that might be printed before the iteration export dir is resolved
-	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
+	err := InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd), config.LogMaxSizeMB, config.LogMaxBackups)
 	if err != nil {
-		utils.ErrExit("Failed to initialize logging: %w", err)
+		// InitLogging failed, so use ErrExitPreLog to avoid printing twice.
+		utils.ErrExitPreLog("ERROR: Failed to initialize logging: %v", err)
 	}
 	metaDB = initMetaDB(exportDir)
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -294,9 +301,9 @@ func resolveToActiveIterationIfRequired(cmd *cobra.Command) error {
 	*/
 	cmdPath := cmd.CommandPath()
 	isFallbackCmd := slices.Contains(fallbackPhaseCommands, cmdPath)
-	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB   
+	//setting the metaDB to the iteration metaDB as the getCutoverStatus is using the global metaDB
 	//and we are fetching the cutover status for the current iteration from this metaDB.
-	latestIterInForwardPhase := (getCutoverStatus(iterationMetaDB) == NOT_INITIATED)
+	latestIterInForwardPhase := (GetCutoverStatus(iterationMetaDB) == NOT_INITIATED)
 
 	if isFallbackCmd && latestIterInForwardPhase {
 		// Latest iteration is in forward phase — so fallback command belongs to the PREVIOUS iteration
@@ -408,23 +415,21 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager end",
 }
 
-// used for registering the --config-file flag
-var offlineCommands = []string{
-	"yb-voyager assess-migration",
-	"yb-voyager export schema",
-	"yb-voyager analyze-schema",
-	"yb-voyager import schema",
-	"yb-voyager export data",
-	"yb-voyager export data from source",
-	"yb-voyager import data",
-	"yb-voyager import data to target",
-	"yb-voyager finalize-schema-post-data-import",
-	"yb-voyager end migration",
-	"yb-voyager compare-performance",
-}
-
 func shouldLock(cmd *cobra.Command) bool {
 	return !slices.Contains(noLockNeededList, cmd.CommandPath())
+}
+
+// validateLogFlags validates the log level and rotation settings resolved from the CLI
+// flags and config file, exiting before logging is initialised if any is invalid.
+func validateLogFlags() {
+	if err := config.ValidateLogLevel(); err != nil {
+		// logging is not initialized yet
+		utils.ErrExitPreLog("ERROR: %v", err)
+	}
+	if err := config.ValidateLogSettings(); err != nil {
+		// logging is not initialized yet
+		utils.ErrExitPreLog("ERROR: %v", err)
+	}
 }
 
 func shouldRunPersistentPreRun(cmd *cobra.Command) bool {
@@ -447,16 +452,15 @@ var globalFlags = []string{}
 func registerCommonGlobalFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &perfProfile, "profile", false,
 		"profile yb-voyager for performance analysis")
-	cmd.Flags().MarkHidden("profile")
+	mustMarkFlagHidden(cmd, "profile")
 
 	registerExportDirFlag(cmd)
 	globalFlags = append(globalFlags, "export-dir")
 	registerConfigFileFlag(cmd)
 	globalFlags = append(globalFlags, "config-file")
 
-	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
-		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
-	globalFlags = append(globalFlags, "log-level")
+	registerLogFlags(cmd)
+	globalFlags = append(globalFlags, "log-level", "log-max-size-mb", "log-max-backups")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
@@ -479,11 +483,13 @@ func registerExportDirFlag(cmd *cobra.Command) {
 }
 
 func validateExportDirFlag() {
+	// This runs before InitLogging(), so use utils.ErrExitPreLog instead of
+	// utils.ErrExit to avoid printing the message twice.
 	if exportDir == "" {
-		utils.ErrExit(`ERROR required flag "export-dir" not set`)
+		utils.ErrExitPreLog("ERROR required flag \"export-dir\" not set")
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		utils.ErrExit("export-dir doesn't exist: %q\n", exportDir)
+		utils.ErrExitPreLog("export-dir doesn't exist: %q", exportDir)
 	} else {
 		if exportDir == "." {
 			fmt.Println("Note: Using current directory as export-dir")
@@ -491,15 +497,27 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir: %q: %w\n", exportDir, err)
+			utils.ErrExitPreLog("Failed to get absolute path for export-dir: %q: %v", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
 
-	utils.PrintfInfo("Using export-dir: %s\n", utils.Path.Sprint(exportDir))
+	if !suppressInfoMessages {
+		utils.PrintfInfo("Using export-dir: %s\n", utils.Path.Sprint(exportDir))
+	}
 }
 
 func GetCommandID(c *cobra.Command) string {
+	commandID := buildCommandID(c)
+	for alias, aliases := range aliasCommandsPrefixes {
+		if slices.Contains(aliases, commandID) {
+			return alias
+		}
+	}
+	return commandID
+}
+
+func buildCommandID(c *cobra.Command) string {
 	if c.HasParent() {
 		p := GetCommandID(c.Parent())
 		if p == "" {
@@ -519,6 +537,43 @@ func BoolVar(flagSet *pflag.FlagSet, p *utils.BoolStr, name string, value bool, 
 		Value:    p,
 		DefValue: fmt.Sprintf("%t", value),
 	})
+}
+
+// The mustMarkFlag* helpers panic instead of returning an error: the underlying
+// cobra/pflag Mark* calls fail only when the named flag does not exist (a typo,
+// or a flag that was renamed without updating the Mark* call). That is a
+// programmer error, and silently dropping it makes the flag quietly stop being
+// required/hidden/deprecated. These run at command-registration time, so a
+// panic surfaces the mistake on the very first invocation.
+
+func mustMarkFlagRequired(cmd *cobra.Command, name string) {
+	if err := cmd.MarkFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("marking flag %q required on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkPersistentFlagRequired(cmd *cobra.Command, name string) {
+	if err := cmd.MarkPersistentFlagRequired(name); err != nil {
+		panic(fmt.Sprintf("marking persistent flag %q required on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkFlagHidden(cmd *cobra.Command, name string) {
+	if err := cmd.Flags().MarkHidden(name); err != nil {
+		panic(fmt.Sprintf("marking flag %q hidden on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkPersistentFlagHidden(cmd *cobra.Command, name string) {
+	if err := cmd.PersistentFlags().MarkHidden(name); err != nil {
+		panic(fmt.Sprintf("marking persistent flag %q hidden on command %q: %v", name, cmd.Name(), err))
+	}
+}
+
+func mustMarkFlagDeprecated(cmd *cobra.Command, name string, message string) {
+	if err := cmd.Flags().MarkDeprecated(name, message); err != nil {
+		panic(fmt.Sprintf("marking flag %q deprecated on command %q: %v", name, cmd.Name(), err))
+	}
 }
 
 func metaDBIsCreated(exportDir string) bool {

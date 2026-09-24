@@ -27,7 +27,6 @@ import (
 	"strings"
 	"text/template"
 
-	//"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -38,7 +37,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	//"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -56,7 +54,6 @@ var (
 	intervalForCapturingIOPS         int64
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
-	pgssEnabledForAssessment         = false
 	invokedByExportSchema            utils.BoolStr
 	sourceReadReplicaEndpoints       string                              // CLI flag - package variable for Cobra binding
 	primaryOnly                      bool                                // CLI flag - package variable for Cobra binding
@@ -107,10 +104,10 @@ var assessMigrationCmd = &cobra.Command{
 				}
 			}
 		} else {
-			cmd.MarkFlagRequired("source-db-user")
-			cmd.MarkFlagRequired("source-db-name")
+			mustMarkFlagRequired(cmd, "source-db-user")
+			mustMarkFlagRequired(cmd, "source-db-name")
 			//Update this later as per db-types TODO
-			cmd.MarkFlagRequired("source-db-schema")
+			mustMarkFlagRequired(cmd, "source-db-schema")
 		}
 	},
 
@@ -127,7 +124,7 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: (%s)\n", strings.Join(assessMigrationSupportedDBTypes, ", ")))
 
-	cmd.MarkFlagRequired("source-db-type")
+	mustMarkFlagRequired(cmd, "source-db-type")
 
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
@@ -192,14 +189,14 @@ func init() {
 	assessMigrationCmd.Flags().Int64Var(&intervalForCapturingIOPS, "iops-capture-interval", 120,
 		"Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). (only valid for PostgreSQL)")
 
-	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
+	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL) Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.")
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
 		fmt.Sprintf("Target YugabyteDB version to assess migration for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 
 	BoolVar(assessMigrationCmd.Flags(), &invokedByExportSchema, "invoked-by-export-schema", false,
 		"Flag to indicate if the assessment is invoked by export schema command. ")
-	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
+	mustMarkFlagHidden(assessMigrationCmd, "invoked-by-export-schema") // mark hidden
 
 	assessMigrationCmd.Flags().StringVar(&sourceReadReplicaEndpoints, "source-read-replica-endpoints", "",
 		"Comma-separated list of read replica endpoints. Each endpoint is host:port. Default port 5432. "+
@@ -221,141 +218,132 @@ func assessMigration() (err error) {
 
 	assessmentMetadataDir = lo.Ternary(assessmentMetadataDirFlag != "", assessmentMetadataDirFlag,
 		filepath.Join(exportDir, "assessment", "metadata"))
-	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 	/*
 		err = handleStartCleanIfNeededForAssessMigration(assessmentMetadataDirFlag != "")
 		if err != nil {
 			return err
 		}
-		utils.PrintAndLogf("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 		assessmentDir := filepath.Join(exportDir, "assessment")
 		migassessment.AssessmentDir = assessmentDir
 		migassessment.SourceDBType = source.DBType
 		migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
 
-		var validatedReplicaEndpoints []srcdb.ReplicaEndpoint
-
-		if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-			if source.Password == "" {
-				source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
-				if err != nil {
-					return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
-				}
-			}
-			err := source.DB().Connect()
-			if err != nil {
-				return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
-			}
-			// We will require source db connection for the below checks
-			// Check if required binaries are installed.
-			if source.RunGuardrailsChecks {
-				// Check source database version.
-				log.Info("checking source DB version")
-				err = source.DB().CheckSourceDBVersion(exportType)
-				if err != nil {
-					return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
-				}
-
-				// Check if required binaries are installed.
-				binaryCheckIssues, err := checkDependenciesForExport()
-				if err != nil {
-					return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
-				} else if len(binaryCheckIssues) > 0 {
-					return goerrors.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
-				}
-			}
-
-			allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
-			if err != nil {
-				return fmt.Errorf("failed to get all schema names identifiers: %w", err)
-			}
-			source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
-			if err != nil {
-				return fmt.Errorf("failed to match schema names: %w", err)
-			}
-
-			fetchSourceInfo()
-
-			// Handle replica discovery and validation (PostgreSQL only)
-			replicaDiscoveryInfo, err := migassessment.HandleReplicaDiscoveryAndValidation(&source, sourceReadReplicaEndpoints, primaryOnly)
-			if err != nil {
-				return fmt.Errorf("failed to handle replica discovery and validation: %w", err)
-			}
-			validatedReplicaEndpoints = replicaDiscoveryInfo.ValidatedReplicas
-
-			// Store for callhome (including error scenarios)
-			replicaDiscoveryInfoForCallhome = &replicaDiscoveryInfo
-
-			// Check permissions on all nodes (primary + replicas) after validation
-			if source.RunGuardrailsChecks {
-				// Check schema usage permissions first (no-op for non-PostgreSQL databases)
-				checkIfSchemasHaveUsagePermissions()
-				// Check assessment-specific permissions on all nodes
-				pgssEnabledForAssessment, err = migassessment.CheckAssessmentPermissionsOnAllNodes(&source, validatedReplicaEndpoints)
-				if err != nil {
-					return fmt.Errorf("permission check failed: %w", err)
-				}
-			}
+		// ── Phase 1: Preflight ──────────────────────────────────────────────
+		bannerRows := []ux.BannerRow{
+			{Key: "Voyager version", Value: utils.YB_VOYAGER_VERSION},
+			{Key: "Migration ID", Value: migrationUUID.String()},
+			{Key: "Target DB", Value: fmt.Sprintf("YugabyteDB %s", targetDbVersion)},
+			{Key: "Source DB type", Value: source.DBType},
 		}
+		if assessmentMetadataDirFlag == "" && source.Host != "" {
+			bannerRows = append(bannerRows, ux.BannerRow{
+				Key:   "Source",
+				Value: fmt.Sprintf("%s:%d/%s", source.Host, source.Port, source.DBName),
+			})
+		}
+		bannerRows = append(bannerRows, ux.BannerRow{Key: "Export directory", Value: exportDir})
+		if cfgFile != "" {
+			bannerRows = append(bannerRows, ux.BannerRow{Key: "Config file", Value: cfgFile})
+		}
+		if assessmentMetadataDirFlag != "" {
+			bannerRows = append(bannerRows, ux.BannerRow{Key: "Metadata directory", Value: assessmentMetadataDirFlag})
+		}
+		ux.PrintBanner("YugabyteDB Voyager — Migration Assessment", bannerRows)
+		log.Infof("assessing for migration to target YugabyteDB version %s", targetDbVersion)
 
+		preflightResult, err := migassessment.RunPreflightChecks(migassessment.PreflightChecksConfig{
+			Source:                     &source,
+			AssessmentMetadataDirFlag:  assessmentMetadataDirFlag,
+			SourceReadReplicaEndpoints: sourceReadReplicaEndpoints,
+			PrimaryOnly:                primaryOnly,
+		})
+		if err != nil {
+			return err
+		}
+		validatedReplicaEndpoints := preflightResult.ValidatedReplicaEndpoints
+		replicaDiscoveryInfoForCallhome = preflightResult.ReplicaDiscoveryInfo
+		pgssByNode := preflightResult.PgssByNode
+
+		fmt.Println()
+		ux.PrintSeparator()
+
+		// ── Phase 2: Assessment pipeline ────────────────────────────────────
 		startEvent := createMigrationAssessmentStartedEvent()
 		controlPlane.MigrationAssessmentStarted(startEvent)
 
-		initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
+		tracker := ux.NewProgressTracker("Preparing for migration assessment")
 
-		err = gatherAssessmentMetadata(validatedReplicaEndpoints)
+		source.ApplyExportSchemaObjectListFilter()
+		metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
+		// Stage 1: Gather metadata + export schema + load into DB
+		assessmentDB, err = migassessment.RunGatherAssessmentMetadataStage(migassessment.GatherAssessmentMetadataStageConfig{
+			Source:                    &source,
+			AssessmentMetadataDir:     assessmentMetadataDir,
+			AssessmentMetadataDirFlag: assessmentMetadataDirFlag,
+			ExportDir:                 exportDir,
+			SchemaDir:                 schemaDir,
+			ValidatedReplicaEndpoints: validatedReplicaEndpoints,
+			PgssByNode:                pgssByNode,
+			IOPSInterval:              intervalForCapturingIOPS,
+			Tracker:                   tracker,
+		})
 		if err != nil {
-			return fmt.Errorf("failed to gather assessment metadata: %w", err)
+			return err
 		}
 
-		parseExportedSchemaFileForAssessmentIfRequired()
-
-		// Disconnect from primary DB only after all direct DB operations are complete
-		// (including schema export which may check schema existence)
-		if assessmentMetadataDirFlag == "" {
-			source.DB().Disconnect()
-		}
-
-		err = populateMetadataCSVIntoAssessmentDB()
-		if err != nil {
-			return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
-		}
-
-		objectUsagesStats, err := fetchObjectUsageStats()
-		if err != nil {
-			return fmt.Errorf("failed to populate object usage stats: %w", err)
-		}
-
-		parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
-
+		// Pause for IOPS validation (may prompt the user)
+		tracker.Finish()
+		fmt.Println()
 		err = validateSourceDBIOPSForAssessMigration()
 		if err != nil {
 			return fmt.Errorf("failed to validate source database IOPS: %w", err)
 		}
+
+		tracker = ux.NewProgressTracker("Running Assessment")
+
+		objectUsagesStats, err := fetchObjectUsageStats()
+		if err != nil {
+			tracker.FailStage()
+			return fmt.Errorf("failed to populate object usage stats: %w", err)
+		}
+		parserIssueDetector.PopulateObjectUsages(objectUsagesStats)
+
+		// Stage 2: Assessing migration
+		_ = tracker.StartStage("Assessing migration", 0, nil) // console progress UX; nothing actionable on error
 	*/
 	err = runAssessment(filepath.Join(exportDir, "assessment"))
 	if err != nil {
-		utils.PrintAndLogf("failed to run assessment: %v", err)
+		//tracker.FailStage()
+		return fmt.Errorf("failed to assess migration: %w", err)
 	}
+	//tracker.CompleteStage()
 
-	err = generateAssessmentReport()
+	// Stage 3: Generate report
+	//_ = tracker.StartStage("Generating report", 0, nil) // console progress UX; nothing actionable on error
+	err = generateAssessmentReport(replicaDiscoveryInfoForCallhome)
 	if err != nil {
+		//tracker.FailStage()
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
+	//tracker.CompleteStage()
+	//tracker.Finish()
 
-	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
+	// ── Phase 3: Summary ────────────────────────────────────────────────
+	log.Infof("number of assessment issues detected: %d", len(assessmentReport.Issues))
 
-	utils.PrintAndLog("Migration assessment completed successfully.")
+	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
+	jsonPath := filepath.Join(assessmentReportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
+	htmlPath := filepath.Join(assessmentReportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
+	migassessment.PrintAssessmentSummary(len(assessmentReport.Issues), jsonPath, htmlPath)
 
-	// Call the appropriate event builder based on control plane type
 	var completedEvent *cp.MigrationAssessmentCompletedEvent
 	controlPlaneType := os.Getenv("CONTROL_PLANE_TYPE")
 	if controlPlaneType == YBAEON {
 		completedEvent = createMigrationAssessmentCompletedEventForYBAeon()
 	} else {
-		// Default to yugabyted format (backwards compatible)
 		completedEvent = createMigrationAssessmentCompletedEventForYugabyteD()
 	}
 
@@ -391,7 +379,7 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object usage stats %v", err)
+			log.Warnf("error closing rows while fetching object usage stats %v", closeErr)
 		}
 	}()
 
@@ -404,19 +392,10 @@ func fetchObjectUsageStats() ([]*types.ObjectUsageStats, error) {
 		}
 		objectUsagesStats = append(objectUsagesStats, &objectUsage)
 	}
-	return objectUsagesStats, nil
-}
-
-func fetchSourceInfo() {
-	var err error
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating object usage stats: %w", err)
 	}
-
-	// Get PostgreSQL system identifier
-	source.FetchDBSystemIdentifier()
+	return objectUsagesStats, nil
 }
 
 func SetMigrationAssessmentDoneInMSR() error {
@@ -576,126 +555,11 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 	return nil
 }
 
-// gatherAssessmentMetadata collects metadata from the source database.
-func gatherAssessmentMetadata(validatedReplicas []srcdb.ReplicaEndpoint) error {
-	if assessmentMetadataDirFlag != "" {
-		return nil // assessment metadata files are provided by the user inside assessmentMetadataDir
-	}
-
-	// setting schema objects types to export before creating the project directories
-	source.ExportObjectTypeList = utils.GetExportSchemaObjectList(source.DBType)
-	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	utils.PrintAndLogf("\ngathering metadata and stats from '%s' source database...\n", source.DBType)
-
-	switch source.DBType {
-	case POSTGRESQL:
-		err := migassessment.GatherAssessmentMetadataFromPG(
-			&source,
-			validatedReplicas,
-			assessmentMetadataDir,
-			pgssEnabledForAssessment,
-			intervalForCapturingIOPS,
-		)
-		if err != nil {
-			return fmt.Errorf("error gathering metadata and stats from source PG database: %w", err)
-		}
-	case ORACLE:
-		err := migassessment.GatherAssessmentMetadataFromOracle(&source, assessmentMetadataDir)
-		if err != nil {
-			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
-		}
-	default:
-		return goerrors.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
-	}
-	utils.PrintAndLogf("gathered assessment metadata files at '%s'", assessmentMetadataDir)
-	return nil
-}
-
-/*
-It is due to the differences in how tools like ora2pg, and pg_dump exports the schema
-pg_dump - export schema in single .sql file which is later on segregated by voyager in respective .sql file
-ora2pg - export schema in given .sql file, and we have to call it for each object type to export schema
-*/
-func parseExportedSchemaFileForAssessmentIfRequired() {
-	if source.DBType == ORACLE {
-		return // already parsed into schema files while exporting
-	}
-
-	log.Infof("set 'schemaDir' as: %s", schemaDir)
-	source.ApplyExportSchemaObjectListFilter()
-	metaDB = CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	source.DB().ExportSchema(exportDir, schemaDir)
-}
-
-func populateMetadataCSVIntoAssessmentDB() error {
-	// Collect CSV files from metadata directory
-	// Two supported structures:
-	//   1. Multi-node (PostgreSQL): assessmentMetadataDir/node-*/*.csv
-	//   2. Single-node (Oracle, MySQL, etc.): assessmentMetadataDir/*.csv
-	var metadataFilesPath []string
-
-	// Check for multi-node structure first (node-* directories)
-	nodeDirs, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "node-*"))
-	if err != nil {
-		return fmt.Errorf("error looking for node data directories in %s: %w", assessmentMetadataDir, err)
-	}
-
-	if len(nodeDirs) > 0 {
-		// Multi-node structure: Collect CSV files from each node directory
-		for _, nodeDir := range nodeDirs {
-			nodeFiles, err := filepath.Glob(filepath.Join(nodeDir, "*.csv"))
-			if err != nil {
-				return fmt.Errorf("error looking for csv files in directory %s: %w", nodeDir, err)
-			}
-			metadataFilesPath = append(metadataFilesPath, nodeFiles...)
-		}
-		log.Infof("Found %d CSV files across %d node(s) for population into assessment DB", len(metadataFilesPath), len(nodeDirs))
-	} else {
-		// Single-node structure: Collect CSV files directly from metadata directory
-		metadataFilesPath, err = filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
-		if err != nil {
-			return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
-		}
-		log.Infof("Found %d CSV files in metadata directory for population into assessment DB", len(metadataFilesPath))
-	}
-
-	for _, metadataFilePath := range metadataFilesPath {
-		baseFileName := filepath.Base(metadataFilePath)
-		metric := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
-		tableName := strings.Replace(metric, "-", "_", -1)
-		// collecting both initial and final measurement in the same table
-		tableName = lo.Ternary(strings.Contains(tableName, migassessment.TABLE_INDEX_IOPS),
-			migassessment.TABLE_INDEX_IOPS, tableName)
-
-		// check if the table exist in the assessment db or not
-		// possible scenario: if gather scripts are run manually, not via voyager
-		err := assessmentDB.CheckIfTableExists(tableName)
-		if err != nil {
-			return fmt.Errorf("error checking if table %s exists: %w", tableName, err)
-		}
-
-		log.Infof("populating metadata from file %s into table %s", metadataFilePath, tableName)
-		err = assessmentDB.LoadCSVFileIntoTable(metadataFilePath, tableName)
-		if err != nil {
-			return fmt.Errorf("error loading CSV file %s: %w", metadataFilePath, err)
-		}
-
-		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
-	}
-
-	err = assessmentDB.PopulateMigrationAssessmentStats()
-	if err != nil {
-		return fmt.Errorf("failed to populate migration assessment stats: %w", err)
-	}
-	return nil
-}
-
 //go:embed templates/migration_assessment_report.template
 var bytesTemplate []byte
 
-func generateAssessmentReport() (err error) {
-	utils.PrintAndLogf("Generating assessment report...")
+func generateAssessmentReport(replicaDiscoveryInfoForCallhome *migassessment.ReplicaDiscoveryInfo) (err error) {
+	log.Info("generating assessment report...")
 
 	assessmentReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	assessmentReport.TargetDBVersion = targetDbVersion
@@ -735,6 +599,7 @@ func generateAssessmentReport() (err error) {
 		addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 		addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
+
 		// calculating migration complexity after collecting all assessment issues
 		complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
 		log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
@@ -775,7 +640,7 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching redundant indexes %v", err)
+			log.Warnf("error closing rows while fetching redundant indexes %v", closeErr)
 		}
 	}()
 
@@ -790,6 +655,9 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 		}
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating redundant indexes: %w", err)
 	}
 
 	resolvedRedundantIndexes := getResolvedRedundantIndexes(redundantIndexesInfo)
@@ -855,7 +723,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching column statistics %v", err)
+			log.Warnf("error closing rows while fetching column statistics %v", closeErr)
 		}
 	}()
 
@@ -868,6 +736,9 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 		}
 		stat.DBType = source.DBType
 		columnStats = append(columnStats, stat)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating column statistics: %w", err)
 	}
 	return columnStats, nil
 }
@@ -982,14 +853,14 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 			link = analyzeIssue.DocsLink
 			objects = append(objects, objectInfo)
 			issueDescription = analyzeIssue.Reason
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, minVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue))
 		}
 	}
 
 	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, issueDescription, minVersionsFixedIn}
 }
 
-func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
+func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue) AssessmentIssue {
 	return AssessmentIssue{
 		Category:            analyzeSchemaIssue.IssueType,
 		CategoryDescription: GetCategoryDescription(analyzeSchemaIssue.IssueType),
@@ -1000,14 +871,16 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
 		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, utils.JoinSentences(analyzeSchemaIssue.Reason, analyzeSchemaIssue.Suggestion)),
 
-		Impact:                 analyzeSchemaIssue.Impact,
-		ObjectType:             analyzeSchemaIssue.ObjectType,
-		ObjectName:             analyzeSchemaIssue.ObjectName,
-		ObjectUsage:            analyzeSchemaIssue.ObjectUsage,
-		SqlStatement:           analyzeSchemaIssue.SqlStatement,
-		DocsLink:               analyzeSchemaIssue.DocsLink,
-		MinimumVersionsFixedIn: minVersionsFixedIn,
-		Details:                analyzeSchemaIssue.Details,
+		Impact:                   analyzeSchemaIssue.Impact,
+		ObjectType:               analyzeSchemaIssue.ObjectType,
+		ObjectName:               analyzeSchemaIssue.ObjectName,
+		ObjectUsage:              analyzeSchemaIssue.ObjectUsage,
+		SqlStatement:             analyzeSchemaIssue.SqlStatement,
+		DocsLink:                 analyzeSchemaIssue.DocsLink,
+		MinimumVersionsFixedIn:   analyzeSchemaIssue.MinimumVersionsFixedIn,
+		MinimumVersionsFixedInTP: analyzeSchemaIssue.MinimumVersionsFixedInTP,
+		MinimumVersionsFixedInEA: analyzeSchemaIssue.MinimumVersionsFixedInEA,
+		Details:                  analyzeSchemaIssue.Details,
 	}
 }
 
@@ -1133,7 +1006,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching object type mapping metadata: %v", err)
+			log.Warnf("error closing rows while fetching object type mapping metadata: %v", closeErr)
 		}
 	}()
 
@@ -1242,7 +1115,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				SqlStatement: issue.SqlStatement,
 			})
 			docsLink = issue.DocsLink
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.MinimumVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue))
 		}
 		feature := UnsupportedFeature{
 			FeatureName:            issueName,
@@ -1269,7 +1142,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching database queries summary metadata: %v", err)
+			log.Warnf("error closing rows while fetching database queries summary metadata: %v", closeErr)
 		}
 	}()
 
@@ -1321,15 +1194,17 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			result = append(result, uqc)
 
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
-				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
-				Type:                   issue.Type,
-				Name:                   issue.Name,
-				Impact:                 issue.Impact,
-				Description:            issue.Description,
-				SqlStatement:           issue.SqlStatement,
-				DocsLink:               issue.DocsLink,
-				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+				Category:                 UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				CategoryDescription:      GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
+				Type:                     issue.Type,
+				Name:                     issue.Name,
+				Impact:                   issue.Impact,
+				Description:              issue.Description,
+				SqlStatement:             issue.SqlStatement,
+				DocsLink:                 issue.DocsLink,
+				MinimumVersionsFixedIn:   issue.MinimumVersionsFixedIn,
+				MinimumVersionsFixedInTP: issue.MinimumVersionsFixedInTP,
+				MinimumVersionsFixedInEA: issue.MinimumVersionsFixedInEA,
 			})
 		}
 	}
@@ -1354,7 +1229,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", err)
+			log.Warnf("error closing rows while fetching unsupported datatypes metadata: %v", closeErr)
 		}
 	}()
 
@@ -1404,9 +1279,10 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		// Array of enums are now supported with logical connector (default), so not including them as unsupported
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
 
-		switch true {
-		case isUnsupportedDatatype:
+		if isUnsupportedDatatype {
 			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
+		}
+		switch true {
 		case isUnsupportedDatatypeInLive:
 			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
 		case isUnsupportedDatatypeInLiveWithFFOrFB:
@@ -1459,23 +1335,32 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue, nil)
 
 		default:
 			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
-
 	}
 }
 
-func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
-	fixed, err := queryIssue.IsFixedIn(targetDbVersion)
-	if err != nil {
-		log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
+func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue, issueTypeMap map[string]bool) {
+	if issueTypeMap == nil {
+		issueTypeMap = make(map[string]bool)
 	}
-	if !fixed {
+	// Drop an issue only when the feature is GA in the target version. Issues that are
+	// only Tech Preview / Early Access in the target are retained and reported with
+	// their maturity annotation (added in convertIssueInstanceToAnalyzeIssue).
+	maturity, err := queryIssue.GetMaturityInTarget(targetDbVersion)
+	if err != nil {
+		log.Warnf("checking maturity of issue %v in target version: %v", queryIssue, err)
+	}
+
+	if queryissue.ShouldFilterOutIssue(queryIssue, issueTypeMap) {
+		return
+	}
+	if maturity != constants.MATURITY_GA {
 		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
-		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryIssue.MinimumVersionsFixedIn)
+		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue)
 		assessmentReport.AppendIssues(issue)
 	}
 }
@@ -1608,6 +1493,11 @@ func addNotesToAssessmentReport() {
 }
 
 func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes) {
+
+	issueTypeMap := make(map[string]bool)
+	for _, issue := range assessmentReport.Issues {
+		issueTypeMap[issue.Type] = true
+	}
 	switch source.DBType {
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
@@ -1626,7 +1516,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				"",
 				"SAVEPOINT", // Hardcoded SQL statement
 			)
-			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 		}
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
@@ -1641,7 +1531,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1668,7 +1558,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				} else {
 					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				}
-				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue, issueTypeMap)
 
 			}
 			if len(columns) > 0 {
@@ -1747,7 +1637,7 @@ func generateAssessmentReportJson(reportDir string) error {
 		return fmt.Errorf("failed to write assessment report to file: %w", err)
 	}
 
-	utils.PrintAndLogf("generated JSON assessment report at: %s", jsonReportFilePath)
+	log.Infof("generated JSON assessment report at: %s", jsonReportFilePath)
 	return nil
 }
 
@@ -1767,7 +1657,7 @@ func generateAssessmentReportJson(reportDir string) error {
 			- Displays a summary row with key information (category, name, object/SQL preview, impact).
 			- Allows expanding to show detailed information, including category description, object type/name, SQL statement, supported versions, description, documentation link, and additional details.
 		- Handles cases where no issues are found, displaying an appropriate message.
-		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersionString` for data formatting and filtering.
+		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersions` for data formatting and filtering.
 
 		Usage:
 		------
@@ -1834,7 +1724,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
 		"groupByObjectName":                      groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes":       totalUniqueObjectNamesOfAllTypes,
-		"getSupportedVersionString":              getSupportedVersionString,
+		"getSupportedVersions":                   queryissue.GetSupportedVersions,
 		"snakeCaseToTitleCase":                   utils.SnakeCaseToTitleCase,
 		"camelCaseToTitleCase":                   utils.CamelCaseToTitleCase,
 		"getSqlPreview":                          utils.GetSqlStmtToPrint,
@@ -1867,7 +1757,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
 	}
 
-	utils.PrintAndLogf("generated HTML assessment report at: %s", htmlReportFilePath)
+	log.Infof("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
 }
 
@@ -1957,20 +1847,6 @@ func filterNotesByType(notes []NoteInfo, noteType NoteType) []NoteInfo {
 		}
 	}
 	return filtered
-}
-
-func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVersion) string {
-	if minimumVersionsFixedIn == nil {
-		return ""
-	}
-	supportedVersions := []string{}
-	for series, minVersionFixedIn := range minimumVersionsFixedIn {
-		if minVersionFixedIn == nil {
-			continue
-		}
-		supportedVersions = append(supportedVersions, fmt.Sprintf(">=%s (%s series)", minVersionFixedIn.String(), series))
-	}
-	return strings.Join(supportedVersions, ", ")
 }
 
 func validateSourceDBTypeForAssessMigration() {

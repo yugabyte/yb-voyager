@@ -16,13 +16,17 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/jackc/pgconn"
 	"github.com/pingcap/failpoint"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -243,4 +247,84 @@ func injectAfterCompletingDebezium() {
 			utils.ErrExit("failpoint: crash after completing debezium")
 		}
 	})
+}
+
+// injectUniqueKeyConflictDetected supports two test modes via GO_FAILPOINTS:
+//   - return(true): crash on first conflict (false-positive validation)
+//   - return("count"): deduped conflict counting in unique-key-conflict-stats.json
+func injectUniqueKeyConflictDetectedFailpoint(cachedEvent, incomingEvent *tgtdb.Event) {
+	failpoint.Inject("uniqueKeyConflictDetected", func(val failpoint.Value) {
+		if val == nil {
+			return
+		}
+		if mode, ok := val.(string); ok && mode == "count" {
+			recordUniqueKeyConflictCount(cachedEvent, incomingEvent)
+			return
+		}
+		writeFailpointMarker("failpoint-unique-key-conflict-detected.log")
+		utils.ErrExit("failpoint: unexpected unique key conflict detected")
+	})
+}
+
+const uniqueKeyConflictStatsFileName = "unique-key-conflict-stats.json"
+
+// UniqueKeyConflictStats is written to <exportDir>/failpoints/unique-key-conflict-stats.json.
+type UniqueKeyConflictStats struct {
+	Total   int            `json:"total"`
+	ByTable map[string]int `json:"by_table"`
+}
+
+var (
+	ukConflictStatsMu sync.Mutex
+	ukConflictStats   UniqueKeyConflictStats
+	ukConflictSeen    map[string]struct{}
+)
+
+func initUniqueKeyConflictStatsLocked() {
+	if ukConflictSeen == nil {
+		ukConflictSeen = make(map[string]struct{})
+	}
+	if ukConflictStats.ByTable == nil {
+		ukConflictStats.ByTable = make(map[string]int)
+	}
+}
+
+func uniqueKeyConflictPairKey(table string, cachedVsn, incomingVsn int64) string {
+	vsn1, vsn2 := cachedVsn, incomingVsn
+	if vsn1 > vsn2 {
+		vsn1, vsn2 = vsn2, vsn1
+	}
+	return fmt.Sprintf("%s:%d:%d", table, vsn1, vsn2)
+}
+
+func recordUniqueKeyConflictCount(cachedEvent, incomingEvent *tgtdb.Event) {
+	table := cachedEvent.TableNameTup.ForKey()
+	pairKey := uniqueKeyConflictPairKey(table, cachedEvent.Vsn, incomingEvent.Vsn)
+
+	ukConflictStatsMu.Lock()
+	defer ukConflictStatsMu.Unlock()
+
+	initUniqueKeyConflictStatsLocked()
+	if _, seen := ukConflictSeen[pairKey]; seen {
+		return
+	}
+	ukConflictSeen[pairKey] = struct{}{}
+	ukConflictStats.Total++
+	ukConflictStats.ByTable[table]++
+	_ = writeUniqueKeyConflictStatsLocked()
+}
+
+func writeUniqueKeyConflictStatsLocked() error {
+	if exportDir == "" {
+		return nil
+	}
+	failpointsDir := filepath.Join(exportDir, "failpoints")
+	if err := os.MkdirAll(failpointsDir, 0755); err != nil {
+		return err
+	}
+	payload, err := json.MarshalIndent(ukConflictStats, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(failpointsDir, uniqueKeyConflictStatsFileName), payload, 0644)
 }

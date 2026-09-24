@@ -14,6 +14,15 @@ export-dir: <export-dir-path>
 ### Default - info
 log-level: info                  
 
+### Maximum size (in MB) of a yb-voyager log file before it is rotated
+### Default - 200
+# log-max-size-mb: 200
+
+### Maximum number of rotated yb-voyager log files to retain
+### Use -1 to retain all rotated log files
+### Default - 10
+# log-max-backups: 10
+
 ### *********** Control Plane Configuration ************
 ### To see the Voyager migration workflow details in the UI, set the following parameters.
 
@@ -245,6 +254,7 @@ assess-migration:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -298,6 +308,7 @@ export-schema:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -371,6 +382,7 @@ import-schema:
   ### Run guardrails checks before the command is run. 
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -418,6 +430,7 @@ export-data-from-source:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -453,7 +466,7 @@ import-data-to-target:
   ###   Voyager will use the given number of parallel jobs.
   ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
   ###   Note: Do not set this if adaptive-parallelism is enabled (balanced/aggressive).
-  adaptive-parallelism: balanced
+  # adaptive-parallelism: balanced
   # adaptive-parallelism-max: <integer>
   # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled   
 
@@ -482,7 +495,7 @@ import-data-to-target:
   ### Disable progress bar/stats during data import 
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false         
+  disable-pb: false
 
   ### Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import
   ### Note - you might need to configure database to have public_ip available by setting server-broadcast-addresses.
@@ -513,6 +526,7 @@ import-data-to-target:
   ### Run guardrails checks before the command is run. 
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -525,6 +539,31 @@ import-data-to-target:
   ### Note: This overrides the value of the number of retries to happen for streaming phase 
   ## Accepted value - <integer>, default - 15
   # max-retries-streaming: 15
+
+  ### For partitioned tables during live migration:
+  ### - true (default): Import CDC data via the root table.
+  ### - false: Import CDC data directly into child partitions
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - true
+  # use-partition-root: true
+
+  ### Global strategy for how CDC events are hashed across parallel channels. Supported values: auto, pk, table.
+  ### auto: Automatically pick pk or table per table (expression unique-index tables use table).
+  ### pk: Partition CDC events by primary key.
+  ### table: Partition CDC events by table (all events for a table share one channel).
+  ### Accepted values: auto, pk, table
+  ### Default - auto
+  # cdc-partition-key: auto
+
+  ### Optional per-table CDC partition-key overrides as schema.table:pk|table pairs, separated by ';'.
+  ### Example: public.orders:table;sales.events:pk. Unlisted tables keep the global --cdc-partition-key.
+  ### Accepted values: schema.table:strategy pairs, separated by ';'.
+  ### strategy is one of: pk, table, or a custom key column list wrapped in parentheses (col1,col2).
+  ### pk: Partition CDC events by primary key.
+  ### table: Partition CDC events by table (all events for a table share one channel).
+  ### (col1,col2): Partition CDC events by the given column values (immutable columns).
+  ### Default - empty
+  # cdc-partition-key-overrides: public.orders:table;sales.events:pk
 
 # ---------------------------------------------------------
 # Import data to source-replica
@@ -559,6 +598,7 @@ import-data-to-source-replica:
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command
@@ -655,6 +695,7 @@ finalize-schema-post-data-import:
   ### Run guardrails checks before the command is run. 
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
+  ### Warning - Setting this to false is unsafe: it skips critical pre-migration validations (such as source/target database permissions, binary dependencies, and version compatibility) and may lead to migration failures or data issues. Leave the default (true) unless you have a specific reason to disable checks.
   # run-guardrails-checks: true  
 
   ### Log level for the command

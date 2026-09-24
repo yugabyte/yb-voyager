@@ -35,6 +35,7 @@ func init() {
 	registerCommonGlobalFlags(finalizeSchemaPostDataImportCmd)
 	registerCommonImportFlags(finalizeSchemaPostDataImportCmd)
 	registerTargetDBConnFlags(finalizeSchemaPostDataImportCmd)
+	registerTargetDBTypeFlag(finalizeSchemaPostDataImportCmd)
 	BoolVar(finalizeSchemaPostDataImportCmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(finalizeSchemaPostDataImportCmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,

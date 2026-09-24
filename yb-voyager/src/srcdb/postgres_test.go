@@ -19,9 +19,11 @@ package srcdb
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -288,82 +290,6 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 	fmt.Print("Subset of table list case completed!\n")
 }
 
-func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
-	testPostgresSource.TestContainer.ExecuteSqls(
-		`CREATE SCHEMA test_schema;`,
-		`CREATE TABLE test_schema.unique_table (
-            id SERIAL PRIMARY KEY,
-            email VARCHAR(255) UNIQUE,
-            phone VARCHAR(20) UNIQUE,
-            address VARCHAR(255) UNIQUE
-        );`,
-		`INSERT INTO test_schema.unique_table (email, phone, address) VALUES
-            ('john@example.com', '1234567890', '123 Elm Street'),
-            ('jane@example.com', '0987654321', '456 Oak Avenue');`,
-		`CREATE TABLE test_schema.another_unique_table (
-            user_id SERIAL PRIMARY KEY,
-            username VARCHAR(50) UNIQUE,
-            age INT
-        );`,
-		`CREATE UNIQUE INDEX idx_age ON test_schema.another_unique_table(age);`,
-		`INSERT INTO test_schema.another_unique_table (username, age) VALUES
-            ('user1', 30),
-            ('user2', 40);`,
-		`CREATE SCHEMA test_expression_indexes_cross;
-		CREATE SCHEMA test_expression_indexes;
-		CREATE TABLE test_expression_indexes_cross.table_partitioned5 (
-			id INT,
-			data TEXT,
-			val text,
-			val2 text
-		) PARTITION BY LIST (data);
-		CREATE TABLE test_expression_indexes.table_partitioned_l5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('London');
-		CREATE TABLE test_expression_indexes.table_partitioned_s5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Sydney');
-		CREATE TABLE test_expression_indexes.table_partitioned_b5 PARTITION OF test_expression_indexes_cross.table_partitioned5 FOR VALUES IN ('Boston');
-
-		CREATE UNIQUE INDEX idx_expression_indexes_17 ON test_expression_indexes.table_partitioned_l5 (val) WHERE val2<>'';`,
-	)
-	defer testPostgresSource.TestContainer.ExecuteSqls(
-		`DROP SCHEMA test_schema CASCADE;`,
-		`DROP SCHEMA test_expression_indexes CASCADE;`,
-		`DROP SCHEMA test_expression_indexes_cross CASCADE;`,
-	)
-
-	testPostgresSource.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_schema")}
-
-	uniqueTablesList := []sqlname.NameTuple{
-		testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"),
-		testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"),
-		testutils.CreateNameTupleWithSourceName("test_expression_indexes_cross.table_partitioned5", "test_expression_indexes_cross", "postgresql"),
-		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"),
-		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_s5", "test_expression_indexes", "postgresql"),
-		testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_b5", "test_expression_indexes", "postgresql"),
-	}
-
-	// Test GetTableToUniqueKeyColumnsMap
-	_ = testPostgresSource.DB().Connect()
-	actualUniqKeys, err := testPostgresSource.DB().GetTableToUniqueKeyColumnsMap(uniqueTablesList)
-	if err != nil {
-		t.Fatalf("Error retrieving unique keys: %v", err)
-	}
-
-	expectedUniqKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.unique_table", "test_schema", "postgresql"), []string{"email", "phone", "address"})
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_schema.another_unique_table", "test_schema", "postgresql"), []string{"username", "age"})
-	expectedUniqKeys.Put(testutils.CreateNameTupleWithSourceName("test_expression_indexes.table_partitioned_l5", "test_expression_indexes", "postgresql"), []string{"val"})
-
-	// Compare the maps by iterating over each table and asserting the columns list
-	expectedUniqKeys.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
-		actualColumns, exists := actualUniqKeys.Get(table)
-		if !exists {
-			t.Errorf("Expected table %s not found in uniqueKeys", table)
-		}
-
-		testutils.AssertEqualStringSlices(t, expectedColumns, actualColumns)
-		return true, nil
-	})
-}
-
 func TestPostgresGetNonPKTables(t *testing.T) {
 	testPostgresSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
@@ -393,4 +319,314 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 
 	expectedTables := []string{`"test_schema"."non_pk2"`, `"test_schema"."non_pk1"`} // func returns table.Qualified.Quoted
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
+}
+
+func TestPostgresGetTablesHavingUniqueAndPKDeferrableConstraint(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE SCHEMA "TestSchemaCase";`,
+		// Deferrable unique constraint (initially immediate).
+		`CREATE TABLE test_schema.def_unique (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100),
+			CONSTRAINT email_unique UNIQUE (email) DEFERRABLE INITIALLY IMMEDIATE
+		);`,
+		// Deferrable unique constraint (initially deferred).
+		`CREATE TABLE test_schema.def_unique_deferred (
+			id SERIAL PRIMARY KEY,
+			code VARCHAR(100),
+			CONSTRAINT code_unique UNIQUE (code) DEFERRABLE INITIALLY DEFERRED
+		);`,
+		// Two deferrable unique constraints — table must be reported only once.
+		`CREATE TABLE test_schema.multi_def_unique (
+			id SERIAL PRIMARY KEY,
+			a INT CONSTRAINT a_unique UNIQUE DEFERRABLE,
+			b INT CONSTRAINT b_unique UNIQUE DEFERRABLE
+		);`,
+		// Partitioned table with the constraint on the root: it is cloned onto every
+		// leaf, so both the root and the leaf are reported.
+		`CREATE TABLE test_schema.part_def_unique (
+			id INT,
+			val TEXT,
+			CONSTRAINT id_val_unique UNIQUE (id, val) DEFERRABLE
+		) PARTITION BY RANGE (id);`,
+		`CREATE TABLE test_schema.part_def_unique_p1 PARTITION OF test_schema.part_def_unique FOR VALUES FROM (1) TO (100);`,
+		// Partitioned table with NO constraint on the root; the deferrable unique
+		// constraint is added directly on one leaf only — only that leaf is reported.
+		`CREATE TABLE test_schema.part_leaf_only (
+			id INT,
+			val TEXT
+		) PARTITION BY RANGE (id);`,
+		`CREATE TABLE test_schema.part_leaf_only_p1 PARTITION OF test_schema.part_leaf_only FOR VALUES FROM (1) TO (100);`,
+		`CREATE TABLE test_schema.part_leaf_only_p2 PARTITION OF test_schema.part_leaf_only FOR VALUES FROM (100) TO (200);`,
+		`ALTER TABLE test_schema.part_leaf_only_p1 ADD CONSTRAINT leaf_only_unique UNIQUE (id, val) DEFERRABLE;`,
+		// Case-sensitive schema and table names must be returned with case preserved.
+		`CREATE TABLE "TestSchemaCase"."Orders" (
+			order_id INT PRIMARY KEY,
+			code TEXT,
+			CONSTRAINT orders_code_unique UNIQUE (code) DEFERRABLE
+		);`,
+		// Deferrable primary key constraint (initially immediate).
+		`CREATE TABLE test_schema.def_pk (
+			id INT,
+			name VARCHAR(100),
+			CONSTRAINT def_pk_pkey PRIMARY KEY (id) DEFERRABLE INITIALLY IMMEDIATE
+		);`,
+		// Deferrable primary key constraint (initially deferred).
+		`CREATE TABLE test_schema.def_pk_deferred (
+			id INT,
+			name VARCHAR(100),
+			CONSTRAINT def_pk_deferred_pkey PRIMARY KEY (id) DEFERRABLE INITIALLY DEFERRED
+		);`,
+		// Both deferrable PK and deferrable unique — table must be reported only once.
+		`CREATE TABLE test_schema.def_pk_and_unique (
+			id INT,
+			email VARCHAR(100),
+			CONSTRAINT def_pk_and_unique_pkey PRIMARY KEY (id) DEFERRABLE,
+			CONSTRAINT def_pk_and_unique_email UNIQUE (email) DEFERRABLE
+		);`,
+		// Partitioned table with a deferrable PK on the root: it is cloned onto every
+		// leaf, so both the root and the leaf are reported.
+		`CREATE TABLE test_schema.part_def_pk (
+			id INT,
+			val TEXT,
+			CONSTRAINT part_def_pk_pkey PRIMARY KEY (id) DEFERRABLE
+		) PARTITION BY RANGE (id);`,
+		`CREATE TABLE test_schema.part_def_pk_p1 PARTITION OF test_schema.part_def_pk FOR VALUES FROM (1) TO (100);`,
+		// Non-deferrable unique constraint (and non-deferrable PK) — not reported.
+		`CREATE TABLE test_schema.plain_unique (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100) UNIQUE
+		);`,
+		// Deferrable FK constraint — not reported (only unique/PK constraints matter).
+		`CREATE TABLE test_schema.def_fk (
+			id SERIAL PRIMARY KEY,
+			ref_id INT,
+			CONSTRAINT fk_ref FOREIGN KEY (ref_id) REFERENCES test_schema.plain_unique(id) DEFERRABLE INITIALLY DEFERRED
+		);`,
+		// Deferrable unique constraint on a table NOT in the table list — not reported.
+		`CREATE TABLE test_schema.not_in_list (
+			id SERIAL PRIMARY KEY,
+			email VARCHAR(100),
+			CONSTRAINT email_unique_not_in_list UNIQUE (email) DEFERRABLE
+		);`)
+	defer testPostgresSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP SCHEMA "TestSchemaCase" CASCADE;`)
+	sqlname.SourceDBType = "postgresql"
+	testPostgresSource.Schemas = []sqlname.Identifier{
+		sqlname.NewIdentifier("postgresql", "test_schema"),
+		sqlname.NewIdentifier("postgresql", "TestSchemaCase"),
+	}
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.multi_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only_p2", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName(`"TestSchemaCase"."Orders"`, "TestSchemaCase", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_and_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.plain_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_fk", "test_schema", "postgresql"),
+		// test_schema.not_in_list is deliberately omitted.
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	actualTables, err := testPostgresSource.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(tableList)
+	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
+
+	// unquoted qualified catalog names, case preserved
+	expectedTables := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_unique_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.multi_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_unique_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_leaf_only_p1", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("TestSchemaCase.Orders", "TestSchemaCase", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_deferred", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.def_pk_and_unique", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.part_def_pk_p1", "test_schema", "postgresql"),
+	}
+	assert.Equal(t, len(expectedTables), len(actualTables))
+	for _, expectedTable := range expectedTables {
+		if !lo.ContainsBy(actualTables, func(actualTable sqlname.NameTuple) bool {
+			return actualTable.AsQualifiedCatalogName() == expectedTable.AsQualifiedCatalogName()
+		}) {
+			t.Errorf("Expected table %s not found in actual tables", expectedTable.ForOutput())
+		}
+	}
+
+	// Empty table list must not error (and must not run a malformed query).
+	emptyResult, err := testPostgresSource.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(nil)
+	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
+	assert.Equal(t, len(emptyResult), 0)
+}
+
+func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE SCHEMA "TestSchemaCase";`,
+
+		// Single-column PK.
+		`CREATE TABLE test_schema.simple_pk (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100)
+		);`,
+
+		// Composite PK declared as (region, id) so the result must preserve
+		// that exact order; (region, id) and (id, region) are different keys
+		// and the live-migration guardrail compares the slices for equality.
+		`CREATE TABLE "TestSchemaCase".composite_pk (
+			region TEXT NOT NULL,
+			id INT NOT NULL,
+			payload TEXT,
+			PRIMARY KEY (region, id)
+		);`,
+
+		// Table with no PK -- must be absent from the resulting map (not an error).
+		`CREATE TABLE test_schema.no_pk (
+			id INT,
+			data TEXT
+		);`,
+
+		// Case-sensitive (quoted) schema and table to exercise identifier matching.
+		`CREATE TABLE "TestSchemaCase"."Orders" (
+			order_id INT PRIMARY KEY,
+			note TEXT
+		);`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`,
+		`DROP SCHEMA "TestSchemaCase" CASCADE;`,
+	)
+	testPostgresSource.Schemas = []sqlname.Identifier{
+		sqlname.NewIdentifier("postgresql", "test_schema"),
+		sqlname.NewIdentifier("postgresql", "TestSchemaCase"),
+	}
+
+	inputTables := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.simple_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("\"TestSchemaCase\".composite_pk", "TestSchemaCase", "postgresql"),
+		testutils.CreateNameTupleWithSourceName("test_schema.no_pk", "test_schema", "postgresql"),
+		testutils.CreateNameTupleWithSourceName(`"TestSchemaCase"."Orders"`, "TestSchemaCase", "postgresql"),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	actualPKColumns, err := testPostgresSource.DB().GetPrimaryKeyColumns(inputTables)
+	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
+
+	expectedPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
+	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName("test_schema.simple_pk", "test_schema", "postgresql"), []string{"id"})
+	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName("\"TestSchemaCase\".composite_pk", "TestSchemaCase", "postgresql"), []string{"region", "id"})
+	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName(`"TestSchemaCase"."Orders"`, "TestSchemaCase", "postgresql"), []string{"order_id"})
+
+	expectedPKColumns.IterKV(func(table sqlname.NameTuple, expectedColumns []string) (bool, error) {
+		actualColumns, exists := actualPKColumns.Get(table)
+		if !exists {
+			t.Errorf("Expected table %s not found in actual PK columns map", table.ForOutput())
+			return true, nil
+		}
+		// Order matters for PKs -- compare positionally instead of as sets.
+		if !slices.Equal(expectedColumns, actualColumns) {
+			t.Errorf("PK columns mismatch for %s. Expected: %v, Actual: %v",
+				table.ForOutput(), expectedColumns, actualColumns)
+		}
+		return true, nil
+	})
+
+	// no_pk has no primary key, so it must be absent from the result map.
+	noPKTable := testutils.CreateNameTupleWithSourceName("test_schema.no_pk", "test_schema", "postgresql")
+	if cols, exists := actualPKColumns.Get(noPKTable); exists {
+		t.Errorf("Table %s has no PK and should be absent from result map; got %v",
+			noPKTable.ForOutput(), cols)
+	}
+}
+
+func TestGetGeneratedStoredColumns(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_generated_stored;`,
+		`CREATE TABLE test_generated_stored.probe (
+			id INT,
+			val INT GENERATED ALWAYS AS (id + 1) STORED
+		);`,
+		`CREATE TABLE test_generated_stored.plain (id INT, data TEXT);`,
+		`CREATE TABLE test_generated_stored.identity_only (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, data TEXT);`,
+		`CREATE TABLE test_generated_stored.with_generated (id INT, qty INT, price NUMERIC, amount NUMERIC GENERATED ALWAYS AS (qty * price) STORED);`,
+		`CREATE TABLE test_generated_stored."MixedCase" (id INT, "Length" INT, "Width" INT, "Area" INT GENERATED ALWAYS AS ("Length" * "Width") STORED);`,
+		`CREATE TABLE test_generated_stored.two_generated (id INT, a INT, b INT, sum_ab INT GENERATED ALWAYS AS (a + b) STORED, prod_ab INT GENERATED ALWAYS AS (a * b) STORED);`,
+		`CREATE TABLE test_generated_stored.uk_on_generated (id INT, amount INT GENERATED ALWAYS AS (id + 1) STORED, UNIQUE (amount));`,
+		`CREATE TABLE test_generated_stored.uk_index_on_generated (id INT, amount INT GENERATED ALWAYS AS (id + 1) STORED);`,
+		`CREATE UNIQUE INDEX idx_uk_index_on_generated ON test_generated_stored.uk_index_on_generated (amount);`,
+		`CREATE TABLE test_generated_stored.partitioned (
+			id INT,
+			data TEXT,
+			qty INT,
+			amount INT GENERATED ALWAYS AS (qty + 1) STORED
+		) PARTITION BY LIST (data);`,
+		`CREATE TABLE test_generated_stored.partitioned_l PARTITION OF test_generated_stored.partitioned FOR VALUES IN ('London');`,
+		`CREATE TABLE test_generated_stored.partitioned_s PARTITION OF test_generated_stored.partitioned FOR VALUES IN ('Sydney');`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_generated_stored CASCADE;`)
+
+	testPostgresSource.Schemas = []sqlname.Identifier{sqlname.NewIdentifier("postgresql", "test_generated_stored")}
+	_ = testPostgresSource.DB().Connect()
+
+	newTuple := func(name string) sqlname.NameTuple {
+		return testutils.CreateNameTupleWithSourceName(name, "test_generated_stored", "postgresql")
+	}
+	plain := newTuple("test_generated_stored.plain")
+	identityOnly := newTuple("test_generated_stored.identity_only")
+	withGenerated := newTuple("test_generated_stored.with_generated")
+	mixedCase := newTuple(`test_generated_stored."MixedCase"`)
+	twoGenerated := newTuple("test_generated_stored.two_generated")
+	probe := newTuple("test_generated_stored.probe")
+	ukOnGenerated := newTuple("test_generated_stored.uk_on_generated")
+	ukIndexOnGenerated := newTuple("test_generated_stored.uk_index_on_generated")
+	partitioned := newTuple("test_generated_stored.partitioned")
+
+	tableList := []sqlname.NameTuple{
+		plain, identityOnly, withGenerated, mixedCase, twoGenerated,
+		probe, ukOnGenerated, ukIndexOnGenerated, partitioned,
+	}
+
+	empty, err := testPostgresSource.DB().GetGeneratedStoredColumns(nil)
+	require.NoError(t, err)
+	require.Empty(t, empty.Keys())
+
+	got, err := testPostgresSource.DB().GetGeneratedStoredColumns(tableList)
+	require.NoError(t, err)
+
+	_, ok := got.Get(plain)
+	require.False(t, ok, "plain table should not appear")
+	_, ok = got.Get(identityOnly)
+	require.False(t, ok, "identity-only table should not appear (IDENTITY is not a STORED generated column)")
+
+	// The source-side API returns only the STORED generated column names per table. Whether a
+	// column is part of a unique index is resolved later in the cmd layer against the target,
+	// so it is not asserted here (uk_* tables just confirm generated columns are still detected).
+	assertGeneratedStoredColumns(t, got, probe, []string{"val"})
+	assertGeneratedStoredColumns(t, got, withGenerated, []string{"amount"})
+	assertGeneratedStoredColumns(t, got, mixedCase, []string{"Area"})
+	assertGeneratedStoredColumns(t, got, twoGenerated, []string{"sum_ab", "prod_ab"})
+	assertGeneratedStoredColumns(t, got, ukOnGenerated, []string{"amount"})
+	assertGeneratedStoredColumns(t, got, ukIndexOnGenerated, []string{"amount"})
+	assertGeneratedStoredColumns(t, got, partitioned, []string{"amount"})
+}
+
+func assertGeneratedStoredColumns(t *testing.T, got *utils.StructMap[sqlname.NameTuple, []string], table sqlname.NameTuple, expected []string) {
+	t.Helper()
+	cols, ok := got.Get(table)
+	require.True(t, ok, "expected generated columns for %s", table.ForOutput())
+	require.ElementsMatch(t, expected, cols)
 }

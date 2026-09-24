@@ -29,6 +29,7 @@ func TestValidNewYBVersion(t *testing.T) {
 		"2024.1.1.0",
 		"2.20.7.0",
 		"2.21.2.1",
+		"2026.1.0.0",
 	}
 	for _, v := range validVersionStrings {
 		_, err := NewYBVersion(v)
@@ -57,6 +58,7 @@ func TestStableReleaseType(t *testing.T) {
 		"2024.1.0.0",
 		"2024.1.1.1",
 		"2024.2.2.3",
+		"2026.1.0.0",
 	}
 	for _, v := range stableVersionStrings {
 		ybVersion, _ := NewYBVersion(v)
@@ -84,5 +86,20 @@ func TestStableOldReleaseType(t *testing.T) {
 	for _, v := range stableOldVersionStrings {
 		ybVersion, _ := NewYBVersion(v)
 		assert.Equal(t, STABLE_OLD, ybVersion.ReleaseType())
+	}
+}
+
+func TestSeriesVersion(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"2025.2.3", "2025.2.0.0"},   // 3-segment connector token: counter dropped, series kept
+		{"2025.2", "2025.2.0.0"},     // 2-segment: already just series, padded
+		{"2025.2.5.0", "2025.2.0.0"}, // 4-segment server version: everything after TRACK dropped
+		{"2.25.2.0", "2.25.0.0"},     // preview series: everything after TRACK dropped
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.expected, SeriesVersion(tt.input))
 	}
 }

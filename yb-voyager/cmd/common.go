@@ -137,7 +137,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 
 	pgRestorePath, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion("pg_restore", source.DBVersion)
 	if err != nil {
-		utils.ErrExit("could not get absolute path of pg_restore command: %s", err)
+		utils.ErrExit("could not get absolute path of pg_restore command: %w", err)
 	} else if binaryCheckIssue != "" {
 		utils.ErrExit("could not get absolute path of pg_restore command: %s", binaryCheckIssue)
 	}
@@ -146,7 +146,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 	log.Infof("cmd: %s", pgRestoreCmd.String())
 	log.Infof("output: %s", string(stdOut))
 	if err != nil {
-		utils.ErrExit("couldn't parse the TOC file to collect the tablenames for data files: %v", err)
+		utils.ErrExit("couldn't parse the TOC file to collect the tablenames for data files: %w", err)
 	}
 
 	tableNameVsFileNameMap := make(map[string]string)
@@ -170,7 +170,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 			table, err := namereg.NameReg.LookupTableName(fullTableName)
 			if err != nil {
-				utils.ErrExit("lookup table in name registry: %q: %v", fullTableName, err)
+				utils.ErrExit("lookup table in name registry: %q: %w", fullTableName, err)
 			}
 			tableNameVsFileNameMap[table.ForKey()] = fileName
 		}
@@ -178,7 +178,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 
 	tocTextFileDataBytes, err := os.ReadFile(tocTextFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read file: %q: %v", tocTextFilePath, err)
+		utils.ErrExit("Failed to read file: %q: %w", tocTextFilePath, err)
 	}
 
 	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
@@ -193,7 +193,10 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 	}
 
 	//extracted SQL for setval() and put it into a postexport.sql file
-	os.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
+	err = os.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
+	if err != nil {
+		utils.ErrExit("failed to write postdata.sql: %w", err)
+	}
 	return tableNameVsFileNameMap
 }
 
@@ -213,7 +216,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("read file: %q: %s", filePath, err)
+		utils.ErrExit("read file: %q: %w", filePath, err)
 	}
 
 	lines := strings.Split(strings.Trim(string(fileBytes), "\n"), "\n")
@@ -242,7 +245,7 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	leafPartitions := make(map[string][]string)
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	if msr.SourceDBConf.DBType != POSTGRESQL {
 		return leafPartitions
@@ -281,7 +284,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
+		utils.ErrExit("error getting migration status record: %w", err)
 	}
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
@@ -299,7 +302,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		for _, key := range keys {
 			table, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
-				utils.ErrExit("lookup table in name registry: %q: %v", key, err)
+				utils.ErrExit("lookup table in name registry: %q: %w", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
 			//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
@@ -321,7 +324,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 
 	exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
-		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
+		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %w", err)
 	}
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
@@ -333,7 +336,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		table, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 		if err != nil {
-			utils.ErrExit("lookup table  in name registry : %q: %v", tableStatus.TableName, err)
+			utils.ErrExit("lookup table  in name registry : %q: %w", tableStatus.TableName, err)
 		}
 		displayTableName := table.CurrentName.Unqualified.MinQuoted
 		partitions := leafPartitions[table.ForOutput()]
@@ -396,11 +399,12 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 
 	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType, tableList, errorHandler)
 	if err != nil {
-		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
+		utils.ErrExit("failed to get imported snapshot rows map: %w", err)
 	}
 
 	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
-	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
+	// the callback never returns an error
+	_ = snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
 		keys = append(keys, k)
 		return true, nil
 	})
@@ -467,7 +471,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) *metadb.
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, subdir)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under: %q: %v", projectDirPath, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %w", projectDirPath, err)
 		}
 	}
 
@@ -484,7 +488,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) *metadb.
 
 		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under: %q: %v", schemaDir, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %w", schemaDir, err)
 		}
 	}
 
@@ -498,7 +502,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	}
 	metaDBInstance, err := metadb.NewMetaDB(migrationExportDir)
 	if err != nil {
-		utils.ErrExit("failed to initialize meta db: %s", err)
+		utils.ErrExit("failed to initialize meta db: %w", err)
 	}
 	err = metaDBInstance.InitMigrationStatusRecord(cfgFile)
 	if err != nil {
@@ -518,7 +522,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	// so just keeping it here until we refactor and cleanup the code.
 	err = initAnonymizer(metaDBInstance)
 	if err != nil {
-		utils.ErrExit("could not initialize anonymizer: %v", err)
+		utils.ErrExit("could not initialize anonymizer: %w", err)
 	}
 
 	return metaDBInstance
@@ -528,7 +532,7 @@ func initAnonymizer(metaDBInstance *metadb.MetaDB) error {
 	// generate salt and initialise the anonymiser
 	salt, err := loadOrGenerateAnonymisationSalt(metaDBInstance)
 	if err != nil {
-		utils.ErrExit("could not load or generate anonymisation salt: %v", err)
+		utils.ErrExit("could not load or generate anonymisation salt: %w", err)
 	}
 
 	anonymizer, err = anon.NewVoyagerAnonymizer(salt)
@@ -588,7 +592,7 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 	// This version will always be a final release version and never "main" or "rc" version.
 	previousBreakingChangeVersion, err := version.NewVersion(utils.PREVIOUS_BREAKING_CHANGE_VERSION)
 	if err != nil {
-		utils.ErrExit("could not create version from %q: %v", utils.PREVIOUS_BREAKING_CHANGE_VERSION, err)
+		utils.ErrExit("could not create version from %q: %w", utils.PREVIOUS_BREAKING_CHANGE_VERSION, err)
 	}
 
 	var versionCheckFailed bool
@@ -603,13 +607,13 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 		if strings.Contains(msrVoyagerFinalVersion, "rc") {
 			msrVoyagerFinalVersion, err = utils.GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion)
 			if err != nil {
-				utils.ErrExit("could not get final release version from rc version %q: %v", msrVoyagerFinalVersion, err)
+				utils.ErrExit("could not get final release version from rc version %q: %w", msrVoyagerFinalVersion, err)
 			}
 		}
 
 		msrVoyagerVersion, err := version.NewVersion(msrVoyagerFinalVersion)
 		if err != nil {
-			utils.ErrExit("could not create version from %q: %v", msrVoyagerFinalVersion, err)
+			utils.ErrExit("could not create version from %q: %w", msrVoyagerFinalVersion, err)
 		}
 
 		if msrVoyagerVersion.LessThan(previousBreakingChangeVersion) {
@@ -629,7 +633,7 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 			} else {
 				currentVersion, err := version.NewVersion(utils.YB_VOYAGER_VERSION)
 				if err != nil {
-					utils.ErrExit("could not create version from %q: %v", utils.YB_VOYAGER_VERSION, err)
+					utils.ErrExit("could not create version from %q: %w", utils.YB_VOYAGER_VERSION, err)
 				}
 				if !currentVersion.Equal(msrVoyagerVersion) {
 					utils.PrintAndLogf("%s", noteString)
@@ -649,19 +653,7 @@ func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportD
 				"Either use a compatible version to continue the migration or start afresh with a new export-dir. ",
 				migrationExportDir, utils.YB_VOYAGER_VERSION, utils.PREVIOUS_BREAKING_CHANGE_VERSION)
 		}
-		utils.ErrExit(userFacingMsg)
-	}
-}
-
-func initAssessmentDB() {
-	err := migassessment.InitAssessmentDB()
-	if err != nil {
-		utils.ErrExit("error creating and initializing assessment DB: %v", err)
-	}
-
-	assessmentDB, err = migassessment.NewAssessmentDB()
-	if err != nil {
-		utils.ErrExit("error creating assessment DB instance: %v", err)
+		utils.ErrExit("%s", userFacingMsg)
 	}
 }
 
@@ -715,11 +707,11 @@ func InitNameRegistry(
 		// clean up yb names and re-init.
 		err := namereg.NameReg.UnRegisterYBNames()
 		if err != nil {
-			return goerrors.Errorf("unregister yb names: %v", err)
+			return goerrors.Errorf("unregister yb names: %w", err)
 		}
 		err = namereg.NameReg.Init()
 		if err != nil {
-			return goerrors.Errorf("init name registry: %v", err)
+			return goerrors.Errorf("init name registry: %w", err)
 		}
 	}
 	return nil
@@ -739,7 +731,11 @@ func retrieveMigrationUUID() error {
 	}
 
 	migrationUUID = uuid.MustParse(msr.MigrationUUID)
-	utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
+	if !suppressInfoMessages {
+		utils.PrintAndLogfInfo("migrationID: %s", utils.Path.Sprint(migrationUUID))
+	} else {
+		log.Infof("migrationID: %s", migrationUUID)
+	}
 	return nil
 }
 
@@ -752,10 +748,10 @@ func nameContainsCapitalLetter(name string) bool {
 	return false
 }
 
-func getCutoverStatus(metaDB *metadb.MetaDB) string {
+func GetCutoverStatus(metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 
 	a := msr.CutoverToTargetRequested
@@ -788,7 +784,7 @@ func checkStreamingMode() (bool, error) {
 func getCutoverToSourceReplicaStatus(metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	a := msr.CutoverToSourceReplicaRequested
 	b := msr.CutoverToSourceReplicaProcessedByTargetExporter
@@ -802,10 +798,10 @@ func getCutoverToSourceReplicaStatus(metaDB *metadb.MetaDB) string {
 	return INITIATED
 }
 
-func getCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
+func GetCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	a := msr.CutoverToSourceRequested
 	b := msr.CutoverToSourceProcessedByTargetExporter
@@ -822,7 +818,7 @@ func getCutoverToSourceStatus(exportDir string, metaDB *metadb.MetaDB) string {
 func isNextIterationStartedIfRequied(exportDir string, metaDB *metadb.MetaDB) bool {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	if !msr.RestartDataMigrationSourceTargetNextIteration {
 		return true
@@ -839,7 +835,7 @@ func isNextIterationStartedIfRequied(exportDir string, metaDB *metadb.MetaDB) bo
 	}
 	nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	if nextIterationMsr.ExportDataFromSourceStarted && nextIterationMsr.ImportDataToTargetStarted {
 		return true
@@ -875,14 +871,16 @@ func addHeader(table *uitable.Table, cols ...string) {
 func GetSourceDBTypeFromMSR() string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 	if msr == nil {
 		utils.ErrExit("migration status record not found")
 	}
+	//lint:ignore SA5011 utils.ErrExit always exits
 	if msr.SourceDBConf == nil {
 		utils.ErrExit("source DB conf not found in migration status record")
 	}
+	//lint:ignore SA5011 utils.ErrExit always exits
 	return msr.SourceDBConf.DBType
 }
 
@@ -902,7 +900,7 @@ func getInitialImportTableListForLive(sourceTableList []string) ([]sqlname.NameT
 	for _, qualifiedTableName := range sourceTableList {
 		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(qualifiedTableName)
 		if err != nil {
-			return nil, goerrors.Errorf("lookup table %s in name registry : %v", qualifiedTableName, err)
+			return nil, goerrors.Errorf("lookup table %s in name registry : %w", qualifiedTableName, err)
 		}
 		tableList = append(tableList, table)
 	}
@@ -971,7 +969,7 @@ func CleanupChildProcesses() {
 func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
 	err := signalProcess(pid, syscall.SIGTERM)
 	if err != nil {
-		return goerrors.Errorf("send sigterm to %d: %v", pid, err)
+		return goerrors.Errorf("send sigterm to %d: %w", pid, err)
 	}
 	waitForProcessToExit(pid, forceShutdownAfterSeconds)
 	return nil
@@ -1004,7 +1002,7 @@ func waitForProcessToExit(pid int, forceShutdownAfterSeconds int) {
 		}
 		if forceShutdownAfterSeconds > 0 && secondsWaited > forceShutdownAfterSeconds {
 			log.Infof("force shutting down pid %d", pid)
-			process.Signal(syscall.SIGKILL)
+			_ = process.Signal(syscall.SIGKILL) // best-effort kill; the process may already be gone
 		}
 	}
 }
@@ -1040,7 +1038,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	// to be load data in target using via root table
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
+		utils.ErrExit("Failed to get migration status record: %w", err)
 	}
 
 	if msr == nil || msr.SourceDBConf == nil { // this shouldn't hit in migration flow, adding just to avoid nil pointer dereference error
@@ -1094,7 +1092,7 @@ func getRenamedTableTuple(table sqlname.NameTuple) (sqlname.NameTuple, bool) {
 
 	tableTuple, err := namereg.NameReg.LookupTableName(renamedTable)
 	if err != nil {
-		utils.ErrExit("lookup table %s in name registry : %v", renamedTable, err)
+		utils.ErrExit("lookup table %s in name registry : %w", renamedTable, err)
 	}
 	return tableTuple, isRenamed
 }
@@ -1108,7 +1106,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 		// if there is some table not present in target this should work
 		nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableStatus.TableName)
 		if err != nil {
-			return nil, nil, goerrors.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
+			return nil, nil, goerrors.Errorf("lookup table [%s] from name registry: %w", tableStatus.TableName, err)
 		}
 		existingSnapshotRows, _ := snapshotRowsMap.Get(nt)
 		snapshotRowsMap.Put(nt, existingSnapshotRows+tableStatus.ExportedRowCountSnapshot)
@@ -1154,7 +1152,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 			//ignoring target as the dataFileDescriptor can contain tables that exported but not present in target
 			nt, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(fileEntry.TableName)
 			if err != nil {
-				return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+				return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %w", fileEntry.TableName, err)
 			}
 			fileEntries, ok := nameTupleTodataFileEntry.Get(nt)
 			if !ok {
@@ -1206,7 +1204,7 @@ func getImportedSnapshotRowsMap(dbType string, tableList []sqlname.NameTuple, er
 		return true, nil
 	})
 	if err != nil {
-		return nil, goerrors.Errorf("error getting row count of tables: %v", err)
+		return nil, goerrors.Errorf("error getting row count of tables: %w", err)
 	}
 	return snapshotRowsMap, nil
 }
@@ -1222,7 +1220,7 @@ func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { 
 	for _, fileEntry := range dataFileDescriptor.DataFileList {
 		nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 		if err != nil {
-			return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
+			return nil, goerrors.Errorf("lookup table name from data file descriptor %s : %w", fileEntry.TableName, err)
 		}
 		byteCount, err := state.GetImportedByteCount(fileEntry.FilePath, nt)
 		if err != nil {
@@ -1254,7 +1252,7 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 		})
 	})
 	if err != nil {
-		return goerrors.Errorf("update migration status record: %v", err)
+		return goerrors.Errorf("update migration status record: %w", err)
 	}
 	return nil
 }
@@ -1287,19 +1285,21 @@ type AssessmentReport struct {
 
 // Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category               string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
-	CategoryDescription    string                          `json:"CategoryDescription"`
-	Type                   string                          `json:"Type"` // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
-	Name                   string                          `json:"Name"` // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
-	Description            string                          `json:"Description"`
-	Impact                 string                          `json:"Impact"`     // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
-	ObjectType             string                          `json:"ObjectType"` // For datatype category, ObjectType will be datatype (for eg "geometry")
-	ObjectName             string                          `json:"ObjectName"`
-	ObjectUsage            string                          `json:"ObjectUsage,omitempty"`
-	SqlStatement           string                          `json:"SqlStatement"`
-	DocsLink               string                          `json:"DocsLink"`
-	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
-	Details                map[string]interface{}          `json:"Details,omitempty"`
+	Category                 string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
+	CategoryDescription      string                          `json:"CategoryDescription"`
+	Type                     string                          `json:"Type"` // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                     string                          `json:"Name"` // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
+	Description              string                          `json:"Description"`
+	Impact                   string                          `json:"Impact"`     // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
+	ObjectType               string                          `json:"ObjectType"` // For datatype category, ObjectType will be datatype (for eg "geometry")
+	ObjectName               string                          `json:"ObjectName"`
+	ObjectUsage              string                          `json:"ObjectUsage,omitempty"`
+	SqlStatement             string                          `json:"SqlStatement"`
+	DocsLink                 string                          `json:"DocsLink"`
+	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`             // key: series (2024.1, 2.21, etc); GA
+	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInTP,omitempty"` // key: series; available as Tech Preview
+	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedInEA,omitempty"` // key: series; available as Early Access
+	Details                  map[string]interface{}          `json:"Details,omitempty"`
 }
 
 type UnsupportedFeature struct {
@@ -1334,7 +1334,6 @@ type NoteInfo struct {
 
 // MarshalJSON implements custom JSON marshaling for NoteInfo to strip HTML tags from Text field
 func (ni NoteInfo) MarshalJSON() ([]byte, error) {
-	type Alias NoteInfo
 	return json.Marshal(&struct {
 		Type NoteType `json:"Type"`
 		Text string   `json:"Text"`
@@ -1870,7 +1869,7 @@ func shouldSendCallhome() bool {
 	return bool(callhome.SendDiagnostics) && !startTime.Equal(uninitialisedTimestamp)
 }
 
-func createCallhomePayload() callhome.Payload {
+func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 	var payload callhome.Payload
 	payload.MigrationUUID = migrationUUID
 	payload.PhaseStartTime = startTime.UTC().Format("2006-01-02 15:04:05.999999")
@@ -1922,6 +1921,8 @@ func PackAndSendCallhomePayloadOnExit() {
 		packAndSendImportDataFilePayload(status, exitErr)
 	case comparePerformanceCmd.CommandPath():
 		packAndSendComparePerformancePayload(status, exitErr, nil)
+	case archiveChangesCmd.CommandPath():
+		packAndSendArchiveChangesPayload(status, exitErr, metaDB, migrationUUID)
 	}
 }
 
@@ -1940,7 +1941,8 @@ func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDa
 				if err != nil {
 					log.Infof("callhome: error while getting exported snapshot rows map: %v", err)
 				}
-				exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+				// callhome payload assembly; the callback never returns an error
+				_ = exportedSnapshotRow.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 					exportDataPayload.TotalRows += value
 					if value >= exportDataPayload.LargestTableRows {
 						exportDataPayload.LargestTableRows = value
@@ -1994,6 +1996,8 @@ func sendCallhomePayloadAtIntervals() {
 			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, nil)
 		case importDataFileCmd.CommandPath():
 			packAndSendImportDataFilePayload(INPROGRESS, nil)
+		case archiveChangesCmd.CommandPath():
+			packAndSendArchiveChangesPayload(INPROGRESS, nil, metaDB, migrationUUID)
 		}
 	}
 }

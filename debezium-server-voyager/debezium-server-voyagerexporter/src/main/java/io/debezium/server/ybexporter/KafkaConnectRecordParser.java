@@ -28,6 +28,7 @@ class KafkaConnectRecordParser implements RecordParser {
     private Map<String, Table> tableMap;
     private JsonConverter jsonConverter;
     private Map<String, String> renameTables;
+    private Map<String, String> partitionToRootMapping;
     Record r = new Record();
 
     public KafkaConnectRecordParser(String dataDirStr, String sourceType, Map<String, Table> tblMap) {
@@ -39,12 +40,15 @@ class KafkaConnectRecordParser implements RecordParser {
         Map<String, String> jsonConfig = Collections.singletonMap(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, "false");
         jsonConverter.configure(jsonConfig, false);
         renameTables = new HashMap<>();
+        partitionToRootMapping = new HashMap<>();
         retrieveRenameTablesFromConfig();
     }
 
     private void retrieveRenameTablesFromConfig() {
         final Config config = ConfigProvider.getConfig();
         String renameTablesConfig = config.getOptionalValue("debezium.sink.ybexporter.tables.rename", String.class)
+                .orElse("");
+        String partitionToRootMappingsConfig = config.getOptionalValue("debezium.sink.ybexporter.partition.to.root.mapping", String.class)
                 .orElse("");
         if (!renameTablesConfig.isEmpty()) {
             for (String renameTableConfig : renameTablesConfig.split(",")) {
@@ -69,6 +73,30 @@ class KafkaConnectRecordParser implements RecordParser {
                 renameTables.put(before, after);
             }
         }
+        if (!partitionToRootMappingsConfig.isEmpty()) {
+            for (String partitionToRootMappingConfig : partitionToRootMappingsConfig.split(",")) {
+                String[] partitionAndRoot = partitionToRootMappingConfig.split(":");
+                if (partitionAndRoot.length != 2) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
+                            partitionToRootMappingConfig));
+                }
+                String partition = partitionAndRoot[0];
+                String root = partitionAndRoot[1];
+                if ((partition.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
+                            partition));
+                }
+                if ((root.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying partition to root mapping config %s. Provide it as <partitionSchema>.<partitionTableName>:<rootSchema>.<rootTableName>",
+                            root));
+                }
+                partitionToRootMapping.put(partition, root);
+
+            }
+        }
     }
 
     /**
@@ -91,7 +119,8 @@ class KafkaConnectRecordParser implements RecordParser {
                 LOGGER.warn("Empty value field in event. Assuming tombstone event. Skipping - {}", valueObj);
                 r.op = "unsupported";
                 return r;
-            } else if (value.schema().field("source") == null) {
+            }
+            else if (value.schema().field("source") == null) {
                 // If it is a transaction begin or end event
                 // Example of BEGIN event: {"status": "BEGIN","id": "5.6.641","ts_ms":
                 // 1486500577125,"event_count": null,"data_collections": null}
@@ -115,7 +144,8 @@ class KafkaConnectRecordParser implements RecordParser {
             }
             parseValueFields(value, r);
             return r;
-        } catch (
+        }
+        catch (
 
         Exception ex) {
             LOGGER.error("Failed to parse msg: {}", ex);
@@ -172,6 +202,11 @@ class KafkaConnectRecordParser implements RecordParser {
             schemaName = sourceNode.getString("schema");
         }
         String tableName = sourceNode.getString("table");
+
+        // Store original partition table info before any renaming
+        String originalSchemaName = schemaName;
+        String originalTableName = tableName;
+
         // rename table name
         String qualifiedTableName = tableName;
         if (!schemaName.equals("")) {
@@ -182,6 +217,10 @@ class KafkaConnectRecordParser implements RecordParser {
             // TODO: support MySQL
             schemaName = renamedTableName[0];
             tableName = renamedTableName[1];
+        }
+        boolean isPartitionTable = false;
+        if (partitionToRootMapping.containsKey(qualifiedTableName)) {
+            isPartitionTable = true;
         }
         var tableIdentifier = dbName + "-" + schemaName + "-" + tableName;
 
@@ -207,7 +246,8 @@ class KafkaConnectRecordParser implements RecordParser {
                     // Therefore, we need to get the schema of the inner value field, but name of
                     // the outer field
                     t.fieldSchemas.put(f.name(), new Field(f.name(), 0, f.schema().field("value").schema()));
-                } else {
+                }
+                else {
                     t.fieldSchemas.put(f.name(), f);
                 }
             }
@@ -216,6 +256,14 @@ class KafkaConnectRecordParser implements RecordParser {
             es.updateTableSchema(t);
         }
         r.t = t;
+
+        // Store original partition table if this was a renamed partition
+        if (isPartitionTable) {
+            r.partitionTable = new Table(dbName, originalSchemaName, originalTableName);
+        }
+        else {
+            r.partitionTable = null;
+        }
     }
 
     protected void parseKeyFields(Struct key, Record r) {
@@ -234,7 +282,8 @@ class KafkaConnectRecordParser implements RecordParser {
                     continue;
                 }
                 fieldValue = valueAndSet.getWithoutDefault("value");
-            } else {
+            }
+            else {
                 fieldValue = key.getWithoutDefault(f.name());
             }
             r.addKeyField(f.name(), fieldValue);
@@ -247,13 +296,13 @@ class KafkaConnectRecordParser implements RecordParser {
      * In case of update operation, only stores the fields that have changed by
      * comparing
      * the before and after structs.
-     * 
+     *
      * The before fields for non-yb connectors contains all the column values of the table
      * For Non-yb connectors,
      *  INSERT - before:nil, fields:all column values of the row
      *  DELETE - before:all column values of the row, fields:PK
      *  UPDATE - before:all column values of the row, fields:changed fields
-     * 
+     *
      * For yb connector,
      *  INSERT - before:nil, fields:all column values of the row
      *  DELETE - before:nil, fields:PK
@@ -264,7 +313,8 @@ class KafkaConnectRecordParser implements RecordParser {
         Struct before = value.getStruct("before");
         if (sourceType.equals("yb")) {
             parseValueFieldsForYB(after, r);
-        } else {
+        }
+        else {
             parseValueFieldsForOthers(after, before, r);
         }
     }
@@ -277,19 +327,19 @@ class KafkaConnectRecordParser implements RecordParser {
             // TODO: write a proper transformer for this logic
             // values in the debezium connector are as follows:
             // "val1" : {
-            //  "value" : "value for val1 column",
-            //  "set" : true
-            //}
+            // "value" : "value for val1 column",
+            // "set" : true
+            // }
             Struct valueAndSet = after.getStruct(f.name());
             if (r.op.equals("u")) {
                 // in the default configuration of the stream, for an update, the fields in the after struct
                 // are only the delta fields, therefore, it is possible for a field to not be there.
-                if (valueAndSet == null){
+                if (valueAndSet == null) {
                     continue;
                 }
             }
-            
-            if (!valueAndSet.getBoolean("set")){
+
+            if (!valueAndSet.getBoolean("set")) {
                 continue;
             }
             Object afterFieldValue = valueAndSet.getWithoutDefault("value");
@@ -306,7 +356,7 @@ class KafkaConnectRecordParser implements RecordParser {
             return;
         }
         if (before != null) {
-            //add all the before fields to the record
+            // add all the before fields to the record
             for (Field f : before.schema().fields()) {
                 Object beforeFieldValue = before.getWithoutDefault(f.name());
                 r.addBeforeValueField(f.name(), beforeFieldValue);

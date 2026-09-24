@@ -61,22 +61,16 @@ func (i Identifier) CaseInSensitiveMatch(other Identifier) bool {
 }
 
 func (i Identifier) FindBestMatchingIdenitifier(schemaIdenitifiers []Identifier) (bool, Identifier) {
-	var matchedSchema bool
 	for _, schema := range schemaIdenitifiers {
 		if schema.CaseSensitiveMatch(i) {
-			matchedSchema = true
 			return true, schema
 		}
 	}
-	if !matchedSchema {
-		//If not matched with any case sensitive match, then check for in case sensitive match
-		for _, schemaOnDB := range schemaIdenitifiers {
-			if schemaOnDB.CaseInSensitiveMatch(i) {
-				matchedSchema = true
-				return true, schemaOnDB
-			}
+	//If not matched with any case sensitive match, then check for in case sensitive match
+	for _, schemaOnDB := range schemaIdenitifiers {
+		if schemaOnDB.CaseInSensitiveMatch(i) {
+			return true, schemaOnDB
 		}
-
 	}
 	return false, Identifier{}
 }
@@ -286,7 +280,7 @@ func quote(s string, dbType string) string {
 		return s
 	}
 	switch dbType {
-	case constants.POSTGRESQL, constants.YUGABYTEDB:
+	case constants.POSTGRESQL, constants.YUGABYTEDB, constants.YUGABYTEDB_AMP:
 		return `"` + strings.ToLower(s) + `"`
 	case constants.MYSQL:
 		return s // TODO - learn the semantics of quoting in MySQL.
@@ -302,7 +296,7 @@ func unquote(s string, dbType string) string {
 		return s[1 : len(s)-1]
 	}
 	switch dbType {
-	case constants.POSTGRESQL, constants.YUGABYTEDB:
+	case constants.POSTGRESQL, constants.YUGABYTEDB, constants.YUGABYTEDB_AMP:
 		return strings.ToLower(s)
 	case constants.MYSQL:
 		return s
@@ -330,7 +324,7 @@ func SetDifference(a, b []*SourceName) []*SourceName {
 func minQuote(objectName, sourceDBType string) string {
 	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
-	case constants.YUGABYTEDB, constants.POSTGRESQL:
+	case constants.YUGABYTEDB, constants.POSTGRESQL, constants.YUGABYTEDB_AMP:
 		if IsAllLowercase(objectName) && !IsReservedKeywordPG(objectName) {
 			return objectName
 		} else {

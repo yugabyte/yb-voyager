@@ -41,7 +41,8 @@ func TestBasic(t *testing.T) {
 		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
-	pool := NewConnectionPool(connParams)
+	pool, err := NewConnectionPool(connParams)
+	assert.NoError(t, err)
 	assert.Equal(t, size, len(pool.conns))
 
 	// WHEN: multiple goroutines acquire connection, perform some operation
@@ -76,7 +77,8 @@ func TestIncreaseConnectionsUptoMax(t *testing.T) {
 		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
-	pool := NewConnectionPool(connParams)
+	pool, err := NewConnectionPool(connParams)
+	assert.NoError(t, err)
 	assert.Equal(t, size, len(pool.conns))
 
 	// WHEN: multiple goroutines acquire connection, perform some operation
@@ -119,7 +121,8 @@ func TestDecreaseConnectionsUptoMin(t *testing.T) {
 		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
-	pool := NewConnectionPool(connParams)
+	pool, err := NewConnectionPool(connParams)
+	assert.NoError(t, err)
 	assert.Equal(t, size, len(pool.conns))
 
 	// WHEN: multiple goroutines acquire connection, perform some operation
@@ -162,7 +165,8 @@ func TestUpdateConnectionsRandom(t *testing.T) {
 		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
-	pool := NewConnectionPool(connParams)
+	pool, err := NewConnectionPool(connParams)
+	assert.NoError(t, err)
 	assert.Equal(t, size, len(pool.conns))
 
 	// WHEN: multiple goroutines acquire connection, perform some operation
@@ -217,7 +221,8 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
-	pool := NewConnectionPool(connParams)
+	pool, err := NewConnectionPool(connParams)
+	assert.NoError(t, err)
 	assert.Equal(t, size, len(pool.conns))
 	assert.Equal(t, size, len(pool.idleConns))
 
@@ -234,7 +239,7 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 
 	var conn *pgx.Conn
 	for i := 0; i < 4; i++ {
-		conn, _ = <-pool.conns
+		conn = <-pool.conns
 		if conn == nil {
 			conn, err = pool.createNewConnection()
 			testutils.FatalIfError(t, err)
@@ -245,7 +250,7 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		conn, _ = <-pool.idleConns
+		conn = <-pool.idleConns
 		if conn == nil {
 			conn, err = pool.createNewConnection()
 			testutils.FatalIfError(t, err)

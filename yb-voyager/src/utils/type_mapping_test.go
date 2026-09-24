@@ -1,4 +1,4 @@
-//go:build unit_test
+//go:build unit
 
 package utils
 

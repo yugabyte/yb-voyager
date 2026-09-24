@@ -74,7 +74,7 @@ func (l *Lockfile) Lock() {
 	var err error
 	l.lockfile, err = lockfile.New(l.fpath)
 	if err != nil {
-		utils.ErrExit("Failed to create lockfile: %q: %v\n", l.fpath, err)
+		utils.ErrExit("Failed to create lockfile: %q: %w\n", l.fpath, err)
 	}
 
 	err = l.lockfile.TryLock()
@@ -83,13 +83,13 @@ func (l *Lockfile) Lock() {
 	} else if err == lockfile.ErrBusy {
 		utils.ErrExit("Another instance of yb-voyager '%s' is running for this migration", l.GetCmdName())
 	} else {
-		utils.ErrExit("Unable to lock the export-dir: %v\n", err)
+		utils.ErrExit("Unable to lock the export-dir: %w\n", err)
 	}
 }
 
 func (l *Lockfile) Unlock() {
 	err := l.lockfile.Unlock()
 	if err != nil {
-		utils.ErrExit("Unable to unlock export-dir: %q: %v\n", l.lockfile, err)
+		utils.ErrExit("Unable to unlock export-dir: %q: %w\n", l.lockfile, err)
 	}
 }

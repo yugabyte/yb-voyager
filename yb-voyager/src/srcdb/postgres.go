@@ -46,7 +46,7 @@ import (
 
 const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
 const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
-const MAX_SUPPORTED_PG_VERSION = "17"
+const MAX_SUPPORTED_PG_VERSION = "18"
 const MISSING = "MISSING"
 const GRANTED = "GRANTED"
 const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
@@ -58,16 +58,13 @@ var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "B
 var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
-	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
-
-	return liveMigrationUnsupportedDataTypes
+	return PostgresUnsupportedDataTypesForDbzm
 }
 
 func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
 	// Using logical connector (false) as default for fall forward/fall back
 	// Logical connector supports hstore, tsvector, and array of enums
-	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), PostgresUnsupportedDataTypes)
-	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
+	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(false), GetPGLiveMigrationUnsupportedDatatypes())
 	return liveMigrationWithFForFBUnsupportedDatatypes
 }
 
@@ -163,6 +160,9 @@ func (pg *PostgreSQL) Connect() error {
 		log.Info("Reconnecting to the source database")
 	}
 	db, err := sql.Open("pgx", pg.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(pg.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	pg.db = db
@@ -189,6 +189,10 @@ func (pg *PostgreSQL) Disconnect() {
 func (pg *PostgreSQL) Query(query string) (*sql.Rows, error) {
 	return pg.db.Query(query)
 }
+
+// GetDB returns the underlying *sql.DB handle for callers (e.g. schema-snapshot
+// capture) that need direct database/sql access. Valid only after Connect().
+func (pg *PostgreSQL) GetDB() *sql.DB { return pg.db }
 
 func (pg *PostgreSQL) QueryRow(query string) *sql.Row {
 	return pg.db.QueryRow(query)
@@ -643,6 +647,45 @@ GROUP BY
 	return totalSchemasSize, nil
 }
 
+func (pg *PostgreSQL) FetchDBID() error {
+	var oid int64
+	err := pg.db.QueryRow(`SELECT oid FROM pg_database WHERE datname = current_database()`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	pg.source.DBID = oid
+	return nil
+}
+
+func (pg *PostgreSQL) FetchSchemaOids() error {
+	var oids []int64
+	schemaList := sqlname.JoinIdentifiersUnquoted(pg.source.Schemas, "','")
+	query := fmt.Sprintf(`SELECT oid FROM pg_namespace WHERE nspname IN ('%s')`, schemaList)
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return fmt.Errorf("error in querying source database for schema oids: %q: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var oid int64
+		err = rows.Scan(&oid)
+		if err != nil {
+			return fmt.Errorf("error in scanning query rows for schema oids: %w", err)
+		}
+		oids = append(oids, oid)
+	}
+	if rows.Err() != nil {
+		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
+	}
+	pg.source.SchemaOids = oids
+	return nil
+}
+
 func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
@@ -768,6 +811,76 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		}
 	}
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+}
+
+// GetGeneratedStoredColumns returns, per table in tableList, the names of its STORED
+// generated columns (pg_attribute.attgenerated = 's').
+//
+// The result is keyed by NameTuple so the caller can persist it (by ForKey) for the import
+// side to consume. For partitioned tables a STORED generated column is inherited by every
+// partition, so it is reported on the partitioned root (relkind 'p') as well as on the
+// leaves; callers that key by the root table therefore find it without any leaf->root
+// remapping here. attgenerated exists on PG 12+, and generated columns require PG 12+, so on
+// older sources this simply returns an empty map.
+func (pg *PostgreSQL) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if len(tableList) == 0 {
+		return result, nil
+	}
+
+	catalogNameToTuple := make(map[string]sqlname.NameTuple, len(tableList))
+	for _, t := range tableList {
+		catalogNameToTuple[t.AsQualifiedCatalogName()] = t
+	}
+	tableNamesStr := strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+		return fmt.Sprintf("('%s')", t.AsQualifiedCatalogName())
+	}), ",")
+
+	query := fmt.Sprintf(`
+SELECT
+    n.nspname AS table_schema,
+    t.relname AS table_name,
+    a.attname AS column_name
+FROM pg_class t
+JOIN pg_namespace n ON t.relnamespace = n.oid
+JOIN pg_attribute a ON t.oid = a.attrelid
+WHERE t.relkind IN ('r', 'p')
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+    AND a.attgenerated = 's'
+    AND (n.nspname || '.' || t.relname) IN (%s);`, tableNamesStr)
+	log.Debugf("query for source generated stored columns: %s", query)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		if strings.Contains(err.Error(), "attgenerated does not exist") {
+			log.Infof("attgenerated column not available (postgresql version < 12); assuming no generated stored columns")
+			return result, nil
+		}
+		return nil, fmt.Errorf("error querying source generated stored columns: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName, columnName string
+		if err := rows.Scan(&schemaName, &tableName, &columnName); err != nil {
+			return nil, fmt.Errorf("error scanning source generated stored column row: %w", err)
+		}
+		catalogName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		tuple, ok := catalogNameToTuple[catalogName]
+		if !ok {
+			// Should not happen: every returned table was in the IN-list.
+			log.Warnf("source generated stored column: table %s not found in requested table list; skipping", catalogName)
+			continue
+		}
+		existing, _ := result.Get(tuple)
+		result.Put(tuple, append(existing, columnName))
+		log.Infof("source table %s has STORED generated column %s", catalogName, columnName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating source generated stored column rows: %w", err)
+	}
+	return result, nil
 }
 
 func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
@@ -916,60 +1029,6 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var querySchemaList, queryTableList []string
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
-	for i := 0; i < len(tableList); i++ {
-		sname, tname := tableList[i].ForCatalogQuery()
-		querySchemaList = append(querySchemaList, sname)
-		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
-	}
-
-	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
-		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	log.Infof("query to get unique key columns: %s", query)
-	rows, err := pg.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns: %w", err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	for rows.Next() {
-		var schemaName, tableName, colName string
-		err := rows.Scan(&schemaName, &tableName, &colName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableName)
-		}
-		cols, ok := result.Get(tableNameTuple)
-		if !ok {
-			cols = []string{}
-		}
-		cols = append(cols, colName)
-		result.Put(tableNameTuple, cols)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
-	}
-	log.Infof("unique key columns for tables: %v", result)
-	return result, nil
-}
-
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for PostgreSQL")
 	return nil
@@ -1018,6 +1077,19 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	return nil
 }
 
+// GetReplicationSlotRetainedWALBytes returns WAL bytes retained by the given slot
+// (pg_current_wal_lsn - restart_lsn). Returns 0 if the slot has no restart_lsn yet.
+func (pg *PostgreSQL) GetReplicationSlotRetainedWALBytes(slotName string) (int64, error) {
+	query := `SELECT COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn), 0)::bigint
+	          FROM pg_replication_slots WHERE slot_name = $1`
+	var bytes int64
+	err := pg.db.QueryRow(query, slotName).Scan(&bytes)
+	if err != nil {
+		return 0, fmt.Errorf("query retained WAL for slot %q: %w", slotName, err)
+	}
+	return bytes, nil
+}
+
 func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) error {
 	if dropIfAlreadyExists {
 		err := pg.DropPublication(publicationName)
@@ -1052,6 +1124,63 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 		return fmt.Errorf("drop publication(%s): %w", publicationName, err)
 	}
 	return nil
+}
+
+// PG_QUERY_GET_PRIMARY_KEY_COLUMNS returns the PK columns of all the tables in the given list in
+// PK definition order. ORDER BY array_position(indkey, attnum) is essential:
+// (id, region) and (region, id) are different keys, and we compare slices for
+// equality across leaf partitions in the live-migration guardrail.
+var PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES = `
+SELECT n.nspname, c.relname, a.attname
+FROM pg_index i
+JOIN pg_class      c ON c.oid = i.indrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+WHERE (n.nspname, c.relname) IN (%s)
+  AND i.indisprimary
+ORDER BY array_position(i.indkey, a.attnum);`
+
+func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
+
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for table primary-key query: %v", cerr)
+		}
+	}()
+
+	for rows.Next() {
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for tables: %w", err)
+		}
+		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(tableTuple)
+		result.Put(tableTuple, append(cols, col))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK column rows for tables: %w", err)
+	}
+	return result, nil
 }
 
 var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname AS table_name, COUNT(conname) AS pk_count
@@ -1090,6 +1219,59 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
+}
+
+var PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_AND_PK_DEFERRABLE_CONSTRAINT = `SELECT DISTINCT n.nspname AS schema_name, c.relname AS table_name
+FROM pg_constraint con
+JOIN pg_class      c ON c.oid = con.conrelid
+JOIN pg_namespace  n ON n.oid = c.relnamespace
+WHERE con.contype IN ('u', 'p')
+AND con.condeferrable
+AND (n.nspname, c.relname) IN (%s);`
+
+// GetTablesHavingUniqueAndPKDeferrableConstraint returns the tables out of tableList that have a
+// DEFERRABLE UNIQUE and PRIMARY KEY constraint. Returned names are unquoted qualified catalog names
+// (NameTuple.AsQualifiedCatalogName()), preserving the case of the identifiers.
+func (pg *PostgreSQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	if len(tableList) == 0 {
+		return nil, nil
+	}
+	tableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tableList {
+		tableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+	var tables []sqlname.NameTuple
+	queryTablesString := strings.Join(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_TO_GET_TABLES_HAVING_UNIQUE_AND_PK_DEFERRABLE_CONSTRAINT, queryTablesString)
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for tables having unique deferrable constraint: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var schemaName, tableName string
+		err := rows.Scan(&schemaName, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for tables having unique deferrable constraint: %w", err)
+		}
+		tableTuple, ok := tableToTuple[fmt.Sprintf("%s.%s", schemaName, tableName)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schemaName, tableName)
+		}
+		tables = append(tables, tableTuple)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error in iterating query rows for tables having unique deferrable constraint: %w", err)
+	}
+	return tables, nil
 }
 
 // =============================== Guardrails ===============================
@@ -1283,7 +1465,7 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 	return combinedResult, len(combinedResult) > 0, nil
 }
 
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 	return pg.GetMissingAssessMigrationPermissionsForNode(false)
 }
 
@@ -1291,13 +1473,18 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, er
 // The isReplica parameter controls which checks are performed:
 // - If isReplica=true, skips ANALYZE check (pg_stat_all_tables metadata is not replicated)
 // - If isReplica=false, performs all checks including ANALYZE
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, bool, error) {
+//
+// Note: pg_stat_statements availability is intentionally NOT checked here. It is detected
+// separately as a mandatory check (DetectPgssAvailabilityOnAllNodes) because its result
+// drives whether Unsupported Query Constructs are collected, and must run regardless of
+// whether guardrails permission checks are enabled.
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool) ([]string, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking table select permissions: %w", err)
+		return nil, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1306,7 +1493,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 	// Check track_counts setting
 	trackCounts, err := pg.CheckTrackCounts()
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking track_counts setting: %w", err)
+		return nil, fmt.Errorf("error checking track_counts setting: %w", err)
 	}
 	if !trackCounts {
 		combinedResult = append(combinedResult,
@@ -1321,7 +1508,7 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 		schemas := pg.getTrimmedSchemaList()
 		missingAnalyze, err := pg.CheckMissingAnalyzeStats(schemas)
 		if err != nil {
-			return nil, false, fmt.Errorf("error checking ANALYZE statistics: %w", err)
+			return nil, fmt.Errorf("error checking ANALYZE statistics: %w", err)
 		}
 		if len(missingAnalyze) > 0 {
 			combinedResult = append(combinedResult,
@@ -1329,17 +1516,22 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissionsForNode(isReplica bool
 		}
 	}
 
+	return combinedResult, nil
+}
+
+// IsPgStatStatementsAvailable reports whether pg_stat_statements is installed,
+// accessible, and properly loaded on the connected node.
+//
+// It runs the lightweight detection (checkPgStatStatementsSetup) without surfacing the
+// detailed reason. This is the single source of truth for deciding whether query-level
+// metadata (Unsupported Query Constructs) can be collected, and is run as a mandatory
+// check independently of the guardrails permission validations.
+func (pg *PostgreSQL) IsPgStatStatementsAvailable() (bool, error) {
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
-		return nil, false, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+		return false, err
 	}
-
-	pgssEnabled := true
-	if result != "" {
-		pgssEnabled = false
-		combinedResult = append(combinedResult, result)
-	}
-	return combinedResult, pgssEnabled, nil
+	return result == "", nil
 }
 
 // CheckTrackCounts checks if the track_counts setting is enabled in PostgreSQL.

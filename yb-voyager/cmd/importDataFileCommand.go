@@ -81,17 +81,20 @@ var importDataFileCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
+		if err := setupImportDataObservability(); err != nil {
+			utils.ErrExit("Failed to setup import data observability: %w", err)
+		}
 		//TODO: fix later for schemaNameMatcher
 		tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err = tdb.Init()
 		if err != nil {
-			utils.ErrExit("Failed to initialize the target DB: %s", err)
+			utils.ErrExit("Failed to initialize the target DB: %w", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 		err = InitNameRegistry(exportDir, importerRole, nil, nil, &tconf, tdb, shouldReregisterYBNames())
 		if err != nil {
-			utils.ErrExit("initialize name registry: %v", err)
+			utils.ErrExit("initialize name registry: %w", err)
 		}
 
 	},
@@ -123,7 +126,7 @@ func storeFileTableMapAndDataDirInMSR() {
 		msr.ImportDataFileFlagDataDir = dataDir
 	})
 	if err != nil {
-		utils.ErrExit("failed updating migration status record for file-table-mapping and data-dir: %v", err)
+		utils.ErrExit("failed updating migration status record for file-table-mapping and data-dir: %w", err)
 	}
 }
 
@@ -133,7 +136,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 		record.SourceDBConf = source.Clone()
 	})
 	if err != nil {
-		utils.ErrExit("failed to update migration status record: %v", err)
+		utils.ErrExit("failed to update migration status record: %w", err)
 	}
 
 	dataFileList := getFileSizeInfo(importFileTasks)
@@ -156,6 +159,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	setImportTableListFlag(importFileTasks)
+	importTableList = importFileTasksToTableNameTuples(importFileTasks)
 	setDataIsExported()
 }
 
@@ -197,19 +201,19 @@ func getImportFileTasks(currFileTableMapping string) []*ImportFileTask {
 		globPattern, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
 		filePaths, err := dataStore.Glob(globPattern)
 		if err != nil {
-			utils.ErrExit("failed to find files matching pattern: %q: %v", globPattern, err)
+			utils.ErrExit("failed to find files matching pattern: %q: %w", globPattern, err)
 		}
 		if len(filePaths) == 0 {
 			utils.ErrExit("no files found for matching pattern: %q", globPattern)
 		}
 		tableNameTuple, err := namereg.NameReg.LookupTableName(table)
 		if err != nil {
-			utils.ErrExit("lookup table name in name registry: %v", err)
+			utils.ErrExit("lookup table name in name registry: %w", err)
 		}
 		for _, filePath := range filePaths {
 			fileSize, err := dataStore.FileSize(filePath)
 			if err != nil {
-				utils.ErrExit("calculating file size in bytes: %q: %v", filePath, err)
+				utils.ErrExit("calculating file size in bytes: %q: %w", filePath, err)
 			}
 			task := &ImportFileTask{
 				ID:           idCounter,
@@ -236,7 +240,7 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	getTargetPassword(cmd)
 	validateTargetPortRange()
 	validateTargetSchemaFlag()
-	validateParallelismFlags()
+	validateParallelismFlags(cmd)
 
 	err := validateImportDataFlags()
 	if err != nil {
@@ -263,13 +267,19 @@ func checkDataDirFlag() {
 		utils.ErrExit(`Error required flag "data-dir" not set`)
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
-		s3.ValidateObjectURL(dataDir)
+		if err := s3.ValidateObjectURL(dataDir); err != nil {
+			utils.ErrExit("invalid s3 data-dir %q: %w", dataDir, err)
+		}
 		return
 	} else if strings.HasPrefix(dataDir, "gs://") {
-		gcs.ValidateObjectURL(dataDir)
+		if err := gcs.ValidateObjectURL(dataDir); err != nil {
+			utils.ErrExit("invalid gcs data-dir %q: %w", dataDir, err)
+		}
 		return
 	} else if strings.HasPrefix(dataDir, "https://") {
-		az.ValidateObjectURL(dataDir)
+		if err := az.ValidateObjectURL(dataDir); err != nil {
+			utils.ErrExit("invalid azure data-dir %q: %w", dataDir, err)
+		}
 		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {
@@ -277,12 +287,12 @@ func checkDataDirFlag() {
 	}
 	dataDirAbs, err := filepath.Abs(dataDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for data-dir: (%q): %v", dataDir, err)
+		utils.ErrExit("unable to resolve absolute path for data-dir: (%q): %w", dataDir, err)
 	}
 
 	exportDirAbs, err := filepath.Abs(exportDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for export-dir: (%q): %v", exportDir, err)
+		utils.ErrExit("unable to resolve absolute path for export-dir: (%q): %w", exportDir, err)
 	}
 
 	if strings.HasPrefix(dataDirAbs, exportDirAbs) {
@@ -364,7 +374,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationType = BULK_DATA_LOAD
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_FILE_PHASE
@@ -389,7 +399,8 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else if importSizeMap != nil {
-		importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+		// callhome payload assembly; the callback never returns an error
+		_ = importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
 			dataMetrics.MigrationSnapshotTotalBytes += value
 			if value > dataMetrics.MigrationSnapshotLargestTableBytes {
 				dataMetrics.MigrationSnapshotLargestTableBytes = value
@@ -397,6 +408,9 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 			return true, nil
 		})
 	}
+
+	// Set table list count
+	dataMetrics.TableListCount = len(importTableList)
 
 	importDataFilePayload := callhome.ImportDataFilePhasePayload{
 		ParallelJobs:       int64(tconf.Parallelism),
@@ -496,19 +510,13 @@ func init() {
 			"\tfor AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>\n"+
 			"\tfor GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>\n"+
 			"\tfor Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>")
-	err := importDataFileCmd.MarkFlagRequired("data-dir")
-	if err != nil {
-		utils.ErrExit("mark 'data-dir' flag required: %v", err)
-	}
+	mustMarkFlagRequired(importDataFileCmd, "data-dir")
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
 		"comma separated list of mapping between file name in '--data-dir' to a table in database\n"+
 			"You can import multiple files in one table either by providing one entry for each file 'fileName1:tableName,fileName2:tableName' OR by passing a glob expression in place of the file name. 'fileName*:tableName'")
 
-	err = importDataFileCmd.MarkFlagRequired("file-table-map")
-	if err != nil {
-		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
-	}
+	mustMarkFlagRequired(importDataFileCmd, "file-table-map")
 	BoolVar(importDataFileCmd.Flags(), &hasHeader, "has-header", false,
 		"Indicate that the first line of data file is a header row (default false)\n"+
 			"(Note: only works for csv file type)")
@@ -525,7 +533,7 @@ func init() {
 		2. quote_char: 	character used to quote the values (default double quotes '"')
 		for eg: --file-opts "escape_char=\",quote_char=\"" or --file-opts 'escape_char=",quote_char="'`)
 
-	importDataFileCmd.Flags().MarkDeprecated("file-opts", "use --escape-char and --quote-char flags instead")
+	mustMarkFlagDeprecated(importDataFileCmd, "file-opts", "use --escape-char and --quote-char flags instead")
 
 	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
 		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)
@@ -543,12 +551,15 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
 
-	importDataFileCmd.Flags().MarkHidden("table-list")
-	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
-	importDataFileCmd.Flags().MarkHidden("table-list-file-path")
-	importDataFileCmd.Flags().MarkHidden("exclude-table-list-file-path")
+	mustMarkFlagHidden(importDataFileCmd, "table-list")
+	mustMarkFlagHidden(importDataFileCmd, "exclude-table-list")
+	mustMarkFlagHidden(importDataFileCmd, "table-list-file-path")
+	mustMarkFlagHidden(importDataFileCmd, "exclude-table-list-file-path")
 
 	importDataFileCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9102)")
-	importDataFileCmd.Flags().MarkHidden("prometheus-metrics-port")
+	mustMarkFlagHidden(importDataFileCmd, "prometheus-metrics-port")
+
+	importDataFileCmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 }

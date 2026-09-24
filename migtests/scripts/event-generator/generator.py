@@ -55,6 +55,7 @@ for op_name, weight in raw_operation_weights.items():
 INSERT_ROWS = GEN["insert_rows"]
 UPDATE_ROWS = GEN["update_rows"]
 DELETE_ROWS = GEN["delete_rows"]
+MIN_COL_SIZE_BYTES = GEN.get("min_col_size_bytes", 0)
 
 # Retries
 INSERT_MAX_RETRIES = GEN["insert_max_retries"]
@@ -67,6 +68,13 @@ WAIT_DURATION_SECONDS = GEN["wait_duration_seconds"]
 # Index events flag
 ENABLE_INDEX_CREATE_DROP = GEN.get("enable_index_create_drop", False)
 INDEX_EVENTS_INTERVAL = GEN.get("index_events_interval", 5)
+
+# Column overrides for partition-aware value generation
+COLUMN_OVERRIDES = GEN.get("column_overrides", {})
+
+# Columns that must never appear in an UPDATE's SET list, per table (e.g. a
+# custom cdc-partition-key column, which the importer requires to be immutable).
+EXCLUDE_COLUMNS_FROM_UPDATE = GEN.get("exclude_columns_from_update", {})
 # ---------------------------------
 
 # Deterministic seeds from YAML
@@ -82,10 +90,6 @@ if FAKER_SEED is not None:
 # Connect to PostgreSQL using config
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
-
-# Refresh planner statistics up front for better row estimates
-cursor.execute("ANALYZE;")
-conn.commit()
 
 # Detect database flavor (PostgreSQL vs YugabyteDB)
 DB_FLAVOR = detect_db_flavor(cursor)
@@ -114,8 +118,24 @@ print("Schema analysed")
 
 # Precompute estimated row counts once per table for sampling decisions
 ROW_ESTIMATES = {}
-for table in table_schemas.keys():
-    ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
+
+try:
+    # Refresh planner statistics up front for better row estimates
+    cursor.execute("ANALYZE;")
+    conn.commit()
+    for table in table_schemas.keys():
+        ROW_ESTIMATES[table] = get_estimated_row_count(cursor, SCHEMA_NAME, table)
+except Exception as e:
+    print(f"Error refreshing planner statistics using ANALYZE: {e}. Getting row estimates using count(*).")
+    # Rollback the failed transaction before proceeding
+    conn.rollback()
+    # Using count(*) to get row estimates
+    for table in table_schemas.keys():
+        cursor.execute(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.{table};")
+        ROW_ESTIMATES[table] = cursor.fetchone()[0]
+        conn.commit()
+
+print("Row estimates: ", ROW_ESTIMATES)
 
 # Precompute table selection weights once: default weight 1 for unspecified tables
 RESOLVED_TABLE_WEIGHTS = dict(TABLE_WEIGHTS)
@@ -151,7 +171,7 @@ try:
             if operation == "INSERT":
                 # Generate random data and execute INSERT statement
                 columns = ", ".join(table_schemas[table_name]["columns"].keys())
-                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS)}
+                values_holder = {"values_list": build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)}
 
                 # Prepare callbacks for retryable execution
                 def run_once():
@@ -159,7 +179,7 @@ try:
                     cursor.execute(query_to_run)
 
                 def rebuild():
-                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS)
+                    values_holder["values_list"] = build_insert_values(table_schemas, table_name, INSERT_ROWS, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)
 
                 success = execute_with_retry(run_once, rebuild, conn.rollback, max_retries=INSERT_MAX_RETRIES)
                 if success:
@@ -167,25 +187,30 @@ try:
                     pass
             
             elif operation == "UPDATE":
+                primary_key = table_schemas[table_name]["primary_key"]
+                if not primary_key:
+                    print(f"Skipping UPDATE on '{table_name}': no primary key found")
+                    continue
+
+                pk_set = set(primary_key) if isinstance(primary_key, list) else {primary_key}
+                excluded_columns = pk_set | set(EXCLUDE_COLUMNS_FROM_UPDATE.get(table_name, []))
+
                 for _ in range(UPDATE_MAX_RETRIES):
                     columns = table_schemas[table_name]["columns"]
-                    primary_key = table_schemas[table_name]["primary_key"]
 
-                    if len(columns) == 1:
-                        break  # Skip the entire update operation for tables with only one column
-                
-                    updateable_columns = [col for col in columns if col != primary_key]
+                    if len(columns) <= len(excluded_columns):
+                        break
+
+                    updateable_columns = [col for col in columns if col not in excluded_columns]
 
                     if not updateable_columns:
                         print(f"No updateable columns found for table {table_name}. Retrying...")
                         continue
 
                     num_columns_to_update = random.randint(1, len(updateable_columns))
-
-                    # Randomly choose the columns to update
                     columns_to_update = random.sample(updateable_columns, num_columns_to_update)
 
-                    set_clause, params = build_update_values(table_schemas, table_name, columns_to_update)
+                    set_clause, params = build_update_values(table_schemas, table_name, columns_to_update, MIN_COL_SIZE_BYTES, COLUMN_OVERRIDES)
                     where_clause, sampling_params = build_sampling_condition(
                         db_flavor=DB_FLAVOR,
                         table_name=table_name,
@@ -199,12 +224,17 @@ try:
                     try:
                         cursor.execute(query_to_run, full_params)
                         conn.commit()
-                        break  # Break out of the loop if the update is successful
+                        break
                     except Exception as e:
+                        print(f"UPDATE failed on '{table_name}': {e}")
                         conn.rollback()
 
             elif operation == "DELETE":
                 primary_key = table_schemas[table_name]["primary_key"]
+                if not primary_key:
+                    print(f"Skipping DELETE on '{table_name}': no primary key found")
+                    continue
+
                 where_clause, sampling_params = build_sampling_condition(
                     db_flavor=DB_FLAVOR,
                     table_name=table_name,

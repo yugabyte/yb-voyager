@@ -60,7 +60,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, goerrors.Errorf("parsing epoch seconds: %v", err)
+			return columnValue, goerrors.Errorf("parsing epoch seconds: %w", err)
 		}
 		epochSecs := epochDays * 24 * 60 * 60
 		date := time.Unix(int64(epochSecs), 0).UTC().Format(time.DateOnly)
@@ -69,7 +69,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %v", err)
+			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %w", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timestamp := time.Unix(epochSecs, 0).UTC().Format(time.DateTime)
@@ -78,7 +78,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, goerrors.Errorf("parsing epoch microseconds: %v", err)
+			return columnValue, goerrors.Errorf("parsing epoch microseconds: %w", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
@@ -88,7 +88,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, goerrors.Errorf("parsing epoch nanoseconds: %v", err)
+			return columnValue, goerrors.Errorf("parsing epoch nanoseconds: %w", err)
 		}
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
@@ -99,7 +99,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %v", err)
+			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %w", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
@@ -108,7 +108,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, goerrors.Errorf("parsing epoch microseconds: %v", err)
+			return columnValue, goerrors.Errorf("parsing epoch microseconds: %w", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
@@ -119,7 +119,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		bytes, err := base64.StdEncoding.DecodeString(columnValue)
 		if err != nil {
-			return columnValue, goerrors.Errorf("decoding variable scale decimal in base64: %v", err)
+			return columnValue, goerrors.Errorf("decoding variable scale decimal in base64: %w", err)
 		}
 		var data uint64
 		if len(bytes) >= 8 {
@@ -160,7 +160,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
-			return columnValue, goerrors.Errorf("decoding base64 string: %v", err)
+			return columnValue, goerrors.Errorf("decoding base64 string: %w", err)
 		}
 		//convert bytes to hex string e.g. `[]byte{0x00, 0x00, 0x00, 0x00}` -> `\\x00000000`
 		var hexString strings.Builder

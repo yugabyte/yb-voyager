@@ -117,7 +117,7 @@
                     <li><strong>Reason:</strong> {{ $issue.Reason }}</li>
                     <li><strong>SQL Statement:</strong> <pre>{{ $issue.SqlStatement }}</pre></li>
                     <li><strong>File Path:</strong> {{ $issue.FilePath }}<a href='{{ $issue.FilePath }}'> [Preview]</a></li>
-                    {{ $supporterVerStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
+                    {{ $supporterVerStr := getSupportedVersions $issue.MinimumVersionsFixedIn $issue.MinimumVersionsFixedInEA $issue.MinimumVersionsFixedInTP }}
                     {{ if $supporterVerStr }}
                     <li><strong>Fixed in Versions:</strong> {{ $supporterVerStr }}</li>
                     {{ end }}

@@ -60,6 +60,8 @@ const (
 	MEMORY_FREE_METRIC                     = "memory_free"
 	MEMORY_TOTAL_METRIC                    = "memory_total"
 	MEMORY_AVAILABLE_METRIC                = "memory_available"
+
+	DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT = "/*+ Set(enable_seqscan off) */"
 )
 
 type TargetYugabyteDB struct {
@@ -135,6 +137,10 @@ func (yb *TargetYugabyteDB) Init() error {
 		return err
 	}
 
+	if err := yb.validateYugabyteDBTarget(); err != nil {
+		return err
+	}
+
 	if len(yb.Tconf.SessionVars) == 0 {
 		yb.Tconf.SessionVars = getYBSessionInitScript(yb.Tconf)
 	}
@@ -163,6 +169,29 @@ func (yb *TargetYugabyteDB) Init() error {
 		return goerrors.Errorf("schemas '%s' do not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return nil
+}
+
+// validateYugabyteDBTarget confirms the connected endpoint is a genuine
+// YugabyteDB cluster, not a PostgreSQL-compatible look-alike. yb-amp and
+// plain PostgreSQL both speak the PG wire protocol, so without this a
+// mistyped --target-db-type would proceed and misbehave (YB-only GUCs,
+// colocation, adaptive parallelism). Names the right target type to use.
+func (yb *TargetYugabyteDB) validateYugabyteDBTarget() error {
+	isYB, err := endpointIsRealYugabyteDB(yb.db)
+	if err != nil {
+		return fmt.Errorf("validate target is YugabyteDB: %w", err)
+	}
+	if isYB {
+		return nil
+	}
+	if hasAmp, _ := endpointHasAmpGUCs(yb.db); hasAmp {
+		return goerrors.Errorf("the target at %s:%d is a YugabyteDB AMP (yb-amp) endpoint, not a standard YugabyteDB cluster. "+
+			"Use --target-db-type %s instead of %s",
+			yb.Tconf.Host, yb.Tconf.Port, YUGABYTEDB_AMP, YUGABYTEDB)
+	}
+	return goerrors.Errorf("the target at %s:%d does not look like a YugabyteDB cluster "+
+		"(no yb_servers() — it looks like plain PostgreSQL). Use the matching --target-db-type",
+		yb.Tconf.Host, yb.Tconf.Port)
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
@@ -312,7 +341,10 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		ConnUriList:       targetUriList,
 		SessionInitScript: yb.Tconf.SessionVars,
 	}
-	yb.connPool = NewConnectionPool(params)
+	yb.connPool, err = NewConnectionPool(params)
+	if err != nil {
+		return fmt.Errorf("creating connection pool: %w", err)
+	}
 	redactedParams := &ConnectionParams{}
 	//Whenever adding new fields to CONNECTION PARAMS check if that needs to be redacted while logging
 	err = copier.Copy(redactedParams, params)
@@ -568,39 +600,59 @@ outer:
 	return nil
 }
 
-// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
-// primary‑key definition of the given table.
-func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	var primaryKeyColumns []string
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT a.attname
-		FROM pg_index i
-		JOIN pg_class      c ON c.oid = i.indrelid
-		JOIN pg_namespace  n ON n.oid = c.relnamespace
-		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-		WHERE n.nspname = '%s'
-			AND c.relname  = '%s'
-			AND i.indisprimary;`, schemaName, tableName)
+// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
+// in PK-definition order. It delegates to the shared PG/YB helper (queryPGPrimaryKeyColumnsByCatalog)
+// so the query and scan logic live in one place for both target drivers.
+func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(yb.Query, tables)
+}
 
-	rows, err := yb.Query(query)
+func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
+	log.Infof("getting unique indexes from target for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
+
+	// Unique indexes on a partitioned table are often defined on its leaf partitions
+	// rather than the root (e.g. CREATE UNIQUE INDEX ... ON <leaf> (...)). Since import
+	// events only reference the root table, we discover the unique indexes of every leaf
+	// partition (and the root/normal tables themselves) and merge them into the root.
+	//
+	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
+	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
+	// includes each leaf partition -> root, and each root/normal table -> itself.
+	tableToRootMap, err := getPartitionTableToRootTableMap(yb.Query, tableList)
 	if err != nil {
-		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var col string
-		if err := rows.Scan(&col); err != nil {
-			return nil, fmt.Errorf("scan PK column: %w", err)
-		}
-		primaryKeyColumns = append(primaryKeyColumns, col)
-	}
-	if err := rows.Err(); err != nil {
+	// Fetch unique indexes for all leaves + roots and key them by catalog name.
+	querySchemaList, queryTableList := catalogNamesToSchemaAndTableLists(lo.Keys(tableToRootMap))
+	catalogToIndexes, err := queryPGUniqueIndexesByCatalog(yb.Query, querySchemaList, queryTableList)
+	if err != nil {
 		return nil, err
 	}
 
-	return primaryKeyColumns, nil
+	rootCatalogToTuple := make(map[string]sqlname.NameTuple)
+	for _, t := range tableList {
+		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []UniqueIndex]()
+	for catalogName, indexes := range catalogToIndexes {
+		rootCatalogName, ok := tableToRootMap[catalogName]
+		if !ok {
+			// table not under any of the requested roots (possible cross-schema
+			// over-match from the query filter); skip it.
+			continue
+		}
+		rootTuple, ok := rootCatalogToTuple[rootCatalogName]
+		if !ok {
+			return nil, goerrors.Errorf("root table %s not found in requested table list", rootCatalogName)
+		}
+		existing, _ := result.Get(rootTuple)
+		result.Put(rootTuple, mergeUniqueIndexes(existing, indexes))
+	}
+
+	log.Infof("unique indexes from target for tables: %s", formatTableToUniqueIndexesForLog(result))
+	return result, nil
 }
 
 // GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
@@ -683,11 +735,27 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	})
 	commaSeparatedTableNames := strings.Join(tableNames, ", ")
 	query := fmt.Sprintf("TRUNCATE TABLE %s", commaSeparatedTableNames)
-	_, err := yb.Exec(query)
-	if err != nil {
+
+	// SQLSTATE 40001 ("Restart read required") is YB's transient retry
+	// signal during distributed multi-tablet operations like TRUNCATE.
+	// Retry with linear backoff before giving up.
+	const maxAttempts = 5
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if _, err = yb.Exec(query); err == nil {
+			return nil
+		}
+		var pgErr *pgconn5.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "40001" && attempt < maxAttempts {
+			sleepSec := attempt * 2
+			log.Infof("TRUNCATE got SQLSTATE 40001 (read restart), retrying in %ds (attempt %d/%d): %v",
+				sleepSec, attempt, maxAttempts, err)
+			time.Sleep(time.Duration(sleepSec) * time.Second)
+			continue
+		}
 		return err
 	}
-	return nil
+	return err
 }
 
 /*
@@ -801,11 +869,17 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH, nil)
 		return 0, err
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	// 2. setting the schema so that COPY command can acesss the table
 	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
-	yb.setTargetSchema(conn)
+	err = yb.setTargetSchema(conn)
+	if err != nil {
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_SET_TARGET_SCHEMA, nil)
+		return 0, err
+	}
 
 	// 3. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
@@ -886,8 +960,8 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	}
 	for {
 		line, _, readLinErr := df.NextLine()
-		if readLinErr != nil && readLinErr != io.EOF {
-			return 0, newImportBatchErrorPgYb(err, batch,
+		if readLinErr != nil && !errors.Is(readLinErr, io.EOF) {
+			return 0, newImportBatchErrorPgYb(readLinErr, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH, nil)
 		}
@@ -898,7 +972,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			2. line!=""(last line) + EOF error
 		*/
 		if line == "" { // handles case 1
-			if readLinErr == io.EOF {
+			if errors.Is(readLinErr, io.EOF) {
 				break
 			} else {
 				// skipping if any empty line (not expected from batch file)
@@ -939,7 +1013,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			log.Warnf("Unexpected: COPY command for line=%q in batch %s returned 0 rows affected which is not expected", line, batch.GetFilePath())
 		}
 
-		if readLinErr == io.EOF { // handles case 2
+		if errors.Is(readLinErr, io.EOF) { // handles case 2
 			log.Infof("reached end of file %s", batch.GetFilePath())
 			break
 		}
@@ -1018,11 +1092,17 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+func (yb *TargetYugabyteDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return yb.FindBestMatchingColumnName(columnName, targetTableColumns)
+
+}
+
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[sqlname.NameTuple, int64]) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
 	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
-	sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+	// batch assembly; the callback never returns an error
+	_ = sequencesLastVal.IterKV(func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
 			log.Infof("sequence %s has last value 0, skipping", sequenceTuple.ForKey())
@@ -1072,18 +1152,34 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt, err := event.GetSQLStmt(yb)
+			/*
+			   Currently ingestion logic is to ingest cdc data via root table for the partitioned table by default to cases where
+			   partitioning strategy/names change on the target database. So with configuration '--use-partition-root false', we are ingesting data via partition table.
+			   but with UPDATE <partition table> stmt on YB https://github.com/yugabyte/yugabyte-db/issues/31214 , there is a limiation that it errors out if the UPDATE statement doesn't include partition key so we are skipping
+			   ingestion of UPDATE events via partition table on Target DB. and in other importers we are ingesting data via partition table.
+			   so use partition root table always for UPDATE events  in YB
+			*/
+			stmt, err := event.GetSQLStmt(yb, yb.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get sql stmt: %w", err)
+			}
+			if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
 			}
 			ybBatch.Queue(stmt)
 			log.Debugf("SQL statement: Batch(%s): Event(%d): [%s]", batch.ID(), event.Vsn, stmt)
 		} else {
-			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType)
+			stmt, err := event.GetPreparedSQLStmt(yb, yb.Tconf.TargetDBType, yb.tconf.UsePartitionRoot)
 			if err != nil {
 				return fmt.Errorf("get prepared sql stmt: %w", err)
 			}
-			psName := event.GetPreparedStmtName()
+			if event.Op == "d" && yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				stmt = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + stmt
+			}
+			psName, err := event.GetPreparedStmtName(yb.tconf.UsePartitionRoot)
+			if err != nil {
+				return fmt.Errorf("get prepared stmt name: %w", err)
+			}
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[psName]; !ok {
 				stmtToPrepare[psName] = stmt
@@ -1101,8 +1197,8 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		defer func() {
 			errRollBack := tx.Rollback(ctx)
-			if errRollBack != nil && errRollBack != pgx.ErrTxClosed {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, pgx.ErrTxClosed) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 
@@ -1157,7 +1253,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				}
 				log.Errorf("%s : %v", errorMsg, err)
-				closeBatch()
+				_ = closeBatch() // best-effort; the original error below takes precedence
 				return false, fmt.Errorf("%s: %w", errorMsg, err)
 			}
 			switch true {
@@ -1178,6 +1274,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
+		if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+			updateVsnQuery = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + updateVsnQuery
+		}
 		res, err = tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt for batch(%s): %v, rowsAffected: %v", batch.ID(), err, res.RowsAffected())
@@ -1189,6 +1288,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
+			if yb.tconf.DisableSequentialScanOnUpdateDeletes {
+				updateTableStatsQuery = DISABLE_SEQUENTIAL_SCAN_ON_UPDATE_DELETES_HINT + updateTableStatsQuery
+			}
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
 				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
@@ -1329,7 +1431,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 						msg = fmt.Sprintf("public ip is not available for host: %s but private ip are available. "+
 							"Either refer to help for how to enable public ip or remove --use-public-up flag and restart the import", host)
 					}
-					utils.ErrExit(msg)
+					utils.ErrExit("%s", msg)
 				}
 			} else {
 				clone.Host = host
@@ -1472,12 +1574,33 @@ func (yb *TargetYugabyteDB) setDefaultParallelism(tconfs []*TargetConf, nodeCoun
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
-	if yb.tconf.AdaptiveParallelismMode.IsEnabled() {
-		if yb.tconf.MaxParallelism <= 0 {
-			yb.tconf.MaxParallelism = yb.tconf.Parallelism * 4
+	yb.reconcileAdaptiveParallelism()
+}
+
+// reconcileAdaptiveParallelism finalizes Parallelism / MaxParallelism on yb.Tconf
+// once both have been resolved (user-supplied or auto-computed), enforcing the
+// invariant Parallelism <= MaxParallelism that the connection pool requires.
+func (yb *TargetYugabyteDB) reconcileAdaptiveParallelism() {
+	// Adaptive enabled means --adaptive-parallelism is balanced or aggressive. In this
+	// mode --parallel-jobs is rejected up front (see validateParallelismFlags), so
+	// Parallelism here is always the auto-computed clusterCores/4.
+	if yb.Tconf.AdaptiveParallelismMode.IsEnabled() {
+		if yb.Tconf.MaxParallelism <= 0 {
+			// --adaptive-parallelism={balanced,aggressive} without --adaptive-parallelism-max:
+			// default the ceiling to 4x the auto-computed Parallelism (≈ clusterCores).
+			yb.Tconf.MaxParallelism = yb.Tconf.Parallelism * 4
+		} else if yb.Tconf.Parallelism > yb.Tconf.MaxParallelism {
+			// --adaptive-parallelism={balanced,aggressive} with --adaptive-parallelism-max
+			// set below the auto-computed Parallelism: cap Parallelism to the user's ceiling.
+			log.Warnf("Computed default parallel-jobs (%d) exceeds --adaptive-parallelism-max (%d); capping initial parallelism to %d",
+				yb.Tconf.Parallelism, yb.Tconf.MaxParallelism, yb.Tconf.MaxParallelism)
+			yb.Tconf.Parallelism = yb.Tconf.MaxParallelism
 		}
+		// else: --adaptive-parallelism-max already >= auto-computed Parallelism, nothing to reconcile.
 	} else {
-		yb.tconf.MaxParallelism = yb.tconf.Parallelism
+		// --adaptive-parallelism=disabled (default): pool size is fixed, so the ceiling
+		// equals Parallelism (whether user-supplied via --parallel-jobs or auto-computed).
+		yb.Tconf.MaxParallelism = yb.Tconf.Parallelism
 	}
 }
 
@@ -1529,11 +1652,20 @@ const (
 	SET_YB_FAST_PATH_FOR_COLOCATED_COPY   = "SET yb_fast_path_for_colocated_copy=true"
 	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
 	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
-	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
+	// If voyager exits abruptly mid-transaction, the target backend keeps holding that
+	// transaction's locks until TCP keepalive reaps it (~2h), wedging later imports. Bound it
+	// so voyager's own sessions are self-limiting; 5min is far above any gap voyager can
+	// produce inside a transaction. Override via /etc/yb-voyager/ybSessionVariables.sql.
+	SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT = "SET idle_in_transaction_session_timeout = '5min'"
+	ERROR_MSG_PERMISSION_DENIED             = "permission denied"
 )
 
 func getPGSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}
@@ -1545,6 +1677,10 @@ func getPGSessionInitScript(tconf *TargetConf) []string {
 
 func getYBSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
+	// first, so a permission-denied error on a later var cannot make initSession() skip it
+	if checkSessionVariableSupport(tconf, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT) {
+		sessionVars = append(sessionVars, SET_IDLE_IN_TRANSACTION_SESSION_TIMEOUT)
+	}
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
 		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}
@@ -1591,7 +1727,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 		log.Infof("YBSessionInitScript: %v\n", sessionVars)
 		return sessionVars
 	}
-	defer varsFile.Close()
+	defer utils.CloseAndLogOnError(sessionVarsPath, varsFile)
 	fileScanner := bufio.NewScanner(varsFile)
 
 	var curLine string
@@ -2296,7 +2432,7 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
 	log.Infof("getting leaf table to root table map")
 	//returns a map of catalog leaf table name to catalog root table name
-	leafTableToRootTableMap, err := yb.getPartitionTableToRootTableMap(tableNames)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableNames)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
@@ -2379,7 +2515,7 @@ SELECT
 // for leaf table, returns leaf table name -> root table name
 // for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
 // for any non-partitioned/normal table, returns normal table -> normal table
-func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname.NameTuple) (map[string]string, error) {
+func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, error), tableNames []sqlname.NameTuple) (map[string]string, error) {
 	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
 		schema, table := t.ForCatalogQuery()
 		return fmt.Sprintf("('%s','%s')", schema, table)
@@ -2435,7 +2571,7 @@ func (yb *TargetYugabyteDB) getPartitionTableToRootTableMap(tableNames []sqlname
 `, tableNamesStr)
 
 	log.Debugf("query: %s", query)
-	rows, err := yb.Query(query)
+	rows, err := queryFn(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying for leaf table to root table map: %w", err)
 	}

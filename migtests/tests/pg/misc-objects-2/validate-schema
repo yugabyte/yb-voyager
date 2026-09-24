@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from packaging.version import Version
 import yb
 
 def main():
@@ -21,7 +22,10 @@ def migration_completed_checks(tgt):
 
 	fetched_procedures_functions = tgt.fetch_all_procedures("public")
 	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
-	assert len(fetched_procedures_functions) == 40
+	# an extra routine ships from YB 2025.2.4, bumping the count from 40 to 41
+	threeDotVersion = yb.get_three_dot_version(tgt.get_target_version())
+	expected_count = 41 if (threeDotVersion and Version(threeDotVersion) >= Version("2025.2.4")) else 40
+	assert len(fetched_procedures_functions) == expected_count
 
 if __name__ == "__main__":
 	main()

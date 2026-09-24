@@ -59,6 +59,9 @@ func (ms *MySQL) Connect() error {
 	}
 
 	db, err := sql.Open("mysql", ms.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(ms.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ms.db = db
@@ -287,6 +290,15 @@ func (ms *MySQL) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+func (ms *MySQL) FetchDBID() error {
+	//Not implemented for mysql
+	return nil
+}
+
+func (ms *MySQL) FetchSchemaOids() error {
+	return nil
+}
+
 func (ms *MySQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple) {
 	return tableList, nil
 }
@@ -487,14 +499,23 @@ func (ms *MySQL) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	// required in case of live migration(unsupported for MySQL)
-	return nil, nil
-}
-
 func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for MySQL")
 	return nil
+}
+
+// GetPrimaryKeyColumns is a no-op for MySQL: the partition-aware caller in
+// reportUnsupportedTablesForLiveMigration only iterates leaves built by
+// addLeafPartitionsInTableList, which is itself a no-op for non-PG/YB sources.
+func (ms *MySQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
+}
+
+// GetGeneratedStoredColumns is a no-op for MySQL: STORED generated columns and the CDC
+// custom/pk partitioning that consumes this info are only supported for a PostgreSQL source
+// (MySQL live migration always uses PARTITION_BY_TABLE).
+func (ms *MySQL) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
 }
 
 func (ms *MySQL) GetNonPKTables() ([]string, error) {
@@ -561,10 +582,15 @@ func (ms *MySQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCo
 	return false, 0, 0, nil
 }
 
-func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
-	return nil, false, nil
+func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+	return nil, nil
 }
 
 func (ms *MySQL) GetSchemasMissingUsagePermissions() ([]string, error) {
+	return nil, nil
+}
+
+// MySQL does not support deferrable constraints.
+func (ms *MySQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }

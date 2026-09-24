@@ -16,11 +16,14 @@ limitations under the License.
 package dbzm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -31,13 +34,14 @@ import (
 	"github.com/tebeka/atexit"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
 // These versions need to be changed at the time of a release
-const DEBEZIUM_VERSION = "2.2.0-1.3.0"
+const DEBEZIUM_VERSION = "2.5.2-2026.5.1"
 
 type Debezium struct {
 	*Config
@@ -77,6 +81,73 @@ func FindDebeziumDistribution(sourceDBType string, useYBgRPCConnector bool) erro
 	return nil
 }
 
+// logicalConnectorYBVersionRegex captures the connector version token after "yb." up to
+// the next "-" (e.g. "2025.2.3"):
+//   - only the first two segments matter (the YB series); the rest is a connector-internal
+//     counter, reduced later via ybversion.SeriesVersion.
+//   - the full token is kept so distinct jars can be told apart.
+//   - the required leading digit rejects the gRPC tag ("yb.grpc.<ver>").
+var logicalConnectorYBVersionRegex = regexp.MustCompile(`yb\.([0-9]+\.[0-9]+[^-]*)`)
+
+// ErrMultipleLogicalConnectorVersions means the yb-connector directory holds jars for
+// more than one connector version. run.sh puts every jar on the classpath, so which one
+// runs is undefined — callers treat this as fatal rather than guessing.
+var ErrMultipleLogicalConnectorVersions = errors.New("multiple logical connector versions found in distribution")
+
+// ParseLogicalConnectorYBVersion returns the connector version token from a jar name
+// (e.g. ".yb.2025.2.3-..." → "2025.2.3"):
+//   - only the first two segments (the YB series) matter for compatibility; the rest is a
+//     connector-internal counter.
+//   - the full token is returned so callers can distinguish distinct jars.
+//   - errors if the name has no "yb.<series>..." token (dependency jars, gRPC connector).
+func ParseLogicalConnectorYBVersion(jarName string) (string, error) {
+	match := logicalConnectorYBVersionRegex.FindStringSubmatch(jarName)
+	if len(match) < 2 {
+		return "", goerrors.Errorf("unable to extract a YugabyteDB connector version from jar name %q; expected a 'yb.<series>...' token", jarName)
+	}
+	return match[1], nil
+}
+
+// GetLogicalConnectorYBVersion returns the connector version token from the resolved
+// Debezium distribution (FindDebeziumDistribution must have run). run.sh puts every jar in
+// yb-connector on the classpath, so jars for multiple distinct tokens are a fatal
+// ambiguity → ErrMultipleLogicalConnectorVersions.
+func GetLogicalConnectorYBVersion() (string, error) {
+	if DEBEZIUM_DIST_DIR == "" {
+		return "", goerrors.Errorf("debezium distribution directory is not resolved")
+	}
+	connectorDir := filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
+	jars, err := filepath.Glob(filepath.Join(connectorDir, "*.jar"))
+	if err != nil {
+		return "", goerrors.Errorf("listing logical connector jars in %s: %w", connectorDir, err)
+	}
+
+	// Collect distinct connector tokens (ignoring non-connector jars).
+	seen := make(map[string]bool)
+	var versions []string
+	for _, jar := range jars {
+		token, err := ParseLogicalConnectorYBVersion(filepath.Base(jar))
+		if err != nil {
+			// Not a connector jar (e.g. a dependency jar); ignore.
+			continue
+		}
+		if !seen[token] {
+			seen[token] = true
+			versions = append(versions, token)
+		}
+	}
+
+	switch len(versions) {
+	case 0:
+		return "", goerrors.Errorf("no logical connector jar found in %s", connectorDir)
+	case 1:
+		return versions[0], nil
+	default:
+		sort.Strings(versions)
+		return "", fmt.Errorf("found multiple logical connector jars with different versions %v in %s: %w", versions, connectorDir, ErrMultipleLogicalConnectorVersions)
+	}
+}
+
 func NewDebezium(config *Config) *Debezium {
 	return &Debezium{Config: config}
 }
@@ -85,7 +156,7 @@ func (d *Debezium) Start() error {
 	err := FindDebeziumDistribution(d.Config.SourceDBType, d.Config.UseYBgRPCConnector)
 	if err != nil {
 		// Addding suggestion to install debezium-server if it is not found
-		return goerrors.Errorf("%v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
+		return goerrors.Errorf("%w. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", err)
 	}
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
@@ -96,7 +167,7 @@ func (d *Debezium) Start() error {
 	schemasPath := filepath.Join(d.ExportDir, "data", "schemas", d.ExporterRole)
 	err = os.MkdirAll(schemasPath, 0755)
 	if err != nil {
-		return goerrors.Errorf("Error creating schemas directory: %v", err)
+		return goerrors.Errorf("Error creating schemas directory: %w", err)
 	}
 
 	var YB_OR_PG_CONNECTOR_PATH string
@@ -134,14 +205,14 @@ func (d *Debezium) Start() error {
 	}
 	err = d.setupLogFile()
 	if err != nil {
-		return goerrors.Errorf("Error setting up logging for debezium: %v", err)
+		return goerrors.Errorf("Error setting up logging for debezium: %w", err)
 	}
 	d.registerExitHandlers()
 	log.Debugf("debezium command: %v", d.cmd)
 
 	err = d.cmd.Start()
 	if err != nil {
-		return goerrors.Errorf("Error starting debezium: %v", err)
+		return goerrors.Errorf("Error starting debezium: %w", err)
 	}
 	log.Infof("Debezium started successfully with pid = %d", d.cmd.Process.Pid)
 
@@ -159,13 +230,13 @@ func (d *Debezium) Start() error {
 func (d *Debezium) setupLogFile() error {
 	logFilePath, err := filepath.Abs(filepath.Join(d.ExportDir, "logs", fmt.Sprintf("debezium-%s.log", d.ExporterRole)))
 	if err != nil {
-		return goerrors.Errorf("failed to create absolute path:%v", err)
+		return goerrors.Errorf("failed to create absolute path:%w", err)
 	}
 
 	logRotator := &lumberjack.Logger{
 		Filename:   logFilePath,
-		MaxSize:    200, // 200 MB log size before rotation
-		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
+		MaxSize:    d.LogMaxSizeMB, // log size in MB before rotation
+		MaxBackups: config.LumberjackMaxBackups(d.LogMaxBackups),
 	}
 	d.cmd.Stdout = logRotator
 	d.cmd.Stderr = logRotator
@@ -202,7 +273,7 @@ func (d *Debezium) Stop() error {
 		log.Infof("Stopping debezium...")
 		err := d.cmd.Process.Signal(syscall.SIGTERM)
 		if err != nil {
-			return goerrors.Errorf("Error sending signal to SIGTERM: %v", err)
+			return goerrors.Errorf("Error sending signal to SIGTERM: %w", err)
 		}
 		go func() {
 			// wait for a certain time for debezium to shut down before force killing the process.
@@ -217,7 +288,7 @@ func (d *Debezium) Stop() error {
 				}
 			}
 		}()
-		d.cmd.Wait()
+		_ = d.cmd.Wait() // reaping after a deliberate stop; a non-zero exit is expected here
 		d.done = true
 		log.Info("Stopped debezium.")
 	}
@@ -233,7 +304,7 @@ func GetPIDOfDebeziumOnExportDir(exportDir string, exporterRole string) (string,
 	//read the lock file to get the pid of the process
 	pid, err := os.ReadFile(dbzmLockFile)
 	if err != nil {
-		return "", goerrors.Errorf("read debezium lock file: %v", err)
+		return "", goerrors.Errorf("read debezium lock file: %w", err)
 	}
 	pidStr := strings.TrimSuffix(string(pid), "\n")
 	return pidStr, nil

@@ -193,37 +193,35 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 			})
 
 			constraints := element.GetColumnDef().GetConstraints()
-			if constraints != nil {
-				for idx, c := range constraints {
-					constraint := c.GetConstraint()
-					if slices.Contains(deferrableConstraintsList, constraint.Contype) {
-						/*
-								e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
+			for idx, c := range constraints {
+				constraint := c.GetConstraint()
+				if slices.Contains(deferrableConstraintsList, constraint.Contype) {
+					/*
+							e.g. create table unique_def_test(id int UNIQUE DEFERRABLE, c1 int);
 
-								create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}
-								table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
-								typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}}
-								constraints:{constraint:{contype:CONSTR_ATTR_DEFERRABLE  location:45}}  location:31}}  ....
+							create_stmt:{relation:{relname:"unique_def_test"  inh:true  relpersistence:"p"  location:15}
+							table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}
+							typemod:-1  location:34}  is_local:true  constraints:{constraint:{contype:CONSTR_UNIQUE  location:38}}
+							constraints:{constraint:{contype:CONSTR_ATTR_DEFERRABLE  location:45}}  location:31}}  ....
 
-							here checking the case where this clause is in column definition so iterating over each column_def and in that
-							constraint type has deferrable or not and also it should not be a foreign constraint as Deferrable on FKs are
-							supported.
-						*/
-						if idx > 0 {
-							lastConstraint := table.Constraints[len(table.Constraints)-1]
-							lastConstraint.IsDeferrable = true
-							table.Constraints[len(table.Constraints)-1] = lastConstraint
-						}
-					} else {
-						/*
-							table_elts:{column_def:{colname:"abc_id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1
-							location:45}  is_local:true  constraints:{constraint:{contype:CONSTR_FOREIGN  initially_valid:true  pktable:{schemaname:"schema1"
-							relname:"abc"  inh:true  relpersistence:"p"  location:60}  pk_attrs:{string:{sval:"id"}}  fk_matchtype:"s"  fk_upd_action:"a"  fk_del_action:"a"
-
-							In case of FKs there is field called PkTable which has reference table information
-						*/
-						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable, constraint.PkAttrs)
+						here checking the case where this clause is in column definition so iterating over each column_def and in that
+						constraint type has deferrable or not and also it should not be a foreign constraint as Deferrable on FKs are
+						supported.
+					*/
+					if idx > 0 {
+						lastConstraint := table.Constraints[len(table.Constraints)-1]
+						lastConstraint.IsDeferrable = true
+						table.Constraints[len(table.Constraints)-1] = lastConstraint
 					}
+				} else {
+					/*
+						table_elts:{column_def:{colname:"abc_id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  typemod:-1
+						location:45}  is_local:true  constraints:{constraint:{contype:CONSTR_FOREIGN  initially_valid:true  pktable:{schemaname:"schema1"
+						relname:"abc"  inh:true  relpersistence:"p"  location:60}  pk_attrs:{string:{sval:"id"}}  fk_matchtype:"s"  fk_upd_action:"a"  fk_del_action:"a"
+
+						In case of FKs there is field called PkTable which has reference table information
+					*/
+					table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable, constraint.PkAttrs)
 				}
 			}
 
@@ -1246,7 +1244,7 @@ func (cp *CollationProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 	schema, colName := getSchemaAndObjectName(defineStmt.Defnames)
 	defNamesWithValues, err := TraverseAndExtractDefNamesFromDefElem(defineStmt.ProtoReflect())
 	if err != nil {
-		return nil, goerrors.Errorf("error getting the defElems in collation: %v", err)
+		return nil, goerrors.Errorf("error getting the defElems in collation: %w", err)
 	}
 	collation := Collation{
 		SchemaName:    schema,
@@ -1328,7 +1326,7 @@ func (ep *ExtensionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 	*/
 	defNames, err := TraverseAndExtractDefNamesFromDefElem(extensionNode.CreateExtensionStmt.ProtoReflect())
 	if err != nil {
-		return nil, goerrors.Errorf("error getting the defElems in extension: %v", err)
+		return nil, goerrors.Errorf("error getting the defElems in extension: %w", err)
 	}
 
 	extension := &Extension{

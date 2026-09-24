@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -202,9 +203,32 @@ func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]stri
 	return columns, nil
 }
 
+// GetPrimaryKeyColumnsForTables returns per-table primary-key columns. Implemented for
+// completion (Oracle targets are only used in fall-forward/fall-back where the fast path is
+// not valid); it delegates to the single-table variant.
+func (tdb *TargetOracleDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for _, table := range tables {
+		cols, err := tdb.GetPrimaryKeyColumns(table)
+		if err != nil {
+			return nil, err
+		}
+		result.Put(table, cols)
+	}
+	return result, nil
+}
+
 // No need to implement GetPrimaryKeyColumns for Oracle fall-forward/fall-back as fast path is not valid there
 func (tdb *TargetOracleDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
 	return nil, nil
+}
+
+// GetTableToUniqueIndexesMap returns an empty map for Oracle targets. Oracle
+// import targets always use PARTITION_BY_TABLE during live migration (all events
+// of a table run sequentially on a single channel), so unique-key conflict
+// detection never runs and no unique-index metadata is needed.
+func (tdb *TargetOracleDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
+	return utils.NewStructMap[sqlname.NameTuple, []UniqueIndex](), nil
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -318,7 +342,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	if err != nil {
 		return 0, fmt.Errorf("open batch file %q: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer utils.CloseAndLogOnError(batch.GetFilePath(), file)
 
 	//setting the schema so that the table is created in the correct schema
 	tdb.setTargetSchema(conn)
@@ -375,7 +399,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	if err != nil {
 		return 0, err
 	}
-	defer sqlldrLogFile.Close()
+	defer utils.CloseAndLogOnError(sqlldrLogFilePath, sqlldrLogFile)
 
 	user := tdb.tconf.User
 	password := tdb.tconf.Password
@@ -495,6 +519,10 @@ func (tdb *TargetOracleDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 	return columns, nil
 }
 
+func (tdb *TargetOracleDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
+	return tdb.FindBestMatchingColumnName(columnName, targetTableColumns)
+}
+
 // execute all events sequentially one by one in a single transaction
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
@@ -506,21 +534,21 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		}
 		defer func() {
 			errRollBack := tx.Rollback()
-			if errRollBack != nil && errRollBack != sql.ErrTxDone {
-				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), err)
+			if errRollBack != nil && !errors.Is(errRollBack, sql.ErrTxDone) {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.ID(), errRollBack)
 			}
 		}()
 		var rowsAffectedInserts, rowsAffectedDeletes, rowsAffectedUpdates int64
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt, err := event.GetSQLStmt(tdb)
+			stmt, err := event.GetSQLStmt(tdb, true)
 			if err != nil {
 				return false, fmt.Errorf("get sql stmt: %w", err)
 			}
 			if event.Op == "c" {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt, err := event.GetSQLStmt(tdb)
+				updateStmt, err := event.GetSQLStmt(tdb, true)
 				if err != nil {
 					return false, fmt.Errorf("get sql stmt: %w", err)
 				}

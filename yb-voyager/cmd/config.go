@@ -52,7 +52,7 @@ var commandsUsingTargetConfig = []string{
 }
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"export-dir", "log-level", "send-diagnostics",
+	"export-dir", "log-level", "log-max-size-mb", "log-max-backups", "send-diagnostics",
 	"profile",
 	// environment variables keys
 	"control-plane-type", "java-home",
@@ -75,7 +75,7 @@ var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"name", "db-host", "db-port", "db-user", "db-password", "db-name",
+	"name", "db-type", "db-host", "db-port", "db-user", "db-password", "db-name",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert", "ssl-crl",
 )
 
@@ -88,7 +88,7 @@ var allowedYBAeonControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
 	"invoked-by-export-schema",
 	// environment variables keys
@@ -96,52 +96,54 @@ var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"output-format", "target-db-version",
 	// environment variables keys
 	"report-unsupported-plpgsql-objects",
 )
 
 var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
 	"skip-colocation-recommendations", "assessment-report-path",
 	"skip-performance-recommendations",
 	"assess-schema-before-export",
+	"disable-schema-snapshot-capture",
 	// environment variables keys
 	"ybvoyager-skip-merge-constraints-transformation",
 )
 
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
-	"allow-oracle-clob-data-export",
+	"allow-oracle-clob-data-export", "metrics-port",
+	"disable-schema-snapshot-capture", "schema-snapshot-capture-interval",
 	// environment variables keys
 	"queue-segment-max-bytes", "debezium-dist-dir", "beta-fast-data-export",
 )
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
-	"table-list-file-path", "transaction-ordering",
+	"table-list-file-path", "transaction-ordering", "metrics-port",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
 	"ignore-exist", "enable-orafce",
 )
 
 var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"continue-on-error", "ignore-exist", "refresh-mviews",
 )
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
 	"disable-pb", "max-retries-streaming", "exclude-table-list", "table-list",
@@ -150,18 +152,21 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"on-primary-key-conflict", "disable-transactional-writes",
-	"truncate-splits", "prometheus-metrics-port",
+	"truncate-splits", "prometheus-metrics-port", "metrics-port",
+	"use-partition-root", "disable-sequential-scan-on-update-deletes",
 
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
+
+	"cdc-partition-key", "cdc-partition-key-overrides",
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
-	"parallel-jobs", "disable-pb", "prometheus-metrics-port",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
+	"parallel-jobs", "disable-pb", "prometheus-metrics-port", "metrics-port", "use-partition-root",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
@@ -169,9 +174,9 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level", "run-guardrails-checks",
+	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries-streaming",
-	"prometheus-metrics-port",
+	"prometheus-metrics-port", "metrics-port",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
@@ -179,7 +184,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"disable-pb", "max-retries-streaming", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
@@ -187,7 +192,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
 	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
 	"max-concurrent-batch-productions", "enable-random-batch-production",
-	"prometheus-metrics-port",
+	"prometheus-metrics-port", "metrics-port",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
@@ -202,12 +207,12 @@ var allowedInitCutoverToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"restart-data-migration-source-target",
 )
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"policy", "archive-dir", "fs-utilization-threshold",
 )
 
 var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"log-level",
+	"log-level", "log-max-size-mb", "log-max-backups",
 	"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files",
 	"backup-dir",
 )
@@ -239,9 +244,9 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 }
 
 // Define mutually exclusive section groups
-var aliasCommandsPrefixes = [][]string{
-	{"export-data", "export-data-from-source"},
-	{"import-data", "import-data-to-target"},
+var aliasCommandsPrefixes = map[string][]string{
+	"export-data": {"export-data", "export-data-from-source"},
+	"import-data": {"import-data", "import-data-to-target"},
 }
 
 // ConfigParam represents a CLI flag/Config/EnvVar whose value was set by the user depending on the mode of configuration.
@@ -300,7 +305,9 @@ func initConfig(cmd *cobra.Command) (map[string]string, error) {
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err == nil {
 		cfgFile = v.ConfigFileUsed()
-		utils.PrintfInfo("Using config file: %s\n", utils.Path.Sprint(v.ConfigFileUsed()))
+		if !suppressInfoMessages {
+			utils.PrintfInfo("Using config file: %s\n", utils.Path.Sprint(v.ConfigFileUsed()))
+		}
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
@@ -376,7 +383,7 @@ var confParamEnvVarPairs = map[string]string{
 
 	"import-data.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
-	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data.event-channel-size":                          "EVENT_CHANNEL_SIZE",
 	"import-data.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
 	"import-data.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
@@ -388,7 +395,7 @@ var confParamEnvVarPairs = map[string]string{
 
 	"import-data-to-target.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data-to-target.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
-	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data-to-target.event-channel-size":                          "EVENT_CHANNEL_SIZE",
 	"import-data-to-target.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
 	"import-data-to-target.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
@@ -399,13 +406,13 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data-to-target.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
 	"import-data-to-source-replica.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
-	"import-data-to-source-replica.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data-to-source-replica.num-event-channels":                          "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data-to-source-replica.event-channel-size":                          "EVENT_CHANNEL_SIZE",
 	"import-data-to-source-replica.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
 	"import-data-to-source-replica.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
 	"import-data-to-source-replica.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 
-	"import-data-to-source.num-event-channels":           "NUM_EVENT_CHANNELS",
+	"import-data-to-source.num-event-channels":           "NUM_EVENT_CHANNELS", // INTERNAL/testing-only, unsafe to change mid-migration; do not recommend to users. See live_migration.go.
 	"import-data-to-source.event-channel-size":           "EVENT_CHANNEL_SIZE",
 	"import-data-to-source.max-events-per-batch":         "MAX_EVENTS_PER_BATCH",
 	"import-data-to-source.max-interval-between-batches": "MAX_INTERVAL_BETWEEN_BATCHES",
@@ -833,105 +840,6 @@ func setToAliasPrefixIfSet(configKeyPrefix string, v *viper.Viper) string {
 		}
 	}
 	return configKeyPrefix
-}
-
-/*
-readAndValidateConfigFile reads the config file and validates it.
-This functions is called only by readConfigFileAndGetExportDataFromTargetKeys and readConfigFileAndGetImportDataToSourceKeys functions.
-It returns a Viper instance if the config file is set and found, or an error if there are issues with the file.
-It does the following:
-1. If the config file is set, it reads the file using Viper.
-2. If the file is read successfully, it validates the config file for allowed keys and sections.
-3. If the cfgFile variable is empty or an error occurs while reading the file, it returns nil for the Viper instance.
-4. If the config file is read and validated successfully, it returns the Viper instance.
-*/
-func readAndValidateConfigFile() (*viper.Viper, error) {
-	if cfgFile == "" {
-		return nil, nil
-	}
-
-	v := viper.New()
-	v.SetConfigFile(cfgFile)
-
-	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	// Validate the config file for allowed keys and sections
-	err := validateConfigFile(v)
-	if err != nil {
-		return nil, err
-	}
-
-	return v, nil
-}
-
-/*
-readConfigFileAndGetExportDataFromTargetKeys reads the config file and returns the export-data-from-target keys.
-It returns a slice of strings containing the keys that are set in the config file.
-It does the following:
-1. It calls readAndValidateConfigFile to read the config file and validate it.
-2. If and error occurs in this, it returns an error and a nil slice.
-3. If viper instance is nil, it returns an empty slice.
-4. If the config file is read and validated successfully, it returns a slice of strings containing the keys that are set in the config file.
-*/
-func readConfigFileAndGetExportDataFromTargetKeys() ([]string, error) {
-	v, err := readAndValidateConfigFile()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read and validate config file: %w", err)
-	}
-	if v == nil {
-		return []string{}, nil
-	}
-
-	// Get the export-data-from-target keys that are set in the config file
-	exportDataFromTargetKeys := []string{}
-	const keyPrefix = "export-data-from-target."
-	for _, key := range v.AllKeys() {
-		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
-			// Extract the key name after the prefix
-			key = strings.TrimPrefix(key, keyPrefix)
-			key = strings.TrimSpace(key)
-			// Add the key to the list
-			exportDataFromTargetKeys = append(exportDataFromTargetKeys, key)
-		}
-	}
-
-	return exportDataFromTargetKeys, nil
-}
-
-/*
-readConfigFileAndGetImportDataToSourceKeys reads the config file and returns the import-data-to-source keys.
-It returns a slice of strings containing the keys that are set in the config file.
-It does the following:
-1. It calls readAndValidateConfigFile to read the config file and validate it.
-2. If and error occurs in this, it returns an error and a nil slice.
-3. If viper instance is nil, it returns an empty slice.
-4. If the config file is read and validated successfully, it returns a slice of strings containing the keys that are set in the config file.
-*/
-func readConfigFileAndGetImportDataToSourceKeys() ([]string, error) {
-	v, err := readAndValidateConfigFile()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read and validate config file: %w", err)
-	}
-	if v == nil {
-		return []string{}, nil
-	}
-
-	// Get the import-data-to-source keys that are set in the config file
-	importDataToSourceKeys := []string{}
-	const keyPrefix = "import-data-to-source."
-	for _, key := range v.AllKeys() {
-		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
-			// Extract the key name after the prefix
-			key = strings.TrimPrefix(key, keyPrefix)
-			key = strings.TrimSpace(key)
-			// Add the key to the list
-			importDataToSourceKeys = append(importDataToSourceKeys, key)
-		}
-	}
-
-	return importDataToSourceKeys, nil
 }
 
 // loadControlPlaneConfig reads control plane configuration from viper instance

@@ -41,7 +41,7 @@ func main() {
 	atexit.Register(restoreTerminalState) // ensure terminal is always restored
 	cmd.Execute()
 	cmd.PrintElapsedDuration()
-	if cmd.ProcessShutdownRequested {
+	if cmd.ProcessShutdownRequested.Load() {
 		utils.PrintAndLogf("waiting for exit handlers to complete the cleanup")
 		time.Sleep(time.Second * 120) // using here larger value than what we have for debezium(100sec)
 	}
@@ -54,11 +54,14 @@ func registerSignalHandlers() {
 		sig := <-sigs
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
+			cmd.ShutdownImportProgressBars()
 			utils.PrintAndLogf("\nReceived signal %s. Exiting...", sig)
-			cmd.ProcessShutdownRequested = true
+			cmd.ProcessShutdownRequested.Store(true)
 		case syscall.SIGUSR2:
+			cmd.ShutdownImportProgressBars()
 			utils.PrintAndLogf("\nReceived signal to terminate due to end migration command. Exiting...")
-			cmd.ProcessShutdownRequested = true
+			cmd.ProcessShutdownRequested.Store(true)
+			cmd.EndMigrationStopRequested.Store(true)
 		case syscall.SIGUSR1:
 			cmd.StopArchiverSignal = true
 			return
@@ -77,7 +80,7 @@ func captureTerminalState() {
 	// Capture the original terminal state
 	state, err := term.GetState(int(syscall.Stdin))
 	if err != nil {
-		utils.ErrExit("error capturing terminal state: %v\n", err)
+		utils.ErrExit("error capturing terminal state: %w\n", err)
 	}
 	originalTermState = state
 }

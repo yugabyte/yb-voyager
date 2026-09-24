@@ -33,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -99,6 +100,8 @@ type FileTaskImporter struct {
 
 	errorHandler             importdata.ImportDataErrorHandler
 	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
+
+	resumeInfoShown bool
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProducer FileBatchProducer, workerPool *pool.Pool,
@@ -108,6 +111,22 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
+
+	if currentProgressAmount == 0 {
+		metrics.Get().SetImportSnapshotTableStarted(importerRole, task.TableNameTup)
+	}
+
+	resumeInfoShown := false
+	if currentProgressAmount > 0 {
+		var resumeMsg string
+		if reportProgressInBytes {
+			resumeMsg = "Resuming"
+		} else {
+			resumeMsg = fmt.Sprintf("Resuming: %d rows imported", currentProgressAmount)
+		}
+		progressReporter.AddResumeInformation(task, resumeMsg)
+		resumeInfoShown = true
+	}
 
 	fti := &FileTaskImporter{
 		state:                     state,
@@ -122,6 +141,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchProd
 		currentProgressAmount:     currentProgressAmount,
 		errorHandler:              errorHandler,
 		callhomeMetricsCollector:  callhomeMetricsCollector,
+		resumeInfoShown:           resumeInfoShown,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -187,7 +207,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		fti.workerPool.Go(importBatchFunc)
 	}
 
-	importdata.RecordPrometheusSnapshotBatchSubmitted(fti.task.TableNameTup, importerRole)
+	metrics.Get().RecordImportSnapshotBatchSubmitted(importerRole, fti.task.TableNameTup)
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
@@ -202,9 +222,13 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		// an empty batch is possible in case there are errors while reading and procesing rows in the file
 		// and the errors are handled by the error handler.
 		log.Infof("Skipping empty batch: %s", spew.Sdump(batch))
+		err = batch.MarkInProgress()
+		if err != nil {
+			utils.ErrExit("marking empty batch as in progress: %q: %w", batch.FilePath, err)
+		}
 		err = batch.MarkDone()
 		if err != nil {
-			utils.ErrExit("marking empty batch as done: %q: %s", batch.FilePath, err)
+			utils.ErrExit("marking empty batch as done: %q: %w", batch.FilePath, err)
 		}
 		return
 	}
@@ -220,7 +244,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	if !recoveryBatch {
 		err = batch.MarkInProgress()
 		if err != nil {
-			utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
+			utils.ErrExit("marking batch as pending: %d: %w", batch.Number, err)
 		}
 	}
 
@@ -272,20 +296,24 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 
 		// Handle the error
 		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-		var err2 error
-		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
+		err2 := fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
 		if err2 != nil {
-			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
+			utils.ErrExit("handling error for batch: %q into %s: %w", batch.FilePath, batch.TableNameTup, err2)
 		}
 	} else {
 		err = batch.MarkDone()
 		if err != nil {
-			utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+			utils.ErrExit("marking batch as done: %q: %w", batch.FilePath, err)
 		}
 	}
 }
 
 func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
+	if fti.resumeInfoShown {
+		fti.progressReporter.RemoveResumeInformation(fti.task)
+		fti.resumeInfoShown = false
+	}
+
 	// Update basic progress update for progress bar and control plane.
 	var progressAmount int64
 	if reportProgressInBytes {
@@ -307,7 +335,8 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 	}
 
-	importdata.RecordPrometheusSnapshotBatchIngested(fti.task.TableNameTup, importerRole, batch.RecordCount, batch.ByteCount)
+	metrics.Get().RecordImportSnapshotBatchIngested(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
+	metrics.Get().ObserveImportSnapshotBatchSize(importerRole, fti.task.TableNameTup, batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
@@ -316,6 +345,8 @@ func (fti *FileTaskImporter) PostProcess() {
 	}
 
 	fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_COMPLETED)
+
+	metrics.Get().SetImportSnapshotTableCompleted(importerRole, fti.task.TableNameTup)
 
 	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
 }
@@ -343,13 +374,13 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 	if reportProgressInBytes {
 		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported byte count for table: %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported byte count for table: %s: %w", task.TableNameTup, err)
 		}
 		return byteCount
 	} else {
 		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table: %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported row count for table: %s: %w", task.TableNameTup, err)
 		}
 		return rowCount
 	}
@@ -382,7 +413,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	columns, _ := TableToColumnNames.Get(tableNameTup)
 	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
 	if err != nil {
-		utils.ErrExit("if required quote column names: %s", err)
+		utils.ErrExit("if required quote column names: %w", err)
 	}
 
 	/*
@@ -391,18 +422,19 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
 	*/
 	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
-	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup})
 	if err != nil {
-		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
+		utils.ErrExit("getting primary key columns for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}
+	pkColumns, _ := tableToPKColumns.Get(tableNameTup)
 	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
 	if err != nil {
-		utils.ErrExit("if required quote primary key column names: %s", err)
+		utils.ErrExit("if required quote primary key column names: %w", err)
 	}
 
 	pkConstraintNames, err := tdb.GetPrimaryKeyConstraintNames(tableNameTup)
 	if err != nil {
-		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
+		utils.ErrExit("getting primary key constraint name for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}
 
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.

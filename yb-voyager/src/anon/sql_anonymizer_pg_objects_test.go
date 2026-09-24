@@ -444,7 +444,6 @@ func TestMissingNodeAnonymization(t *testing.T) {
 	type missingNodeCase struct {
 		key              string   // unique test identifier
 		sql              string   // the SQL statement to test
-		nodeType         string   // PostgreSQL node type being tested
 		shouldAnonymize  []string // identifiers that should be anonymized
 		expectedPrefixes []string // expected anonymization prefixes in output
 		skipReason       string   // reason if test should be skipped

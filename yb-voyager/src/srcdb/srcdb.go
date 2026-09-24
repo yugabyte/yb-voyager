@@ -33,6 +33,8 @@ type SourceDB interface {
 	GetTableRowCount(tableName sqlname.NameTuple) (int64, error)
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
+	FetchDBID() error
+	FetchSchemaOids() error
 	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
@@ -50,16 +52,22 @@ type SourceDB interface {
 	GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error)
 	GetServers() []string
 	GetPartitions(table sqlname.NameTuple) []string
-	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
+	GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
+	// GetGeneratedStoredColumns returns, per table, the names of its STORED generated
+	// columns on the source. Used during live migration to decide the CDC partitioning
+	// strategy: a table whose unique index / primary key covers a generated column must be
+	// PARTITION_BY_TABLE, because generated column values are absent from the change events.
+	GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
 	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)
 	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error)
-	GetMissingAssessMigrationPermissions() ([]string, bool, error)
+	GetMissingAssessMigrationPermissions() ([]string, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)
+	GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error)
 	Query(query string) (*sql.Rows, error)
 	QueryRow(query string) *sql.Row
 }

@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
-
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 
@@ -39,7 +38,12 @@ const (
 )
 
 type Config struct {
-	LogLevel           string
+	LogLevel string
+	// LogMaxSizeMB and LogMaxBackups control rotation of debezium-<role>.log, mirroring
+	// the settings applied to yb-voyager's own log file. LogMaxBackups uses the
+	// config.LogMaxBackupsUnlimited sentinel for "retain all rotated files".
+	LogMaxSizeMB       int
+	LogMaxBackups      int
 	MigrationUUID      uuid.UUID
 	RunId              string
 	SourceDBType       string
@@ -60,6 +64,7 @@ type Config struct {
 	ColumnSequenceMapping       string
 	InitSequenceMaxMapping      string
 	TableRenameMapping          string
+	PartitionToRootMapping      string
 	ColumnList                  []string
 	Uri                         string
 	TNSAdmin                    string
@@ -118,6 +123,7 @@ debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.sequence.max.map=%s
 debezium.sink.ybexporter.tables.rename=%s
+debezium.sink.ybexporter.partition.to.root.mapping=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
@@ -343,6 +349,7 @@ func (c *Config) String() string {
 			c.ColumnSequenceMapping,
 			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
+			c.PartitionToRootMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -378,6 +385,7 @@ func (c *Config) String() string {
 				c.ColumnSequenceMapping,
 				c.InitSequenceMaxMapping,
 				c.TableRenameMapping,
+				c.PartitionToRootMapping,
 				queueSegmentMaxBytes,
 				c.MetadataDBPath,
 				c.RunId,
@@ -415,6 +423,7 @@ func (c *Config) String() string {
 				c.ColumnSequenceMapping,
 				c.InitSequenceMaxMapping,
 				c.TableRenameMapping,
+				c.PartitionToRootMapping,
 				queueSegmentMaxBytes,
 				c.MetadataDBPath,
 				c.RunId,
@@ -450,6 +459,7 @@ func (c *Config) String() string {
 			c.ColumnSequenceMapping,
 			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
+			c.PartitionToRootMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -482,6 +492,7 @@ func (c *Config) String() string {
 			c.ColumnSequenceMapping,
 			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
+			c.PartitionToRootMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -506,6 +517,7 @@ func (c *Config) String() string {
 		conf += fmt.Sprintf("\ndebezium.source.column.include.list=%s", strings.Join(c.ColumnList, ","))
 	}
 
+
 	return conf
 }
 
@@ -516,7 +528,7 @@ func (c *Config) WriteToFile(filePath string) error {
 	}
 	err := os.WriteFile(filePath, []byte(config), 0644)
 	if err != nil {
-		return goerrors.Errorf("failed to write config file %s: %v", filePath, err)
+		return goerrors.Errorf("failed to write config file %s: %w", filePath, err)
 	}
 	return nil
 }

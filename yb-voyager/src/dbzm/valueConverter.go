@@ -113,7 +113,10 @@ func getDebeziumValueConverterSuite(tconf tgtdb.TargetConf) (map[string]tgtdbsui
 			}
 		}
 		return oraValueConverterSuite, nil
-	case tgtdb.YUGABYTEDB, tgtdb.POSTGRESQL:
+	case tgtdb.YUGABYTEDB, tgtdb.YUGABYTEDB_AMP, tgtdb.POSTGRESQL:
+		// yb-amp is a PostgreSQL-wire compute; it consumes the same Debezium
+		// value representations as PostgreSQL/YugabyteDB. Used by both the live
+		// snapshot and the CDC streaming value converters.
 		return tgtdbsuite.YBValueConverterSuite, nil
 	default:
 		return nil, goerrors.Errorf("no converter suite found for %s", tconf.TargetDBType)
@@ -264,8 +267,14 @@ func (crp *CsvRowProcessor) ReadRow(row string) ([]string, error) {
 func (crp *CsvRowProcessor) WriteRow(columnValues []string) (string, error) {
 	crp.bufWriter.Reset(crp.wbuf)
 	csvWriter := csv.NewWriter(crp.bufWriter)
-	csvWriter.Write(columnValues)
+	err := csvWriter.Write(columnValues)
+	if err != nil {
+		return "", fmt.Errorf("writing csv row: %w", err)
+	}
 	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return "", fmt.Errorf("flushing csv row: %w", err)
+	}
 	row := strings.TrimSuffix(crp.wbuf.String(), "\n")
 	crp.wbuf.Reset()
 	return row, nil

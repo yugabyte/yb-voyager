@@ -119,7 +119,7 @@ func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error
 func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return goerrors.Errorf("get migration status record: %v", err)
+		return goerrors.Errorf("get migration status record: %w", err)
 	}
 	sourceDBConf := msr.SourceDBConf
 	targetConf := msr.TargetDBConf
@@ -173,7 +173,7 @@ func packAndSendExportDataFromTargetPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 	payload.MigrationType = LIVE_MIGRATION
 
 	targetDBDetails := callhome.TargetDBDetails{

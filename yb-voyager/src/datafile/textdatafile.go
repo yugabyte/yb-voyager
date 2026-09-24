@@ -62,7 +62,10 @@ func (df *TextDataFile) NextLine() (string, int64, error) {
 }
 
 func (df *TextDataFile) Close() {
-	df.closer.Close()
+	err := df.closer.Close()
+	if err != nil {
+		log.Warnf("closing text data file reader: %v", err)
+	}
 }
 
 func (df *TextDataFile) GetBytesRead() int64 {
@@ -88,7 +91,7 @@ func (df *TextDataFile) GetHeader() string {
 
 	line, _, err := df.NextLine()
 	if err != nil {
-		utils.ErrExit("finding header for text data file: %v", err)
+		utils.ErrExit("finding header for text data file: %w", err)
 	}
 
 	df.Header = line

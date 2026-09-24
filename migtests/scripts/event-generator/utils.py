@@ -50,8 +50,11 @@ CONFIG_SCHEMA: Dict[str, Dict[str, Any]] = {
         "delete_rows": int,
         "insert_max_retries": int,
         "update_max_retries": int,
+        "min_col_size_bytes": int,
         "enable_index_create_drop": bool,
         "index_events_interval": int,
+        "column_overrides": dict,
+        "exclude_columns_from_update": dict,
     },
 }
 
@@ -73,7 +76,7 @@ def load_yaml_file(path: str) -> Dict[str, Any]:
 
 def validate_section(section: Dict[str, Any], schema: Dict[str, Any], section_name: str) -> None:
     # Optional fields that don't need to be present (for backward compatibility)
-    optional_fields = {"enable_index_create_drop","index_events_interval"}
+    optional_fields = {"enable_index_create_drop","index_events_interval","column_overrides","min_col_size_bytes","exclude_columns_from_update"}
     
     for key, expected_type in schema.items():
         if key not in section:
@@ -167,6 +170,60 @@ def get_estimated_row_count(
 
 def set_faker_seed(seed: int) -> None:
     _fake.seed_instance(seed)
+
+
+# ----- Column override helpers -----
+
+def generate_override_value(override_spec: Dict[str, Any]) -> Any:
+    """Generate a value based on a column_overrides spec entry.
+
+    Supported override types:
+      - choice: pick randomly from a list of values
+      - timestamp_range: random timestamp between min and max (ISO format strings)
+      - date_range: random date between min and max (YYYY-MM-DD strings)
+      - int_range: random integer between min and max
+    """
+    from datetime import datetime, timedelta, date as date_type
+
+    override_type = override_spec.get("type")
+
+    if override_type == "choice":
+        return random.choice(override_spec["values"])
+
+    elif override_type == "timestamp_range":
+        min_ts = datetime.fromisoformat(override_spec["min"])
+        max_ts = datetime.fromisoformat(override_spec["max"])
+        delta = (max_ts - min_ts).total_seconds()
+        random_seconds = random.uniform(0, delta)
+        result = min_ts + timedelta(seconds=random_seconds)
+        return result.strftime("%Y-%m-%d %H:%M:%S")
+
+    elif override_type == "date_range":
+        min_d = date_type.fromisoformat(override_spec["min"])
+        max_d = date_type.fromisoformat(override_spec["max"])
+        delta_days = (max_d - min_d).days
+        random_days = random.randint(0, delta_days)
+        result = min_d + timedelta(days=random_days)
+        return result.isoformat()
+
+    elif override_type == "int_range":
+        return random.randint(override_spec["min"], override_spec["max"])
+
+    else:
+        raise ValueError(f"Unknown column_overrides type: {override_type}")
+
+
+def get_column_override(
+    column_overrides: Dict[str, Any],
+    table_name: str,
+    column_name: str,
+) -> Optional[Dict[str, Any]]:
+    """Look up an override spec for a given table.column, or None."""
+    table_overrides = column_overrides.get(table_name)
+    if not table_overrides:
+        return None
+    return table_overrides.get(column_name)
+
 
 # ----- Schema discovery/introspection -----
 
@@ -273,7 +330,19 @@ def get_table_description(cursor: Any, table_name: str, schema_name: Optional[st
             """, (regclass, column_name))
             precision, scale = cursor.fetchone()
             column_info[i] = (column_name, f"{data_type}({precision},{scale})")
-
+        elif data_type == 'character varying' or data_type == 'varchar' or data_type == 'char' or data_type == 'character':
+            where_prefix, where_params = _schema_filter(schema_name)
+            cursor.execute(
+                f"""
+                SELECT character_maximum_length
+                FROM information_schema.columns
+                WHERE {where_prefix} column_name = %s AND table_name = %s
+                """,
+                where_params + (column_name, table_name),
+            )
+            character_maximum_length = cursor.fetchone()[0]
+            if character_maximum_length is not None and character_maximum_length > 0:
+                column_info[i] = (column_name, f"{data_type}({character_maximum_length})")
     return column_info
 
 def _build_columns_dict(column_info: List[Tuple[str, str]]) -> Dict[str, str]:
@@ -338,23 +407,56 @@ def _find_primary_key(
     cursor: Any,
     table_name: str,
     schema_name: Optional[str],
-) -> Optional[str]:
-    """Return the name of the primary key column or None if not found."""
+) -> Optional[List[str]]:
+    """Return the primary key column(s) as a list, or None if not found.
+
+    For partitioned tables where the root has no PK, falls back to querying
+    the first child partition's PK.
+    """
     regclass = _qualify_regclass(table_name, schema_name)
-    cursor.execute(
-        """
-            SELECT a.attname
-            FROM pg_index i
-            JOIN pg_class c ON c.oid = i.indrelid
-            JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
-            WHERE c.oid = %s::regclass
-              AND i.indisprimary
-            ORDER BY a.attnum
-        """,
-        (regclass,),
-    )
-    result = cursor.fetchone()
-    return result[0] if result else None
+    pk_query = """
+        SELECT a.attname
+        FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indrelid
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+        WHERE c.oid = %s::regclass
+          AND i.indisprimary
+        ORDER BY a.attnum
+    """
+    cursor.execute(pk_query, (regclass,))
+    rows = cursor.fetchall()
+    if rows:
+        return [r[0] for r in rows]
+
+    # Root partitioned tables often have no PK; walk down through children
+    # until we find a leaf partition that has a PK (handles multilevel partitioning).
+    children_query = """
+        SELECT c.relname
+        FROM pg_inherits i
+        JOIN pg_class c ON c.oid = i.inhrelid
+        JOIN pg_class p ON p.oid = i.inhparent
+        JOIN pg_namespace n ON n.oid = p.relnamespace
+        WHERE p.relname = %s AND n.nspname = %s
+        ORDER BY c.relname
+        LIMIT 1
+    """
+    current = table_name
+    visited = set()
+    while current not in visited:
+        visited.add(current)
+        cursor.execute(children_query, (current, schema_name or 'public'))
+        child = cursor.fetchone()
+        if not child:
+            break
+        child_regclass = _qualify_regclass(child[0], schema_name)
+        cursor.execute(pk_query, (child_regclass,))
+        rows = cursor.fetchall()
+        if rows:
+            pk_cols = [r[0] for r in rows]
+            print(f"PK for '{table_name}' resolved from child '{child[0]}': {pk_cols}")
+            return pk_cols
+        current = child[0]
+    return None
 
 
 def _build_enum_values(
@@ -478,6 +580,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
     """Run index create/drop operations in a separate thread with its own connection."""
     # Create a separate connection for index operations
     index_conn = psycopg2.connect(**get_connection_kwargs_from_config(config))
+    index_conn.autocommit = True
     index_cur = index_conn.cursor()
     db_flavor = detect_db_flavor(index_cur)
 
@@ -490,7 +593,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
         for column_name, data_type in columns.items():
             if data_type not in unsupported_indexable_data_types:
                 indexable_columns.append((table_name, column_name))
-    MAX_RETRIES = 30
+    MAX_RETRIES = 5
     
     print("Index operations thread started")
     
@@ -508,7 +611,7 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
                     if index_col:
                         table, col = index_col
                         idx_name = f"event_gen_idx_{table}_{col}_{random.randint(1000,9999)}"
-                        sql = f'CREATE INDEX "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
+                        sql = f'CREATE INDEX CONCURRENTLY "{idx_name}" ON "{schema_name}"."{table}" ("{col}");'
                     else:
                         print("No columns found to index.")
 
@@ -540,16 +643,17 @@ def run_index_operations(stop_index_thread: threading.Event, config: Dict[str, A
                     while retry_count < MAX_RETRIES:
                         try:
                             index_cur.execute(sql)
-                            index_conn.commit()
                             print(f"Successful operation on index: {idx_name}")
                             time.sleep(index_events_interval)
                             break
                         except psycopg2.Error as e:
-                            print(f"Index operation error: {e}")
-                            index_conn.rollback()
+                            print(f"Index operation error on {idx_name}: {e}")
                             time.sleep(1)
                             retry_count += 1
-                            print(f"Retrying operation on index {idx_name} (attempt {retry_count} of {MAX_RETRIES})")
+                            if retry_count < MAX_RETRIES:
+                                print(f"Retrying operation on index {idx_name} (attempt {retry_count} of {MAX_RETRIES})")
+                    else:
+                        print(f"[INDEX] GIVING UP on {action.upper()} {idx_name} after {MAX_RETRIES} attempts")
 
             except Exception as e:
                 print(f"Unexpected error in index operations: {e}")
@@ -599,16 +703,72 @@ def generate_random_data(
     enum_values: Optional[List[str]] = None,
     array_types: Optional[str] = None,
     faker_instance: Optional[Faker] = None,
+    min_col_size_bytes: int = 0,
 ) -> Any:
     """Generate random data compatible with a Postgres column type."""
     fake = faker_instance or _fake
-    if "varchar" in data_type or "text" in data_type or "character varying" in data_type or "bytea" in data_type:
-        value = ' '.join([fake.word() for _ in range(3)])
-        return value # Change 3 to the desired number of words
+
+    if ("text" in data_type or "bytea" in data_type or (("character varying" in data_type or "varchar" in data_type) and re.search(r"\((\d+)\)", data_type) is None)) and min_col_size_bytes > 0:
+        parts = []
+        batch_size = max(1, min_col_size_bytes // 10)
+        while True:
+            parts.append(fake.pystr(min_chars=batch_size, max_chars=batch_size))
+            value = "".join(parts)
+            if len(value.encode("utf-8")) >= min_col_size_bytes:
+                return value
+
+    elif ("json" in data_type or "jsonb" in data_type) and min_col_size_bytes > 0:
+        obj = {}
+        while len(json.dumps(obj).encode("utf-8")) < min_col_size_bytes:
+            chunk_size = max(1000, min_col_size_bytes // 10)
+            text_value = fake.text(max_nb_chars=chunk_size)
+            obj[fake.word()] = text_value
+        return json.dumps(obj)
+
+    elif "tsvector" in data_type and min_col_size_bytes > 0:
+        words = []
+        while True:
+            chunk_size = max(1000, min_col_size_bytes // 10)  # Generate in chunks
+            text_chunk = fake.text(max_nb_chars=chunk_size)
+            words.append(text_chunk)
+            value = ' '.join(words)
+            if len(value.encode("utf-8")) >= min_col_size_bytes:
+                return value
+
+    elif "ARRAY" in data_type and min_col_size_bytes > 0 and array_types:
+        elements = []
+
+        def gen_elem():
+            if "int" in array_types:
+                return str(random.randint(0, 1_000_000))
+            elif "bool" in array_types:
+                return random.choice(["true", "false"])
+            elif "uuid" in array_types:
+                return f'"{fake.uuid4()}"'
+            else:
+                return f'"{fake.word()}"'
+
+        BATCH_SIZE = max(10, min_col_size_bytes // 10)
+
+        while True:
+            # grow in batches
+            elements.extend(gen_elem() for _ in range(BATCH_SIZE))
+
+            value = "{" + ",".join(elements) + "}"
+
+            if len(value.encode("utf-8")) >= min_col_size_bytes:
+                return value
+
+    elif "varchar" in data_type or "text" in data_type or "character varying" in data_type or "bytea" in data_type or "character" in data_type or "char" in data_type:
+        match = re.search(r"\((\d+)\)", data_type)
+        if match:
+            character_maximum_length = int(match.groups()[0])
+            value = fake.pystr(max_chars=character_maximum_length)
+        else:
+            value = ' '.join([fake.word() for _ in range(3)])
+        return value
     elif "boolean" in data_type:
         return random.choice(["true", "false"])
-    elif "char" in data_type:
-        return fake.word()[:1]
     elif "USER-DEFINED" in data_type and enum_values:
         val = random.choice(enum_values)
         return val
@@ -637,7 +797,7 @@ def generate_random_data(
 
     elif "smallint" in data_type:
         return random.randint(-1000, 1000)
-    elif "integer" in data_type:
+    elif "integer" in data_type or "real" in data_type:
         return random.randint(-200000000, 200000000)
     elif "bigint" in data_type:
         return random.randint(-9223372000000000000, 9223372000000000000)
@@ -676,6 +836,10 @@ def generate_random_data(
     elif "tsvector" in data_type:
         words = [fake.word() for _ in range(5)]
         return ' '.join(words)
+
+    elif "tsquery" in data_type:
+        words = [fake.word() for _ in range(5)]
+        return ' & '.join(words)
     
     # -- START: BIT TYPES --
     elif "bit" in data_type.lower():
@@ -693,21 +857,41 @@ def build_insert_values(
     table_schemas: Dict[str, Dict[str, Any]],
     table_name: str,
     number_of_rows_to_insert: int,
+    min_col_size_bytes: int = 0,
+    column_overrides: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build VALUES list like (v1, v2), (v1, v2) for INSERT ... VALUES ..."""
     rows = []
     for _ in range(number_of_rows_to_insert):
         values = []
+
         for column_name, data_type in table_schemas[table_name]["columns"].items():
-            if "bit" in data_type.lower():
+            override_spec = get_column_override(column_overrides or {}, table_name, column_name)
+            if override_spec:
+                value = generate_override_value(override_spec)
+                values.append(f"'{value}'" if value is not None else "NULL")
+            elif "bit" in data_type.lower():
                 values.append(build_bit_cast_expr(table_schemas, table_name, column_name))
             elif data_type != "USER-DEFINED" and data_type != "ARRAY":
-                values.append(f"'{generate_random_data(data_type, table_name, None, None)}'")
+                value = generate_random_data(data_type, table_name, None, None, None, min_col_size_bytes)
+                if "bytea" in data_type and isinstance(value, bytes):
+                    hex_value = value.hex()
+                    values.append(f"'\\\\x{hex_value}'")
+                else:
+                    if isinstance(value, str):
+                        escaped_value = value.replace("'", "''")
+                        values.append(f"'{escaped_value}'")
+                    else:
+                        values.append(f"'{value}'" if value is not None else "NULL")
             else:
                 enum_values = fetch_enum_values_for_column(table_schemas, table_name, column_name)
                 array_types = fetch_array_types_for_column(table_schemas, table_name, column_name)
-                value = generate_random_data(data_type, table_name, enum_values, array_types)
-                values.append(f"'{value}'" if value is not None else "NULL")
+                value = generate_random_data(data_type, table_name, enum_values, array_types, None, min_col_size_bytes)
+                if isinstance(value, str):
+                    escaped_value = value.replace("'", "''")
+                    values.append(f"'{escaped_value}'" if value is not None else "NULL")
+                else:
+                    values.append(f"'{value}'" if value is not None else "NULL")
         rows.append(f"({', '.join(values)})")
     return ", ".join(rows)
 
@@ -718,6 +902,8 @@ def build_update_values(
     table_schemas: Dict[str, Dict[str, Any]],
     table_name: str,
     columns_to_update: List[str],
+    min_col_size_bytes: int = 0,
+    column_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, List[Any]]:
     """Build a SET clause and params for UPDATE with type-aware handling.
 
@@ -731,16 +917,24 @@ def build_update_values(
 
     for col in columns_to_update:
         data_type = columns[col]
-        if "bit" in data_type.lower():
+        override_spec = get_column_override(column_overrides or {}, table_name, col)
+        if override_spec:
+            value = generate_override_value(override_spec)
+            if value is None:
+                set_parts.append(f"{col} = NULL")
+            else:
+                set_parts.append(f"{col} = %s")
+                params.append(value)
+        elif "bit" in data_type.lower():
             expr = build_bit_cast_expr(table_schemas, table_name, col)
             set_parts.append(f"{col} = {expr}")
         else:
             if data_type == "USER-DEFINED":
                 enum_values = fetch_enum_values_for_column(table_schemas, table_name, col)
-                value = generate_random_data(data_type, table_name, enum_values, None)
+                value = generate_random_data(data_type, table_name, enum_values, None, None, min_col_size_bytes)
             else:
                 array_types = fetch_array_types_for_column(table_schemas, table_name, col)
-                value = generate_random_data(data_type, table_name, None, array_types)
+                value = generate_random_data(data_type, table_name, None, array_types, None, min_col_size_bytes)
             if value is None:
                 set_parts.append(f"{col} = NULL")
             else:
@@ -786,7 +980,7 @@ DEFAULT_ROW_ESTIMATE = 1000
 def build_sampling_condition(
     db_flavor: str,
     table_name: str,
-    primary_key: str,
+    primary_key: "str | List[str]",
     target_row_count: int,
     estimated_row_count: Optional[int],
 ) -> Tuple[str, List[Any]]:
@@ -794,25 +988,39 @@ def build_sampling_condition(
     Build a WHERE condition fragment and parameters for sampling rows
     for UPDATE/DELETE operations.
 
+    primary_key can be a single column name (str) or a list of column names.
+    For composite PKs, uses row-value syntax: (col1, col2) IN (SELECT col1, col2 ...).
+
     For PostgreSQL, this uses TABLESAMPLE SYSTEM_ROWS(target_row_count).
     For YugabyteDB, it uses a probabilistic filter WHERE random() < p,
     where p is derived from target_row_count and an estimated row count.
     """
+    if isinstance(primary_key, str):
+        pk_cols = [primary_key]
+    else:
+        pk_cols = primary_key
+
+    if len(pk_cols) == 1:
+        pk_select = pk_cols[0]
+        pk_where = pk_cols[0]
+    else:
+        pk_select = ", ".join(pk_cols)
+        pk_where = f"({pk_select})"
+
     if db_flavor == "POSTGRES":
         where_clause = (
-            f"{primary_key} IN ("
-            f"SELECT {primary_key} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
+            f"{pk_where} IN ("
+            f"SELECT {pk_select} FROM {table_name} TABLESAMPLE SYSTEM_ROWS(%s))"
         )
         return where_clause, [target_row_count]
 
     # YugabyteDB path: derive p from estimated row count
     est = estimated_row_count if estimated_row_count and estimated_row_count > 0 else DEFAULT_ROW_ESTIMATE
 
-    # Derive sampling probability p from desired rows and estimated row count.
     p = min(1.0, float(target_row_count) / float(est))
 
     where_clause = (
-        f"{primary_key} IN ("
-        f"SELECT {primary_key} FROM {table_name} WHERE random() < %s)"
+        f"{pk_where} IN ("
+        f"SELECT {pk_select} FROM {table_name} WHERE random() < %s)"
     )
     return where_clause, [p]

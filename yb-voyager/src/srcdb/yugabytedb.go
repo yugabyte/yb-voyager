@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
@@ -77,6 +78,9 @@ func (yb *YugabyteDB) Connect() error {
 		log.Info("Reconnecting to the source database")
 	}
 	db, err := sql.Open("pgx", yb.getConnectionUri())
+	if err != nil {
+		return fmt.Errorf("open connection to source database: %w", err)
+	}
 	db.SetMaxOpenConns(yb.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	yb.db = db
@@ -449,6 +453,45 @@ func (yb *YugabyteDB) GetDatabaseSize() (int64, error) {
 	return dbSize.Int64, nil
 }
 
+func (yb *YugabyteDB) FetchDBID() error {
+	var oid int64
+	err := yb.db.QueryRow(`SELECT oid FROM pg_database WHERE datname = current_database()`).Scan(&oid)
+	if err != nil {
+		return err
+	}
+	yb.source.DBID = oid
+	return nil
+}
+
+func (yb *YugabyteDB) FetchSchemaOids() error {
+	var oids []int64
+	schemaList := sqlname.JoinIdentifiersUnquoted(yb.source.Schemas, "','")
+	query := fmt.Sprintf(`SELECT oid FROM pg_namespace WHERE nspname IN ('%s')`, schemaList)
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return fmt.Errorf("error in querying source database for schema oids: %q: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		var oid int64
+		err = rows.Scan(&oid)
+		if err != nil {
+			return fmt.Errorf("error in scanning query rows for schema oids: %w", err)
+		}
+		oids = append(oids, oid)
+	}
+	if rows.Err() != nil {
+		return fmt.Errorf("error in scanning query rows for schema oids: %w", rows.Err())
+	}
+	yb.source.SchemaOids = oids
+	return nil
+}
+
 // Thsi function returns some types like UDTs, ENums, etc.. fo which we need to check if there are any tables having columns of Array of these types for gRPC connector.
 func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string {
 	query := fmt.Sprintf(`SELECT typname
@@ -465,34 +508,6 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 							FROM information_schema.sequences
 							WHERE sequence_schema = '%s'
 						);`, schemaName, schemaName, schemaName)
-	rows, err := yb.db.Query(query)
-	if err != nil {
-		utils.ErrExit("error in querying source database for enum types: %q: %w\n", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-	var enumTypes []string
-	for rows.Next() {
-		var enumType string
-		err = rows.Scan(&enumType)
-		if err != nil {
-			utils.ErrExit("error in scanning query rows for enum types: %w\n", err)
-		}
-		enumTypes = append(enumTypes, enumType)
-	}
-	return enumTypes
-}
-
-func (yb *YugabyteDB) getAllEnumTypesInSchema(schemaName string) []string {
-	query := fmt.Sprintf(`SELECT typname
-						FROM pg_type t
-						JOIN pg_namespace n ON t.typnamespace = n.oid
-						WHERE n.nspname = '%s'
-						AND t.typcategory = 'E';`, schemaName)
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for enum types: %q: %w\n", query, err)
@@ -994,115 +1009,16 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	return partitions
 }
 
-// query retrieves all unique columns in the specified tables and schemas, handling both unique constraints and unique indexes, while excluding primary key columns.
-const ybQueryTmplForUniqCols = `
-WITH unique_constraints AS (
-	-- Retrieve columns with unique constraints
-    SELECT
-        tc.table_schema,
-        tc.table_name,
-        kcu.column_name
-    FROM
-        information_schema.table_constraints tc
-    JOIN
-        information_schema.key_column_usage kcu
-        ON tc.constraint_name = kcu.constraint_name
-        AND tc.table_schema = kcu.table_schema
-        AND tc.table_name = kcu.table_name
-    WHERE
-        tc.constraint_type = 'UNIQUE'
-        AND tc.table_schema = ANY('{%s}')
-        AND tc.table_name = ANY('{%s}')
-),
-unique_indexes AS (
-	-- Retrieve columns with unique indexes (excluding primary keys)
-    SELECT
-        n.nspname AS table_schema,
-        t.relname AS table_name,
-        a.attname AS column_name
-    FROM
-        pg_index ix
-	-- Join to get table and schema information from the index
-    JOIN
-        pg_class t ON t.oid = ix.indrelid
-    JOIN
-        pg_namespace n ON n.oid = t.relnamespace
-	-- Join to get column information
-    JOIN
-        pg_attribute a ON a.attrelid = t.oid 
-		AND a.attnum = ANY(ix.indkey)  -- Match indexed columns
-	 -- Left join to ensure we exclude primary keys by checking associated constraints
-    LEFT JOIN
-        pg_constraint c ON ix.indexrelid = c.conindid AND c.contype = 'p'
-    WHERE
-        ix.indisunique = TRUE
-		AND c.contype IS NULL -- Ensure it's not a primary key
-        AND n.nspname = ANY('{%s}')
-        AND t.relname = ANY('{%s}')
-)
--- UNION will remove duplicate rows between unique constraints and unique indexes
-SELECT table_schema, table_name, column_name FROM unique_constraints
-UNION
-SELECT table_schema, table_name, column_name FROM unique_indexes;
-`
-
-func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	log.Infof("getting unique key columns for tables: %v", tableList)
-	result := utils.NewStructMap[sqlname.NameTuple, []string]()
-	var querySchemaList, queryTableList []string
-	tableStrToNameTupleMap := make(map[string]sqlname.NameTuple)
-	for i := 0; i < len(tableList); i++ {
-		sname, tname := tableList[i].ForCatalogQuery()
-		querySchemaList = append(querySchemaList, sname)
-		queryTableList = append(queryTableList, tname)
-		tableStrToNameTupleMap[tableList[i].AsQualifiedCatalogName()] = tableList[i]
-	}
-
-	querySchemaList = lo.Uniq(querySchemaList)
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","),
-		strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
-	log.Infof("query to get unique key columns: %s", query)
-	rows, err := yb.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("querying unique key columns: %w", err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	for rows.Next() {
-		var schemaName, tableName, colName string
-		err := rows.Scan(&schemaName, &tableName, &colName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
-		}
-		tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		tableNameTuple, ok := tableStrToNameTupleMap[tableName]
-		if !ok {
-			return nil, goerrors.Errorf("table %s not found in table list", tableName)
-		}
-		cols, ok := result.Get(tableNameTuple)
-		if !ok {
-			cols = []string{}
-		}
-		cols = append(cols, colName)
-		result.Put(tableNameTuple, cols)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
-	}
-	log.Infof("unique key columns for tables: %v", result)
-	return result, nil
-}
-
 func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for YugabyteDB")
 	return nil
+}
+
+// GetGeneratedStoredColumns is a no-op for a YugabyteDB source: it is only used for the CDC
+// custom/pk partitioning path, which is gated to a PostgreSQL source (YB-as-source, used for
+// fall-back/fall-forward, always uses PARTITION_BY_TABLE).
+func (yb *YugabyteDB) GetGeneratedStoredColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return utils.NewStructMap[sqlname.NameTuple, []string](), nil
 }
 
 func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
@@ -1132,6 +1048,48 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
+}
+
+func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	catalogTableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tables {
+		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	queryTablesString := strings.Join(lo.Map(tables, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_GET_PRIMARY_KEY_COLUMNS_FOR_TABLES, queryTablesString)
+
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query primary keys for tables: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Warnf("close rows for table primary-key query: %v", cerr)
+		}
+	}()
+
+	for rows.Next() {
+		var schema, table, col string
+		if err := rows.Scan(&schema, &table, &col); err != nil {
+			return nil, fmt.Errorf("scan PK column row for tables: %w", err)
+		}
+		tableTuple, ok := catalogTableToTuple[fmt.Sprintf("%s.%s", schema, table)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in catalog: %s.%s", schema, table)
+		}
+		cols, _ := result.Get(tableTuple)
+		result.Put(tableTuple, append(cols, col))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK column rows for tables: %w", err)
+	}
+	return result, nil
 }
 
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
@@ -1282,11 +1240,88 @@ func (yb *YugabyteDB) GetMissingExportSchemaPermissions(queryTableList string) (
 }
 
 func (yb *YugabyteDB) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, bool, error) {
-	return nil, false, nil
+	var combinedResult []string
+
+	if !yb.source.IsYBGrpcConnector && (exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES) {
+		tablesWithoutReplicaIdentityChange, err := yb.listTablesMissingReplicaIdentityChange(finalTableList)
+		if err != nil {
+			return nil, false, fmt.Errorf("error in checking table replica identity: %w", err)
+		}
+		if len(tablesWithoutReplicaIdentityChange) > 0 {
+			combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Tables not having replica identity CHANGE: "), strings.Join(lo.Map(tablesWithoutReplicaIdentityChange, func(t sqlname.NameTuple, _ int) string {
+				return t.ForOutput()
+			}), ", ")))
+		}
+	}
+
+	return combinedResult, len(combinedResult) > 0, nil
 }
 
-func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
-	return nil, false, nil
+// TODO: migrate postgres.go listTablesMissingReplicaIdentityFull from queryTableList string to []NameTuple,
+// then consolidate both into a shared helper parameterized by expected relreplident char and label.
+func (yb *YugabyteDB) listTablesMissingReplicaIdentityChange(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	var tableNamePairs []string
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		tableNamePairs = append(tableNamePairs, fmt.Sprintf("('%s','%s')", sname, tname))
+	}
+
+	checkTableReplicaIdentityQuery := fmt.Sprintf(`
+	SELECT
+		n.nspname AS schema_name,
+		c.relname AS table_name,
+		c.relreplident AS replica_identity,
+		CASE
+			WHEN c.relreplident <> 'c'
+			THEN '%s'
+			ELSE '%s'
+		END AS status
+	FROM pg_class c
+	JOIN pg_namespace n ON c.relnamespace = n.oid
+	WHERE (n.nspname, c.relname) IN (%s)
+	AND c.relkind IN ('r', 'p');
+	`, MISSING, GRANTED, strings.Join(tableNamePairs, ","))
+
+	rows, err := yb.db.Query(checkTableReplicaIdentityQuery)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source YugabyteDB for checking table replica identity: %w", checkTableReplicaIdentityQuery, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", checkTableReplicaIdentityQuery, closeErr)
+		}
+	}()
+
+	tablesWithoutIdentityChangeKeys := make(map[string]bool)
+	var tableSchemaName, tableName, replicaIdentity, status string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName, &tableName, &replicaIdentity, &status)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
+		}
+		if status == MISSING {
+			tablesWithoutIdentityChangeKeys[tableSchemaName+"."+tableName] = true
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over query rows: %w", err)
+	}
+
+	var result []sqlname.NameTuple
+	for _, table := range tableList {
+		sname, tname := table.ForCatalogQuery()
+		if tablesWithoutIdentityChangeKeys[sname+"."+tname] {
+			result = append(result, table)
+		}
+	}
+	return result, nil
+}
+
+func (yb *YugabyteDB) GetMissingAssessMigrationPermissions() ([]string, error) {
+	return nil, nil
 }
 
 func (yb *YugabyteDB) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error) {
@@ -1294,5 +1329,11 @@ func (yb *YugabyteDB) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, u
 }
 
 func (yb *YugabyteDB) GetSchemasMissingUsagePermissions() ([]string, error) {
+	return nil, nil
+}
+
+// YugabyteDB (export from target for fall-back/fall-forward) does not support
+// deferrable unique constraints, so there is nothing to report.
+func (yb *YugabyteDB) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }

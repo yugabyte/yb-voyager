@@ -644,7 +644,7 @@ func TestExportSchemaSchemaOptimizationReportPerfOptimizationsAutofix(t *testing
 		"--yes",
 	}, func() {
 		time.Sleep(10 * time.Second)
-	}, true)
+	}, false)
 	if err != nil {
 		t.Errorf("Failed to run import schema command: %v", err)
 	}
@@ -738,7 +738,7 @@ func TestExportSchemaSchemaOptimizationReportWithSkipPerfOptimizations(t *testin
 		"--export-dir", tempExportDir,
 	}, func() {
 		time.Sleep(10 * time.Second)
-	}, true)
+	}, false)
 	if err != nil {
 		t.Errorf("Failed to run import schema command: %v", err)
 	}

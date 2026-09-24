@@ -60,7 +60,7 @@ func printContainerLogs(container testcontainers.Container) {
 		log.Printf("Error fetching logs for container %s: %v", containerID, err)
 		return
 	}
-	defer logs.Close()
+	defer func() { _ = logs.Close() }() // read path; close error is not actionable
 
 	// Read the logs
 	logData, err := io.ReadAll(logs)

@@ -24,8 +24,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -40,13 +42,16 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/export"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -100,6 +105,9 @@ func init() {
 	registerSourceDBConnFlags(exportDataFromSrcCmd, true, true)
 	registerExportDataFlags(exportDataCmd)
 	registerExportDataFlags(exportDataFromSrcCmd)
+	// Source-side only; see registerSchemaSnapshotIntervalFlag.
+	registerSchemaSnapshotIntervalFlag(exportDataCmd)
+	registerSchemaSnapshotIntervalFlag(exportDataFromSrcCmd)
 }
 
 func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
@@ -109,22 +117,42 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
+	if err := validateSchemaSnapshotCaptureInterval(cmd); err != nil {
+		utils.ErrExit("failed to validate export flags: %w", err)
+	}
 	markFlagsRequired(cmd)
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
 	}
 
+	if err := validateBetaFastDataExportSupportedForSource(source.DBType, exportType, useDebezium); err != nil {
+		utils.ErrExit("%s", color.RedString("%s", err.Error()))
+	}
+
 	if bool(source.AllowOracleClobDataExport) {
 		if source.DBType != ORACLE {
-			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
+			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is only valid with source db type oracle. Remove this flag and retry."))
 		} else if changeStreamingIsEnabled(exportType) {
-			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for Live Migration. Remove this flag and retry."))
+			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is not supported for Live Migration. Remove this flag and retry."))
 		} else if useDebezium {
-			utils.ErrExit(color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
+			utils.ErrExit("%s", color.RedString("allow-oracle-clob-data-export is not supported for BETA_FAST_DATA_EXPORT export path. Remove this flag and retry."))
 		} else {
 			utils.PrintAndLog(color.YellowString("Note: Experimental CLOB export is enabled for Oracle offline export."))
 		}
 	}
+}
+
+// BETA_FAST_DATA_EXPORT routes the snapshot export through debezium and is only supported for
+// Oracle and MySQL.
+func validateBetaFastDataExportSupportedForSource(dbType string, exportType string, useDebezium bool) error {
+	if !useDebezium || changeStreamingIsEnabled(exportType) {
+		return nil
+	}
+	if dbType == POSTGRESQL {
+		return goerrors.Errorf("BETA_FAST_DATA_EXPORT is not supported for source database type %q. "+
+			"It is available only for oracle and mysql. Unset the BETA_FAST_DATA_EXPORT environment variable and retry.", dbType)
+	}
+	return nil
 }
 
 func handleCutoverAlreadyProcessedForExportData() {
@@ -135,7 +163,7 @@ func handleCutoverAlreadyProcessedForExportData() {
 	}
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		if getCutoverStatus(metaDB) == COMPLETED {
+		if GetCutoverStatus(metaDB) == COMPLETED {
 			utils.ErrExit("cutover to target already processed, exiting...")
 		}
 	case TARGET_DB_EXPORTER_FF_ROLE:
@@ -143,7 +171,7 @@ func handleCutoverAlreadyProcessedForExportData() {
 			utils.ErrExit("cutover to source-replica already processed, exiting...")
 		}
 	case TARGET_DB_EXPORTER_FB_ROLE:
-		if getCutoverToSourceStatus(exportDir, metaDB) == COMPLETED {
+		if GetCutoverToSourceStatus(exportDir, metaDB) == COMPLETED {
 			utils.ErrExit("cutover to source already processed, exiting...")
 		}
 	default:
@@ -176,6 +204,10 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+	if err := startMetricsServer(exporterRole, migrationUUID); err != nil {
+		utils.ErrExit("start metrics server: %w", err)
+	}
+	metrics.Get().SetExportParallelism(exporterRole, source.NumConnections)
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -189,6 +221,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLogf("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	printLiveMigrationLimitations()
+	warnIfYBServerNewerThanLogicalConnector(msr)
 	utils.PrintAndLogf("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 	setSourceDetailsForChangesOnly(msr)
@@ -203,7 +236,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete")
 		log.Info("Export of data completed.")
 		startFurtherCommandsAfterCurrentExportData()
-	} else if ProcessShutdownRequested {
+	} else if ProcessShutdownRequested.Load() {
 		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
@@ -243,7 +276,7 @@ func setSourceDetailsForChangesOnly(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
-func waitUntilNextIterationInitialized() error {
+func waitUntilNextIterationInitialized(metaDB *metadb.MetaDB) error {
 	timeout := 2 * time.Minute
 	startTime := time.Now()
 	utils.PrintAndLogfInfo("\nWaiting for next iteration to be initialized...")
@@ -277,7 +310,7 @@ func startNextIterationImportDataToTarget() {
 	}
 
 	//Waiting for the next iteration to be initialized so that we can start import data to target on the next iteration
-	err = waitUntilNextIterationInitialized()
+	err = waitUntilNextIterationInitialized(metaDB)
 	if err != nil {
 		utils.ErrExit("failed to wait until next iteration initialized: %w", err)
 	}
@@ -316,10 +349,18 @@ func startNextIterationImportDataToTarget() {
 			cmd = append(cmd, "--disable-pb=true")
 		}
 		cmd = append(cmd, fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics))
-		cmd = append(cmd, "--log-level", config.LogLevel)
+		cmd = append(cmd, logSettingsCLIArgs()...)
 		//TODO: see if we can do better, but these params are required for import data to target cmd
 		cmd = append(cmd, "--target-db-name", currentMsr.TargetDBConf.DBName)
 		cmd = append(cmd, "--target-db-user", currentMsr.TargetDBConf.User)
+	}
+
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get import data status record: %w", err)
+	}
+	if !importDataStatusRecord.TargetUsePartitionRoot {
+		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
@@ -348,6 +389,7 @@ var ybCDCSavepointAndReadCommittedFixedVersions = map[string]*ybversion.YBVersio
 	ybversion.SERIES_2024_2: ybversion.V2024_2_8_0,
 	ybversion.SERIES_2025_1: ybversion.V2025_1_4_0,
 	ybversion.SERIES_2025_2: ybversion.V2025_2_2_0,
+	ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 }
 
 // isCDCSavepointFixedInTargetDBVersion returns whether the CDC savepoint rollback
@@ -372,6 +414,118 @@ func isCDCSavepointFixedInTargetDBVersion(dbVersionStr string) (bool, string) {
 		return false, ""
 	}
 	return ybVer.GreaterThanOrEqual(minFixedVersion), minFixedVersion.String()
+}
+
+// shouldWarnServerSeriesNewerThanConnector reports whether to warn that the target YB
+// server may be incompatible with the logical connector. Compatibility is by release
+// SERIES (YEAR.TRACK) — the connector tag's trailing part (".3" in "2025.2.3") is a
+// connector-internal counter, not a YB patch, so a "2025.2" connector supports all
+// 2025.2.x. Warn when:
+//   - the server series is newer than the connector's series, or
+//   - the server series is unrecognized (ErrUnsupportedSeries) — likely newer, or
+//   - the server is on a PREVIEW series the connector was not built for.
+//
+// Do not warn when the server series is <= the connector's, or is a pre-calendar
+// STABLE_OLD (2.x) series (the newer, backward-compatible connector covers it).
+// Ref: https://docs.yugabyte.com/stable/releases/versioning/
+func shouldWarnServerSeriesNewerThanConnector(connectorYBVersion, serverYBVersion string) (bool, string, error) {
+	connSeries, err := ybversion.NewYBVersion(ybversion.SeriesVersion(connectorYBVersion))
+	if err != nil {
+		// The connector's series should always be a known YB series; if not, we cannot
+		// reason about it, so skip rather than warn.
+		return false, "", goerrors.Errorf("parsing connector series from %q: %w", connectorYBVersion, err)
+	}
+
+	serverSeries, err := ybversion.NewYBVersion(ybversion.SeriesVersion(serverYBVersion))
+	if err != nil {
+		if errors.Is(err, ybversion.ErrUnsupportedSeries) {
+			return true, fmt.Sprintf("the target YugabyteDB server %q is on a release this Voyager build does not recognize (likely newer than the bundled connector)", serverYBVersion), nil
+		}
+		return false, "", goerrors.Errorf("parsing server series from %q: %w", serverYBVersion, err)
+	}
+
+	// Same release type: compare series numerically.
+	if connSeries.ReleaseType() == serverSeries.ReleaseType() {
+		if serverSeries.GreaterThanOrEqual(connSeries) && !serverSeries.Equal(connSeries) {
+			return true, fmt.Sprintf("the target YugabyteDB server release %s is newer than the connector's release %s", serverYBVersion, connectorYBVersion), nil
+		}
+		return false, "", nil
+	}
+
+	// Connector is stable; verdict depends on the server's release type.
+	switch serverSeries.ReleaseType() {
+	case ybversion.STABLE_OLD:
+		return false, "", nil
+	case ybversion.PREVIEW:
+		return true, fmt.Sprintf("the target YugabyteDB server is on preview release %s, which the connector was not built for", serverYBVersion), nil
+	default:
+		return false, "", goerrors.Errorf("cannot compare connector series %s (%s) with server series %s (%s)", connSeries.Series(), connSeries.ReleaseType(), serverSeries.Series(), serverSeries.ReleaseType())
+	}
+}
+
+// warnIfYBServerNewerThanLogicalConnector warns (and prompts to continue) when the target
+// YB server is on a newer release series than the logical connector supports — forward-
+// compatibility is not guaranteed. Only applies to the logical connector in the
+// export-data-from-target (fall-back/fall-forward) flow; a no-op for the gRPC connector or
+// when versions cannot be determined.
+func warnIfYBServerNewerThanLogicalConnector(msr *metadb.MigrationStatusRecord) {
+	if msr == nil || msr.UseYBgRPCConnector {
+		return
+	}
+	if !isTargetDBExporter(exporterRole) || !changeStreamingIsEnabled(exportType) {
+		return
+	}
+	if msr.TargetDBConf == nil || msr.TargetDBConf.DBVersion == "" {
+		return
+	}
+
+	// Resolve the Debezium distribution if it has not been located yet, so that we can
+	// inspect the logical connector jar that will actually be used for this export.
+	if dbzm.DEBEZIUM_DIST_DIR == "" {
+		if err := dbzm.FindDebeziumDistribution(source.DBType, false); err != nil {
+			log.Warnf("skipping connector/YB version compatibility check: %v", err)
+			return
+		}
+	}
+
+	connectorYBVersion, err := dbzm.GetLogicalConnectorYBVersion()
+	if err != nil {
+		// Multiple connector jars is a broken install: run.sh would load an undefined
+		// connector from the classpath, so we must stop rather than run blindly.
+		if errors.Is(err, dbzm.ErrMultipleLogicalConnectorVersions) {
+			utils.ErrExit("%v.\nThe %q directory must contain exactly one YugabyteDB logical replication connector jar. "+
+				"Remove the stale connector jar(s) so that only the intended version remains, then retry.",
+				err, filepath.Join(dbzm.DEBEZIUM_DIST_DIR, "yb-connector"))
+		}
+		// Otherwise best-effort: never block migration because we could not detect the version.
+		log.Warnf("skipping connector/YB version compatibility check: %v", err)
+		return
+	}
+
+	serverYBVersion, err := extractYBVersion(msr.TargetDBConf.DBVersion)
+	if err != nil {
+		log.Warnf("skipping connector/YB version compatibility check: %v", err)
+		return
+	}
+
+	warn, reason, err := shouldWarnServerSeriesNewerThanConnector(connectorYBVersion, serverYBVersion)
+	if err != nil {
+		log.Warnf("skipping connector/YB version compatibility check: %v", err)
+		return
+	}
+	if !warn {
+		return
+	}
+
+	utils.PrintAndLogfWarning(
+		"\nWarning: %s.\n"+
+			"Forward-compatibility of the YugabyteDB logical replication connector is not guaranteed, which may lead to silent data-capture issues during live migration.\n"+
+			"It is recommended to upgrade YugabyteDB Voyager to a version bundling a connector built for your YugabyteDB server release.\n",
+		reason,
+	)
+	if !utils.AskPrompt("Do you want to continue anyway") {
+		utils.ErrExit("aborting export data from target due to connector/YugabyteDB release mismatch")
+	}
 }
 
 func printLiveMigrationLimitations() {
@@ -441,12 +595,12 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 
 	switch exportType {
 	case SNAPSHOT_ONLY:
 		payload.MigrationType = OFFLINE
-	case SNAPSHOT_AND_CHANGES:
+	case SNAPSHOT_AND_CHANGES, CHANGES_ONLY:
 		payload.MigrationType = LIVE_MIGRATION
 	}
 	sourceDBDetails := anonymizeSourceDBDetails(&source)
@@ -484,7 +638,50 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 	}
 }
 
-func exportData() bool {
+// captureSourceGeneratedStoredColumns records, for a PostgreSQL live-migration source, the
+// per-table STORED generated columns into the metaDB (keyed by ForKey). `import data to
+// target` reads this — without a source connection of its own — to decide the CDC
+// partitioning strategy: a table whose target unique index covers a source-generated column
+// must be PARTITION_BY_TABLE, because generated column values are absent from the change
+// events (so pk/custom routing and conflict detection cannot see them). No-op for non-PG
+// sources / non-streaming exports.
+//
+// CAVEAT — primary key on a generated column:
+// A STORED generated column that is part of the PRIMARY KEY is a broader, currently
+// UNSUPPORTED case for live migration and is deliberately NOT handled by the partitioning
+// logic that consumes this record. Debezium builds the event's routing/identity key from the
+// primary key, but a STORED generated column's value is absent from the logical-replication
+// stream, so the key itself is incomplete — no choice of CDC partitioning strategy (including
+// PARTITION_BY_TABLE) fixes that. This needs a separate solution (e.g. surfacing the
+// generated key value, or an explicit guardrail/error). Until then, the import side only
+// intersects these source-generated columns against the target's *unique indexes* (excluding
+// the primary key) when resolving the partitioning strategy.
+func captureSourceGeneratedStoredColumns(finalTableList []sqlname.NameTuple) error {
+	if source.DBType != POSTGRESQL || !changeStreamingIsEnabled(exportType) || exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return nil
+	}
+	genCols, err := source.DB().GetGeneratedStoredColumns(finalTableList)
+	if err != nil {
+		return goerrors.Errorf("get source generated stored columns for cdc partitioning: %v", err)
+	}
+	tableToGeneratedCols := make(map[string][]string)
+	_ = genCols.IterKV(func(t sqlname.NameTuple, cols []string) (bool, error) {
+		if len(cols) > 0 {
+			tableToGeneratedCols[t.ForKey()] = cols
+		}
+		return true, nil
+	})
+	err = metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+		r.TableToGeneratedStoredColumns = tableToGeneratedCols
+	})
+	if err != nil {
+		return goerrors.Errorf("persist source generated stored columns for cdc partitioning: %v", err)
+	}
+	log.Infof("captured source generated stored columns for cdc partitioning: %v", tableToGeneratedCols)
+	return nil
+}
+
+func exportData() (ok bool) {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %w", err)
@@ -497,7 +694,12 @@ func exportData() bool {
 			utils.ErrExit("Source DB version check failed: %w", err)
 		}
 
-		binaryCheckIssues, err := checkDependenciesForExport()
+		binaryCheckIssues, err := export.CheckDependencies(
+			source.DBType,
+			source.DB().GetVersion(),
+			exportType,
+			useDebezium,
+		)
 		if err != nil {
 			utils.ErrExit("check dependencies for export: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
@@ -517,19 +719,18 @@ func exportData() bool {
 		utils.ErrExit("schema name matcher: %w", err)
 	}
 
-	source.DBVersion = source.DB().GetVersion()
-	source.DBSize, err = source.DB().GetDatabaseSize()
-	if err != nil {
-		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
-	}
-
-	// Get PostgreSQL system identifier while still connected
-	source.FetchDBSystemIdentifier()
+	source.FetchSourceInfo()
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %w", err)
 	}
+
+	// Compute the schema-snapshot start reason BEFORE clearMigrationStateIfRequired()
+	// wipes the data directory (--start-clean empties it): the reason is derived from
+	// whether that directory already holds a prior run's output (see snapshotStartReasonFor).
+	exportDataDir := filepath.Join(exportDir, "data")
+	snapshotStartReason := snapshotStartReasonFor(bool(startClean), utils.IsDirectoryEmpty(exportDataDir))
 
 	if source.DBType == YUGABYTEDB {
 		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
@@ -543,7 +744,9 @@ func exportData() bool {
 	}
 
 	if source.RunGuardrailsChecks {
-		checkIfSchemasHaveUsagePermissions()
+		if err := srcdb.CheckSchemasHaveUsagePermissions(&source, export.ChangeStreamingIsEnabled(exportType)); err != nil {
+			utils.ErrExit("schema usage permission check failed: %w", err)
+		}
 	}
 
 	checkSourceDBCharset()
@@ -556,11 +759,7 @@ func exportData() bool {
 	// get initial table list
 	partitionsToRootTableMap, finalTableList, err := getInitialTableList()
 	if err != nil {
-		var exportErr *errs.ExportDataError
-		if errors.As(err, &exportErr) {
-			utils.ErrExit(err.Error())
-		}
-		utils.ErrExit("error in get initial table list: %w", err)
+		handleGetInitialTableListError(err)
 	}
 
 	// Check if source DB has required permissions for export data
@@ -569,10 +768,17 @@ func exportData() bool {
 	}
 
 	// finalizing table list and column list to be exported based on the datatypes supported by the source DB
-	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList)
+	finalTableList, tablesColumnList := finalizeTableAndColumnList(finalTableList, partitionsToRootTableMap)
 	handleEmptyTableListForExport(finalTableList)
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	// Persist source STORED generated columns so import data to target can decide the CDC
+	// partitioning strategy from authoritative source facts without a source connection.
+	err = captureSourceGeneratedStoredColumns(finalTableList)
+	if err != nil {
+		utils.ErrExit("capture source generated stored columns: %s", err)
+	}
+
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch source.DBType {
 		case POSTGRESQL:
 			record.SourceRenameTablesMap = partitionsToRootTableMap
@@ -585,6 +791,9 @@ func exportData() bool {
 			})
 		}
 	})
+	if err != nil {
+		utils.ErrExit("failed to update rename-tables map in migration status record: %w", err)
+	}
 
 	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -637,6 +846,53 @@ func exportData() bool {
 	}
 
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
+
+	// successReason distinguishes the two clean endings; the cutover branch below
+	// upgrades it. Only read when exportData returns true.
+	successReason := schemasnapshot.ReasonComplete
+
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		if err := sourceCapture().Capture(ctx, schemasnapshot.LabelExportDataFromSourceStart, snapshotStartReason, true); err != nil {
+			log.Warnf("schema-snapshot start capture failed, export unaffected: %v", err)
+		}
+		// One ticker for the whole export -- snapshot AND streaming phases, offline and
+		// live. Started here, at the single owner of the export lifetime: starting it in
+		// both exportDataOffline and debeziumExportData ran two tickers at once for PG
+		// snapshot-and-changes, doubling the periodic snapshots.
+		//
+		// Its own child context so the exit defer below can stop it first. On ctx alone
+		// it would outlive the exit capture -- ctx is cancelled by `defer cancel()`,
+		// which is registered earlier and so runs later -- and could persist a periodic
+		// snapshot timestamped after the exit one.
+		periodicCtx, stopPeriodic := context.WithCancel(ctx)
+		sourceCapture().StartPeriodic(periodicCtx, time.Duration(schemaSnapshotCaptureInterval)*time.Minute)
+		registerExportDataExitSnapshotHook()
+
+		// One exit capture for EVERY return below, rather than one per return site.
+		// Deferred here it runs before this function's `defer cancel()` and
+		// `defer source.DB().Disconnect()` (both registered earlier, so later under
+		// LIFO), which is what keeps the context live and the source connection open
+		// for the capture. Panics are covered too.
+		//
+		// utils.ErrExit and signals do not unwind, so they never reach this defer --
+		// registerExportDataExitSnapshotHook above covers them.
+		defer func() {
+			stopPeriodic() // no periodic tick during the exit capture
+			if ok {
+				captureExportDataExitSnapshot(ctx, successReason)
+				return
+			}
+			// The reason here is interrupt OR error, not always error. A signal does not
+			// unwind to this defer (see above), but it does kill the in-flight child, so
+			// the export reports failure and can still reach this path -- racing os.Exit
+			// -- with ProcessShutdownRequested set. exportDataExitReason tells them apart.
+			//
+			// Background, not ctx: a failing path may already have cancelled ctx
+			// (exportDataOffline cancels on its quit path), which would abort the
+			// capture just when the drifted end-state matters most.
+			captureExportDataExitSnapshot(context.Background(), exportDataExitReason())
+		}()
+	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		exportPhase = dbzm.MODE_SNAPSHOT
@@ -693,7 +949,11 @@ func exportData() bool {
 
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
+
+			successReason = schemasnapshot.ReasonCutover
 		}
+		// The else branch (useDebezium && !changeStreamingIsEnabled) is a snapshot-only
+		// export via debezium: no cutover was processed, so successReason stays complete.
 		return true
 	} else {
 		exportPhase = dbzm.MODE_SNAPSHOT
@@ -725,7 +985,6 @@ func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.
 	if err != nil {
 		return fmt.Errorf("failed to prepare dbzm config: %w", err)
 	}
-	saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList, leafPartitions)
 	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 		err = initPGLiveMigrationAndExportSnapshotIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, config)
 		if err != nil {
@@ -774,7 +1033,7 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 
 	isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
@@ -791,7 +1050,7 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 		} else {
 			log.Errorf("error getting debezium PID: %v", err)
 		}
-		utils.ErrExit(color.RedString("\n%s", errorMsg))
+		utils.ErrExit("%s", color.RedString("\n%s", errorMsg))
 	}
 
 	// Setting up sequence values for debezium to start tracking from..
@@ -801,7 +1060,8 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 	}
 
 	var sequenceInitValues strings.Builder
-	sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
+	// the callback never returns an error
+	_ = sequenceValueMap.IterKV(func(seqName sqlname.NameTuple, seqValue int64) (bool, error) {
 		sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.ForKey(), seqValue))
 		return true, nil
 	})
@@ -810,7 +1070,37 @@ func initPGLiveMigrationAndExportSnapshotIfRequired(ctx context.Context, cancel 
 	config.ReplicationSlotName = msr.PGReplicationSlotName
 	config.PublicationName = msr.PGPublicationName
 	config.InitSequenceMaxMapping = sequenceInitValues.String()
+
+	pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		log.Warnf("replication-slot WAL monitor: source is not PostgreSQL (%T); skipping", source.DB())
+	} else {
+		startReplicationSlotWALMonitor(ctx, pgDB, msr.PGReplicationSlotName)
+	}
 	return nil
+}
+
+// startReplicationSlotWALMonitor periodically polls and reports the WAL bytes
+// retained by the given replication slot for as long as ctx is active, so that
+// operators can be alerted before the slot causes the source to run out of disk.
+func startReplicationSlotWALMonitor(ctx context.Context, pg *srcdb.PostgreSQL, slotName string) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				bytes, err := pg.GetReplicationSlotRetainedWALBytes(slotName)
+				if err != nil {
+					log.Warnf("replication-slot WAL monitor: %v", err)
+					continue
+				}
+				metrics.Get().SetSourceReplicationSlotRetainedWALBytes(slotName, bytes)
+			}
+		}
+	}()
 }
 
 func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
@@ -853,24 +1143,6 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 	} else {
 		// TODO: Print this message on the console too once the code is stable
 		log.Info("All required permissions are present for the source database.")
-	}
-}
-
-func checkIfSchemasHaveUsagePermissions() {
-	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
-	if err != nil {
-		utils.ErrExit("get schemas missing usage permissions: %w", err)
-	}
-	if len(schemasMissingUsage) > 0 {
-		utils.PrintAndLogf("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
-
-		var link string
-		if changeStreamingIsEnabled(exportType) {
-			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
-		} else {
-			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-		}
-		utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString(link))
 	}
 }
 
@@ -1073,6 +1345,11 @@ func createAndStoreReplicationSlotAndPublication(finalTableList []sqlname.NameTu
 	if err != nil {
 		return "", fmt.Errorf("update PGReplicationSlotName: update migration status record: %w", err)
 	}
+
+	if fpErr := injectReplicationSlotReadyPrePgDumpFailure(); fpErr != nil {
+		return "", fpErr
+	}
+
 	return res.SnapshotName, nil
 }
 func getSequenceInitialValues() (*utils.StructMap[sqlname.NameTuple, int64], error) {
@@ -1298,13 +1575,16 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 		isTableListModified = len(sqlname.SetDifferenceNameTuples(nameTupleTableListFromDB, tableListInFirstRun)) != 0
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			if isTableListModified {
 				record.IsExportTableListSet = true
 			} else {
 				record.IsExportTableListSet = false
 			}
 		})
+		if err != nil {
+			utils.ErrExit("failed to update IsExportTableListSet in migration status record: %w", err)
+		}
 	}
 
 	var partitionsToRootTableMap map[string]string
@@ -1445,7 +1725,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	_, _, err = guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
 	if err != nil {
 		//Directly erroring out here as we want to fail if guardrails checks fail
-		utils.ErrExit(err.Error())
+		utils.ErrExit("%s", err.Error())
 	}
 
 	return partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, nil
@@ -1602,6 +1882,74 @@ func propagateIfExportDataError(err error, currentFlow string) error {
 
 }
 
+// handleGetInitialTableListError reports the terminal error from getInitialTableList.
+// The metric is recorded exactly once here rather than in the errs.ExportDataError
+// constructors, since a single failure is re-wrapped at every propagation hop.
+func handleGetInitialTableListError(err error) {
+	var exportErr *errs.ExportDataError
+	if errors.As(err, &exportErr) {
+		utils.ErrExit("%s", err.Error())
+	}
+	utils.ErrExit("error in get initial table list: %w", err)
+}
+
+// exportDataExitSnapshotCaptured claims the one exit capture a run is allowed.
+//
+// A signal makes both exit paths run at once: the handler fires on the signal
+// goroutine while the export goroutine unwinds through its exit defer. Claiming
+// has to be a single atomic compare-and-swap, so exactly one of them captures --
+// checking a flag and setting it after the capture lets both pass the check and
+// write two exit snapshots.
+var exportDataExitSnapshotCaptured atomic.Bool
+
+// captureExportDataExitSnapshot captures the exit snapshot and marks it captured, so
+// no later site fires a second one. Source-exporter only.
+//
+// The caller picks the context (SourceCapture.Capture caps it at
+// schemasnapshot.CaptureTimeout either way): the run's own ctx on a clean exit, and
+// context.Background() wherever that ctx may already be cancelled -- the failing
+// export paths, and the atexit hook, which has no ctx at all.
+func captureExportDataExitSnapshot(ctx context.Context, reason string) {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return
+	}
+	// Claim before capturing, not after: see exportDataExitSnapshotCaptured.
+	if !exportDataExitSnapshotCaptured.CompareAndSwap(false, true) {
+		log.Infof("schema-snapshot exit capture already recorded; skipping the %q capture", reason)
+		return
+	}
+	if err := sourceCapture().Capture(ctx, schemasnapshot.LabelExportDataFromSourceExit, reason, true); err != nil {
+		log.Warnf("schema-snapshot exit capture (%s) failed, migration unaffected: %v", reason, err)
+	}
+}
+
+// exportDataExitReason classifies an abnormal exit from the shutdown flags, most
+// specific first: SIGUSR2 (end-migration teardown) is a clean completion,
+// SIGINT/SIGTERM an interrupt, anything else a genuine error.
+//
+// The failing exit path must use this too rather than assuming ReasonError: a signal
+// kills the in-flight child, so the export reports failure and can reach that path
+// with a shutdown already requested. Hardcoding ReasonError there recorded every
+// Ctrl-C as an error.
+func exportDataExitReason() string {
+	if EndMigrationStopRequested.Load() {
+		return schemasnapshot.ReasonComplete
+	}
+	if ProcessShutdownRequested.Load() {
+		return schemasnapshot.ReasonInterrupt
+	}
+	return schemasnapshot.ReasonError
+}
+
+// registerExportDataExitSnapshotHook covers the exit paths that never unwind, so
+// exportData's exit defer cannot run: signals, and utils.ErrExit (whose os.Exit skips
+// defers, leaving the connection open). Whichever path gets there first wins the claim.
+func registerExportDataExitSnapshotHook() {
+	atexit.Register(func() {
+		captureExportDataExitSnapshot(context.Background(), exportDataExitReason())
+	})
+}
+
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		exportDataStartEvent := createSnapshotExportStartedEvent()
@@ -1732,6 +2080,29 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 	return strings.Join(tableList, ","), nil
 }
 
+// snapshotStartReasonFor classifies why export-data is capturing its start snapshot.
+//
+// The data-directory state is decided FIRST, and only then --start-clean, because
+// clean_restart should mean prior output was actually discarded:
+//   - empty dir:               initial (even under --start-clean, which cleans nothing)
+//   - start-clean + non-empty: clean_restart
+//   - non-empty, no clean:     resume
+//
+// Admissibility is a SEPARATE concern owned by clearMigrationStateIfRequired (the
+// guard): it ErrExits a non-empty, non-start-clean offline or mid-snapshot rerun
+// (pg_dump can't resume), so the only non-empty run that actually reaches "resume" here
+// is the streaming-continue resume — for which "resume" is the correct label.
+func snapshotStartReasonFor(startClean, dataDirEmpty bool) string {
+	switch {
+	case dataDirEmpty:
+		return schemasnapshot.ReasonInitial
+	case startClean:
+		return schemasnapshot.ReasonCleanRestart
+	default:
+		return schemasnapshot.ReasonResume
+	}
+}
+
 func clearMigrationStateIfRequired() {
 	log.Infof("clearing migration state if required: %t", startClean)
 	exportDataDir := filepath.Join(exportDir, "data")
@@ -1780,6 +2151,9 @@ func clearMigrationStateIfRequired() {
 			record.TargetRenameTablesMap = nil
 			record.ExportTypeFromSource = ""
 		})
+		if err != nil {
+			utils.ErrExit("Failed to update migration status record: %w", err)
+		}
 
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {
@@ -1862,8 +2236,8 @@ func checkSourceDBCharset() {
 	}
 }
 
-func changeStreamingIsEnabled(s string) bool {
-	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
+func changeStreamingIsEnabled(exportType string) bool {
+	return export.ChangeStreamingIsEnabled(exportType)
 }
 
 func getTableNameToApproxRowCountMap(tableList []sqlname.NameTuple) map[string]int64 {
@@ -1901,6 +2275,14 @@ func startFallBackSetupIfRequired() {
 	cmd := []string{"yb-voyager", "import", "data", "to", "source"}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
+	}
+
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		utils.ErrExit("failed to get import data status record: %w", err)
+	}
+	if !importDataStatusRecord.TargetUsePartitionRoot {
+		cmd = append(cmd, "--use-partition-root", "false")
 	}
 
 	arguments := generateGlobalExportImportArguments()
@@ -1955,7 +2337,7 @@ func generateGlobalExportImportArguments() []string {
 		}
 	} else {
 		//else set some overrides for the command
-		arguments = append(arguments, "--log-level", config.LogLevel)
+		arguments = append(arguments, logSettingsCLIArgs()...)
 		arguments = append(arguments, "--export-dir", lo.Ternary(msr.IsParentMigration(), exportDir, msr.ParentExportDir))
 		if bool(disablePb) {
 			arguments = append(arguments, "--disable-pb=true")
@@ -1968,8 +2350,12 @@ func generateGlobalExportImportArguments() []string {
 // ================================ Export Data table list filtering ================================
 
 // Finalize table and column lists for export, based on migration phase (offline/live) and DB type.
-func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
-	reportUnsupportedTablesForLiveMigration(finalTableList)
+// partitionsToRootTableMap is passed in (rather than read from MSR) so that the partition-aware
+// non-PK check in reportUnsupportedTablesForLiveMigration also works on the first export run,
+// before the rename map is persisted to MSR.
+func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+	reportUnsupportedTablesForLiveMigration(finalTableList, partitionsToRootTableMap)
+	reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration(finalTableList, partitionsToRootTableMap)
 	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
 		return t.ForOutput()
 	}))
@@ -2013,27 +2399,195 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.N
 	return finalTableList, tablesColumnList
 }
 
-func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple) {
+// reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration fails the export if any table
+// that will be replicated has a DEFERRABLE UNIQUE and PRIMARY KEY constraint. Voyager applies change events on
+// the target with immediate (non-deferred) constraint checking and its own transaction
+// boundaries, so source transactions that rely on deferring unique and primary key constraint checks (for
+// example, swapping unique values between two rows) can fail with unique and primary key constraint violations
+// on the target, blocking the streaming phase.
+func reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) {
 	if !changeStreamingIsEnabled(exportType) {
 		return
 	}
+	tablesWithDeferrableUKAndPK, err := source.DB().GetTablesHavingUniqueAndPKDeferrableConstraint(finalTableList)
+	if err != nil {
+		utils.ErrExit("get tables having unique deferrable constraint: %w", err)
+	}
+	if len(tablesWithDeferrableUKAndPK) == 0 {
+		return
+	}
+	var reportTables []string
+	for _, table := range tablesWithDeferrableUKAndPK {
+		reportTables = append(reportTables, table.AsQualifiedCatalogName())
+		if rootTable, isLeaf := partitionsToRootTableMap[table.AsQualifiedCatalogName()]; isLeaf {
+			reportTables = append(reportTables, rootTable)
+		}
+	}
+	reportTables = lo.Uniq(reportTables)
+	sort.Strings(reportTables)
 
-	//report non-pk tables
+	utils.PrintAndLogfWarning("During live migration, voyager applies change events on the target with immediate constraint checking. " +
+		"Source transactions that rely on deferring unique and primary key constraint checks (for example, swapping unique values between rows) " +
+		"can fail with constraint violation errors on the target and block the migration.\n" +
+		"Either alter these constraints to NOT DEFERRABLE on the source, or exclude these tables using --exclude-table-list.")
+	utils.ErrExit("The following tables have UNIQUE and PRIMARY KEY constraints that are DEFERRABLE: %v",
+		strings.Join(reportTables, ", "))
+}
+
+// reportUnsupportedTablesForLiveMigration fails the export if any table that will be replicated
+// lacks a primary key. The check is partition-aware: a partitioned root table that has no PK of
+// its own is acceptable as long as every leaf partition under it carries a PK, because Debezium
+// streams change events from leaf partitions in PG/YB. Without this awareness, the root added by
+// addLeafPartitionsInTableList (so that catalog queries see it) would cause false-positive
+// failures for partition hierarchies whose PKs live only on the leaves.
+func reportUnsupportedTablesForLiveMigration(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) {
+	if !changeStreamingIsEnabled(exportType) {
+		return
+	}
+	rootToLeafPartitions, err := buildRootToLeafPartitionsMap(partitionsToRootTableMap, finalTableList)
+	if err != nil {
+		utils.ErrExit("build root-to-leaf partitions map for non-pk check: %w", err)
+	}
+
 	allNonPKTables, err := source.DB().GetNonPKTables()
 	if err != nil {
 		utils.ErrExit("get non-pk tables: %w", err)
 	}
+	nonPKMap := lo.SliceToMap(allNonPKTables, func(t string) (string, bool) {
+		return t, true
+	})
+	hasPK := func(t sqlname.NameTuple) bool {
+		_, ok := nonPKMap[t.ForKey()]
+		return !ok
+	}
+
 	var nonPKTables []string
 	for _, table := range finalTableList {
-		if lo.Contains(allNonPKTables, table.ForKey()) {
-			nonPKTables = append(nonPKTables, table.ForOutput())
+		if hasPK(table) {
+			continue
 		}
+		// Accept partitioned roots whose every leaf has its own PK.
+		if leaves, isRoot := rootToLeafPartitions.Get(table); isRoot && len(leaves) > 0 && lo.EveryBy(leaves, hasPK) {
+			continue
+		}
+		nonPKTables = append(nonPKTables, table.ForOutput())
 	}
+
+	sort.Slice(nonPKTables, func(i, j int) bool {
+		return nonPKTables[i] < nonPKTables[j]
+	})
+
 	if len(nonPKTables) > 0 {
 		utils.PrintAndLogf("Table names without a Primary key: %s", nonPKTables)
 		utils.ErrExit("Currently voyager does not support live-migration for tables without a primary key.\n" +
 			"You can exclude these tables using the --exclude-table-list argument.")
 	}
+
+	reportLeafPartitionsWithMismatchedPrimaryKeys(rootToLeafPartitions, hasPK)
+}
+
+// reportLeafPartitionsWithMismatchedPrimaryKeys ensures that, for every
+// partitioned root whose own PK is missing but each leaf carries one, all
+// leaves share the *same* PK column list (in the same order). With CDC,
+// events from different leaves carry different key columns when their PKs
+// diverge, which would silently corrupt downstream replication.
+//
+// The check is intentionally restricted to roots without a PK: PostgreSQL
+// already enforces that a PK on a partitioned root is propagated to every
+// leaf, so those cases cannot diverge.
+func reportLeafPartitionsWithMismatchedPrimaryKeys(
+	rootToLeafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple],
+	hasPK func(sqlname.NameTuple) bool,
+) {
+	if source.DBType != constants.POSTGRESQL && source.DBType != constants.YUGABYTEDB {
+		return
+	}
+	mismatches := utils.NewStructMap[sqlname.NameTuple, []string]()
+	err := rootToLeafPartitions.IterKV(func(root sqlname.NameTuple, leaves []sqlname.NameTuple) (bool, error) {
+		if hasPK(root) || len(leaves) <= 1 {
+			// PG enforces same PK across leaves when root has one; a single
+			// leaf has nothing to compare against.
+			return true, nil
+		}
+		leafToPrimaryKeyColumns, err := source.DB().GetPrimaryKeyColumns(leaves)
+		if err != nil {
+			return false, fmt.Errorf("get leaf to primary key columns map: %w", err)
+		}
+		var firstPK []string
+		err = leafToPrimaryKeyColumns.IterKV(func(leaf sqlname.NameTuple, pkColumns []string) (bool, error) {
+			if firstPK == nil {
+				//continue to the next leaf to check if they share the same PK columns
+				firstPK = pkColumns
+				return true, nil
+			}
+			if !slices.Equal(firstPK, pkColumns) {
+				pks, ok := mismatches.Get(root)
+				if !ok {
+					pks = []string{}
+				}
+				pks = append(pks, strings.Join(pkColumns, ", "))
+				mismatches.Put(root, pks)
+			}
+			return true, nil
+		})
+		if err != nil {
+			return false, fmt.Errorf("iterate leaf to primary key columns map: %w", err)
+		}
+		pks, ok := mismatches.Get(root)
+		if ok {
+			pks = append(pks, strings.Join(firstPK, ", "))
+			pks = lo.Uniq(pks)
+			sort.Strings(pks)
+			mismatches.Put(root, pks)
+		}
+		return true, nil
+	})
+
+	if err != nil {
+		utils.ErrExit("report leaf partitions with mismatched primary keys: %w", err)
+	}
+
+	if len(mismatches.Keys()) == 0 {
+		return
+	}
+	sortFn := func(a sqlname.NameTuple, b sqlname.NameTuple) bool {
+		return a.AsQualifiedCatalogName() < b.AsQualifiedCatalogName()
+	}
+	utils.PrintAndLogfInfo("Partitioned tables with inconsistent primary keys across leaf partitions:")
+	// display-only iteration right before ErrExit; the callback never returns an error
+	_ = mismatches.IterKVSorted(sortFn, func(root sqlname.NameTuple, pks []string) (bool, error) {
+		utils.PrintAndLogf("- %s: (%s)\n", root.ForOutput(), strings.Join(pks, "), ("))
+		return true, nil
+	})
+	utils.ErrExit("Live migration requires all leaf partitions of a partitioned table to share the same primary key columns.\nEither align the leaves' primary keys, or exclude these tables using the --exclude-table-list argument.")
+}
+
+// buildRootToLeafPartitionsMap inverts the leaf->root rename map (qualified.Unquoted strings)
+// into a NameTuple-keyed map of root -> []leaf partitions, resolving each name through the name
+// registry so callers can compare against NameTuples coming from finalTableList.
+func buildRootToLeafPartitionsMap(partitionsToRootTableMap map[string]string, finalTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], error) {
+	finalTableListMapUnquotedToNameTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range finalTableList {
+		finalTableListMapUnquotedToNameTuple[table.AsQualifiedCatalogName()] = table
+	}
+	rootToLeafPartitions := utils.NewStructMap[sqlname.NameTuple, []sqlname.NameTuple]()
+	for leafQualified, rootQualified := range partitionsToRootTableMap {
+		leafTuple, ok := finalTableListMapUnquotedToNameTuple[leafQualified]
+		if !ok {
+			return nil, goerrors.Errorf("lookup leaf partition %q", leafQualified)
+		}
+		rootTuple, ok := finalTableListMapUnquotedToNameTuple[rootQualified]
+		if !ok {
+			return nil, goerrors.Errorf("lookup root partition %q", rootQualified)
+		}
+		leaves, ok := rootToLeafPartitions.Get(rootTuple)
+		if !ok {
+			leaves = []sqlname.NameTuple{}
+		}
+		leaves = append(leaves, leafTuple)
+		rootToLeafPartitions.Put(rootTuple, leaves)
+	}
+	return rootToLeafPartitions, nil
 }
 
 func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.StructMap[sqlname.NameTuple, []string]) {
@@ -2041,7 +2595,8 @@ func handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap *utils.Stru
 
 	var unsupportedColsMsg strings.Builder
 	unsupportedColsMsg.WriteString("The following columns data export is unsupported:\n")
-	unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
+	// message assembly; the callback never returns an error
+	_ = unsupportedTableColumnsMap.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
 		if len(v) != 0 {
 			unsupportedColsMsg.WriteString(fmt.Sprintf("%s: %s\n", k.ForOutput(), v))
 		}
@@ -2115,12 +2670,15 @@ func saveSourceDBConfInMSR() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		// overriding the current value of SourceDBConf
 		record.SourceDBConf = source.Clone()
 		record.SourceDBConf.Password = ""
 		record.SourceDBConf.Uri = ""
 	})
+	if err != nil {
+		utils.ErrExit("failed to save source DB conf in migration status record: %w", err)
+	}
 }
 
 func createSnapshotExportStartedEvent() cp.SnapshotExportStartedEvent {
@@ -2160,57 +2718,4 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	}
 
 	return result
-}
-
-func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []sqlname.NameTuple, leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple]) {
-	res, err := source.DB().GetTableToUniqueKeyColumnsMap(tableList)
-	if err != nil {
-		utils.ErrExit("get table to unique key columns map: %w", err)
-	}
-
-	if res == nil {
-		log.Infof("no table to unique key columns map found, saving nil to metaDB")
-		key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-		err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
-			*record = nil
-		})
-		if err != nil {
-			utils.ErrExit("insert table to unique key columns map: %w", err)
-		}
-		return
-	}
-
-	//Adding all the leaf partitions unique key columns to the root table unique key columns since in the importer all the events only have the root table name
-	leafPartitions.IterKV(func(rootTable sqlname.NameTuple, value []sqlname.NameTuple) (bool, error) {
-		for _, leafTable := range value {
-			leafUniqueColumns, ok := res.Get(leafTable)
-			if !ok {
-				continue
-			}
-			//Do not add leaf table key in the map since this config will be read by importer
-			res.Delete(leafTable)
-			rootUniqueColumns, ok := res.Get(rootTable)
-			if !ok {
-				rootUniqueColumns = []string{}
-			}
-			rootUniqueColumns = append(rootUniqueColumns, leafUniqueColumns...)
-			res.Put(rootTable, lo.Uniq(rootUniqueColumns))
-		}
-		return true, nil
-	})
-
-	metaDbData := make(map[string][]string)
-	res.IterKV(func(k sqlname.NameTuple, v []string) (bool, error) {
-		metaDbData[k.AsQualifiedCatalogName()] = v
-		return true, nil
-	})
-
-	log.Infof("updating metaDB with table to unique key columns map: %v", res)
-	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
-	err = metadb.UpdateJsonObjectInMetaDB(metaDB, key, func(record *map[string][]string) {
-		*record = metaDbData
-	})
-	if err != nil {
-		utils.ErrExit("insert table to unique key columns map: %w", err)
-	}
 }

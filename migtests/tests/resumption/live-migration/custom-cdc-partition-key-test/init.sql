@@ -1,0 +1,270 @@
+-- Schema for the custom-cdc-partition-key live-migration resumption test.
+-- Unique-key shapes are copied from fallback-unique-conflict-test/init.sql
+-- (originally migtests/tests/pg/unique-key-conflicts-test/snapshot_schema.sql)
+-- and cover every unique-key shape the streaming-phase conflict-detection
+-- cache (yb-voyager/cmd/conflictDetectionCache.go) reasons about.
+--
+-- Each table carries 13-14 columns shaped like a production table: an audit
+-- backbone (created_at/updated_at NOT NULL, nullable deleted_at) plus the
+-- same core business spread on every table (status varchar, description
+-- text, amount numeric(38,6), due_date date, seq_no bigint, is_active
+-- boolean), with the rarer types (jsonb, smallint, double precision, uuid,
+-- varchar[], int, text) rotated across tables so each appears on several.
+-- source_dml.sql names every column explicitly and gives the two rows of a
+-- free/reuse pair different values, so whichever column is sampled as this
+-- run's custom key still routes the pair to different channels. target_dml.sql
+-- names only the key columns and relies on the DEFAULTs, since custom keys do
+-- not apply on the fallback leg. numeric stays bounded -- unbounded numeric
+-- loses trailing zeros through live CDC and breaks row-hash validation.
+
+-- Table with Single Column Unique Constraint
+CREATE TABLE single_unique_constraint (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE,
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    metadata jsonb,
+    priority smallint NOT NULL DEFAULT 0,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+
+-- Table with Multiple Column Unique Constraint
+CREATE TABLE multi_unique_constraint (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    status varchar NOT NULL DEFAULT '',
+    metadata jsonb,
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    priority smallint NOT NULL DEFAULT 0,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp,
+    CONSTRAINT unique_name UNIQUE (first_name, last_name)
+);
+
+-- Table with Single Column Unique Index
+CREATE TABLE single_unique_index (
+    id SERIAL PRIMARY KEY,
+    "Ssn" VARCHAR(100),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    score double precision,
+    external_ref uuid,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_ssn_unique ON single_unique_index ("Ssn");
+
+-- Table with Multiple Column Unique Index
+CREATE TABLE multi_unique_index (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    external_ref uuid,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_name_unique ON multi_unique_index (first_name, last_name);
+
+-- Table with Unique Constraint and Unique Index on the Same Column
+CREATE TABLE same_column_unique_constraint_and_index (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE,
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    tags varchar[],
+    retry_count int NOT NULL DEFAULT 0,
+    metadata jsonb,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_email_unique ON same_column_unique_constraint_and_index (email);
+
+-- Table with Unique Constraint and Unique Index on Different Columns
+CREATE TABLE different_columns_unique_constraint_and_index (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE,
+    phone_number VARCHAR(20),
+    status varchar NOT NULL DEFAULT '',
+    metadata jsonb,
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    retry_count int NOT NULL DEFAULT 0,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_phone_unique ON different_columns_unique_constraint_and_index (phone_number);
+
+-- Table with Unique Constraint and Unique Index, having Subset of Columns Overlapping
+CREATE TABLE subset_columns_unique_constraint_and_index (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    phone_number VARCHAR(20),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    metadata jsonb,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+
+-- Unique constraint on first_name and last_name
+ALTER TABLE subset_columns_unique_constraint_and_index ADD CONSTRAINT unique_name_constraint UNIQUE (first_name, last_name);
+
+-- Unique index on first_name, last_name, and phone_number (superset of columns)
+CREATE UNIQUE INDEX idx_name_phone_unique ON subset_columns_unique_constraint_and_index (first_name, last_name, phone_number);
+
+CREATE TABLE expression_based_unique_index (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    notes text,
+    metadata jsonb,
+    priority smallint NOT NULL DEFAULT 0,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_email_unique_expression ON expression_based_unique_index (LOWER(email));
+
+CREATE TABLE test_partial_unique_index (
+    id SERIAL PRIMARY KEY,
+    check_id int,
+    most_recent boolean,
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    metadata jsonb,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+
+CREATE UNIQUE INDEX idx_test_partial_unique_index ON test_partial_unique_index (check_id) WHERE most_recent;
+
+-- Single-column unique index with NULLS NOT DISTINCT: two NULLs are treated as
+-- equal, so a NULL free->reuse across different PKs is a real conflict.
+CREATE TABLE single_unique_index_nulls_not_distinct (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    priority smallint NOT NULL DEFAULT 0,
+    score double precision,
+    external_ref uuid,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_email_nnd ON single_unique_index_nulls_not_distinct (email) NULLS NOT DISTINCT;
+
+-- Multi-column unique index with NULLS NOT DISTINCT.
+CREATE TABLE multi_unique_index_nulls_not_distinct (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    score double precision,
+    external_ref uuid,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_name_nnd ON multi_unique_index_nulls_not_distinct (first_name, last_name) NULLS NOT DISTINCT;
+
+-- Single-column unique index with the default NULLS DISTINCT: NULLs are all
+-- distinct, so multiple NULL rows coexist and a NULL free->reuse is NOT a conflict
+-- (contrast with single_unique_index_nulls_not_distinct above). Exercises the
+-- NULLS DISTINCT branch of the per-index conflict handling.
+CREATE TABLE single_unique_index_nulls_distinct (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    external_ref uuid,
+    tags varchar[],
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp
+);
+CREATE UNIQUE INDEX idx_email_nd ON single_unique_index_nulls_distinct (email);
+
+-- Partitioned table with a unique index. A unique key on a partitioned table
+-- must include the partition-key column, so the key is (email, region).
+CREATE TABLE partitioned_unique_conflict (
+    id INT,
+    region VARCHAR(50),
+    email VARCHAR(255),
+    status varchar NOT NULL DEFAULT '',
+    description text NOT NULL DEFAULT '',
+    amount numeric(38,6) NOT NULL DEFAULT 0,
+    due_date date NOT NULL DEFAULT CURRENT_DATE,
+    seq_no bigint NOT NULL DEFAULT 0,
+    is_active boolean NOT NULL DEFAULT false,
+    tags varchar[],
+    retry_count int NOT NULL DEFAULT 0,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now(),
+    deleted_at timestamp,
+    PRIMARY KEY (id, region)
+) PARTITION BY LIST (region);
+CREATE TABLE partitioned_unique_conflict_east PARTITION OF partitioned_unique_conflict FOR VALUES IN ('east');
+CREATE TABLE partitioned_unique_conflict_west PARTITION OF partitioned_unique_conflict FOR VALUES IN ('west');
+CREATE TABLE partitioned_unique_conflict_default PARTITION OF partitioned_unique_conflict DEFAULT;
+CREATE UNIQUE INDEX idx_partitioned_unique_email ON partitioned_unique_conflict (email, region);

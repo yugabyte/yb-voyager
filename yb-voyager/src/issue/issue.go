@@ -17,6 +17,7 @@ limitations under the License.
 package issue
 
 import (
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -27,24 +28,70 @@ type Issue struct {
 	Type string
 
 	// readable name for the issue; used in UI, logs or any print statements
-	Name                   string
-	Description            string
-	Impact                 string
-	Suggestion             string
-	GH                     string
-	DocsLink               string
-	MinimumVersionsFixedIn map[string]*ybversion.YBVersion // key: series (2024.1, 2.21, etc)
+	Name                   	 string
+	Description              string
+	Impact                   string
+	Suggestion               string
+	GH                       string
+	DocsLink               	 string
+	MinimumVersionsFixedIn   map[string]*ybversion.YBVersion // key: series; GA
+	MinimumVersionsFixedInTP map[string]*ybversion.YBVersion // key: series; available as Tech Preview
+	MinimumVersionsFixedInEA map[string]*ybversion.YBVersion // key: series; available as Early Access
+
+	// Flags to set in order to enable the feature when it is available only as
+	// Tech Preview / Early Access in the target version (e.g. "yb_enable_derived_saops=true").
+	EnablingFlags []string
 }
 
-func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
-	if i.MinimumVersionsFixedIn == nil {
+func isFixedInVersionMap(versionsFixedIn map[string]*ybversion.YBVersion, v *ybversion.YBVersion) (bool, error) {
+	if versionsFixedIn == nil {
 		return false, nil
 	}
-	minVersionFixedInSeries, ok := i.MinimumVersionsFixedIn[v.Series()]
+	minVersionFixedInSeries, ok := versionsFixedIn[v.Series()]
 	if !ok {
 		return false, nil
 	}
 	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
+}
+
+func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
+	return isFixedInVersionMap(i.MinimumVersionsFixedIn, v)
+}
+
+func (i Issue) IsFixedInTP(v *ybversion.YBVersion) (bool, error) {
+	return isFixedInVersionMap(i.MinimumVersionsFixedInTP, v)
+}
+
+func (i Issue) IsFixedInEA(v *ybversion.YBVersion) (bool, error) {
+	return isFixedInVersionMap(i.MinimumVersionsFixedInEA, v)
+}
+
+// GetMaturityInTarget returns the maturity of the feature in the given target version:
+// GA / EA / TP / UNSUPPORTED. Precedence is GA > EA > TP: if the feature qualifies at
+// multiple maturities in the target series, the highest maturity wins.
+func (i Issue) GetMaturityInTarget(v *ybversion.YBVersion) (string, error) {
+	ga, err := i.IsFixedIn(v)
+	if err != nil {
+		return "", err
+	}
+	if ga {
+		return constants.MATURITY_GA, nil
+	}
+	ea, err := i.IsFixedInEA(v)
+	if err != nil {
+		return "", err
+	}
+	if ea {
+		return constants.MATURITY_EA, nil
+	}
+	tp, err := i.IsFixedInTP(v)
+	if err != nil {
+		return "", err
+	}
+	if tp {
+		return constants.MATURITY_TP, nil
+	}
+	return constants.MATURITY_UNSUPPORTED, nil
 }
 
 /*

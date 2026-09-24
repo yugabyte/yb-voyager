@@ -57,3 +57,6 @@ generator:
 
   # Index events interval in seconds
   index_events_interval: 5
+
+  # Column min size in bytes (for text, json, jsonb, tsvector columns). Set to 0 to disable.
+  min_col_size_bytes: 0

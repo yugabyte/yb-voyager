@@ -201,7 +201,6 @@ func fetchSequenceToTableListMap(msr *metadb.MigrationStatusRecord) (*utils.Stru
 		if err != nil {
 			return nil, fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
 		}
-		sequenceName = sequenceTuple.ForKey()
 		tableList, ok := sequenceNameToTableMap.Get(sequenceTuple)
 		if ok {
 			tableList = append(tableList, tableNameTuple)
@@ -268,7 +267,7 @@ func readSequenceLastValueFromPostDataSql(sequenceFilePath string, sourceDBType 
 	for _, sqlInfo := range sqlInfoArr {
 		parseTree, err := queryparser.Parse(sqlInfo.stmt)
 		if err != nil {
-			return nil, goerrors.Errorf("error parsing the ddl[%s]: %v", sqlInfo.stmt, err)
+			return nil, goerrors.Errorf("error parsing the ddl[%s]: %w", sqlInfo.stmt, err)
 		}
 		var sequenceName string
 		var lastValue int64

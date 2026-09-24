@@ -18,11 +18,14 @@ package cmd
 import (
 	"fmt"
 
+	goerrors "github.com/go-errors/errors"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -61,12 +64,16 @@ func init() {
 	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
 	registerFlagsForSourceAndSourceReplica(importDataToSourceCmd)
 	registerImportDataCommonFlags(importDataToSourceCmd)
+	registerImportUsePartitionRootFlagToSource(importDataToSourceCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
-	importDataToSourceCmd.Flags().MarkHidden("batch-size")
+	mustMarkFlagHidden(importDataToSourceCmd, "batch-size")
 
 	importDataToSourceCmd.Flags().IntVar(&prometheusMetricsPort, "prometheus-metrics-port", 0,
 		"Port for Prometheus metrics server (default: 9104)")
-	importDataToSourceCmd.Flags().MarkHidden("prometheus-metrics-port")
+	mustMarkFlagHidden(importDataToSourceCmd, "prometheus-metrics-port")
+
+	importDataToSourceCmd.Flags().IntVar(&metricsPort, "metrics-port", 0,
+		"Port to expose Prometheus metrics on (0 disables). Serves GET /metrics.")
 }
 
 func initTargetConfFromSourceConf() error {
@@ -101,7 +108,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
+	payload := createCallhomePayload(migrationUUID)
 
 	payload.MigrationType = LIVE_MIGRATION
 
@@ -127,24 +134,37 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
 	}
 
+	// Set table list count
+	dataMetrics.TableListCount = len(importTableList)
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Infof("callhome: error getting MSR for iterative cutover enabled: %v", err)
+		return
+	}
+	iterativeCutoverEnabled := msr.RestartDataMigrationSourceTargetNextIteration && msr.NextIterationInitialized
+
 	importDataPayload := callhome.ImportDataPhasePayload{
-		PayloadVersion:   callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
-		ParallelJobs:     int64(tconf.Parallelism),
-		StartClean:       bool(startClean),
-		LiveWorkflowType: FALL_BACK,
-		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
-		ControlPlaneType: getControlPlaneType(),
-		DataMetrics:      dataMetrics,
-		Phase:            importPhase,
+		PayloadVersion:          callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		ParallelJobs:            int64(tconf.Parallelism),
+		StartClean:              bool(startClean),
+		LiveWorkflowType:        FALL_BACK,
+		Error:                   callhome.SanitizeErrorMsg(errorMsg, anonymizer),
+		ControlPlaneType:        getControlPlaneType(),
+		DataMetrics:             dataMetrics,
+		Phase:                   importPhase,
+		IterativeCutoverEnabled: iterativeCutoverEnabled,
+	}
+	if iterativeCutoverEnabled {
+		nextIterationMigrationUUID, err := getMigrationUUIDForNextIteration(msr)
+		if err != nil {
+			log.Infof("callhome: error getting migration UUID for next iteration: %v", err)
+			return
+		}
+		importDataPayload.NextIterationMigrationUUID = &nextIterationMigrationUUID
 	}
 
-	// Add cutover timings if applicable
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err == nil {
-		importDataPayload.CutoverTimings = CalculateCutoverTimingsForSource(msr)
-	} else {
-		log.Infof("callhome: error getting MSR for cutover timings: %v", err)
-	}
+	importDataPayload.CutoverTimings = CalculateCutoverTimingsForSource(msr)
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
@@ -153,4 +173,28 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
+}
+
+func getMigrationUUIDForNextIteration(currentMSR *metadb.MigrationStatusRecord) (uuid.UUID, error) {
+	parentExportDir := currentMSR.GetParentExportDir(exportDir)
+	iterationsDir := currentMSR.GetIterationsDir(parentExportDir)
+	latestIterationNumber, err := metaDB.GetLatestIterationNumber()
+	if err != nil {
+		return uuid.Nil, goerrors.Errorf("get latest iteration number: %w", err)
+	}
+	nextIterationExportDir := GetIterationExportDir(iterationsDir, latestIterationNumber)
+	nextIterationMetaDB, err := metadb.NewMetaDB(nextIterationExportDir)
+	if err != nil {
+		return uuid.Nil, goerrors.Errorf("create next iteration meta db: %w", err)
+	}
+
+	nextIterationMsr, err := nextIterationMetaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return uuid.Nil, goerrors.Errorf("get next iteration MSR: %w", err)
+	}
+	nextIterationMigrationUUID, err := uuid.Parse(nextIterationMsr.MigrationUUID)
+	if err != nil {
+		return uuid.Nil, goerrors.Errorf("parse next iteration migration UUID: %w", err)
+	}
+	return nextIterationMigrationUUID, nil
 }
