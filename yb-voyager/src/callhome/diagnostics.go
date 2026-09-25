@@ -335,8 +335,9 @@ Version History:
 1.4: Added CutoverTimings field
 1.5: Added table list count to ImportDataMetrics
 1.6: Added iterative cutover enabled and next iteration migration UUID fields
+1.7: Added CdcConflictCountPerTable field to ImportDataMetrics
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.6"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.7"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string            `json:"payload_version"`
@@ -358,6 +359,8 @@ type ImportDataPhasePayload struct {
 	Error                      string          `json:"error"`
 	ControlPlaneType           string          `json:"control_plane_type"`
 	CutoverTimings             *CutoverTimings `json:"cutover_timings,omitempty"`
+
+	CdcPartitionKeyMap map[string]string `json:"cdc_partition_key_map"`
 }
 
 type ImportDataMetrics struct {
@@ -372,6 +375,8 @@ type ImportDataMetrics struct {
 	SnapshotTotalRows       int64 `json:"snapshot_total_rows"`
 	SnapshotTotalBytes      int64 `json:"snapshot_total_bytes"`
 	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
+
+	CdcConflictCountPerTable map[string]int64 `json:"cdc_conflict_count_per_table,omitempty"`
 
 	// table list count - number of tables being imported
 	TableListCount int `json:"table_list_count"`

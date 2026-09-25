@@ -1980,6 +1980,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
 		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
 		dataMetrics.CurrentParallelConnections = callhomeMetricsCollector.GetCurrentParallelConnections()
+		dataMetrics.CdcConflictCountPerTable = callhomeMetricsCollector.GetCdcConflictCountPerTable()
 	}
 
 	// Get phase-related metrics from existing logic
@@ -2007,6 +2008,32 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	// Set table list count
 	dataMetrics.TableListCount = len(importTableList)
 
+	anonymizedTableNames := buildAnonymizedTableNames(importTableList)
+
+	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
+	if err != nil {
+		log.Warnf("callhome: error getting import data status record for cdc partition key map: %v", err)
+	}
+
+	// A nil record means import data never started, so the map stays empty.
+	cdcPartitionKeyMap := make(map[string]string)
+	if importDataStatusRecord != nil {
+		tables := lo.Keys(importDataStatusRecord.TableToCDCPartitionKey)
+		sort.Strings(tables) // the payload must not change shape run to run
+		for i, table := range tables {
+			nameTuple, err := namereg.NameReg.LookupTableName(table)
+			if err != nil {
+				log.Warnf("callhome: lookup for table %q in name registry: %v", table, err)
+				continue
+			}
+			anonymized, ok := anonymizedTableNames.Get(nameTuple)
+			if !ok {
+				log.Warnf("callhome: no anonymized table name precomputed for %s; putting all such tables in the conflict metric with prefix as XXX", nameTuple.ForOutput())
+				anonymized = fmt.Sprintf("%s_%d", constants.OBFUSCATE_STRING, i)
+			}
+			cdcPartitionKeyMap[anonymized] = importDataStatusRecord.TableToCDCPartitionKey[table].Strategy
+		}
+	}
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:             callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:               int64(tconf.Parallelism),
@@ -2022,6 +2049,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
 		DataMetrics:                 dataMetrics,
 		Phase:                       importPhase,
+		CdcPartitionKeyMap:          cdcPartitionKeyMap,
 	}
 
 	var err2 error

@@ -265,6 +265,7 @@ func TestCallhomeStructs(t *testing.T) {
 				Error                       string            `json:"error"`
 				ControlPlaneType            string            `json:"control_plane_type"`
 				CutoverTimings              *CutoverTimings   `json:"cutover_timings,omitempty"`
+				CdcPartitionKeyMap          map[string]string `json:"cdc_partition_key_map"`
 			}{},
 		},
 		{
@@ -328,14 +329,15 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataMetrics Struct Definition",
 			actualType: reflect.TypeOf(ImportDataMetrics{}),
 			expectedType: struct {
-				CurrentParallelConnections        int   `json:"current_parallel_connections"`
-				MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
-				MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
-				MigrationCdcTotalImportedEvents   int64 `json:"migration_cdc_total_imported_events"`
-				SnapshotTotalRows                 int64 `json:"snapshot_total_rows"`
-				SnapshotTotalBytes                int64 `json:"snapshot_total_bytes"`
-				CdcEventsImportRate3min           int64 `json:"cdc_events_import_rate_3min"`
-				TableListCount                    int   `json:"table_list_count"`
+				CurrentParallelConnections        int              `json:"current_parallel_connections"`
+				MigrationSnapshotTotalRows        int64            `json:"migration_snapshot_total_rows"`
+				MigrationSnapshotLargestTableRows int64            `json:"migration_snapshot_largest_table_rows"`
+				MigrationCdcTotalImportedEvents   int64            `json:"migration_cdc_total_imported_events"`
+				SnapshotTotalRows                 int64            `json:"snapshot_total_rows"`
+				SnapshotTotalBytes                int64            `json:"snapshot_total_bytes"`
+				CdcEventsImportRate3min           int64            `json:"cdc_events_import_rate_3min"`
+				CdcConflictCountPerTable          map[string]int64 `json:"cdc_conflict_count_per_table,omitempty"`
+				TableListCount                    int              `json:"table_list_count"`
 			}{},
 		},
 		{
