@@ -31,6 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var targetDBPassword string
@@ -217,6 +218,35 @@ func validateImportUsePartitionRootFlag() error {
 	return metaDB.UpdateImportDataStatusRecord(func(record *metadb.ImportDataStatusRecord) {
 		record.TargetUsePartitionRoot = bool(importUsePartitionRoot)
 	})
+}
+
+type partitionedTablesWithoutOwnPKLister interface {
+	GetPartitionedTablesWithoutOwnPrimaryKey(tables []sqlname.NameTuple) ([]sqlname.NameTuple, error)
+}
+
+// validateUsePartitionRootForPartitionedTables refuses '--use-partition-root true' for live
+// migration when a partitioned table has no primary key of its own. CDC UPDATE/DELETE are then
+// applied on the root with WHERE <partition primary key>, and a partition's key is not unique
+// across partitions, so one event would modify rows in every partition holding that key.
+func validateUsePartitionRootForPartitionedTables(tableNames []sqlname.NameTuple) error {
+	if importerRole != TARGET_DB_IMPORTER_ROLE || !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL || !tconf.UsePartitionRoot {
+		return nil
+	}
+	lister, ok := tdb.(partitionedTablesWithoutOwnPKLister)
+	if !ok {
+		return goerrors.Errorf("target db type %s does not support checking partitioned tables for a primary key", tconf.TargetDBType)
+	}
+	tablesWithoutOwnPK, err := lister.GetPartitionedTablesWithoutOwnPrimaryKey(tableNames)
+	if err != nil {
+		return fmt.Errorf("error getting partitioned tables without a primary key: %w", err)
+	}
+	if len(tablesWithoutOwnPK) == 0 {
+		return nil
+	}
+	tableNamesForOutput := lo.Map(tablesWithoutOwnPK, func(t sqlname.NameTuple, _ int) string { return t.ForOutput() })
+	return goerrors.Errorf("partitioned table(s) %s have no primary key on the root table; "+
+		"with '--use-partition-root true' (default), changes would be applied via the root table, where a partition's primary key is not unique across partitions. "+
+		"Re-run import data with '--use-partition-root false'", strings.Join(tableNamesForOutput, ", "))
 }
 
 var validCdcPartitionKeys = []string{PARTITION_BY_PK, PARTITION_BY_TABLE, "auto"}

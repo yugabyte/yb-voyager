@@ -452,6 +452,58 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 	return result, nil
 }
 
+const pgQueryTmplPartitionedTablesWithoutOwnPK = `
+SELECT n.nspname, c.relname
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE (n.nspname || '.' || c.relname) IN ('%s')
+  AND c.relkind = 'p' -- partitioned tables only; a leaf-only PK is legal only under a partitioned parent
+  AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.oid AND i.indisprimary)
+ORDER BY n.nspname, c.relname;`
+
+// queryPGPartitionedTablesWithoutOwnPrimaryKey returns the requested tables that are partitioned
+// tables with no primary key declared on the table itself (their partitions may still carry
+// primary keys). Only requested tables are returned, never their partitions.
+func queryPGPartitionedTablesWithoutOwnPrimaryKey(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	if len(tables) == 0 {
+		return nil, nil
+	}
+	catalogToTuple := make(map[string]sqlname.NameTuple, len(tables))
+	for _, t := range tables {
+		catalogToTuple[t.AsQualifiedCatalogName()] = t
+	}
+	query := fmt.Sprintf(pgQueryTmplPartitionedTablesWithoutOwnPK, strings.Join(lo.Keys(catalogToTuple), "','"))
+	rows, err := queryFn(query)
+	if err != nil {
+		return nil, fmt.Errorf("query partitioned tables without a primary key for tables %v: %w", tables, err)
+	}
+	defer rows.Close()
+
+	var result []sqlname.NameTuple
+	for rows.Next() {
+		var schema, table string
+		if err := rows.Scan(&schema, &table); err != nil {
+			return nil, fmt.Errorf("scan partitioned table without a primary key row: %w", err)
+		}
+		catalogName := fmt.Sprintf("%s.%s", schema, table)
+		tuple, ok := catalogToTuple[catalogName]
+		if !ok {
+			return nil, goerrors.Errorf("partitioned table %s not found in requested table list", catalogName)
+		}
+		result = append(result, tuple)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate partitioned tables without a primary key rows: %w", err)
+	}
+	return result, nil
+}
+
+// GetPartitionedTablesWithoutOwnPrimaryKey returns the requested tables that are partitioned
+// tables without a primary key of their own.
+func (pg *TargetPostgreSQL) GetPartitionedTablesWithoutOwnPrimaryKey(tables []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return queryPGPartitionedTablesWithoutOwnPrimaryKey(pg.Query, tables)
+}
+
 // GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
 // in PK-definition order.
 // Implementing this for completion but not used in Postgres fall-forward/fall-back;
