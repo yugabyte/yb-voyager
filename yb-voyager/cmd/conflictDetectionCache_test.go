@@ -718,9 +718,9 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 	}
 }
 
-// A blocked event must be counted exactly once (under its anonymized table name),
+// A blocked event must be counted exactly once (under its table name),
 // no matter how many times it re-waits, and a non-conflicting event must not be counted.
-func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
+func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	rec := metrics.NewRecordingRecorder()
 	prev := metrics.Get()
 	defer metrics.SetRecorder(prev)
@@ -756,8 +756,8 @@ func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
 	// The metric is recorded at first detection, before the blocking wait; poll for it,
 	// then clear the conflict so WaitUntilNoConflict can return.
 	require.Eventually(t, func() bool {
-		return rec.ImportCDCConflicts[cached.TableNameTup.ForOutput()] == 1
-	}, 2*time.Second, 5*time.Millisecond, "blocked event should be counted once under its anonymized table name")
+		return rec.ImportCDCConflictsSnapshot()[cached.TableNameTup.ForOutput()] == 1
+	}, 2*time.Second, 5*time.Millisecond, "blocked event should be counted once under its table name")
 
 	cache.RemoveEvents(cached)
 	select {
@@ -766,9 +766,9 @@ func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
 		t.Fatal("WaitUntilNoConflict did not return after the conflict cleared")
 	}
 
-	// Exactly one increment for the blocked event; the raw table name never appears.
-	assert.Equal(t, 1, rec.ImportCDCConflicts[cached.TableNameTup.ForOutput()])
-	assert.Len(t, rec.ImportCDCConflicts, 1)
+	// Exactly one increment for the blocked event, and no other table counted.
+	conflicts := rec.ImportCDCConflictsSnapshot()
+	assert.Equal(t, map[string]int{cached.TableNameTup.ForOutput(): 1}, conflicts)
 
 	// A non-conflicting event must not add to the count.
 	nonConflicting := withAfterFields(&tgtdb.Event{
@@ -780,7 +780,7 @@ func TestConflictMetric_CountsBlockedEventOncePerAnonymizedTable(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	})
 	require.NoError(t, cache.WaitUntilNoConflict(nonConflicting))
-	assert.Equal(t, 1, rec.ImportCDCConflicts[nonConflicting.TableNameTup.ForOutput()])
+	assert.Equal(t, conflicts, rec.ImportCDCConflictsSnapshot(), "a non-conflicting event must not be counted")
 }
 
 // RemoveEvents must clear both the primary map and the lookup index.
