@@ -1259,6 +1259,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if err != nil {
 		utils.ErrExit("Failed to get primary key columns for import tables: %w", err)
 	}
+	err = validateUsePartitionRootForPartitionedTables(importTableList)
+	if err != nil {
+		utils.ErrExit("Failed to validate --use-partition-root: %w", err)
+	}
 	//updating the metadb after the startclean clears any required metadb state
 	err = updateImportDataStartedAndSomeConfigsInMetaDB()
 	if err != nil {

@@ -607,6 +607,12 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameT
 	return queryPGPrimaryKeyColumnsByCatalog(yb.Query, tables)
 }
 
+// GetPartitionedTablesWithoutOwnPrimaryKey returns the requested tables that are partitioned
+// tables without a primary key of their own.
+func (yb *TargetYugabyteDB) GetPartitionedTablesWithoutOwnPrimaryKey(tables []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return queryPGPartitionedTablesWithoutOwnPrimaryKey(yb.Query, tables)
+}
+
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {
 	log.Infof("getting unique indexes from target for tables: %s", strings.Join(sqlname.NameTupleListToStrings(tableList), ", "))
 
