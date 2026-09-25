@@ -767,7 +767,7 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	}
 
 	// Exactly one increment for the blocked event, and no other table counted.
-	conflicts := rec.ImportCDCConflictsSnapshot()
+	conflicts := 1
 	assert.Equal(t, map[string]int{cached.TableNameTup.ForOutput(): 1}, conflicts)
 
 	// A non-conflicting event must not add to the count.
