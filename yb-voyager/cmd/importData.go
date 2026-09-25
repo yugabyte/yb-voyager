@@ -2008,28 +2008,30 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	// Set table list count
 	dataMetrics.TableListCount = len(importTableList)
 
+	anonymizedTableNames := buildAnonymizedTableNames(importTableList)
+
 	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
 	if err != nil {
-		log.Infof("callhome: error getting import data status record for cdc partition key map: %v", err)
+		log.Warnf("callhome: error getting import data status record for cdc partition key map: %v", err)
 	}
 
+	// A nil record means import data never started, so the map stays empty.
 	cdcPartitionKeyMap := make(map[string]string)
 	if importDataStatusRecord != nil {
-		i := 0
-		anonymizedTableNames := buildAnonymizedTableNames(importTableList)
-		for table, partitionKey := range importDataStatusRecord.TableToCDCPartitionKey {
+		tables := lo.Keys(importDataStatusRecord.TableToCDCPartitionKey)
+		sort.Strings(tables) // the payload must not change shape run to run
+		for i, table := range tables {
 			nameTuple, err := namereg.NameReg.LookupTableName(table)
 			if err != nil {
-				log.Warnf("lookup for table name in name reg: %v with: %v", table, err)
+				log.Warnf("callhome: lookup for table %q in name registry: %v", table, err)
 				continue
 			}
-			anonymizedTableName, ok := anonymizedTableNames.Get(nameTuple)
+			anonymized, ok := anonymizedTableNames.Get(nameTuple)
 			if !ok {
-				log.Warnf("no anonymized table name precomputed for %s; putting all such tables in the conflict metric as XXX", nameTuple.ForOutput())
-				anonymizedTableName = fmt.Sprintf("XXX_%d", i)
+				log.Warnf("callhome: no anonymized table name precomputed for %s; putting all such tables in the conflict metric with prefix as XXX", nameTuple.ForOutput())
+				anonymized = fmt.Sprintf("%s_%d", constants.OBFUSCATE_STRING, i)
 			}
-			cdcPartitionKeyMap[anonymizedTableName] = partitionKey.Strategy
-			i++
+			cdcPartitionKeyMap[anonymized] = importDataStatusRecord.TableToCDCPartitionKey[table].Strategy
 		}
 	}
 	importDataPayload := callhome.ImportDataPhasePayload{
