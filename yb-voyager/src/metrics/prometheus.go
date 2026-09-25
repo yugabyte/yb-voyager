@@ -15,6 +15,11 @@ import (
 var snapshotLabels = []string{"migration_uuid", "session_id", "importer_role", "table_name", "schema_name"}
 var errorLabels = append(append([]string{}, snapshotLabels...), "error_kind")
 var importerRoleLabels = []string{"migration_uuid", "session_id", "importer_role"}
+
+// conflictLabels carries an anonymized table_name (not the raw identifier). The
+// call site passes an already-anonymized name (see conflictDetectionCache), so no
+// raw table name ever reaches the metrics registry / scrape endpoint.
+var conflictLabels = []string{"migration_uuid", "session_id", "importer_role", "table_name"}
 var cdcEventLabels = append(append([]string{}, importerRoleLabels...), "event_type")
 var exportSnapshotLabels = []string{"migration_uuid", "session_id", "exporter_role", "table_name", "schema_name"}
 var exporterRoleLabels = []string{"migration_uuid", "session_id", "exporter_role"}
@@ -57,6 +62,9 @@ type PrometheusRecorder struct {
 	importCDCEventsPending             *prometheus.GaugeVec
 	importCDCEstimatedSecondsToCatchUp *prometheus.GaugeVec
 	importCDCLastEventApplied          *prometheus.GaugeVec
+
+	// import CDC conflicts
+	importCDCConflictsTotal *prometheus.CounterVec
 
 	// export snapshot
 	exportSnapshotRows        *prometheus.CounterVec
@@ -165,6 +173,11 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 			Name: "yb_voyager_import_data_cdc_last_event_applied_timestamp_seconds",
 			Help: "Unix timestamp of the most recent successfully applied CDC event batch",
 		}, importerRoleLabels),
+		// table_name is actual qualified table name passed by the call site. PromQL: sum by (table_name) (rate(yb_voyager_import_data_cdc_conflicts_total[5m]))
+		importCDCConflictsTotal: f.NewCounterVec(prometheus.CounterOpts{
+			Name: "yb_voyager_import_data_cdc_conflicts_total",
+			Help: "Total streaming CDC events that had to block on a detected unique-key conflict (one per blocked event), by anonymized table_name",
+		}, conflictLabels),
 		exportSnapshotRows: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_export_data_snapshot_rows_total",
 			Help: "Total rows exported during snapshot",
@@ -346,6 +359,10 @@ func (p *PrometheusRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole 
 
 func (p *PrometheusRecorder) SetImportCDCLastEventApplied(importerRole string) {
 	p.importCDCLastEventApplied.WithLabelValues(p.migrationUUID, p.sessionID, importerRole).Set(float64(time.Now().Unix()))
+}
+
+func (p *PrometheusRecorder) RecordImportCDCConflict(importerRole string, anonymizedTableName string) {
+	p.importCDCConflictsTotal.WithLabelValues(p.migrationUUID, p.sessionID, importerRole, anonymizedTableName).Inc()
 }
 
 // misc
