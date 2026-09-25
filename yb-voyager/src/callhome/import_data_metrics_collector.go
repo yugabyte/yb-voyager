@@ -34,7 +34,7 @@ func NewImportDataMetricsCollector() *ImportDataMetricsCollector {
 		snapshotTotalRows:          0,
 		snapshotTotalBytes:         0,
 		currentParallelConnections: 0,
-		cdcConflictCountPerTable: make(map[string]int64),
+		cdcConflictCountPerTable:   make(map[string]int64),
 	}
 }
 
@@ -78,5 +78,9 @@ func (c *ImportDataMetricsCollector) GetSnapshotTotalBytes() int64 {
 func (c *ImportDataMetricsCollector) GetCdcConflictCountPerTable() map[string]int64 {
 	c.RLock()
 	defer c.RUnlock()
-	return c.cdcConflictCountPerTable
+	out := make(map[string]int64, len(c.cdcConflictCountPerTable))
+	for k, v := range c.cdcConflictCountPerTable {
+		out[k] = v
+	}
+	return out
 }
