@@ -27,7 +27,6 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 - `references/harness.md` — environment preconditions, workspace layout, DDL probing, writing tests from cases, running, outcome classification, verification, cleanup. **Read it before Step 1.**
 - `templates/example_case_test.go.tmpl` — a finished PR test written with the existing framework only (the yb-voyager#3834 repro). Container tests follow this shape; no shared helper files.
 - `templates/fuzz_engine_test.go.tmpl`, `templates/fuzz_partitions_test.go.tmpl` — unit schedule fuzzers (real `hashEvent` + `ConflictDetectionCache` + a model target with voyager's apply semantics, random interleavings, detection-off mutant). Extend them with the plan's `fuzz` scenarios.
-- `templates/pr-body.md` — PR body for a finding.
 - `../generate-data-integrity-test-plan/references/` — mechanisms, dimensions, inventory derivation, plan schema.
 
 ## Workflow
@@ -86,7 +85,7 @@ For each verified signature (up to `--max-prs`, P0 first):
 3. Run the new test once on the branch to confirm it fails for the reported reason.
 4. Commit (follow the repo's attribution rules), push, and open a **draft** PR:
    - title `[data-integrity] <symptom in one line>`
-   - body from `templates/pr-body.md` (sections follow the repo PR template; see the `pr-description` skill), including the signature line at the end for dedupe.
+   - body from the repo's `.github/PULL_REQUEST_TEMPLATE` via the `pr-description` skill: setup, workload, expected vs actual, repro rate, how to run, suggested fix. Note that CI fails by design, and end with the signature line for dedupe.
    - no customer names or data anywhere (synthetic schemas only).
 
 Do not file Jira tickets; the user can run `create-voyager-issue` on a PR they want tracked.
