@@ -1436,56 +1436,48 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		return storedFor(PARTITION_BY_CUSTOM, "test_schema.orders:("+strings.Join(cols, ",")+")", cols...)
 	}
 
+	strategyChangedErr := func(perTableDetail string) string {
+		return "change in cdc-partition-key-overrides in between runs detected: " +
+			"changing cdc-partition-key / cdc-partition-key-overrides is not allowed after the import data has started; " +
+			"effective strategy changed for: " + perTableDetail +
+			".\nUse --start-clean to start a fresh import with the new configuration."
+	}
+
 	// --- custom key column / strategy transitions (semantic guard) ---
 
 	t.Run("changed custom key column list is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(region)"
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key")
-		assert.Contains(t, err.Error(), "custom key columns")
-		assert.Contains(t, err.Error(), "orders")
+		assert.EqualError(t, err, strategyChangedErr(`test_schema.orders (persisted custom key columns: [customer_id], new: [region])`))
 	})
 
 	t.Run("custom to pk is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "" // drop the override -> orders falls back to global pk
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key")
-		assert.Contains(t, err.Error(), `persisted: "custom"`)
-		assert.Contains(t, err.Error(), `new: "pk"`)
+		assert.EqualError(t, err, strategyChangedErr(`test_schema.orders (persisted: "custom", new: "pk")`))
 	})
 
 	t.Run("pk to custom is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id)"
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, storedFor(PARTITION_BY_PK, ""), emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key")
-		assert.Contains(t, err.Error(), `persisted: "pk"`)
-		assert.Contains(t, err.Error(), `new: "custom"`)
+		assert.EqualError(t, err, strategyChangedErr(`test_schema.orders (persisted: "pk", new: "custom")`))
 	})
 
 	t.Run("table to custom is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id)"
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, storedFor(PARTITION_BY_TABLE, "test_schema.orders:table"), emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key")
-		assert.Contains(t, err.Error(), `persisted: "table"`)
-		assert.Contains(t, err.Error(), `new: "custom"`)
+		assert.EqualError(t, err, strategyChangedErr(`test_schema.orders (persisted: "table", new: "custom")`))
 	})
 
 	t.Run("custom to table is rejected", func(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:table"
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key")
-		assert.Contains(t, err.Error(), `persisted: "custom"`)
-		assert.Contains(t, err.Error(), `new: "table"`)
+		assert.EqualError(t, err, strategyChangedErr(`test_schema.orders (persisted: "custom", new: "table")`))
 	})
 
 	t.Run("override on a leaf partition name is rejected", func(t *testing.T) {
@@ -1494,8 +1486,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders_part_r1:table"
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "table 'test_schema.orders_part_r1' is not in the import table list")
+		assert.EqualError(t, err, "error computing cdc partitioning strategy per table: cdc-partition-key-overrides: table 'test_schema.orders_part_r1' is not in the import table list")
 	})
 
 	// --- global key change (flag-level guard) ---
@@ -1524,8 +1515,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		// The semantic guard short-circuits when the overrides string is unchanged, so the global
 		// pk->table change (override still present) is caught by the flag-level raw compare.
 		err := runFlagGuard(t, PARTITION_BY_PK, PARTITION_BY_TABLE, "test_schema.orders:table")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key is not allowed")
+		assert.EqualError(t, err, "changing cdc-partition-key is not allowed after the import data has started. Current: pk, new: table\n Use --start-clean to start a fresh import with the new partition key.")
 	})
 
 	t.Run("global auto to pk is rejected even when effectively equivalent", func(t *testing.T) {
@@ -1533,8 +1523,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		// though, with no expression-UK tables, auto resolves to pk everywhere. (Overrides, by
 		// contrast, are compared semantically.) If this ever becomes accepted, update this test.
 		err := runFlagGuard(t, "auto", PARTITION_BY_PK, "")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "changing cdc-partition-key is not allowed")
+		assert.EqualError(t, err, "changing cdc-partition-key is not allowed after the import data has started. Current: auto, new: pk\n Use --start-clean to start a fresh import with the new partition key.")
 	})
 
 	// --- accepted (no-op) changes ---
@@ -1573,8 +1562,9 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id) " // whitespace-differ to force recompute
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, storedTwoTables, emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cdc-partition-key-overrides: table \"test_schema\".\"orders_part\" is in the current import table list but was not part of the original import;")
+		assert.EqualError(t, err, "change in cdc-partition-key-overrides in between runs detected: "+
+			"cdc-partition-key-overrides: table \"test_schema\".\"orders_part\" is in the current import table list but was not part of the original import; "+
+			"use --start-clean to start a fresh import with the new configuration\n")
 	})
 
 	t.Run("import table list shrunk on resume is rejected", func(t *testing.T) {
@@ -1582,8 +1572,9 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders:(customer_id) " // whitespace-differ to force recompute
 		err := validateCdcPartitioningStrategyUnchanged([]sqlname.NameTuple{orders, events}, customStored("customer_id"), emptyUK)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cdc-partition-key-overrides: table \"test_schema\".\"orders_part\" was part of the original import but is missing from the current import table list")
+		assert.EqualError(t, err, "change in cdc-partition-key-overrides in between runs detected: "+
+			"cdc-partition-key-overrides: table \"test_schema\".\"orders_part\" was part of the original import but is missing from the current import table list; "+
+			"use --start-clean to start a fresh import with the new configuration\n")
 	})
 
 	// --- custom key equal to the primary key columns is accepted ---
