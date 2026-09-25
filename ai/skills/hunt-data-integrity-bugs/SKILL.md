@@ -24,7 +24,8 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 
 ## References
 
-- `references/harness.md` — environment preconditions, workspace layout, DDL probing, writing tests from cases, running, outcome classification, verification, cleanup. **Read it before Step 1.**
+- `references/environment.md` — probing and provisioning a host (Docker, JDK, Debezium, PG client tools, binary), including restricted-network and Claude Code cloud notes. **Read it first.**
+- `references/harness.md` — workspace layout, DDL probing, writing tests from cases, running, outcome classification, verification, cleanup. **Read it before Step 1.**
 - `templates/example_case_test.go.tmpl` — a finished PR test written with the existing framework only (the yb-voyager#3834 repro). Container tests follow this shape; no shared helper files.
 - `../generate-data-integrity-test-plan/references/` — mechanisms, dimensions, inventory derivation, plan schema.
 
@@ -43,7 +44,7 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 
 ### Step 0: Preconditions and workspace
 
-Follow `harness.md` → Environment preconditions and Workspace. Create the worktree at the target commit, build `yb-voyager` into `$SCRATCH/bin`, put it first on PATH, and verify `GIT_COMMIT_HASH`. If a precondition fails, stop and report exactly which (unattended runs must not half-run).
+Follow `references/environment.md` (probe, provision, clean env, build the target commit into `$SCRATCH/bin`, pre-pull images, smoke test), then `harness.md` → Environment and Workspace. If a hard requirement fails, stop and report exactly which one (unattended runs must not half-run).
 
 Self-check against the target commit before writing any test:
 - If the plan's `inventory` is missing or was built at a different commit, rebuild it (`../generate-data-integrity-test-plan/references/inventory.md`).
@@ -84,8 +85,9 @@ For each verified signature (up to `--max-prs`, P0 first):
    - title `[data-integrity] <symptom in one line>`
    - body from the repo's `.github/PULL_REQUEST_TEMPLATE` via the `pr-description` skill: setup, workload, expected vs actual, repro rate, how to run, suggested fix. Note that CI fails by design, and end with the signature line for dedupe.
    - no customer names or data anywhere (synthetic schemas only).
+   - **Never change commit authorship.** Commit with whatever git identity the environment provides; never set `user.name`/`user.email` to a person, never amend or re-author a commit to someone else, and never force-push. A pending CLA or failing CI on these PRs is expected — note it in the report and leave it for a human.
 
-Do not file Jira tickets or GitHub issues; the PR is the report.
+Do not file Jira tickets or GitHub issues; the PR is the report. Do not subscribe to PR activity, respond to CI or review events, or schedule follow-up runs — a finding PR is handed to humans as soon as it is opened.
 
 ### Step 7: Report and clean up
 
@@ -99,7 +101,7 @@ Write `$SCRATCH/data-integrity/report-<YYYYMMDD>.md`:
 - **Catalog drift**: uncatalogued/stale flags, stale anchors, guardrails added/removed, templates that needed fixes (see `inventory.md` → Drift report)
 - **Suggested follow-ups**: guardrails to consider, catalog additions
 
-Then clean up per harness → Cleanup. Reply with the PR links, the report path, and one line per finding. If an Artifact tool is available, publish the report as a page and include the link.
+Then clean up per harness → Cleanup, and **end the session** — no background watchers, subscriptions or scheduled check-ins left behind. Reply with the PR links, the report path, and one line per finding. If an Artifact tool is available, publish the report as a page and include the link.
 
 ## Anti-patterns
 

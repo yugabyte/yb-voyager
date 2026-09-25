@@ -22,7 +22,7 @@ Parse flag name, type and default. Also collect config-file keys from `yb-voyage
 
 ## 2. Env knobs
 
-`grep -rn -E 'GetEnvAs(Int|Bool|String)|os\.Getenv\(' yb-voyager/cmd yb-voyager/src --include=*.go | grep -v _test.go` → `inventory.env`. Treat as internal/testing-only unless documented; include them only as test levers (e.g. small `NUM_EVENT_CHANNELS` to raise collision rates).
+`grep -rn --include='*.go' -E 'GetEnvAs(Int|Bool|String)|os\.Getenv\(' yb-voyager/cmd yb-voyager/src | grep -v _test.go` → `inventory.env`. Treat as internal/testing-only unless documented; include them only as test levers (e.g. small `NUM_EVENT_CHANNELS` to raise collision rates).
 
 ## 3. Guardrails (what voyager refuses up front)
 
