@@ -60,7 +60,7 @@ Seed list only — the authoritative set is `inventory.flags` (Step 0.5). Flags 
 - `--use-partition-root true | false` ★ (with root PK vs leaf-only PK)
 - `--table-list` / `--exclude-table-list`: root only, some leaves only, glob patterns, case-sensitive names
 - `--source-db-schema` lists that omit a leaf's schema ★
-- `--start-clean` on re-run; `--parallel-jobs`; `--on-primary-key-conflict` (ERROR / IGNORE)
+- `--start-clean` on re-run; `--parallel-jobs`; `--on-primary-key-conflict` (`ERROR-POLICY` / `IGNORE`)
 - `--disable-sequential-scan-on-update-deletes`; `--max-retries-streaming`
 - export `--export-type snapshot-and-changes | changes-only`
 - env (internal/testing only): `NUM_EVENT_CHANNELS`, `MAX_EVENTS_PER_BATCH`, `MAX_INTERVAL_BETWEEN_BATCHES` — small channel counts raise collision rates
@@ -94,7 +94,7 @@ Entry points below are hints; `inventory.framework` lists what exists at the tar
 ## Oracles
 - **Primary:** after the stream quiesces, full-row `testutils.CompareTableData(source, target, table, orderBy)` for every table, ordered by the full PK (include the partition column for leaf-local PKs).
 - Row counts per partition (catches M3/M4 where totals happen to match).
-- `lm.GetImportRunner().IsStopped()` and the process exit code — distinguishes silent from loud.
+- `lm.GetImportRunner().IsStopped()` — distinguishes silent from loud. It returns true only on the first call after the process exits, so read it once and keep the value (see `hunt-data-integrity-bugs/references/harness.md`).
 - Import/export logs: `ERROR`/`FATAL` lines (loud), `unexpected rows affected` WARNs (M3 signal), `conflict detected` counts, `duplicate key value` lines.
 - After cutover: sequence `last_value` / next generated id on the new primary vs source max.
 - Raw queue events (`<export-dir>/data/queue/*.ndjson`) to attribute a mismatch to capture (M4/M5) vs apply (M1–M3).

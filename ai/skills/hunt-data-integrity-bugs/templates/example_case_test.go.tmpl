@@ -54,10 +54,17 @@ func TestDataIntegrityRootWithoutPKViaRootUpdatesHitAllLeaves(t *testing.T) {
 	testutils.FatalIfError(t, lm.SetupContainers(context.Background()), "setup containers")
 	testutils.FatalIfError(t, lm.SetupSchema(), "setup schema")
 	testutils.FatalIfError(t, lm.StartExportData(true, nil), "start export data")
-	if err := lm.StartImportData(true, map[string]string{"--cdc-partition-key": "auto"}); err != nil {
-		return // import refused the configuration up front: the correct behaviour
+	testutils.FatalIfError(t, lm.StartImportData(true, map[string]string{"--cdc-partition-key": "auto"}), "start import data")
+	// Async starts return once the process is running, so a refusal at import start only shows
+	// up as the importer exiting before the snapshot completes. IsStopped() reports an exit only
+	// once, so it is read a single time on each path.
+	if err := lm.WaitForSnapshotComplete(map[string]int64{`"kp"."lr"`: 40}, 240); err != nil {
+		if lm.GetImportRunner().IsStopped() {
+			t.Logf("import refused the configuration: %s", lm.GetImportCommandStderr())
+			return // refusing up front is the correct behaviour
+		}
+		t.Fatalf("snapshot did not complete and the importer is still running: %v", err)
 	}
-	testutils.FatalIfError(t, lm.WaitForSnapshotComplete(map[string]int64{`"kp"."lr"`: 40}, 240), "snapshot")
 	testutils.FatalIfError(t, lm.ExecuteSourceDelta(), "source delta")
 	testutils.FatalIfError(t, lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
 		`"kp"."lr"`: {Inserts: 0, Updates: 5, Deletes: 1},

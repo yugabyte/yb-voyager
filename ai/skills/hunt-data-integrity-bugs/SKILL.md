@@ -85,7 +85,7 @@ For each verified signature (up to `--max-prs`, P0 first):
    - body from the repo's `.github/PULL_REQUEST_TEMPLATE` via the `pr-description` skill: setup, workload, expected vs actual, repro rate, how to run, suggested fix. Note that CI fails by design, and end with the signature line for dedupe.
    - no customer names or data anywhere (synthetic schemas only).
 
-Do not file Jira tickets; the user can run `create-voyager-issue` on a PR they want tracked.
+Do not file Jira tickets or GitHub issues; the PR is the report.
 
 ### Step 7: Report and clean up
 
