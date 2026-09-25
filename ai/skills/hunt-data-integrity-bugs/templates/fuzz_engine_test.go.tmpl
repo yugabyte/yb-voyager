@@ -1,0 +1,604 @@
+//go:build unit
+
+// Data-integrity hunt: schedule fuzzer for the CDC routing +
+// conflict-detection path. The scenario list is the regression baseline from the first hunt;
+// append the plan's fuzz scenarios to it. Copied by the hunt-data-integrity-bugs skill.
+//
+// It generates a random source workload that respects the table's PK / unique / partial-unique
+// constraints (with PostgreSQL equality semantics given by per-column normalizers), turns it into
+// Debezium-shaped events (REPLICA IDENTITY FULL before-images, changed-columns-only Fields, PK
+// changes as DELETE+CREATE), routes them with the real hashEvent, gates them through the real
+// ConflictDetectionCache exactly like handleEvent does, and applies them to a model target that
+// mimics voyager's apply semantics (INSERT ... ON CONFLICT (pk) DO NOTHING; UPDATE/DELETE by PK
+// where 0 rows affected is only a warning) under random cross-channel interleavings.
+//
+// A run fails if the target raises a unique violation (import crash), if the router deadlocks,
+// or if the final target state differs from the source (silent data loss / divergence).
+package cmd
+
+import (
+	"fmt"
+	"math/rand"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
+
+type fzRow map[string]*string
+
+type fzCol struct {
+	name   string
+	domain []*string // physical spellings; nil entry = NULL allowed
+	norm   func(string) string
+}
+
+type fzIndex struct {
+	name string
+	cols []string
+	nnd  bool
+	pred func(fzRow) bool // partial-index predicate; nil = full index
+}
+
+type fzScenario struct {
+	name          string
+	cols          []fzCol
+	pk            []string
+	uks           []fzIndex
+	strategy      string
+	customCols    []string
+	allowPKChange bool
+	nOps          int
+	channels      int
+}
+
+func sp(v string) *string { return &v }
+
+func identity(s string) string { return s }
+
+// numericNorm mimics PG numeric equality: 1.0 == 1.00 == 1.
+func numericNorm(s string) string {
+	if strings.Contains(s, ".") {
+		s = strings.TrimRight(s, "0")
+		s = strings.TrimSuffix(s, ".")
+	}
+	if s == "-0" {
+		s = "0"
+	}
+	return s
+}
+
+// intervalNorm mimics PG interval equality for the day/hour spellings used here (1 day == 24 hours).
+func intervalNorm(s string) string {
+	switch s {
+	case "P0Y0M0DT24H0M0S":
+		return "P0Y0M1DT0H0M0S"
+	}
+	return s
+}
+
+func vals(vs ...string) []*string {
+	out := make([]*string, 0, len(vs))
+	for _, v := range vs {
+		if v == "NULL" {
+			out = append(out, nil)
+		} else {
+			out = append(out, sp(v))
+		}
+	}
+	return out
+}
+
+type fzEngine struct {
+	sc       fzScenario
+	rng      *rand.Rand
+	colByNm  map[string]fzCol
+	table    sqlname.NameTuple
+	src      map[string]fzRow // key = normalized pk
+	events   []*tgtdb.Event
+	vsn      int64
+	failures []string
+	noDetect bool // mutation: disable conflict gating to prove the fuzzer can see races
+}
+
+func (e *fzEngine) norm(col string, v *string) string {
+	if v == nil {
+		return "\x00NULL"
+	}
+	return e.colByNm[col].norm(*v)
+}
+
+func (e *fzEngine) pkKey(r fzRow) string {
+	parts := make([]string, 0, len(e.sc.pk))
+	for _, c := range e.sc.pk {
+		parts = append(parts, e.norm(c, r[c]))
+	}
+	return strings.Join(parts, "|")
+}
+
+// ukConflicts reports whether rows a and b collide on unique index ix under PG semantics.
+func (e *fzEngine) ukConflicts(ix fzIndex, a, b fzRow) bool {
+	if ix.pred != nil && (!ix.pred(a) || !ix.pred(b)) {
+		return false
+	}
+	for _, c := range ix.cols {
+		va, vb := a[c], b[c]
+		if va == nil || vb == nil {
+			if ix.nnd && va == nil && vb == nil {
+				continue
+			}
+			return false
+		}
+		if e.norm(c, va) != e.norm(c, vb) {
+			return false
+		}
+	}
+	return true
+}
+
+// violates returns the name of the first constraint that row r (identified by selfKey) violates in rows.
+func (e *fzEngine) violates(rows map[string]fzRow, r fzRow, selfKey string) string {
+	k := e.pkKey(r)
+	if other, ok := rows[k]; ok && k != selfKey && other != nil {
+		return "pk"
+	}
+	for _, ix := range e.sc.uks {
+		for ok, other := range rows {
+			if ok == selfKey {
+				continue
+			}
+			if e.ukConflicts(ix, r, other) {
+				return ix.name
+			}
+		}
+	}
+	return ""
+}
+
+func copyRow(r fzRow) fzRow {
+	out := fzRow{}
+	for k, v := range r {
+		if v == nil {
+			out[k] = nil
+		} else {
+			vv := *v
+			out[k] = &vv
+		}
+	}
+	return out
+}
+
+func (e *fzEngine) randVal(c fzCol) *string {
+	v := c.domain[e.rng.Intn(len(c.domain))]
+	if v == nil {
+		return nil
+	}
+	vv := *v
+	return &vv
+}
+
+func (e *fzEngine) isImmutable(col string) bool {
+	return lo_contains(e.sc.customCols, col)
+}
+
+func lo_contains(xs []string, x string) bool {
+	for _, y := range xs {
+		if y == x {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *fzEngine) keyOf(r fzRow) map[string]*string {
+	k := map[string]*string{}
+	for _, c := range e.sc.pk {
+		k[c] = copyRow(r)[c]
+	}
+	return k
+}
+
+func (e *fzEngine) emit(op string, before, fields fzRow, key map[string]*string) {
+	e.vsn++
+	ev := &tgtdb.Event{
+		Vsn:          e.vsn,
+		Op:           op,
+		TableNameTup: e.table,
+		Key:          key,
+		Fields:       fields,
+		BeforeFields: before,
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	}
+	if op == "c" {
+		ev.BeforeFields = nil
+	}
+	ev.AfterFields = tgtdb.GenerateAfterFields(op, ev.BeforeFields, ev.Fields)
+	e.events = append(e.events, ev)
+}
+
+func (e *fzEngine) genWorkload() {
+	for i := 0; i < e.sc.nOps; i++ {
+		keys := make([]string, 0, len(e.src))
+		for k := range e.src {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		switch x := e.rng.Intn(10); {
+		case x < 4 || len(keys) == 0: // insert
+			r := fzRow{}
+			for _, c := range e.sc.cols {
+				r[c.name] = e.randVal(c)
+			}
+			if lo_containsNilPK(e, r) || e.violates(e.src, r, "") != "" {
+				continue
+			}
+			e.src[e.pkKey(r)] = r
+			e.emit("c", nil, copyRow(r), e.keyOf(r))
+		case x < 7: // update non-key columns
+			k := keys[e.rng.Intn(len(keys))]
+			before := e.src[k]
+			after := copyRow(before)
+			changed := fzRow{}
+			for _, c := range e.sc.cols {
+				if lo_contains(e.sc.pk, c.name) || e.isImmutable(c.name) || e.rng.Intn(2) == 0 {
+					continue
+				}
+				nv := e.randVal(c)
+				if (nv == nil) != (after[c.name] == nil) || (nv != nil && *nv != *after[c.name]) {
+					after[c.name] = nv
+					changed[c.name] = copyRow(fzRow{"x": nv})["x"]
+				}
+			}
+			if len(changed) == 0 || e.violates(e.src, after, k) != "" {
+				continue
+			}
+			e.src[k] = after
+			e.emit("u", copyRow(before), changed, e.keyOf(before))
+		case x < 9: // delete
+			k := keys[e.rng.Intn(len(keys))]
+			before := e.src[k]
+			delete(e.src, k)
+			e.emit("d", copyRow(before), nil, e.keyOf(before))
+		default: // PK change -> Debezium emits DELETE(old) + CREATE(new)
+			if !e.sc.allowPKChange {
+				continue
+			}
+			k := keys[e.rng.Intn(len(keys))]
+			before := e.src[k]
+			after := copyRow(before)
+			for _, c := range e.sc.pk {
+				after[c] = e.randVal(e.colByNm[c])
+			}
+			if lo_containsNilPK(e, after) {
+				continue
+			}
+			delete(e.src, k)
+			if e.violates(e.src, after, "") != "" {
+				e.src[k] = before
+				continue
+			}
+			e.src[e.pkKey(after)] = after
+			e.emit("d", copyRow(before), nil, e.keyOf(before))
+			e.emit("c", nil, copyRow(after), e.keyOf(after))
+		}
+	}
+}
+
+func lo_containsNilPK(e *fzEngine, r fzRow) bool {
+	for _, c := range e.sc.pk {
+		if r[c] == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// applyToTarget mimics the YB apply path. Returns a crash description or "".
+func (e *fzEngine) applyToTarget(tgt map[string]fzRow, ev *tgtdb.Event) (crash string, warn string) {
+	keyRow := fzRow{}
+	for k, v := range ev.Key {
+		keyRow[k] = v
+	}
+	k := e.pkKey(keyRow)
+	switch ev.Op {
+	case "c":
+		if _, exists := tgt[k]; exists {
+			return "", fmt.Sprintf("vsn=%d INSERT skipped by ON CONFLICT DO NOTHING (pk %s exists)", ev.Vsn, k)
+		}
+		r := copyRow(ev.Fields)
+		if v := e.violates(tgt, r, ""); v != "" {
+			return fmt.Sprintf("vsn=%d INSERT unique violation on %s", ev.Vsn, v), ""
+		}
+		tgt[k] = r
+	case "u":
+		r, ok := tgt[k]
+		if !ok {
+			return "", fmt.Sprintf("vsn=%d UPDATE affected 0 rows (pk %s)", ev.Vsn, k)
+		}
+		nr := copyRow(r)
+		for c, v := range ev.Fields {
+			nr[c] = v
+		}
+		if v := e.violates(tgt, nr, k); v != "" {
+			return fmt.Sprintf("vsn=%d UPDATE unique violation on %s", ev.Vsn, v), ""
+		}
+		tgt[k] = nr
+	case "d":
+		if _, ok := tgt[k]; !ok {
+			return "", fmt.Sprintf("vsn=%d DELETE affected 0 rows (pk %s)", ev.Vsn, k)
+		}
+		delete(tgt, k)
+	}
+	return "", ""
+}
+
+func rowString(r fzRow) string {
+	ks := make([]string, 0, len(r))
+	for k := range r {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	parts := []string{}
+	for _, k := range ks {
+		if r[k] == nil {
+			parts = append(parts, k+"=NULL")
+		} else {
+			parts = append(parts, k+"="+*r[k])
+		}
+	}
+	return strings.Join(parts, ",")
+}
+
+// runSchedule replays the events through routing + conflict detection with a random schedule.
+func (e *fzEngine) runSchedule(initial map[string]fzRow) (string, []string) {
+	oldN := NUM_EVENT_CHANNELS
+	NUM_EVENT_CHANNELS = e.sc.channels
+	defer func() { NUM_EVENT_CHANNELS = oldN }()
+
+	uks := make([]tgtdb.UniqueIndex, 0, len(e.sc.uks))
+	for _, ix := range e.sc.uks {
+		uks = append(uks, tgtdb.UniqueIndex{IndexName: ix.name, Columns: ix.cols, NullsNotDistinct: ix.nnd})
+	}
+	tableToUK := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+	tableToUK.Put(e.table, uks)
+	pkMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+	pkMap.Put(e.table, cdcPartitionKeyOverride{Strategy: e.sc.strategy, Columns: e.sc.customCols})
+	pkCols := utils.NewStructMap[sqlname.NameTuple, []string]()
+	pkCols.Put(e.table, e.sc.pk)
+	if err := addPrimaryKeyToConflictSetForCustomTables(tableToUK, []sqlname.NameTuple{e.table}, pkMap, pkCols); err != nil {
+		return "setup: " + err.Error(), nil
+	}
+	chans := make([]chan *tgtdb.Event, e.sc.channels)
+	for i := range chans {
+		chans[i] = make(chan *tgtdb.Event, 1<<16)
+	}
+	cache := NewConflictDetectionCache(tableToUK, chans, POSTGRESQL, pkMap)
+
+	tgt := map[string]fzRow{}
+	for k, r := range initial {
+		tgt[k] = copyRow(r)
+	}
+	queues := make([][]*tgtdb.Event, e.sc.channels)
+	next := 0
+	var warns []string
+	for {
+		routerReady := false
+		var h int
+		var routed *tgtdb.Event
+		if next < len(e.events) {
+			ev := e.events[next]
+			var err error
+			h, err = hashEvent(ev, pkMap)
+			if err != nil {
+				return fmt.Sprintf("hashEvent vsn=%d: %v", ev.Vsn, err), warns
+			}
+			ok, err := shouldHandleConflicts(ev, tableToUK, pkMap)
+			if err != nil {
+				return "shouldHandleConflicts: " + err.Error(), warns
+			}
+			blocked := false
+			if ok && ev.Op != "d" {
+				cache.Lock()
+				conf, err := cache.findConflictLocked(ev)
+				cache.Unlock()
+				if err != nil {
+					return fmt.Sprintf("findConflict vsn=%d: %v", ev.Vsn, err), warns
+				}
+				blocked = len(conf) > 0 && !e.noDetect
+			}
+			if !blocked {
+				routerReady = true
+				routed = ev
+				_ = ok
+			}
+		}
+		var readyChans []int
+		for i, q := range queues {
+			if len(q) > 0 {
+				readyChans = append(readyChans, i)
+			}
+		}
+		if !routerReady && len(readyChans) == 0 {
+			if next < len(e.events) {
+				return fmt.Sprintf("DEADLOCK: router blocked on vsn=%d with all channels empty", e.events[next].Vsn), warns
+			}
+			break
+		}
+		choice := e.rng.Intn(len(readyChans) + lo_ternaryInt(routerReady, 1, 0))
+		if routerReady && choice == len(readyChans) {
+			ok, _ := shouldHandleConflicts(routed, tableToUK, pkMap)
+			if ok && (routed.Op == "d" || routed.Op == "u") {
+				if err := cache.Put(routed); err != nil {
+					return fmt.Sprintf("Put vsn=%d: %v", routed.Vsn, err), warns
+				}
+			}
+			queues[h] = append(queues[h], routed)
+			next++
+			continue
+		}
+		ch := readyChans[choice]
+		ev := queues[ch][0]
+		queues[ch] = queues[ch][1:]
+		crash, warn := e.applyToTarget(tgt, ev)
+		if crash != "" {
+			return "CRASH: " + crash, warns
+		}
+		if warn != "" {
+			warns = append(warns, warn)
+		}
+		cache.RemoveEvents(ev)
+	}
+
+	// compare final state (physical values, keyed by normalized PK)
+	var diffs []string
+	for k, r := range e.src {
+		t, ok := tgt[k]
+		if !ok {
+			diffs = append(diffs, "missing on target: "+rowString(r))
+			continue
+		}
+		if rowString(t) != rowString(r) {
+			diffs = append(diffs, fmt.Sprintf("differs: src{%s} tgt{%s}", rowString(r), rowString(t)))
+		}
+	}
+	for k, t := range tgt {
+		if _, ok := e.src[k]; !ok {
+			diffs = append(diffs, "extra on target: "+rowString(t))
+		}
+	}
+	if len(diffs) > 0 {
+		sort.Strings(diffs)
+		return "DATA DIVERGENCE: " + strings.Join(diffs, "; "), warns
+	}
+	return "", warns
+}
+
+func lo_ternaryInt(c bool, a, b int) int {
+	if c {
+		return a
+	}
+	return b
+}
+
+func fuzzScenario(t *testing.T, sc fzScenario, seeds, schedulesPerSeed int, noDetect ...bool) (failRuns int, sample string) {
+	t.Helper()
+	for seed := 0; seed < seeds; seed++ {
+		oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "fz_"+strings.ReplaceAll(sc.name, " ", "_"))
+		e := &fzEngine{sc: sc, rng: rand.New(rand.NewSource(int64(seed))), colByNm: map[string]fzCol{},
+			table: sqlname.NameTuple{CurrentName: oname, TargetName: oname}, src: map[string]fzRow{}, noDetect: len(noDetect) > 0 && noDetect[0]}
+		for _, c := range sc.cols {
+			e.colByNm[c.name] = c
+		}
+		e.genWorkload()
+		// streaming starts from an empty table (snapshot rows are irrelevant to cross-event ordering)
+		for s := 0; s < schedulesPerSeed; s++ {
+			e.rng = rand.New(rand.NewSource(int64(seed*100003 + s)))
+			res, _ := e.runSchedule(map[string]fzRow{})
+			if res != "" {
+				failRuns++
+				if sample == "" {
+					sample = fmt.Sprintf("seed=%d sched=%d events=%d: %s", seed, s, len(e.events), truncate(res, 600))
+				}
+			}
+		}
+	}
+	return
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
+}
+
+func ints(lo, hi int) []*string {
+	out := []*string{}
+	for i := lo; i <= hi; i++ {
+		out = append(out, sp(fmt.Sprint(i)))
+	}
+	return out
+}
+
+func withNull(vs []*string) []*string { return append(vs, nil) }
+
+func TestDataIntegrityFuzz_Schedules(t *testing.T) {
+	boolDom := vals("true", "false")
+	mostRecent := func(r fzRow) bool { return r["most_recent"] != nil && *r["most_recent"] == "true" }
+
+	scenarios := []struct {
+		sc         fzScenario
+		expectFail bool
+	}{
+		{fzScenario{name: "basic uk pk-routing", cols: []fzCol{{"id", ints(1, 6), identity}, {"email", ints(1, 4), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_email", cols: []string{"email"}}}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, false},
+		{fzScenario{name: "nullable uk nulls distinct", cols: []fzCol{{"id", ints(1, 6), identity}, {"email", withNull(ints(1, 3)), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_email", cols: []string{"email"}}}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, false},
+		{fzScenario{name: "nulls not distinct", cols: []fzCol{{"id", ints(1, 6), identity}, {"email", withNull(ints(1, 3)), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_email_nnd", cols: []string{"email"}, nnd: true}}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, false},
+		{fzScenario{name: "composite + second uk + nulls", cols: []fzCol{{"id", ints(1, 6), identity}, {"a", withNull(ints(1, 2)), identity}, {"b", withNull(ints(1, 2)), identity}, {"c", ints(1, 3), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_ab", cols: []string{"a", "b"}}, {name: "uk_c", cols: []string{"c"}}}, strategy: PARTITION_BY_PK, nOps: 80, channels: 7}, false},
+		{fzScenario{name: "partial uk statesman", cols: []fzCol{{"id", ints(1, 8), identity}, {"payment_id", ints(1, 2), identity}, {"sort_key", ints(1, 3), identity}, {"most_recent", boolDom, identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_pay_sort", cols: []string{"payment_id", "sort_key"}}, {name: "uk_pay_recent", cols: []string{"payment_id", "most_recent"}, pred: mostRecent}},
+			strategy: PARTITION_BY_PK, nOps: 100, channels: 7}, false},
+		{fzScenario{name: "partial uk statesman custom key", cols: []fzCol{{"id", ints(1, 8), identity}, {"payment_id", ints(1, 3), identity}, {"sort_key", ints(1, 3), identity}, {"most_recent", boolDom, identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_pay_sort", cols: []string{"payment_id", "sort_key"}}, {name: "uk_pay_recent", cols: []string{"payment_id", "most_recent"}, pred: mostRecent}},
+			strategy: PARTITION_BY_CUSTOM, customCols: []string{"payment_id"}, nOps: 100, channels: 7}, false},
+		{fzScenario{name: "custom key not covering second uk + pk recycle", cols: []fzCol{{"id", ints(1, 5), identity}, {"k", ints(1, 3), identity}, {"email", ints(1, 3), identity}, {"phone", ints(1, 3), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_email", cols: []string{"email"}}, {name: "uk_phone", cols: []string{"phone"}}},
+			strategy: PARTITION_BY_CUSTOM, customCols: []string{"k"}, nOps: 100, channels: 7}, false},
+		{fzScenario{name: "custom key nullable + no uk (pk guard only)", cols: []fzCol{{"id", ints(1, 5), identity}, {"k", withNull(ints(1, 2)), identity}, {"v", ints(1, 3), identity}},
+			pk: []string{"id"}, strategy: PARTITION_BY_CUSTOM, customCols: []string{"k"}, nOps: 100, channels: 7}, false},
+		{fzScenario{name: "pk change as delete+insert", cols: []fzCol{{"id", ints(1, 6), identity}, {"email", ints(1, 3), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_email", cols: []string{"email"}}}, strategy: PARTITION_BY_PK, allowPKChange: true, nOps: 80, channels: 7}, false},
+		{fzScenario{name: "pk change under custom key", cols: []fzCol{{"id", ints(1, 6), identity}, {"k", ints(1, 3), identity}, {"email", ints(1, 3), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_email", cols: []string{"email"}}}, strategy: PARTITION_BY_CUSTOM, customCols: []string{"k"}, allowPKChange: true, nOps: 80, channels: 7}, false},
+		{fzScenario{name: "composite pk concat collision", cols: []fzCol{{"a", vals("1", "12"), identity}, {"b", vals("23", "3"), identity}, {"email", ints(1, 3), identity}},
+			pk: []string{"a", "b"}, uks: []fzIndex{{name: "uk_email", cols: []string{"email"}}}, strategy: PARTITION_BY_PK, allowPKChange: true, nOps: 80, channels: 7}, false},
+		// value-spelling cases: values PG considers equal but Debezium spells differently
+		{fzScenario{name: "numeric scale on unique col", cols: []fzCol{{"id", ints(1, 6), identity}, {"amt", vals("1.0", "1.00", "2", "2.0"), numericNorm}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_amt", cols: []string{"amt"}}}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, true},
+		{fzScenario{name: "numeric scale on pk", cols: []fzCol{{"id", vals("1.0", "1.00", "2", "2.0"), numericNorm}, {"v", ints(1, 3), identity}},
+			pk: []string{"id"}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, true},
+		{fzScenario{name: "numeric scale on pk custom key", cols: []fzCol{{"id", vals("1.0", "1.00", "2", "2.0"), numericNorm}, {"k", ints(1, 3), identity}, {"v", ints(1, 3), identity}},
+			pk: []string{"id"}, strategy: PARTITION_BY_CUSTOM, customCols: []string{"k"}, nOps: 60, channels: 7}, true},
+		// wider sweeps: composite custom key, channel counts, long workloads
+		{fzScenario{name: "composite custom key", cols: []fzCol{{"id", ints(1, 6), identity}, {"t", ints(1, 2), identity}, {"g", ints(1, 2), identity}, {"email", ints(1, 3), identity}, {"code", withNull(ints(1, 2)), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_email", cols: []string{"email"}}, {name: "uk_t_code", cols: []string{"t", "code"}}},
+			strategy: PARTITION_BY_CUSTOM, customCols: []string{"t", "g"}, nOps: 120, channels: 7}, false},
+		{fzScenario{name: "statesman 3 channels long", cols: []fzCol{{"id", ints(1, 12), identity}, {"payment_id", ints(1, 3), identity}, {"sort_key", ints(1, 4), identity}, {"most_recent", vals("true", "false"), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_pay_sort", cols: []string{"payment_id", "sort_key"}}, {name: "uk_pay_recent", cols: []string{"payment_id", "most_recent"}, pred: func(r fzRow) bool { return r["most_recent"] != nil && *r["most_recent"] == "true" }}},
+			strategy: PARTITION_BY_PK, allowPKChange: true, nOps: 300, channels: 3}, false},
+		{fzScenario{name: "three uks 13 channels long", cols: []fzCol{{"id", ints(1, 10), identity}, {"a", withNull(ints(1, 3)), identity}, {"b", withNull(ints(1, 3)), identity}, {"c", withNull(ints(1, 3)), identity}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_a", cols: []string{"a"}}, {name: "uk_b_nnd", cols: []string{"b"}, nnd: true}, {name: "uk_bc", cols: []string{"b", "c"}}},
+			strategy: PARTITION_BY_PK, allowPKChange: true, nOps: 300, channels: 13}, false},
+		{fzScenario{name: "float -0 on unique col", cols: []fzCol{{"id", ints(1, 6), identity}, {"f", vals("0.0", "-0.0", "1.0"), numericNorm}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_f", cols: []string{"f"}}}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, true},
+		{fzScenario{name: "interval spelling on unique col", cols: []fzCol{{"id", ints(1, 6), identity}, {"iv", vals("P0Y0M1DT0H0M0S", "P0Y0M0DT24H0M0S", "P0Y0M2DT0H0M0S"), intervalNorm}},
+			pk: []string{"id"}, uks: []fzIndex{{name: "uk_iv", cols: []string{"iv"}}}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, true},
+		{fzScenario{name: "citext case on pk", cols: []fzCol{{"id", vals("key", "KEY", "Key", "other"), strings.ToLower}, {"v", ints(1, 3), identity}},
+			pk: []string{"id"}, strategy: PARTITION_BY_PK, nOps: 60, channels: 7}, true},
+	}
+
+	for _, s := range scenarios {
+		s := s
+		t.Run(s.sc.name, func(t *testing.T) {
+			fails, sample := fuzzScenario(t, s.sc, 40, 25)
+			total := 40 * 25
+			t.Logf("RESULT %-45s failing schedules: %4d/%d  expectFail=%v", s.sc.name, fails, total, s.expectFail)
+			if sample != "" {
+				t.Logf("  sample: %s", sample)
+			}
+			if !s.expectFail && fails > 0 {
+				t.Errorf("unexpected failures in scenario %q: %s", s.sc.name, sample)
+			}
+			if !s.expectFail {
+				mfails, msample := fuzzScenario(t, s.sc, 40, 25, true)
+				t.Logf("  MUTANT (detection off) failing schedules: %4d/%d  e.g. %s", mfails, total, truncate(msample, 160))
+			}
+		})
+	}
+}
