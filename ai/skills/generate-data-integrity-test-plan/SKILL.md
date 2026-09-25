@@ -18,7 +18,7 @@ Runs **unattended by default**: never ask questions; make the conservative choic
 | PR numbers | `--prs 3814,3820` | the PRs' head commits vs their base |
 | none of the above has data-path changes | — | emit a **baseline-only** plan (see Step 4) |
 
-Budget flags passed through to the plan: `--max-cases N` (default 40), `--max-container-cases N` (default 20; the rest are unit-fuzzer cases).
+Budget flag passed through to the plan: `--max-cases N` (default 30).
 
 ## References (read before generating)
 
@@ -87,12 +87,12 @@ Each case = one **mechanism** × a concrete **schema** × **workload** × **flag
 
 - **Pairwise, not Cartesian.** Cover every pair of relevant dimension values at least once; do not enumerate the full product.
 - **Adversarial by construction.** The workload must create the condition the mechanism needs (same key in two leaves, a value freed and reused across channels, an update that touches only some columns of a composite key, a PK reused under a different custom key, …). A case whose data can't trigger its mechanism is useless — state in `why_it_can_fail` what has to go wrong for the case to fail.
-- **Include a mutation-style control** when cheap: the same case with the protective mechanism defeated (e.g. detection off in a fuzzer), so the hunt can prove the case has teeth.
+- **Include a control** when cheap: the same case with the triggering condition removed (e.g. distinct ids in each partition), so a failure can be attributed to that condition.
 - **Valid on both databases.** Source SQL must succeed on PostgreSQL; schema must be creatable on YugabyteDB, whose DDL support changes per release. Mark every case with non-trivial DDL `ddl_probe: true` so the hunt probes it first (`inventory.md` → Target DDL support).
 - **Workloads obey constraints.** Every source statement must succeed; a case whose delta errors on the source proves nothing.
 - **Every case has an oracle** (`dimensions.md` → Oracles): full-row source-vs-target comparison after quiescence, plus any case-specific check (per-partition counts, sequence values after cutover, rows-affected warnings).
 - **Expectation** is one of `consistent` (should migrate cleanly), `refused` (a guardrail in `inventory.guardrails` should reject it up front), `loud` (should fail with a clear error). A silent mismatch is a bug under every expectation.
-- **Test kind:** `container` (real PG + YB via `src/testlivemigration`, or offline via `VoyagerCommandRunner`) for anything involving real SQL semantics, Debezium encoding, partitions, flags, or run patterns; `fuzz` (unit schedule fuzzer over the real routing + conflict code) for interleaving-heavy logic. Prefer container cases for suspected bugs; use fuzz cases to widen coverage.
+- **Value fuzzing:** when the change maps to `value-encoding` (data types, converters, Debezium config), add value-fuzz cases (`value_fuzz` in the plan). Value fuzzing applies **only when the change touches data types or value encoding** (area `value-encoding`: datatype mapping, value converters, Debezium config or plugin, snapshot/CDC value formatting). It is still a container test: create one column per affected type, then insert and update rows with randomized and edge values for each type (NULL, empty, min/max, precision and scale extremes, NaN/±Infinity/-0, time zones and infinities, unicode and very long strings, NULL array elements, JSON key order and duplicates, TOASTed sizes), through both the snapshot and the change stream, and compare source and target row by row. Use a fixed seed and log it so a failure reproduces.
 - **Adversarial variants of new tests.** If the change adds tests, add cases that break their assumptions (the gaps a reviewer would flag: one-sided assertions, avoided edge values, only-forward flow).
 
 ### Step 4: Baseline cases

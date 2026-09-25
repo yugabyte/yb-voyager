@@ -1,6 +1,6 @@
 ---
 name: hunt-data-integrity-bugs
-description: Hunt for silent data loss / data corruption in yb-voyager data migration by turning a data-integrity test plan into real Go tests (container tests against PostgreSQL + YugabyteDB via src/testlivemigration, plus unit schedule fuzzers over the real CDC routing and conflict-detection code), running them, classifying every outcome, verifying and minimising each silent-divergence finding, and opening one draft PR per distinct bug containing a failing test. Unattended by default. Accepts a plan file, or a change set (commit range / last N hours / PR numbers) for which it first runs generate-data-integrity-test-plan. Use when asked to "hunt for data-loss bugs", "run the data-integrity hunt", "fuzz voyager for silent corruption", or from a scheduled routine.
+description: Hunt for silent data loss / data corruption in yb-voyager data migration by turning a data-integrity test plan into real Go tests (container tests against PostgreSQL + YugabyteDB via src/testlivemigration, with randomized value fuzzing when the change touches data types), running them, classifying every outcome, verifying and minimising each silent-divergence finding, and opening one draft PR per distinct bug containing a failing test. Unattended by default. Accepts a plan file, or a change set (commit range / last N hours / PR numbers) for which it first runs generate-data-integrity-test-plan. Use when asked to "hunt for data-loss bugs", "run the data-integrity hunt", "fuzz voyager for silent corruption", or from a scheduled routine.
 ---
 
 # Hunt data-integrity bugs
@@ -26,7 +26,6 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 
 - `references/harness.md` — environment preconditions, workspace layout, DDL probing, writing tests from cases, running, outcome classification, verification, cleanup. **Read it before Step 1.**
 - `templates/example_case_test.go.tmpl` — a finished PR test written with the existing framework only (the yb-voyager#3834 repro). Container tests follow this shape; no shared helper files.
-- `templates/fuzz_engine_test.go.tmpl`, `templates/fuzz_partitions_test.go.tmpl` — unit schedule fuzzers (real `hashEvent` + `ConflictDetectionCache` + a model target with voyager's apply semantics, random interleavings, detection-off mutant). Extend them with the plan's `fuzz` scenarios.
 - `../generate-data-integrity-test-plan/references/` — mechanisms, dimensions, inventory derivation, plan schema.
 
 ## Workflow
@@ -34,7 +33,7 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 ```
 - [ ] Step 0: Preconditions and workspace
 - [ ] Step 1: Load and validate the plan
-- [ ] Step 2: Fuzz cases
+- [ ] Step 2: Value fuzzing (only if the change touches data types)
 - [ ] Step 3: Container cases (probe DDL, write, run in batches)
 - [ ] Step 4: Classify every case
 - [ ] Step 5: Verify, minimise, dedupe each SILENT candidate
@@ -48,18 +47,16 @@ Follow `harness.md` → Environment preconditions and Workspace. Create the work
 
 Self-check against the target commit before writing any test:
 - If the plan's `inventory` is missing or was built at a different commit, rebuild it (`../generate-data-integrity-test-plan/references/inventory.md`).
-- Compile `templates/example_case_test.go.tmpl` (copied into `src/testlivemigration/`, then removed) and, if fuzz cases exist, the fuzz templates. If a template no longer compiles, fix the run's copy, carry on, and report the template drift. If the fuzz engines can't be repaired quickly, skip fuzz cases and say so.
+- Compile `templates/example_case_test.go.tmpl` (copied into `src/testlivemigration/`, then removed). If it no longer compiles, fix the run's copy, carry on, and report the template drift.
 - Grep every anchor in `inventory.anchors`; stale ones go in the drift section.
 
 ### Step 1: Load and validate the plan
 
 Validate against `plan-schema.md`. Drop malformed cases with a reason. Sort by priority (P0 first). Estimate duration (~2–5 min per container case at the chosen parallelism, kill/resume and multi-iteration cases ~2×); if the budget can't cover everything, keep all P0, then P1 by mechanism diversity, and list the skipped cases in the report.
 
-### Step 2: Fuzz cases
+### Step 2: Value fuzzing (only if the change touches data types)
 
-Copy the fuzz templates into `yb-voyager/cmd/`, add one scenario per plan `fuzz` case (and a detection-off mutant for each, to prove the scenario can see races), and run `go test -tags unit -run TestDataIntegrityFuzz ./cmd/`. Fuzzers run in seconds — do them first.
-
-A fuzz failure is a **lead, not a finding**: the model can be wrong about real encodings or guardrails (spellings that Debezium normalises, schemas that export refuses). Every fuzz failure must be turned into a container case and reproduced end-to-end before it can become a PR. If the container case shows a guardrail blocks it, report it as *latent* (no PR).
+Value fuzzing applies **only when the change touches data types or value encoding** (area `value-encoding`: datatype mapping, value converters, Debezium config or plugin, snapshot/CDC value formatting). It is still a container test: create one column per affected type, then insert and update rows with randomized and edge values for each type (NULL, empty, min/max, precision and scale extremes, NaN/±Infinity/-0, time zones and infinities, unicode and very long strings, NULL array elements, JSON key order and duplicates, TOASTed sizes), through both the snapshot and the change stream, and compare source and target row by row. Use a fixed seed and log it so a failure reproduces. Each divergent value is a candidate for Step 5; shrink it to the single value and operation (insert vs update, snapshot vs streaming) that diverges.
 
 ### Step 3: Container cases
 
@@ -96,7 +93,7 @@ Write `$SCRATCH/data-integrity/report-<YYYYMMDD>.md`:
 
 - change set, plan path, target commit, time used / budget
 - **Findings**: one row per PR (link, signature, mechanism, repro rate)
-- **Unverified / latent leads**: fuzz-only failures, candidates that failed verification, findings blocked by guardrails — with the reason
+- **Unverified / latent leads**: candidates that failed verification, findings blocked by guardrails — with the reason
 - **Unexpected loud failures and refusals** (not data loss, but worth a look)
 - **Coverage**: table of every case → outcome vs expectation; skipped cases and why; flows not exercised
 - **Catalog drift**: uncatalogued/stale flags, stale anchors, guardrails added/removed, templates that needed fixes (see `inventory.md` → Drift report)
@@ -107,8 +104,7 @@ Then clean up per harness → Cleanup. Reply with the PR links, the report path,
 ## Anti-patterns
 
 - **Testing a stale binary.** The framework execs `yb-voyager` from PATH; always build the target commit and verify the hash.
-- **Trusting the fuzzer alone.** Two of the first hunt's fuzz "failures" (value spellings) were impossible end-to-end; one (random PK guard) was blocked by an export guardrail. Only container repros become PRs.
 - **Batching risky cases.** One crash in a shared migration hides every other table's result.
 - **Asserting in the run, not logging.** Fatal assertions during the hunt destroy evidence; assert only in the PR version.
 - **One PR per case.** Several cases hitting the same signature are one bug — one PR, with the others mentioned in its body.
-- **Committing noise.** PR branches carry the one failing test file only — never failpoint rewrites, plans, logs, or fuzz scaffolding.
+- **Committing noise.** PR branches carry the one failing test file only — never failpoint rewrites, plans, logs.

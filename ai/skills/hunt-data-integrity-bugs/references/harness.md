@@ -14,7 +14,7 @@
 ## Workspace
 
 - Work in a **dedicated git worktree** at the target commit (`git worktree add --detach $SCRATCH/di-wt <sha>`); never in the user's checkout. If the session cannot create worktrees, use a throwaway branch in its own worktree.
-- Generated tests go in `yb-voyager/src/testlivemigration/data_integrity_<plan-date>_<case>_test.go` (container) and `yb-voyager/cmd/data_integrity_fuzz_<plan-date>_test.go` (fuzz). Container tests use the existing framework only (`NewLiveMigrationTest`, `TestConfig`, `Start*`/`Wait*`/`Initiate*` methods, `ValidateDataConsistency`, `testutils.CompareTableData`) — do not add shared helper files. Copy the fuzz engine templates into `cmd/` only when fuzz cases exist (engine: `fuzz_engine_test.go.tmpl`, partition model: `fuzz_partitions_test.go.tmpl`; both `//go:build unit`).
+- Generated tests go in `yb-voyager/src/testlivemigration/data_integrity_<plan-date>_<case>_test.go` . Container tests use the existing framework only (`NewLiveMigrationTest`, `TestConfig`, `Start*`/`Wait*`/`Initiate*` methods, `ValidateDataConsistency`, `testutils.CompareTableData`) — do not add shared helper files.
 - Build tag: `integration_live_migration` unless a case needs failpoints; then `integration_live_migration_with_failpoint`.
 
 ## DDL probe (for `ddl_probe: true` cases, and whenever unsure)

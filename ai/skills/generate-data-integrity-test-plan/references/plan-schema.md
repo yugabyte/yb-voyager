@@ -17,7 +17,7 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
     "framework": ["StartExportData", "StartImportDataWithEnv", "…"], "anchors": {"unexpected rows affected": "src/tgtdb/yugabytedb.go:1268"},
     "drift": ["anchor GetEffectiveTableName moved to …"]
   },
-  "batches": [                              // container cases that may share one migration
+  "batches": [                              // cases that may share one migration
     { "id": "B1", "flow": "live", "case_ids": ["C3", "C4"], "import_flags": {"--use-partition-root": "false"} }
   ],
   "cases": [ /* Case, see below */ ]
@@ -35,21 +35,20 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
 | `areas` | ✓ | areas from the SKILL's Step 1 table |
 | `linked_change` | | commit SHA / file:function this case targets; `baseline` for baseline cases |
 | `why_it_can_fail` | ✓ | the exact sequence that would produce silent loss if the code is wrong |
-| `kind` | ✓ | `container` \| `fuzz` |
 | `flow` | ✓ | `live` \| `fallback` \| `fallforward` \| `changes-only` \| `iterative` \| `offline` |
-| `schemas` | ✓ (container) | schema names passed to the framework (`SchemaNames`) |
-| `schema_sql` | ✓ (container) | DDL run on source **and** target |
+| `schemas` | ✓ | schema names passed to the framework (`SchemaNames`) |
+| `schema_sql` | ✓ | DDL run on source **and** target |
 | `source_setup_sql` | | source-only statements (REPLICA IDENTITY FULL, source-only constraints) |
 | `target_setup_sql` | | target-only statements (to create deliberate drift) |
-| `initial_sql` | ✓ (container) | snapshot data |
-| `phases` | ✓ (container) | ordered list of `{ "sql": [...] }` or `{ "action": "kill_import" \| "kill_export" \| "stop_import" \| "resume_import" \| "cutover_to_target" \| "cutover_to_source" \| "wait_streaming" \| "ddl_source" \| "ddl_target", "args": {...} }` |
+| `initial_sql` | ✓ | snapshot data |
+| `phases` | ✓ | ordered list of `{ "sql": [...] }` or `{ "action": "kill_import" \| "kill_export" \| "stop_import" \| "resume_import" \| "cutover_to_target" \| "cutover_to_source" \| "wait_streaming" \| "ddl_source" \| "ddl_target", "args": {...} }` |
 | `export_flags` / `import_flags` | | CLI flags; `import_env` for env vars (e.g. `NUM_EVENT_CHANNELS`) |
-| `snapshot_rows` | ✓ (container) | map `"schema"."table"` → rows expected after snapshot |
-| `tables` | ✓ (container) | map table-as-in-SELECT → ORDER BY for the oracle |
+| `snapshot_rows` | ✓ | map `"schema"."table"` → rows expected after snapshot |
+| `tables` | ✓ | map table-as-in-SELECT → ORDER BY for the oracle |
 | `oracle_extra` | | extra checks: `per_partition_counts`, `sequence_after_cutover`, `no_rows_affected_warnings`, `queue_contains` |
 | `expect` | ✓ | `consistent` \| `refused` \| `loud` |
 | `ddl_probe` | | `true` if any DDL may be unsupported on YB — probe first |
-| `fuzz` | ✓ (fuzz) | scenario spec for the unit fuzzer: columns + domains, PK layout, unique indexes (+ predicates, leaf scope), strategy + custom columns, `use_partition_root`, workload ops (`insert`, `update_non_key`, `delete`, `row_move`, `pk_change`), ops count, channel count |
+| `value_fuzz` | | only for `value-encoding` changes: `{ "columns": [{"name", "type"}], "rows": N, "seed": S, "ops": ["insert", "update"], "edge_values": true }` — the hunt generates randomized and edge values per type |
 
 ## Worked example (the case that found yb-voyager#3834)
 
@@ -62,7 +61,6 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
   "areas": ["partitions", "apply-sql", "guardrails"],
   "linked_change": "baseline",
   "why_it_can_fail": "Event.Key is the leaf PK {id}; with use-partition-root=true the statement runs on the root as WHERE id=…, which matches the same id in every leaf. Rows-affected≠1 is only a WARN, and with no INSERTs nothing trips ON CONFLICT.",
-  "kind": "container",
   "flow": "live",
   "schemas": ["kp"],
   "schema_sql": [

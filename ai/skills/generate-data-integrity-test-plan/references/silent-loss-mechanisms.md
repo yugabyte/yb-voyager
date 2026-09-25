@@ -13,7 +13,7 @@ DELETE(row) and INSERT(same PK) land on different channels and apply in the wron
 - Triggers: routing key differs between the two events (custom key changed or reused, value spelled differently in before/after images, PK guard columns ≠ the PK used by ON CONFLICT, partitions with different PKs).
 - Areas: `cdc-routing`, `conflict-detection`, `partitions`, `value-encoding`.
 - Workload: delete + re-insert the same PK under a different routing value; row movement across partitions; PK change.
-- Found: fuzzer P10 (PK guard from a random leaf) — latent behind the export guardrail.
+- Found (latent): for a root without its own PK, the PK guard copies one leaf's PK chosen by map iteration; only the export guardrail on mismatched leaf PKs keeps this from losing rows.
 
 ## M2. Missed conflict on a unique index (usually loud, sometimes silent)
 Conflict detection fails to serialise a free-then-reuse of a unique value. Normally the target raises `23505` (loud). It becomes **silent** when the colliding constraint is the one `ON CONFLICT` targets (then the row is dropped — see M1), or when the violation is absorbed (IGNORE policies, retries that "succeed" later).
