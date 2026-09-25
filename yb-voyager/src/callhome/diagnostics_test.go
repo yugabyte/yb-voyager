@@ -265,6 +265,7 @@ func TestCallhomeStructs(t *testing.T) {
 				Error                       string            `json:"error"`
 				ControlPlaneType            string            `json:"control_plane_type"`
 				CutoverTimings              *CutoverTimings   `json:"cutover_timings,omitempty"`
+				CdcPartitionKeyMap          map[string]string `json:"cdc_partition_key_map"`
 			}{},
 		},
 		{
@@ -335,7 +336,7 @@ func TestCallhomeStructs(t *testing.T) {
 				SnapshotTotalRows                 int64            `json:"snapshot_total_rows"`
 				SnapshotTotalBytes                int64            `json:"snapshot_total_bytes"`
 				CdcEventsImportRate3min           int64            `json:"cdc_events_import_rate_3min"`
-				CdcConflictCountPerTable          map[string]int64 `json:"cdc_conflict_count_per_table"`
+				CdcConflictCountPerTable          map[string]int64 `json:"cdc_conflict_count_per_table,omitempty"`
 				TableListCount                    int              `json:"table_list_count"`
 			}{},
 		},
