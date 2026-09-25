@@ -173,7 +173,7 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 			Name: "yb_voyager_import_data_cdc_last_event_applied_timestamp_seconds",
 			Help: "Unix timestamp of the most recent successfully applied CDC event batch",
 		}, importerRoleLabels),
-		// table_name is anonymized by the call site. PromQL: sum by (table_name) (rate(yb_voyager_import_data_cdc_conflicts_total[5m]))
+		// table_name is actual qualified table name passed by the call site. PromQL: sum by (table_name) (rate(yb_voyager_import_data_cdc_conflicts_total[5m]))
 		importCDCConflictsTotal: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_data_cdc_conflicts_total",
 			Help: "Total streaming CDC events that had to block on a detected unique-key conflict (one per blocked event), by anonymized table_name",

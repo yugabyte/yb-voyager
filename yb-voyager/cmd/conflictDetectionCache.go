@@ -136,7 +136,7 @@ type ConflictDetectionCache struct {
 
 	// importerRole is used only for the conflict metric
 	// (yb_voyager_import_data_cdc_conflicts_total).
-	importerRole         string
+	importerRole string
 
 	// Per-table CDC partition key (strategy + custom key columns), used to compute an
 	// event's partition key (see GetEventPartitionKey). Two events with the same partition
@@ -329,10 +329,8 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	return nil
 }
 
-// recordConflictMetricLocked increments the per-table conflict counter using the
-// precomputed anonymized table name, so no raw identifier reaches the metrics endpoint.
-// The metric is best-effort: a missing precomputed name is logged and skipped rather than
-// failing the migration. Caller must hold the lock.
+// recordConflictMetricLocked increments the per-table conflict counter for the blocked
+// incoming event. Caller must hold the lock.
 func (c *ConflictDetectionCache) recordConflictMetricLocked(incomingEvent *tgtdb.Event) {
 	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup.ForOutput())
 }
