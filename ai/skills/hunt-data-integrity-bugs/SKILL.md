@@ -29,6 +29,17 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 - `templates/example_case_test.go.tmpl` — a finished PR test written with the existing framework only (the yb-voyager#3834 repro). Container tests follow this shape; no shared helper files.
 - `../generate-data-integrity-test-plan/references/` — mechanisms, dimensions, inventory derivation, plan schema.
 
+## Stay in bounds
+
+These hold in every mode, especially unattended:
+
+- **Change only what the run owns.** Worktrees, scratch dirs, containers and processes the run created. Clean up by name or label (testcontainers label its containers `org.testcontainers=true`; probes use `di-probe*`), never with host-wide commands such as `docker ps -q | xargs docker rm -f` or `rm -rf /tmp/yb-voyager-export*`.
+- **System changes only in a throwaway sandbox.** Starting daemons, editing apt sources, installing packages or writing under `/opt` are fine in an ephemeral environment (a cloud session, a CI runner). On a developer machine or shared host, stop and report what is missing instead.
+- **Never modify product code or existing tests** to make a case pass or fail; the only committed change is the new failing test file on its own `data-integrity/*` branch.
+- **Stay on the plan.** Run the planned cases and the verification steps for their candidates. Anything else that looks interesting goes in the report as a lead, not a new investigation.
+- **Git identity and history.** Commit with the environment's git identity; never set `user.name`/`user.email` to a person, amend or re-author commits, or force-push. Never push to the default branch or to the branch the skills live on.
+- **One way out.** The report, the draft PRs and — if a channel was given — the Slack post (Step 7) are the only outputs. No push notifications, emails, issue or Jira filing, PR subscriptions, reactions to CI/review events, or scheduled follow-ups.
+
 ## Workflow
 
 ```
@@ -100,6 +111,13 @@ Write `$SCRATCH/data-integrity/report-<YYYYMMDD>.md`:
 - **Coverage**: table of every case → outcome vs expectation; skipped cases and why; flows not exercised
 - **Catalog drift**: uncatalogued/stale flags, stale anchors, guardrails added/removed, templates that needed fixes (see `inventory.md` → Drift report)
 - **Suggested follow-ups**: guardrails to consider, catalog additions
+
+If a Slack channel was provided (e.g. by a routine) and the run opened at least one PR or saw at least one unexpected loud failure, post exactly this:
+
+- **One top-level message** in the channel: `Data-integrity hunt <YYYY-MM-DD> @ <short-sha>: <N> finding PR(s), <M> loud failure(s)`.
+- **Thread replies** under it, one per finding PR: one-line summary of the silent loss/corruption, the PR link, and `[baseline]` if it came from a baseline case.
+- **One thread reply** listing the unexpected loud failures, one line each: case, flow, and the error signature (e.g. `SQLSTATE 22009 time zone displacement out of range on streamed timestamptz`). No PRs or issues for these.
+- Nothing else in the channel; post nothing when N = M = 0.
 
 Then clean up per harness → Cleanup, and **end the session** — no background watchers, subscriptions or scheduled check-ins left behind. Reply with the PR links, the report path, and one line per finding. If an Artifact tool is available, publish the report as a page and include the link.
 

@@ -4,6 +4,8 @@ The hunt needs to run voyager end to end against real PostgreSQL and YugabyteDB 
 
 Do the steps in order, record what you did in the report's **Environment** section, and stop with a clear message if a hard requirement can't be met — never fake results.
 
+**Provision only on a throwaway host.** The steps below may start daemons, install packages, edit apt sources and write under `/opt`. Do that only in an ephemeral environment (a cloud session, a CI runner, a disposable VM). On a developer machine or a shared host, check the requirements, and if one is missing, stop and report it instead of changing the system.
+
 ## 0. Probe the host (2 minutes, always first)
 
 ```bash
@@ -28,7 +30,7 @@ done
 
 | Requirement | Hard? | If missing |
 |---|---|---|
-| Docker daemon usable by this user | **yes** | stop: no container tests possible. Report "Docker unavailable"; the plan can still be produced. |
+| Docker daemon usable by this user | **yes** | if the client is installed but the daemon isn't running and this is a throwaway host where you are root, start it (`dockerd > $SCRATCH/dockerd.log 2>&1 &`, then poll `docker info`); otherwise stop: report "Docker unavailable"; the plan can still be produced. |
 | Go matching `yb-voyager/go.mod` | yes | install from go.dev, or use `GOTOOLCHAIN=auto` if the proxy allows toolchain downloads |
 | JDK 17 (Debezium runtime) | yes | distro package (`openjdk-17-jdk-headless`); JDK 18/19 also pass the installer check, 20+ do not |
 | Debezium server under `/opt/yb-voyager/debezium-server` | yes | Step 2 |
@@ -120,11 +122,12 @@ Run one existing, fast live test (e.g. `TestBasicLiveMigrationWithCutover`) with
 
 Observed in Claude Code on the web / routines (Linux container, runs as root):
 
-- **Docker works**; images pull from Docker Hub.
+- **Docker is installed but the daemon may not be running** at session start (`docker info` fails on `/var/run/docker.sock`). The session runs as root, so start it with `dockerd > $SCRATCH/dockerd.log 2>&1 &` and poll `docker info`. Images pull from Docker Hub.
 - **Network goes through an allowlisting proxy** (`HTTPS_PROXY` is set; `curl "$HTTPS_PROXY/__agentproxy/status"` lists `noProxy` and status). Reachable: GitHub over git, GitHub release assets, Maven Central, Go module proxy, Docker Hub, apt Ubuntu archives. Blocked (403 on CONNECT): third-party PPAs, `apt.postgresql.org`, GitHub `/archive/` tarballs, `packages.confluent.io`, `jitpack.io`. So: Step 2a for Debezium, Step 3 option 2 for PG tools.
 - **Debezium behind the proxy.** In the first cloud run, Debezium exited at startup ("Failed to start application" in `<export-dir>/logs/debezium-source_db_exporter.log`) until the test runner's proxy settings were fixed. Connections from the exporter to the test containers must not go through the proxy: make sure `NO_PROXY`/`no_proxy` cover `localhost`, `127.0.0.1` and the Docker host address, and that any proxy system properties passed to Java (`JAVA_TOOL_OPTIONS`, `JAVA_OPTS`) include `-Dhttp.nonProxyHosts='localhost|127.*|[::1]'`. Check that log whenever exports fail without a voyager error.
 - **Locale is not UTF-8 by default** (the installer prints `setlocale` warnings): set `LANG`/`LC_ALL=C.UTF-8` as in Step 1.
-- JDK 17, Go and Maven are typically preinstalled; check versions anyway.
+- Go and Maven are preinstalled; the default JDK may be 21, which the installer rejects — install `openjdk-17-jdk-headless` with apt and point `JAVA_HOME` at it.
+- `JAVA_TOOL_OPTIONS` is preset with the proxy and truststore settings (visible as `Picked up JAVA_TOOL_OPTIONS` on every `java` call). Keep it, and check that its `-Dhttp.nonProxyHosts` covers the local addresses the exporter uses.
 - The repo is checked out under `/home/user/<repo>`; use a scratch dir under `/tmp` and a separate worktree for the target commit.
 - GitHub access for branches and PRs is available (via `git push` and the GitHub tools/`gh` if present). Slack posting uses the routine's attached Slack connector.
 - Sessions are long but not unbounded: respect `--time-budget`, and write the report incrementally so a cut-off run still leaves results.

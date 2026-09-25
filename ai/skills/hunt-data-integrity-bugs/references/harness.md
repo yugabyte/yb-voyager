@@ -85,4 +85,4 @@ go test -tags <tag> -count=1 -v -parallel <P> -timeout 60m -run '<regex>' ./src/
 
 ## Cleanup (always, even on failure)
 
-`failpoint-ctl disable` if enabled; stop leftover test binaries (see Running); `docker ps` — remove only containers the run created (`di-probe*`, testcontainers exit on their own); remove every worktree the run added; keep logs and the report in `$SCRATCH/data-integrity/`.
+`failpoint-ctl disable` if enabled; stop leftover test binaries (see Running); `docker ps` — remove only containers the run created, selected by name or label (`di-probe*`, `--filter label=org.testcontainers=true` for the run's own leftovers), never all containers; remove every worktree the run added; keep logs and the report in `$SCRATCH/data-integrity/`.
