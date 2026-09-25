@@ -82,8 +82,8 @@ For each verified signature (up to `--max-prs`, P0 first):
 2. Add **only** the minimised test file (`src/testlivemigration/data_integrity_<slug>_test.go`), written with the existing framework like `templates/example_case_test.go.tmpl`. The test **asserts the correct behaviour** (consistent target, or a refusal) so it fails today. Build tag: the normal tag of the flow (`integration_live_migration`, or `..._with_failpoint` only if needed). `gofmt` the files. `git status` must show nothing else (no failpoint-rewritten files, no plan files).
 3. Run the new test once on the branch to confirm it fails for the reported reason.
 4. Commit (follow the repo's attribution rules), push, and open a **draft** PR:
-   - title `[data-integrity] <symptom in one line>`
-   - body from the repo's `.github/PULL_REQUEST_TEMPLATE` via the `pr-description` skill: setup, workload, expected vs actual, repro rate, how to run, suggested fix. Note that CI fails by design, and end with the signature line for dedupe.
+   - title `[data-integrity] <symptom in one line>` for targeted findings, `[data-integrity][baseline] <symptom>` for findings from baseline cases
+   - body from the repo's `.github/PULL_REQUEST_TEMPLATE` via the `pr-description` skill: setup, workload, expected vs actual, repro rate, how to run, suggested fix. Note that CI fails by design. For a baseline finding, say in the first line that it is **not linked to the change set** (found by standing-catalog coverage). End with the signature line for dedupe.
    - no customer names or data anywhere (synthetic schemas only).
    - **Never change commit authorship.** Commit with whatever git identity the environment provides; never set `user.name`/`user.email` to a person, never amend or re-author a commit to someone else, and never force-push. A pending CLA or failing CI on these PRs is expected — note it in the report and leave it for a human.
 
@@ -94,7 +94,7 @@ Do not file Jira tickets or GitHub issues; the PR is the report. Do not subscrib
 Write `$SCRATCH/data-integrity/report-<YYYYMMDD>.md`:
 
 - change set, plan path, target commit, time used / budget
-- **Findings**: one row per PR (link, signature, mechanism, repro rate)
+- **Findings**: one row per PR (link, signature, mechanism, repro rate, and scope — `targeted` with the commit it relates to, or `baseline`)
 - **Unverified / latent leads**: candidates that failed verification, findings blocked by guardrails — with the reason
 - **Unexpected loud failures and refusals** (not data loss, but worth a look)
 - **Coverage**: table of every case → outcome vs expectation; skipped cases and why; flows not exercised

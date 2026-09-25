@@ -33,7 +33,8 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
 | `priority` | ✓ | `P0` \| `P1` \| `P2` |
 | `mechanism` | ✓ | `M1`…`M10` from `silent-loss-mechanisms.md` |
 | `areas` | ✓ | areas from the SKILL's Step 1 table |
-| `linked_change` | | commit SHA / file:function this case targets; `baseline` for baseline cases |
+| `scope` | ✓ | `targeted` (attacks the change set) \| `baseline` (standing-catalog coverage, ≤ 3 per plan) |
+| `linked_change` | ✓ | commit SHA / file:function this case targets; `baseline` for baseline cases |
 | `why_it_can_fail` | ✓ | the exact sequence that would produce silent loss if the code is wrong |
 | `flow` | ✓ | `live` \| `fallback` \| `fallforward` \| `changes-only` \| `iterative` \| `offline` |
 | `schemas` | ✓ | schema names passed to the framework (`SchemaNames`) |
@@ -59,6 +60,7 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
   "priority": "P0",
   "mechanism": "M3",
   "areas": ["partitions", "apply-sql", "guardrails"],
+  "scope": "baseline",
   "linked_change": "baseline",
   "why_it_can_fail": "Event.Key is the leaf PK {id}; with use-partition-root=true the statement runs on the root as WHERE id=…, which matches the same id in every leaf. Rows-affected≠1 is only a WARN, and with no INSERTs nothing trips ON CONFLICT.",
   "flow": "live",

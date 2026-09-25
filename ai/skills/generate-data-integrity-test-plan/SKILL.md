@@ -16,7 +16,7 @@ Runs **unattended by default**: never ask questions; make the conservative choic
 | time window (default `24h`) | `--since 3d` | commits on `origin/main` in the window |
 | commit range | `a1b2c3..d4e5f6` | exactly these commits |
 | PR numbers | `--prs 3814,3820` | the PRs' head commits vs their base |
-| none of the above has data-path changes | — | emit a **baseline-only** plan (see Step 4) |
+| none of the above has data-path changes | — | emit a **baseline-only** plan: only the Step 4 baseline cases |
 
 Budget flag passed through to the plan: `--max-cases N` (default 30).
 
@@ -97,7 +97,12 @@ Each case = one **mechanism** × a concrete **schema** × **workload** × **flag
 
 ### Step 4: Baseline cases
 
-Always add `max(3, 10% of --max-cases)` **baseline** cases from the standing catalog that are *not* tied to the change — rotating through mechanisms (pick by `hash(date) mod N` so consecutive runs differ). If Step 1 mapped nothing, the plan is baseline-only with `max-cases / 2` cases.
+Add **at most 3 baseline cases** per plan: cases from the standing catalog that are *not* tied to the change set, rotating through mechanisms (pick by `hash(date) mod N` so consecutive runs differ). They catch older bugs, but they must stay a small, clearly labelled slice of the run:
+
+- Set `scope: "baseline"` and `linked_change: "baseline"` on each; every other case is `scope: "targeted"` and names the commit it attacks.
+- Baseline cases follow the same rules as targeted ones — in particular, **no value fuzzing** unless the change set itself maps to `value-encoding`.
+- If Step 1 mapped nothing, the plan is baseline-only: the same ≤ 3 cases, nothing else.
+- A baseline case is investigated only as far as the hunt's verification steps require; exploration beyond the planned case goes in the report as a lead.
 
 ### Step 5: Rank, cap, validate, write
 
