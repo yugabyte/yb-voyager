@@ -30,7 +30,7 @@ UPDATE/DELETE `WHERE <key>` where the key doesn't identify one row on the target
 Rows written to objects that aren't in the publication / table list / schema list never reach the queue. Snapshot and CDC can disagree about what's included.
 - Triggers: partitions in schemas outside `--source-db-schema`; partitions created mid-migration; `--table-list` naming only some partitions or only the root; exclude lists; name-registry misses; publication `publish_via_partition_root` choices.
 - Areas: `table-selection`, `partitions`, `snapshot`.
-- Found: K10 (leaf in an unlisted schema, silent), J1 (new partition mid-stream, documented limitation but silent).
+- Found: a leaf partition in a schema outside the migration's schema list (rows silently missing); a partition created mid-migration (rows never captured, no warning).
 
 ## M5. Value transformation
 The value stored on the target differs from the source (lost scale, truncated precision, time-zone shifts, encoding, array/JSON formatting, NaN/-0, TOAST placeholders).
@@ -56,6 +56,6 @@ Sequence last values not restored (or restored low) after cutover → later inse
 - Areas: `sequences`, `cutover-iteration`, `snapshot`.
 
 ## M10. Accepted-but-unsafe configuration
-A flag or schema combination that voyager accepts without a guardrail, where one of M1–M9 then happens deterministically. Guardrails that exist today: DEFERRABLE unique/PK refused at export; tables without PK refused; replica identity checks; mismatched leaf PKs refused at export; expression UK / UK on STORED generated column force `table` routing and reject `pk`/custom.
+A flag or schema combination that voyager accepts without a guardrail, where one of M1–M9 then happens deterministically. The current guardrails come from `inventory.guardrails` (derived from code each run); a combination that no guardrail covers is where to look.
 - Areas: `guardrails` + whatever the combination touches.
 - Workload: combine flags pairwise with schema shapes; any mismatch is a bug, and the fix is usually a new guardrail.

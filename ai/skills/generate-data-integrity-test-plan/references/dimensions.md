@@ -16,7 +16,7 @@ Pick the slices relevant to the mechanisms selected for a plan, then combine pai
 - several UKs on one table (no single key covers all)
 - `INCLUDE (...)` columns; expression UK (forces `table` routing); UK on STORED generated column (forces `table`)
 - UK on a TOASTed large text value
-- unique index created on the target only / after import start (known limitation — loud)
+- unique index created on the target only / after import start
 
 **Partitioned tables** ★
 - LIST / RANGE / HASH; DEFAULT partition; multi-level (LIST → RANGE → HASH)
@@ -47,11 +47,14 @@ unconstrained `numeric` ★, `numeric(p,s)`, `float4/8` (NaN, ±Infinity, -0), `
 - PK change followed by reuse of the old PK
 - no-op updates (`SET x = x`); repeated updates of one row in one transaction
 - large single transactions vs many tiny transactions; concurrent sessions interleaving
-- bulk `COPY` into the source during streaming; `TRUNCATE` (known limitation)
+- bulk `COPY` into the source during streaming; `TRUNCATE`
 - writes during export start (snapshot/CDC boundary, M7); writes during cutover
 - writes on the target after cutover (fall-back/fall-forward flows)
 
 ## Flags and settings
+
+Seed list only — the authoritative set is `inventory.flags` (Step 0.5). Flags there but not here are uncatalogued and get cases when the change touches them.
+
 - `--cdc-partition-key auto | pk | table`
 - `--cdc-partition-key-overrides`: custom single column, composite, **= partition column**, ≠ partition column, nullable column, case-sensitive column, a table-level override on some tables only
 - `--use-partition-root true | false` ★ (with root PK vs leaf-only PK)
@@ -72,10 +75,13 @@ unconstrained `numeric` ★, `numeric(p,s)`, `float4/8` (NaN, ±Infinity, -0), `
 - cutover during a write burst
 - iterative cutover (cutover to source and back, 2+ iterations)
 - archive changes enabled / segment cleanup
-- mid-stream DDL (known limitations — expect loud or documented; silent is still a bug report candidate if undocumented)
+- mid-stream DDL (new partitions, new unique indexes, added columns) — a clear failure is acceptable; silent divergence is a finding
 - failpoint-injected errors (retryable, retryable-after-commit, non-retryable) from `cmd/failpoints.go` / `src/tgtdb/failpoints.go`
 
 ## Flows
+
+Entry points below are hints; `inventory.framework` lists what exists at the target commit.
+
 | Flow | Framework entry points |
 |---|---|
 | live snapshot + changes | `StartExportData`, `StartImportData[WithEnv]`, `InitiateCutoverToTarget(false, …)` |

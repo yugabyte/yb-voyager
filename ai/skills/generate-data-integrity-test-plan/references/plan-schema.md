@@ -10,6 +10,13 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
   "change_set": { "base": "…", "head": "…", "commits": ["sha subject", "…"], "prs": [3814] },
   "areas": ["partitions", "apply-sql"],
   "assumptions": ["no YB version pinned; hunt uses the testcontainers default"],
+  "inventory": {                           // built in Step 0.5 (references/inventory.md)
+    "flags": [{"command": "import data", "flag": "--use-partition-root", "type": "bool", "default": "true"}],
+    "uncatalogued_flags": [], "stale_flags": [], "env": ["NUM_EVENT_CHANNELS"],
+    "guardrails": [{"condition": "DEFERRABLE unique/PK constraint", "message": "…", "where": "cmd/…:123", "stage": "export"}],
+    "framework": ["StartExportData", "StartImportDataWithEnv", "…"], "anchors": {"unexpected rows affected": "src/tgtdb/yugabytedb.go:1268"},
+    "drift": ["anchor GetEffectiveTableName moved to …"]
+  },
   "batches": [                              // container cases that may share one migration
     { "id": "B1", "flow": "live", "case_ids": ["C3", "C4"], "import_flags": {"--use-partition-root": "false"} }
   ],
@@ -40,7 +47,7 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
 | `snapshot_rows` | ✓ (container) | map `"schema"."table"` → rows expected after snapshot |
 | `tables` | ✓ (container) | map table-as-in-SELECT → ORDER BY for the oracle |
 | `oracle_extra` | | extra checks: `per_partition_counts`, `sequence_after_cutover`, `no_rows_affected_warnings`, `queue_contains` |
-| `expect` | ✓ | `consistent` \| `refused` \| `loud` \| `known` |
+| `expect` | ✓ | `consistent` \| `refused` \| `loud` |
 | `ddl_probe` | | `true` if any DDL may be unsupported on YB — probe first |
 | `fuzz` | ✓ (fuzz) | scenario spec for the unit fuzzer: columns + domains, PK layout, unique indexes (+ predicates, leaf scope), strategy + custom columns, `use_partition_root`, workload ops (`insert`, `update_non_key`, `delete`, `row_move`, `pk_change`), ops count, channel count |
 

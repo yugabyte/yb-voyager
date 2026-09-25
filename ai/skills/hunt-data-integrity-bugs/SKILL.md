@@ -28,7 +28,7 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 - `templates/example_case_test.go.tmpl` — a finished PR test written with the existing framework only (the yb-voyager#3834 repro). Container tests follow this shape; no shared helper files.
 - `templates/fuzz_engine_test.go.tmpl`, `templates/fuzz_partitions_test.go.tmpl` — unit schedule fuzzers (real `hashEvent` + `ConflictDetectionCache` + a model target with voyager's apply semantics, random interleavings, detection-off mutant). Extend them with the plan's `fuzz` scenarios.
 - `templates/pr-body.md` — PR body for a finding.
-- `../generate-data-integrity-test-plan/references/` — mechanisms, dimensions, known limitations, plan schema.
+- `../generate-data-integrity-test-plan/references/` — mechanisms, dimensions, inventory derivation, plan schema.
 
 ## Workflow
 
@@ -47,6 +47,11 @@ Takes a plan from `generate-data-integrity-test-plan`, writes and runs a test pe
 
 Follow `harness.md` → Environment preconditions and Workspace. Create the worktree at the target commit, build `yb-voyager` into `$SCRATCH/bin`, put it first on PATH, and verify `GIT_COMMIT_HASH`. If a precondition fails, stop and report exactly which (unattended runs must not half-run).
 
+Self-check against the target commit before writing any test:
+- If the plan's `inventory` is missing or was built at a different commit, rebuild it (`../generate-data-integrity-test-plan/references/inventory.md`).
+- Compile `templates/example_case_test.go.tmpl` (copied into `src/testlivemigration/`, then removed) and, if fuzz cases exist, the fuzz templates. If a template no longer compiles, fix the run's copy, carry on, and report the template drift. If the fuzz engines can't be repaired quickly, skip fuzz cases and say so.
+- Grep every anchor in `inventory.anchors`; stale ones go in the drift section.
+
 ### Step 1: Load and validate the plan
 
 Validate against `plan-schema.md`. Drop malformed cases with a reason. Sort by priority (P0 first). Estimate duration (~2–5 min per container case at the chosen parallelism, kill/resume and multi-iteration cases ~2×); if the budget can't cover everything, keep all P0, then P1 by mechanism diversity, and list the skipped cases in the report.
@@ -60,7 +65,7 @@ A fuzz failure is a **lead, not a finding**: the model can be wrong about real e
 ### Step 3: Container cases
 
 1. Probe DDL for `ddl_probe` cases (harness → DDL probe).
-2. Write tests from cases (harness → Writing a container test). Batches from the plan share one test; everything else gets its own test. Risky cases (`expect: refused | loud | known`) never share a migration with others.
+2. Write tests from cases (harness → Writing a container test). Batches from the plan share one test; everything else gets its own test. Risky cases (`expect: refused | loud`) never share a migration with others.
 3. Compile: `go vet -tags <tag> ./src/testlivemigration/`.
 4. Run in background batches of `P` tests (harness → Running). As each batch finishes, summarise its `DI-RESULT` lines before starting the next, so a harness problem (e.g. every export failing at startup) is caught after one batch, not after the whole budget.
 
@@ -70,7 +75,7 @@ Classify each case per harness → Classifying outcomes, comparing against the c
 
 ### Step 5: Verify SILENT candidates
 
-For each candidate, run all six checks in harness → Verifying a SILENT candidate (reproduce 2/3, dump real divergence, attribute, minimise, not-known, signature). Group candidates by signature — **one bug per signature**, even if several cases hit it. A candidate that fails any check goes in the report with the reason, not in a PR.
+For each candidate, run all six checks in harness → Verifying a SILENT candidate (reproduce 2/3, dump real divergence, attribute, minimise, not already reported, signature). Group candidates by signature — **one bug per signature**, even if several cases hit it. A candidate that fails any check goes in the report with the reason, not in a PR.
 
 ### Step 6: One draft PR per distinct bug
 
@@ -83,7 +88,6 @@ For each verified signature (up to `--max-prs`, P0 first):
    - title `[data-integrity] <symptom in one line>`
    - body from `templates/pr-body.md` (sections follow the repo PR template; see the `pr-description` skill), including the signature line at the end for dedupe.
    - no customer names or data anywhere (synthetic schemas only).
-5. Add a row to `../generate-data-integrity-test-plan/references/known-limitations.md` → Reported findings in the report's suggested follow-ups (don't commit it on the PR branch).
 
 Do not file Jira tickets; the user can run `create-voyager-issue` on a PR they want tracked.
 
@@ -96,7 +100,8 @@ Write `$SCRATCH/data-integrity/report-<YYYYMMDD>.md`:
 - **Unverified / latent leads**: fuzz-only failures, candidates that failed verification, findings blocked by guardrails — with the reason
 - **Unexpected loud failures and refusals** (not data loss, but worth a look)
 - **Coverage**: table of every case → outcome vs expectation; skipped cases and why; flows not exercised
-- **Suggested follow-ups**: known-limitations rows to add, guardrails to consider
+- **Catalog drift**: uncatalogued/stale flags, stale anchors, guardrails added/removed, templates that needed fixes (see `inventory.md` → Drift report)
+- **Suggested follow-ups**: guardrails to consider, catalog additions
 
 Then clean up per harness → Cleanup. Reply with the PR links, the report path, and one line per finding. If an Artifact tool is available, publish the report as a page and include the link.
 

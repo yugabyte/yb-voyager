@@ -24,13 +24,14 @@ Budget flags passed through to the plan: `--max-cases N` (default 40), `--max-co
 
 - `references/silent-loss-mechanisms.md` — **how** voyager loses data silently; every case must name the mechanism it attacks.
 - `references/dimensions.md` — the catalog of schema shapes, workloads, flags, run patterns, flows, and value types to combine.
-- `references/known-limitations.md` — documented limitations and already-reported findings; cases that only re-hit these are marked `expect: known` and skipped unless the change touches that area.
+- `references/inventory.md` — how to derive flags, config keys, env knobs, guardrails, target-DDL support, framework entry points and code anchors from the target commit on every run. Nothing that changes with a release is hardcoded; the catalogs below are seeds.
 - `references/plan-schema.md` — the plan file format, with a worked example (the K4b case that found yb-voyager#3834).
 
 ## Workflow
 
 ```
 - [ ] Step 0: Resolve the change set
+- [ ] Step 0.5: Build the live inventory
 - [ ] Step 1: Map changed code to data-path areas
 - [ ] Step 2: Pick mechanisms and dimension slices per area
 - [ ] Step 3: Generate cases (pairwise, adversarial, with oracles)
@@ -50,6 +51,10 @@ git diff --stat <base> <head>
 ```
 
 Record `base`, `head`, commit list, and PR bodies (intent). The plan's target commit is `head` (default: `origin/main` tip).
+
+### Step 0.5: Build the live inventory
+
+Follow `references/inventory.md` against the worktree at `head` and a `yb-voyager` binary built from it. Store the result in the plan's `inventory`. From here on, use the inventory — not the seed lists in `dimensions.md` — for which flags, guardrails and framework methods exist. Uncatalogued flags that the diff touches get cases; all drift goes into the plan summary.
 
 ### Step 1: Map changed code to areas
 
@@ -83,10 +88,10 @@ Each case = one **mechanism** × a concrete **schema** × **workload** × **flag
 - **Pairwise, not Cartesian.** Cover every pair of relevant dimension values at least once; do not enumerate the full product.
 - **Adversarial by construction.** The workload must create the condition the mechanism needs (same key in two leaves, a value freed and reused across channels, an update that touches only some columns of a composite key, a PK reused under a different custom key, …). A case whose data can't trigger its mechanism is useless — state in `why_it_can_fail` what has to go wrong for the case to fail.
 - **Include a mutation-style control** when cheap: the same case with the protective mechanism defeated (e.g. detection off in a fuzzer), so the hunt can prove the case has teeth.
-- **Valid on both databases.** Source SQL must succeed on PostgreSQL; schema must be creatable on YugabyteDB (YB rejects e.g. indexes on `interval`/`citext`, `DEFERRABLE` unique constraints). Mark cases whose DDL is uncertain `ddl_probe: true` so the hunt probes it first.
+- **Valid on both databases.** Source SQL must succeed on PostgreSQL; schema must be creatable on YugabyteDB, whose DDL support changes per release. Mark every case with non-trivial DDL `ddl_probe: true` so the hunt probes it first (`inventory.md` → Target DDL support).
 - **Workloads obey constraints.** Every source statement must succeed; a case whose delta errors on the source proves nothing.
 - **Every case has an oracle** (`dimensions.md` → Oracles): full-row source-vs-target comparison after quiescence, plus any case-specific check (per-partition counts, sequence values after cutover, rows-affected warnings).
-- **Expectation** is one of `consistent` (should migrate cleanly), `refused` (a guardrail should reject it up front), `loud` (should fail with a clear error), `known` (matches `known-limitations.md`). A silent mismatch is a bug under every expectation.
+- **Expectation** is one of `consistent` (should migrate cleanly), `refused` (a guardrail in `inventory.guardrails` should reject it up front), `loud` (should fail with a clear error). A silent mismatch is a bug under every expectation.
 - **Test kind:** `container` (real PG + YB via `src/testlivemigration`, or offline via `VoyagerCommandRunner`) for anything involving real SQL semantics, Debezium encoding, partitions, flags, or run patterns; `fuzz` (unit schedule fuzzer over the real routing + conflict code) for interleaving-heavy logic. Prefer container cases for suspected bugs; use fuzz cases to widen coverage.
 - **Adversarial variants of new tests.** If the change adds tests, add cases that break their assumptions (the gaps a reviewer would flag: one-sided assertions, avoided edge values, only-forward flow).
 
@@ -114,5 +119,5 @@ Reply with the two paths and the P0 case titles. When chained from the hunt skil
 - **Cases without a mechanism.** "Test partitions" is not a case; "custom key ≠ partition column, same id recycled inside a leaf under a new key value, `--use-partition-root false` → M1 drop-by-DO-NOTHING if the PK guard misses it" is.
 - **Happy-path workloads.** Inserting distinct rows and checking counts finds nothing; each workload must set up the race, reuse, or ambiguity its mechanism needs.
 - **Cartesian explosions.** 5 dimensions × 6 values each is 7,776 cases. Pairwise plus mechanism targeting keeps it to tens.
-- **Re-reporting known limitations.** Mark them `known`; only run them when the change touches that area (a fix may have regressed or a limitation may now be silently broken).
+- **Hardcoded inventories.** Flags, guardrails, and framework methods come from Step 0.5, not from memory or the seed lists.
 - **Untestable SQL.** Unsupported-on-YB DDL or source statements that violate constraints waste a whole container run.

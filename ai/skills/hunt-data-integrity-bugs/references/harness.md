@@ -19,7 +19,7 @@
 
 ## DDL probe (for `ddl_probe: true` cases, and whenever unsure)
 
-YB rejects some DDL that PG accepts (indexes on `interval`/`citext`, `DEFERRABLE` constraints). A rejected schema wastes a full container run. Probe first on a scratch container with the image the tests use (read it from a previous test log or `docker images | grep yugabyte`):
+YB rejects some DDL that PG accepts, and the set changes per YB release. A rejected schema wastes a full container run. Probe first on a scratch container with the image the tests use (read it from a previous test log or `docker images | grep yugabyte`):
 
 ```bash
 docker run -d --name di-probe yugabytedb/yugabyte:<tag> bin/yugabyted start --background=false --advertise_address=127.0.0.1
@@ -60,7 +60,7 @@ PATH=$S/bin:$PATH YB_VOYAGER_SEND_DIAGNOSTICS=0 \
 |---|---|---|
 | `CONSISTENT` | target matches source | none |
 | `REFUSED` | voyager refused at export/import with a clear message | fine if `expect: refused`; if `expect: consistent`, report as **unexpected refusal** (usability, not data loss) |
-| `LOUD` | importer/exporter exited with an error, or ERROR logged | fine if `expect: loud`/`known`; otherwise **unexpected loud failure** → report, no PR by default |
+| `LOUD` | importer/exporter exited with an error, or ERROR logged | fine if `expect: loud`; otherwise **unexpected loud failure** → report, no PR by default |
 | `SILENT` | mismatch while running or exited 0, no ERROR/FATAL (WARN-only counts as silent) | **candidate bug** → verify (below) |
 | `SNAPSHOT_INCOMPLETE` | snapshot never reached the expected counts | log counts; if source > target with no error, treat as `SILENT` (M4); if an error, `LOUD` |
 | `INCONCLUSIVE` | mismatch plus timeout, unclear | rerun once with a longer timeout; else report |
@@ -72,7 +72,7 @@ PATH=$S/bin:$PATH YB_VOYAGER_SEND_DIAGNOSTICS=0 \
 2. **Real divergence**: dump the differing rows from both sides (not just the first mismatch) and confirm the source rows are what the workload should produce.
 3. **Attributed**: say where it happens — never captured (queue lacks the events: M4), transformed (queue has a different value: M5), or applied wrongly (queue correct, target wrong: M1–M3/M6). Quote the evidence (queue line, log WARN, SQL shape).
 4. **Minimal**: shrink rows, statements, tables and flags while it still fails; the PR test must be the smallest repro.
-5. **Not known**: check `generate-data-integrity-test-plan/references/known-limitations.md`, the live-migration docs limitations, open PRs and issues:
+5. **Not already reported**: search open PRs and issues:
    `gh pr list --repo yugabyte/yb-voyager --state open --search '"[data-integrity]" in:title'` and `gh issue list --search '<key terms>'`. Same signature → add a comment with the new evidence instead of a new PR.
 6. **Signature**: `<mechanism>|<schema shape>|<flags>|<workload>` in one line (e.g. `M3|partitioned root w/o PK, leaf PK(id), same id in 2 leaves|use-partition-root=true|update/delete only`). Used for dedupe.
 
