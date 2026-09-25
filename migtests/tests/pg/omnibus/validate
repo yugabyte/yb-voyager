@@ -205,10 +205,7 @@ def check_validations_per_schema(tgt, schema_name) -> None:
 	print(f"triggers list: {fetched_triggers}")
 	assert len(fetched_triggers) == EXPECTED_COUNTS[schema_name]["triggers_count"]
 
-	# postgres_fdw's own routines vary by PG version and, from YB 2026.1.2, land in
-	# pg_catalog because the extension is pre-installed (yugabyte-db#30591). Count
-	# only what this migration creates.
-	fetched_procedures_functions = [p for p in tgt.fetch_all_procedures(schema_name) if not p.startswith("postgres_fdw")]
+	fetched_procedures_functions = tgt.fetch_all_procedures_excluding(schema_name, "postgres_fdw")
 	print(f"procedures/functions list: {fetched_procedures_functions}")
 	assert len(fetched_procedures_functions) == EXPECTED_COUNTS[schema_name]["functions_procedures_count"]
 
