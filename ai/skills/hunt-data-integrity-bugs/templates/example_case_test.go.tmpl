@@ -1,0 +1,77 @@
+//go:build integration_live_migration
+
+// Worked example of a data-integrity PR test (the finding behind yb-voyager#3834), written with
+// the existing live-migration framework only: minimal repro, asserts the CORRECT behaviour, fails
+// until the bug is fixed.
+package testlivemigration
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
+)
+
+// TestDataIntegrityRootWithoutPKViaRootUpdatesHitAllLeaves pins mechanism M3: the parent table
+// has no primary key (each leaf owns PRIMARY KEY (id)), the same id exists in both leaves, and
+// import runs with the default --use-partition-root true. Streamed UPDATE/DELETE run on the root
+// as WHERE id = ..., which matches that id in every leaf. Rows-affected != 1 is only a WARN and
+// there are no INSERTs to trip ON CONFLICT, so the importer keeps running with a corrupted target.
+// Correct behaviour: refuse the configuration up front, or keep the target equal to the source.
+func TestDataIntegrityRootWithoutPKViaRootUpdatesHitAllLeaves(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: "di_root_without_pk_via_root"},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: "di_root_without_pk_via_root"},
+		SchemaNames: []string{"kp"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS kp;`,
+			`CREATE TABLE kp.lr (id int NOT NULL, region text NOT NULL, v int) PARTITION BY LIST (region);`,
+			`CREATE TABLE kp.lr_r1 PARTITION OF kp.lr FOR VALUES IN ('r1');`,
+			`CREATE TABLE kp.lr_r2 PARTITION OF kp.lr FOR VALUES IN ('r2');`,
+			`ALTER TABLE kp.lr_r1 ADD PRIMARY KEY (id);`,
+			`ALTER TABLE kp.lr_r2 ADD PRIMARY KEY (id);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE kp.lr REPLICA IDENTITY FULL;`,
+			`ALTER TABLE kp.lr_r1 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE kp.lr_r2 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO kp.lr SELECT i, 'r1', 0 FROM generate_series(1,20) i;`,
+			`INSERT INTO kp.lr SELECT i, 'r2', 0 FROM generate_series(1,20) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`UPDATE kp.lr SET v = 1 WHERE id <= 5 AND region = 'r1';`,
+			`DELETE FROM kp.lr WHERE id = 20 AND region = 'r2';`,
+		},
+		CleanupSQL: []string{`DROP SCHEMA IF EXISTS kp CASCADE;`},
+	})
+	defer lm.Cleanup()
+
+	testutils.FatalIfError(t, lm.SetupContainers(context.Background()), "setup containers")
+	testutils.FatalIfError(t, lm.SetupSchema(), "setup schema")
+	testutils.FatalIfError(t, lm.StartExportData(true, nil), "start export data")
+	testutils.FatalIfError(t, lm.StartImportData(true, map[string]string{"--cdc-partition-key": "auto"}), "start import data")
+	// Async starts return once the process is running, so a refusal at import start only shows
+	// up as the importer exiting before the snapshot completes. IsStopped() reports an exit only
+	// once, so it is read a single time on each path.
+	if err := lm.WaitForSnapshotComplete(map[string]int64{`"kp"."lr"`: 40}, 240); err != nil {
+		if lm.GetImportRunner().IsStopped() {
+			t.Logf("import refused the configuration: %s", lm.GetImportCommandStderr())
+			return // refusing up front is the correct behaviour
+		}
+		t.Fatalf("snapshot did not complete and the importer is still running: %v", err)
+	}
+	testutils.FatalIfError(t, lm.ExecuteSourceDelta(), "source delta")
+	testutils.FatalIfError(t, lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"kp"."lr"`: {Inserts: 0, Updates: 5, Deletes: 1},
+	}, 120, 5), "streaming")
+
+	require.False(t, lm.GetImportRunner().IsStopped(), "importer should still be running")
+	// Order by the full leaf-local key: the same id exists in both partitions.
+	require.NoError(t, lm.ValidateDataConsistency([]string{"kp.lr"}, "id, region"),
+		"target diverged from source: UPDATE/DELETE via the root matched the same id in every leaf")
+}
