@@ -24,7 +24,7 @@ EXPECTED_INDEX_COUNT = {
 
 def migration_completed_checks(tgt):
 
-	extension_list = tgt.fetch_all_pg_extension("public")
+	extension_list = tgt.fetch_all_pg_extension_excluding_preinstalled("public")
 	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
 	assert extension_list == EXPECTED_EXTENSION_SET
 

@@ -231,6 +231,10 @@ def migration_completed_checks(tgt):
 			"range_type_example": {"functions_procedures_count": 8},
 			}
 
+	if "postgres_fdw" in yb.preinstalled_extensions(tgtVersion):
+		# YB owns the extension from 2026.1.2, so its routines stay in pg_catalog
+		updates["foreign_db_example"] = {"functions_procedures_count": 2}
+
 	# Apply the updates dynamically
 	for schema, changes in updates.items():
 	    for objects, new_value in changes.items():
