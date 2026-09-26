@@ -38,7 +38,7 @@ These hold in every mode, especially unattended:
 - **Never modify product code or existing tests** to make a case pass or fail; the only committed change is the new failing test file on its own `data-integrity/*` branch.
 - **Stay on the plan.** Run the planned cases and the verification steps for their candidates. Anything else that looks interesting goes in the report as a lead, not a new investigation.
 - **Git identity and history.** Commit with the environment's git identity; never set `user.name`/`user.email` to a person, amend or re-author commits, or force-push. Never push to the default branch or to the branch the skills live on.
-- **One way out.** The report, the draft PRs and — if a channel was given — the Slack post (Step 7) are the only outputs. No push notifications, emails, issue or Jira filing, PR subscriptions, reactions to CI/review events, or scheduled follow-ups.
+- **One way out.** The report, the draft PRs and — if a channel was given — the Slack post (Step 7) are the only outputs. The report is the final message plus the files under `$SCRATCH/data-integrity/`; don't publish it as a page, doc or artifact unless the caller asks for one. No push notifications, emails, issue or Jira filing, PR subscriptions, reactions to CI/review events, or scheduled follow-ups.
 
 ## Workflow
 
@@ -104,7 +104,7 @@ Do not file Jira tickets or GitHub issues; the PR is the report. Do not subscrib
 
 Write `$SCRATCH/data-integrity/report-<YYYYMMDD>.md`:
 
-- change set, plan path, target commit, time used / budget
+- change set, plan path, target commit, time used / budget (measure time used from a `date -u` taken at the start of the run; don't estimate it)
 - **Findings**: one row per PR (link, signature, mechanism, repro rate, and scope — `targeted` with the commit it relates to, or `baseline`)
 - **Unverified / latent leads**: candidates that failed verification, findings blocked by guardrails — with the reason
 - **Unexpected loud failures and refusals** (not data loss, but worth a look)

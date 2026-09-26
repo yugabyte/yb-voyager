@@ -18,7 +18,7 @@ Parse flag name, type and default. Also collect config-file keys from `yb-voyage
 
 - `inventory.flags`: `{command, flag, type, default}`.
 - **Uncatalogued** = flags in the inventory but not mentioned in `dimensions.md` → Flags. If the change set touches an uncatalogued flag (its name appears in the diff), generate cases for it; always list uncatalogued flags in the plan summary and the hunt report.
-- **Stale** = flags mentioned in `dimensions.md` but absent from `--help` → report as catalog drift; don't generate cases for them.
+- **Stale** = flags mentioned in `dimensions.md` but absent from `--help` *and* no longer registered in code. Hidden flags (`mustMarkFlagHidden`) don't appear in `--help`, so before reporting a flag as stale, `grep -rn --include='*.go' -e '"<flag>"' yb-voyager/cmd`; if it's registered and hidden, record it as `hidden` in `inventory.flags` instead. Report truly stale flags as catalog drift; don't generate cases for them.
 
 ## 2. Env knobs
 

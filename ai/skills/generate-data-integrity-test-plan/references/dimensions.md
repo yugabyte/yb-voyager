@@ -61,7 +61,7 @@ Seed list only — the authoritative set is `inventory.flags` (Step 0.5). Flags 
 - `--table-list` / `--exclude-table-list`: root only, some leaves only, glob patterns, case-sensitive names
 - `--source-db-schema` lists that omit a leaf's schema ★
 - `--start-clean` on re-run; `--parallel-jobs`; `--on-primary-key-conflict` (`ERROR-POLICY` / `IGNORE`)
-- `--disable-sequential-scan-on-update-deletes`; `--max-retries-streaming`
+- `--disable-sequential-scan-on-update-deletes` (hidden flag, default true); `--max-retries-streaming`
 - export `--export-type snapshot-and-changes | changes-only`
 - host locale for the voyager/Debezium processes (`LANG`/`LC_ALL=C` vs `C.UTF-8`) — the JVM's default charset follows it; run the default suite under UTF-8 and cover `C` explicitly with non-ASCII text
 - env (internal/testing only): `NUM_EVENT_CHANNELS`, `MAX_EVENTS_PER_BATCH`, `MAX_INTERVAL_BETWEEN_BATCHES` — small channel counts raise collision rates
