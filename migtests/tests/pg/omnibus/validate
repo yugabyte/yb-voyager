@@ -120,7 +120,7 @@ EXPECTED_COUNTS = {
 		"sequence_count": 0,
 		"view_count": 0,
 		"mview_count": 0,		
-		"functions_procedures_count": 2,
+		"functions_procedures_count": 4,
 		"triggers_count": 2,
 	},
 	"idx_ex": {
@@ -205,7 +205,7 @@ def check_validations_per_schema(tgt, schema_name) -> None:
 	print(f"triggers list: {fetched_triggers}")
 	assert len(fetched_triggers) == EXPECTED_COUNTS[schema_name]["triggers_count"]
 
-	fetched_procedures_functions = tgt.fetch_all_procedures_excluding(schema_name, "postgres_fdw")
+	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
 	print(f"procedures/functions list: {fetched_procedures_functions}")
 	assert len(fetched_procedures_functions) == EXPECTED_COUNTS[schema_name]["functions_procedures_count"]
 
@@ -227,8 +227,13 @@ def migration_completed_checks(tgt):
 	if yb.has_pg15_merge(tgtVersion):
 		updates = {
 		    "extension_example": {"functions_procedures_count": 61},
+			"foreign_db_example": {"functions_procedures_count": 7},
 			"range_type_example": {"functions_procedures_count": 8},
 			}
+
+	if "postgres_fdw" in yb.preinstalled_extensions(tgtVersion):
+		# YB owns the extension from 2026.1.2, so its routines stay in pg_catalog
+		updates["foreign_db_example"] = {"functions_procedures_count": 2}
 
 	# Apply the updates dynamically
 	for schema, changes in updates.items():

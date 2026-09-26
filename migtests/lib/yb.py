@@ -6,6 +6,7 @@ from xmlrpc.client import boolean
 import psycopg2
 import json
 import re
+from packaging.version import Version
 
 
 def has_pg15_merge(version_string):
@@ -33,6 +34,22 @@ def has_pg15_merge(version_string):
 	
 	# Preview versions >= 2.25 or stable versions >= 2025.1
 	return (major == 2 and minor >= 25) or (major >= 2025 and minor >= 1)
+
+
+# Extensions YugabyteDB installs into pg_catalog itself, and the version it started
+# doing so. From that version a migration can no longer place them in its own schema,
+# so tests must not hold the cluster's copy against the migration.
+CLUSTER_PREINSTALLED_EXTENSIONS = {
+	"postgres_fdw": "2026.1.2",  # yugabyte-db#30591, global views
+}
+
+
+def preinstalled_extensions(version_string) -> set:
+	three_dot_version = get_three_dot_version(version_string)
+	if not three_dot_version:
+		return set()
+	return {name for name, since in CLUSTER_PREINSTALLED_EXTENSIONS.items()
+		if Version(three_dot_version) >= Version(since)}
 
 
 def get_three_dot_version(version_string):
@@ -333,17 +350,15 @@ class PostgresDB:
 		cur.execute(f"SELECT * FROM {schema_name}.{table_name}")
 		return set(cur.fetchall())
 
-	def fetch_all_procedures_excluding(self, schema_name, extension_name) -> List[str]:
-		# From YB 2026.1.2 postgres_fdw is pre-installed into pg_catalog
-		# (yugabyte-db#30591), so an extension's routines are not necessarily in the
-		# schema the migration put the extension in, and their number varies by PG
-		# version. Count only the routines the migration itself creates.
-		return [p for p in self.fetch_all_procedures(schema_name) if not p.startswith(extension_name)]
-
 	def fetch_all_pg_extension(self, schema_name = "public") -> set[str]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT extname FROM pg_extension")
 		return set(cur.fetchall())
+
+	def fetch_all_pg_extension_excluding_preinstalled(self, schema_name = "public") -> set[str]:
+		preinstalled = preinstalled_extensions(self.get_target_version())
+		return {extension for extension in self.fetch_all_pg_extension(schema_name)
+			if extension[0] not in preinstalled}
 
 	def fetch_all_schemas(self) -> set[str]:
 		cur = self.conn.cursor()
