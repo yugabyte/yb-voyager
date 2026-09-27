@@ -64,8 +64,8 @@ func TestProcessEventsBasic(t *testing.T) {
 	lastAppliedVsn := int64(0)
 	doneChan := make(chan bool, 1)
 	statsReporter := &reporter.StreamImportStatsReporter{}
-	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
+	state := newImportDataStateFromGlobals()
 	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
@@ -91,8 +91,8 @@ func TestProcessEventsRemovesEventFromConflicDetectionCache(t *testing.T) {
 	lastAppliedVsn := int64(0)
 	doneChan := make(chan bool, 1)
 	statsReporter := &reporter.StreamImportStatsReporter{}
-	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
+	state := newImportDataStateFromGlobals()
 	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
@@ -128,8 +128,8 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 	lastAppliedVsn := int64(100) // so that event with vsn 1 is ignored.
 	doneChan := make(chan bool, 1)
 	statsReporter := &reporter.StreamImportStatsReporter{}
-	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
+	state := newImportDataStateFromGlobals()
 	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")

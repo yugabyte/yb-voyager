@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -32,7 +33,7 @@ func TestCreateInitialImportDataTableMetrics_SetsTotalRows(t *testing.T) {
 	reportProgressInBytes = false
 
 	tup := newImportMetricsTestTuple("public", "orders")
-	tasks := []*ImportFileTask{
+	tasks := []*importdata.ImportFileTask{
 		{
 			ID:           1,
 			FilePath:     "orders_data.sql",

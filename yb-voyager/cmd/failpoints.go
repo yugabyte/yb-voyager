@@ -71,20 +71,6 @@ func injectImportCDCNonRetryableBatchDBError() error {
 // during snapshot batch production. Tests can use a hit-counter expression
 // (e.g. 20*off->return(true)) to crash after N rows are processed.
 // Black-box tests can set YB_VOYAGER_FAILPOINT_MARKER_DIR to write a marker file.
-func injectImportSnapshotTransformError() error {
-	var fpErr error
-	failpoint.Inject("importSnapshotTransformError", func(val failpoint.Value) {
-		if val != nil {
-			if markerDir := os.Getenv("YB_VOYAGER_FAILPOINT_MARKER_DIR"); markerDir != "" {
-				_ = os.MkdirAll(markerDir, 0755)
-				_ = os.WriteFile(filepath.Join(markerDir, "failpoint-import-snapshot-transform-error.log"), []byte("hit\n"), 0644)
-			}
-			fpErr = goerrors.Errorf("failpoint: snapshot row transform failed")
-		}
-	})
-	return fpErr
-}
-
 func writeFailpointMarker(filename string) {
 	_ = os.MkdirAll(filepath.Join(exportDir, "failpoints"), 0755)
 	_ = os.WriteFile(filepath.Join(exportDir, "failpoints", filename), []byte("hit\n"), 0644)

@@ -152,7 +152,7 @@ func runImportDataStatusCmd() error {
 	return nil
 }
 
-func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error) {
+func prepareDummyDescriptor(state *importdata.ImportDataState) (*datafile.Descriptor, error) {
 	var dataFileDescriptor datafile.Descriptor
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -177,7 +177,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 	var err error
 	var dataFileDescriptor *datafile.Descriptor
 
-	state := NewImportDataState(exportDir)
+	state := newImportDataStateFromGlobals()
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	if utils.FileOrFolderExists(dataFileDescriptorPath) {
 		// Case of `import data` command where row counts are available.
@@ -186,7 +186,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		// Case of `import data file` command where row counts are not available.
 		// Use file sizes for progress reporting.
 		importerRole = IMPORT_FILE_ROLE
-		state = NewImportDataState(exportDir)
+		state = newImportDataStateFromGlobals()
 		dataFileDescriptor, err = prepareDummyDescriptor(state)
 		if err != nil {
 			return nil, fmt.Errorf("prepare dummy descriptor: %w", err)
@@ -258,7 +258,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 	return table, nil
 }
 
-func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState) (*tableMigStatusOutputRow, error) {
+func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *importdata.ImportDataState) (*tableMigStatusOutputRow, error) {
 	var totalCount, importedCount, erroredCount, processingErrorRowCount, processingErrorByteCount int64
 	var err error
 	var perc float64

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -88,12 +89,12 @@ func TestResolveMetricsPort(t *testing.T) {
 	}
 }
 
-func makeTasksForTest(n int) []*ImportFileTask {
-	tasks := make([]*ImportFileTask, n)
+func makeTasksForTest(n int) []*importdata.ImportFileTask {
+	tasks := make([]*importdata.ImportFileTask, n)
 	for i := 0; i < n; i++ {
 		obj := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "public", fmt.Sprintf("table_%d", i))
 		tup := sqlname.NameTuple{CurrentName: obj, SourceName: obj, TargetName: obj}
-		tasks[i] = &ImportFileTask{
+		tasks[i] = &importdata.ImportFileTask{
 			ID:           i,
 			FilePath:     fmt.Sprintf("/tmp/table_%d.sql", i),
 			TableNameTup: tup,

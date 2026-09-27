@@ -235,7 +235,7 @@ func TestImportSnapshotTransformFailureAndResume(t *testing.T) {
 		// Skip the first 20 per-row transform calls (let them succeed), then inject
 		// a transform error on the 21st row. With batch-size=100, all 20 rows fit
 		// in the first batch which is never finalized, so zero rows reach the target.
-		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/importSnapshotTransformError=20*off->return(true)",
+		"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata/importSnapshotTransformError=20*off->return(true)",
 	)
 	failMarkerPath := filepath.Join(lm.GetCurrentExportDir(), "failpoints", "failpoint-import-snapshot-transform-error.log")
 
