@@ -1229,7 +1229,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 	// Fetch the primary-key columns of the import tables from the target (before snapshot) so
 	// they can be passed to streamChanges and the conflict-detection cache without re-querying
-	// during streaming. Also fails fast if a custom-partition-key table has no primary key.
+	// during streaming. Also fails fast if any import table has no primary key.
 	// Runs before start-clean so a refused run has not truncated tables or reset import state.
 	importTableToPKColumns, err := getPrimaryKeyColumnsForImportTables(importTableList)
 	if err != nil {
@@ -1436,9 +1436,8 @@ not need to be persisted in metaDB.
 It also fails fast, before the snapshot import, if a table routed by a custom partition key
 has no primary key on the target: custom routing adds the PK as a synthetic unique index for
 conflict detection (a recycled PK across different custom keys must be serialized), so a
-custom-key table without a PK cannot be made correct. This is scoped to custom-key tables so
-that legitimately PK-less tables under pk/table routing (e.g. partitioned roots imported via
---use-partition-root) are not blocked.
+custom-key table without a PK cannot be made correct. Any other table without a PK is refused
+too, since conflict detection keys on it.
 
 With --use-partition-root true, events are applied on the root, so a partitioned root without
 its own PK has no key: its leaves' PK is not unique across partitions (#3834).
