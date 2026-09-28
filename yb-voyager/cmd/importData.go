@@ -1433,6 +1433,8 @@ func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils
 		return tableToPKColumns, nil
 	}
 
+	// CDC applies events on the leaves only with --use-partition-root false; on the root a leaf's
+	// PK is not unique across partitions, so it must not count as the root's key.
 	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(tableNames, !tconf.UsePartitionRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error getting primary key columns for import tables: %w", err)
@@ -1488,7 +1490,9 @@ func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileT
 		return nil
 	}
 
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(nonEmptyTables, true)
+	// Snapshot always imports into the root (--use-partition-root applies only to CDC), so only the
+	// root's own PK makes conflicting rows get ignored.
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(nonEmptyTables, false)
 	if err != nil {
 		return fmt.Errorf("failed to get primary key columns for tables: %w", err)
 	}
