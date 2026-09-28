@@ -555,7 +555,7 @@ func TestLiveMigrationPartitionedTableWithChildPKRefusesUsePartitionRootTrue(t *
 	err = lm.StartImportData(false, nil)
 	require.Error(t, err, "import data must refuse --use-partition-root true for a root without a primary key")
 	require.Contains(t, lm.GetImportCommandStderr(),
-		"table(s) public.orders have no primary key; live migration is not allowed for these tables. "+
+		"table(s) public.orders have no primary key on the target; live migration is not allowed for these tables. "+
 			"If these are partitioned tables with a primary key only on their partitions, "+
 			"re-run with '--use-partition-root false' (requires YugabyteDB 2025.2.3.0 or later)")
 	err = lm.WithTargetConn(func(target *sql.DB) error {

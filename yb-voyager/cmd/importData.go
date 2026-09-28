@@ -1227,7 +1227,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if err != nil {
 		utils.ErrExit("Failed to prepare target DB for import: %w", err)
 	}
-	// Before start-clean so a refused run has not truncated tables or reset import state.
+	// Fetch the primary-key columns of the import tables from the target (before snapshot) so
+	// they can be passed to streamChanges and the conflict-detection cache without re-querying
+	// during streaming. Also fails fast if a custom-partition-key table has no primary key.
+	// Runs before start-clean so a refused run has not truncated tables or reset import state.
 	importTableToPKColumns, err := getPrimaryKeyColumnsForImportTables(importTableList)
 	if err != nil {
 		utils.ErrExit("Failed to get primary key columns for import tables: %w", err)
@@ -1421,15 +1424,30 @@ func waitUntilCutoverProcessedByCorrespondingExporterForImporter(importerRole st
 }
 
 /*
-getPrimaryKeyColumnsForImportTables fetches the primary-key columns of every import table for
-the streaming conflict-detection cache, and fails before the snapshot if a table has none.
+getPrimaryKeyColumnsForImportTables fetches the primary-key columns of every import table
+from the target DB (in one batched query) so they can be threaded into the streaming
+conflict-detection cache.
+
+It is called once near the start of importData (for the target PG→YB live path only; other
+paths return an empty map since conflict detection does not run for them). Because importData
+runs in the same process before streamChanges on both the first run and resume, the map does
+not need to be persisted in metaDB.
+
+It also fails fast, before the snapshot import, if a table routed by a custom partition key
+has no primary key on the target: custom routing adds the PK as a synthetic unique index for
+conflict detection (a recycled PK across different custom keys must be serialized), so a
+custom-key table without a PK cannot be made correct. This is scoped to custom-key tables so
+that legitimately PK-less tables under pk/table routing (e.g. partitioned roots imported via
+--use-partition-root) are not blocked.
 
 With --use-partition-root true, events are applied on the root, so a partitioned root without
 its own PK has no key: its leaves' PK is not unique across partitions (#3834).
 */
 func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	tableToPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
-	if !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL {
+
+	// Only the target PG→YB live streaming path runs conflict detection and needs primary keys.
+	if importerRole != TARGET_DB_IMPORTER_ROLE || !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL {
 		return tableToPKColumns, nil
 	}
 
@@ -1446,23 +1464,13 @@ func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils
 			tablesWithoutPK = append(tablesWithoutPK, t.ForOutput())
 		}
 	}
-	if len(tablesWithoutPK) == 0 {
-		return tableToPKColumns, nil
+	if len(tablesWithoutPK) > 0 {
+		return nil, goerrors.Errorf("table(s) %s have no primary key on the target; live migration is not allowed for these tables. "+
+			"If these are partitioned tables with a primary key only on their partitions, "+
+			"re-run with '--use-partition-root false' (requires YugabyteDB 2025.2.3.0 or later)", strings.Join(tablesWithoutPK, ", "))
 	}
-	errMsg := fmt.Sprintf("table(s) %s have no primary key; live migration is not allowed for these tables.",
-		strings.Join(tablesWithoutPK, ", "))
-	switch importerRole {
-	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		errMsg += " Partitioned tables with a primary key only on their partitions are not supported with fall-forward; " +
-			"add a primary key on the root table or exclude these tables from the migration"
-	case TARGET_DB_IMPORTER_ROLE:
-		errMsg += " If these are partitioned tables with a primary key only on their partitions, " +
-			"re-run with '--use-partition-root false' (requires YugabyteDB 2025.2.3.0 or later)"
-	default:
-		errMsg += " If these are partitioned tables with a primary key only on their partitions, " +
-			"re-run with '--use-partition-root false'"
-	}
-	return nil, goerrors.New(errMsg)
+
+	return tableToPKColumns, nil
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
