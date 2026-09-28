@@ -65,8 +65,8 @@ type TargetDB interface {
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	// GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key
 	// columns in PK-definition order (batched single-query variant of GetPrimaryKeyColumns).
-	// includeLeafPartitionPKs lets a partitioned root without its own PK take its leaves' PK.
-	GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple, includeLeafPartitionPKs bool) (*utils.StructMap[sqlname.NameTuple, []string], error)
+	// attributeLeafPKToRoot lets a partitioned root without its own PK take its leaves' PK.
+	GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple, attributeLeafPKToRoot bool) (*utils.StructMap[sqlname.NameTuple, []string], error)
 	GetPrimaryKeyConstraintNames(tableNameTup sqlname.NameTuple) ([]string, error)
 	// GetTableToUniqueIndexesMap returns, for each table, the list of unique
 	// indexes/constraints (each an ordered column list plus its NULLS NOT DISTINCT
