@@ -27,7 +27,7 @@ func (noopRecorder) RecordImportCDCEvents(importerRole string, inserts, updates,
 func (noopRecorder) SetImportCDCEventsPending(importerRole string, pending int64)               {}
 func (noopRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole string, seconds float64) {}
 func (noopRecorder) SetImportCDCLastEventApplied(importerRole string)                           {}
-func (noopRecorder) RecordImportCDCConflict(importerRole string, anonymizedTableName string)    {}
+func (noopRecorder) RecordImportCDCConflict(importerRole string, t sqlname.NameTuple)           {}
 
 // export snapshot
 func (noopRecorder) RecordExportSnapshotRowCount(exporterRole string, t sqlname.NameTuple, cumulative int64) {

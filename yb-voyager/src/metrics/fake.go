@@ -11,11 +11,9 @@ import (
 // RecordingRecorder is a test-only Recorder that counts calls, for verifying
 // that call sites invoke metrics without a Prometheus registry.
 //
-// Every recording method takes mu, because some call sites record from a
-// background goroutine (the conflict cache records while holding its own lock).
-// The exported maps are safe to read directly only from a single-goroutine test;
-// a test whose recorder is written concurrently must read through an accessor
-// that takes mu, as importCDCConflicts does.
+// Only the conflict counter is guarded by mu, because the conflict cache records it
+// from a streaming goroutine while a test polls; read it via ImportCDCConflictsSnapshot.
+// The exported maps are unsynchronized and safe only in single-goroutine tests.
 type RecordingRecorder struct {
 	mu sync.Mutex
 
@@ -103,10 +101,10 @@ func (r *RecordingRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole s
 func (r *RecordingRecorder) SetImportCDCLastEventApplied(importerRole string) {
 	r.ImportCDCLastEventApplied[importerRole]++
 }
-func (r *RecordingRecorder) RecordImportCDCConflict(importerRole string, tableName string) {
+func (r *RecordingRecorder) RecordImportCDCConflict(importerRole string, t sqlname.NameTuple) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.importCDCConflicts[tableName]++
+	r.importCDCConflicts[key(t)]++
 }
 
 // ImportCDCConflictsSnapshot returns a copy of the per-table conflict counts. Callers

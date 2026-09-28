@@ -41,7 +41,7 @@ type Recorder interface {
 
 	// import CDC conflicts (streaming unique-key conflict detection). The table name is
 	// passed already anonymized so no raw identifier reaches the metrics endpoint.
-	RecordImportCDCConflict(importerRole string, anonymizedTableName string)
+	RecordImportCDCConflict(importerRole string, t sqlname.NameTuple)
 
 	// export snapshot
 	RecordExportSnapshotRowCount(exporterRole string, t sqlname.NameTuple, cumulative int64)

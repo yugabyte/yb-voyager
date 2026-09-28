@@ -175,6 +175,18 @@ yb_voyager_import_data_snapshot_rows_total{importer_role="target_db_importer",mi
 		assert.Equal(t, float64(0), testutil.ToFloat64(r.importRowsTotal.WithLabelValues(lv...)))
 		assert.Equal(t, float64(0), testutil.ToFloat64(r.importBytesTotal.WithLabelValues(lv...)))
 	})
+
+	t.Run("import cdc conflicts", func(t *testing.T) {
+		r := NewPrometheusRecorder("uuid-1", "sess-1")
+		tup := newTupleForTest("public", "orders")
+		r.RecordImportCDCConflict("target_db_importer", tup)
+		expected := `
+	# HELP yb_voyager_import_data_cdc_conflicts_total Total streaming CDC events that had to block on a detected unique-key conflict (one per blocked event), by qualified table_name
+	# TYPE yb_voyager_import_data_cdc_conflicts_total counter
+	yb_voyager_import_data_cdc_conflicts_total{importer_role="target_db_importer",migration_uuid="uuid-1",session_id="sess-1",table_name="public.orders"} 1
+	`
+		assert.NoError(t, testutil.CollectAndCompare(r.importCDCConflictsTotal, strings.NewReader(expected), "yb_voyager_import_data_cdc_conflicts_total"))
+	})
 }
 
 func TestImportExportSnapshotTablesTotal(t *testing.T) {

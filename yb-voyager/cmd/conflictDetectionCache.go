@@ -310,7 +310,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 		if !conflictLogged {
 			// Count each blocked incoming event once (first detection), regardless of how
 			// many cached events / indexes it conflicts with or how many times it re-waits.
-			c.recordConflictMetricLocked(incomingEvent)
+			c.recordConflictMetric(incomingEvent)
 		}
 		conflictLogged = true
 		// cond.Wait releases the lock and blocks until RemoveEvents broadcasts (some
@@ -329,10 +329,10 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	return nil
 }
 
-// recordConflictMetricLocked increments the per-table conflict counter for the blocked
-// incoming event. Caller must hold the lock.
-func (c *ConflictDetectionCache) recordConflictMetricLocked(incomingEvent *tgtdb.Event) {
-	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup.ForOutput())
+// recordConflictMetric increments the per-table conflict counter for the blocked
+// incoming event.
+func (c *ConflictDetectionCache) recordConflictMetric(incomingEvent *tgtdb.Event) {
+	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup)
 }
 
 // Conflict describes the unique-index match that caused a value-path conflict.

@@ -16,9 +16,8 @@ var snapshotLabels = []string{"migration_uuid", "session_id", "importer_role", "
 var errorLabels = append(append([]string{}, snapshotLabels...), "error_kind")
 var importerRoleLabels = []string{"migration_uuid", "session_id", "importer_role"}
 
-// conflictLabels carries an anonymized table_name (not the raw identifier). The
-// call site passes an already-anonymized name (see conflictDetectionCache), so no
-// raw table name ever reaches the metrics registry / scrape endpoint.
+// conflictLabels packs schema and table into a single qualified table_name, unlike
+// snapshotLabels which keeps schema_name separate.
 var conflictLabels = []string{"migration_uuid", "session_id", "importer_role", "table_name"}
 var cdcEventLabels = append(append([]string{}, importerRoleLabels...), "event_type")
 var exportSnapshotLabels = []string{"migration_uuid", "session_id", "exporter_role", "table_name", "schema_name"}
@@ -176,7 +175,7 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 		// table_name is actual qualified table name passed by the call site. PromQL: sum by (table_name) (rate(yb_voyager_import_data_cdc_conflicts_total[5m]))
 		importCDCConflictsTotal: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_data_cdc_conflicts_total",
-			Help: "Total streaming CDC events that had to block on a detected unique-key conflict (one per blocked event), by anonymized table_name",
+			Help: "Total streaming CDC events that had to block on a detected unique-key conflict (one per blocked event), by qualified table_name",
 		}, conflictLabels),
 		exportSnapshotRows: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_export_data_snapshot_rows_total",
@@ -361,8 +360,13 @@ func (p *PrometheusRecorder) SetImportCDCLastEventApplied(importerRole string) {
 	p.importCDCLastEventApplied.WithLabelValues(p.migrationUUID, p.sessionID, importerRole).Set(float64(time.Now().Unix()))
 }
 
-func (p *PrometheusRecorder) RecordImportCDCConflict(importerRole string, anonymizedTableName string) {
-	p.importCDCConflictsTotal.WithLabelValues(p.migrationUUID, p.sessionID, importerRole, anonymizedTableName).Inc()
+func (p *PrometheusRecorder) importCDCLabelValues(importerRole string, t sqlname.NameTuple) []string {
+	schema, table := t.ForKeyTableSchema()
+	return []string{p.migrationUUID, p.sessionID, importerRole, schema + "." + table}
+}
+
+func (p *PrometheusRecorder) RecordImportCDCConflict(importerRole string, t sqlname.NameTuple) {
+	p.importCDCConflictsTotal.WithLabelValues(p.importCDCLabelValues(importerRole, t)...).Inc()
 }
 
 // misc

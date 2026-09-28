@@ -718,8 +718,14 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 	}
 }
 
-// A blocked event must be counted exactly once (under its table name),
-// no matter how many times it re-waits, and a non-conflicting event must not be counted.
+// A blocked event must be counted exactly once (under its table name) no matter how many
+// cached events it conflicts with or how many times it re-waits, and a non-conflicting event
+// must not be counted.
+//
+// Two cached deletes sharing the unique value are what make the "once" claim testable: the
+// first detection sees both at once, and clearing only one wakes the wait without releasing
+// it, forcing a genuine second loop iteration in WaitUntilNoConflict. That second pass is the
+// only thing the !conflictLogged guard exists for.
 func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	rec := metrics.NewRecordingRecorder()
 	prev := metrics.Get()
@@ -727,17 +733,24 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	metrics.SetRecorder(rec)
 
 	cache := newConflictCacheForTest([][]string{{"email"}})
-	cached := withAfterFields(&tgtdb.Event{
-		Vsn:          1,
-		Op:           "d",
-		TableNameTup: testTableTuple(),
-		Key:          map[string]*string{"id": strPtr("1")},
-		BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
-		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
-	})
-	require.NoError(t, cache.Put(cached))
+	cachedDeleteFreeingEmail := func(vsn int64, id string) *tgtdb.Event {
+		return withAfterFields(&tgtdb.Event{
+			Vsn:          vsn,
+			Op:           "d",
+			TableNameTup: testTableTuple(),
+			Key:          map[string]*string{"id": strPtr(id)},
+			BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
+			ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		})
+	}
+	// Distinct primary keys, so neither is excluded by the partition-key check, and both land
+	// in the same unique-value bucket as the incoming insert.
+	cachedFirst := cachedDeleteFreeingEmail(1, "1")
+	cachedSecond := cachedDeleteFreeingEmail(10, "10")
+	require.NoError(t, cache.Put(cachedFirst))
+	require.NoError(t, cache.Put(cachedSecond))
 
-	// before-after conflict: incoming insert reuses the cached delete's unique value.
+	// before-after conflict: incoming insert reuses the cached deletes' unique value.
 	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "c",
@@ -747,29 +760,35 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	})
 
-	done := make(chan struct{})
-	go func() {
-		require.NoError(t, cache.WaitUntilNoConflict(incoming))
-		close(done)
-	}()
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- cache.WaitUntilNoConflict(incoming) }()
 
-	// The metric is recorded at first detection, before the blocking wait; poll for it,
-	// then clear the conflict so WaitUntilNoConflict can return.
+	// Recorded at first detection, before the blocking wait: one increment even though the
+	// event conflicts with two cached events at once.
 	require.Eventually(t, func() bool {
-		return rec.ImportCDCConflictsSnapshot()[cached.TableNameTup.ForOutput()] == 1
+		return rec.ImportCDCConflictsSnapshot()["public.users"] == 1
 	}, 2*time.Second, 5*time.Millisecond, "blocked event should be counted once under its table name")
 
-	cache.RemoveEvents(cached)
+	// Clearing one of the two conflicts must wake the wait without releasing it. A bounded
+	// wait is the only way to assert the call did NOT return.
+	cache.RemoveEvents(cachedFirst)
 	select {
-	case <-done:
+	case err := <-waitErr:
+		t.Fatalf("WaitUntilNoConflict returned while the second cached event was still in flight: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cache.RemoveEvents(cachedSecond)
+	select {
+	case err := <-waitErr:
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
 		t.Fatal("WaitUntilNoConflict did not return after the conflict cleared")
 	}
 
-	// Exactly one increment for the blocked event, and no other table counted.
-	conflicts := make(map[string]int)
-	conflicts[cached.TableNameTup.ForOutput()] = 1
-	assert.Equal(t, conflicts, rec.ImportCDCConflictsSnapshot())
+	// Still one: neither the second conflicting cached event nor the re-wait added a count.
+	expectedConflicts := map[string]int{"public.users": 1}
+	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot())
 
 	// A non-conflicting event must not add to the count.
 	nonConflicting := withAfterFields(&tgtdb.Event{
@@ -781,7 +800,7 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
 	})
 	require.NoError(t, cache.WaitUntilNoConflict(nonConflicting))
-	assert.Equal(t, conflicts, rec.ImportCDCConflictsSnapshot(), "a non-conflicting event must not be counted")
+	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot(), "a non-conflicting event must not be counted")
 }
 
 // RemoveEvents must clear both the primary map and the lookup index.
