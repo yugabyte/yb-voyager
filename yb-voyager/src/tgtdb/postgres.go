@@ -366,12 +366,13 @@ ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 // its own Query function) so the query and scan logic live in exactly one place.
 //
 // A partitioned table's primary key can live only on its leaf partitions when the root has
-// no primary key of its own (e.g. children carry PKs, imported via --use-partition-root).
+// no primary key of its own (e.g. children carry PKs, imported via --use-partition-root false).
 // Import events reference the root, so we discover the PK of every leaf partition (and the
 // root/normal tables themselves) and attribute it to the root. A root's own primary key is
 // authoritative; a leaf's PK is used only when the root has none (partitions of the same
-// table share the same PK definition).
-func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+// table share the same PK definition). With includeLeafPartitionPKs false, a root gets only its
+// own PK: a leaf's PK is not unique across partitions, so it is not a key of the root.
+func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple, includeLeafPartitionPKs bool) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if len(tables) == 0 {
 		return result, nil
@@ -441,7 +442,7 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 			rootHasOwnPK[rootCatalogName] = true
 			continue
 		}
-		if rootHasOwnPK[rootCatalogName] {
+		if !includeLeafPartitionPKs || rootHasOwnPK[rootCatalogName] {
 			continue
 		}
 		if _, alreadySet := result.Get(rootTuple); !alreadySet {
@@ -452,64 +453,10 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 	return result, nil
 }
 
-const pgQueryTmplPartitionedTablesWithoutOwnPK = `
-SELECT n.nspname, c.relname
-FROM pg_class c
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE (n.nspname || '.' || c.relname) IN ('%s')
-  AND c.relkind = 'p' -- partitioned tables only; a leaf-only PK is legal only under a partitioned parent
-  AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.oid AND i.indisprimary)
-ORDER BY n.nspname, c.relname;`
-
-// queryPGPartitionedTablesWithoutOwnPrimaryKey returns the requested tables that are partitioned
-// tables with no primary key declared on the table itself (their partitions may still carry
-// primary keys). Only requested tables are returned, never their partitions.
-func queryPGPartitionedTablesWithoutOwnPrimaryKey(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
-	if len(tables) == 0 {
-		return nil, nil
-	}
-	catalogToTuple := make(map[string]sqlname.NameTuple, len(tables))
-	for _, t := range tables {
-		catalogToTuple[t.AsQualifiedCatalogName()] = t
-	}
-	query := fmt.Sprintf(pgQueryTmplPartitionedTablesWithoutOwnPK, strings.Join(lo.Keys(catalogToTuple), "','"))
-	rows, err := queryFn(query)
-	if err != nil {
-		return nil, fmt.Errorf("query partitioned tables without a primary key for tables %v: %w", tables, err)
-	}
-	defer rows.Close()
-
-	var result []sqlname.NameTuple
-	for rows.Next() {
-		var schema, table string
-		if err := rows.Scan(&schema, &table); err != nil {
-			return nil, fmt.Errorf("scan partitioned table without a primary key row: %w", err)
-		}
-		catalogName := fmt.Sprintf("%s.%s", schema, table)
-		tuple, ok := catalogToTuple[catalogName]
-		if !ok {
-			return nil, goerrors.Errorf("partitioned table %s not found in requested table list", catalogName)
-		}
-		result = append(result, tuple)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate partitioned tables without a primary key rows: %w", err)
-	}
-	return result, nil
-}
-
-// GetPartitionedTablesWithoutOwnPrimaryKey returns the requested tables that are partitioned
-// tables without a primary key of their own.
-func (pg *TargetPostgreSQL) GetPartitionedTablesWithoutOwnPrimaryKey(tables []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
-	return queryPGPartitionedTablesWithoutOwnPrimaryKey(pg.Query, tables)
-}
-
 // GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
 // in PK-definition order.
-// Implementing this for completion but not used in Postgres fall-forward/fall-back;
-// this info is only used in fast path import of batches (Target YugabyteDB).
-func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	return queryPGPrimaryKeyColumnsByCatalog(pg.Query, tables)
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple, includeLeafPartitionPKs bool) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(pg.Query, tables, includeLeafPartitionPKs)
 }
 
 // No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there

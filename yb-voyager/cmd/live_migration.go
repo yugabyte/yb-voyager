@@ -685,7 +685,7 @@ func addPrimaryKeyToConflictSetForCustomTables(
 
 	for _, table := range customTables {
 		// The PK columns were fetched and validated before snapshot in
-		// getPrimaryKeyColumnsForImportTables (which hard-fails a custom-key table with no PK)
+		// getPrimaryKeyColumnsForImportTables (which hard-fails any table with no PK)
 		// and passed in, so a missing entry here indicates an internal inconsistency; fail
 		// rather than adding an empty-column index that would match every row.
 		pkColumns, ok := tableToPKColumns.Get(table)

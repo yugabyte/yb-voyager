@@ -422,7 +422,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
 	*/
 	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup})
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup}, true)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}
