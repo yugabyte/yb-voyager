@@ -1,11 +1,11 @@
 ---
 name: generate-data-integrity-test-plan
-description: Generate an adversarial test plan hunting for silent data loss / data corruption in yb-voyager data migration, targeted at a set of recent changes (commit range, last N hours/days, or PR numbers). Maps the changed code to the data paths it touches, then combines schema shapes, workload patterns, flag combinations, run patterns, and migration flows into concrete, runnable test cases with an oracle each. Output is a plan file consumed by hunt-data-integrity-bugs. Use when asked to "generate a data-integrity test plan", "plan data-loss tests for recent changes", or as the first step of a data-integrity hunt.
+description: Generate an adversarial test plan hunting for silent data loss / data corruption in yb-voyager data migration, targeted at the PRs merged in a window (last N hours/days, commit range, or PR numbers); every case is attributed to a PR, and a window with no data-path PRs yields an empty plan. Maps the changed code to the data paths it touches, then combines schema shapes, workload patterns, flag combinations, run patterns, and migration flows into concrete, runnable test cases with an oracle each. Output is a plan file consumed by hunt-data-integrity-bugs. Use when asked to "generate a data-integrity test plan", "plan data-loss tests for recent changes", or as the first step of a data-integrity hunt.
 ---
 
 # Generate a data-integrity test plan
 
-Produces a **plan file** of concrete, runnable test cases that try to make voyager lose or corrupt data *silently* — the target ends up different from the source while nothing fails. The companion skill `hunt-data-integrity-bugs` turns each case into a Go test, runs it, and opens a PR per real bug.
+Produces a **plan file** of concrete, runnable test cases that try to make voyager lose or corrupt data *silently* — the target ends up different from the source while nothing fails. Every case attacks a specific PR in the change set, so whatever it finds can be attributed. The companion skill `hunt-data-integrity-bugs` turns each case into a Go test, runs it, and files one deduplicated GitHub issue per real bug.
 
 Runs **unattended by default**: never ask questions; make the conservative choice and record it in the plan's `assumptions`. With `--interactive`, show the case list and wait for edits before writing the plan.
 
@@ -13,10 +13,11 @@ Runs **unattended by default**: never ask questions; make the conservative choic
 
 | Form | Example | Meaning |
 |---|---|---|
-| time window (default `24h`) | `--since 3d` | commits on `origin/main` in the window |
-| commit range | `a1b2c3..d4e5f6` | exactly these commits |
-| PR numbers | `--prs 3814,3820` | the PRs' head commits vs their base |
-| none of the above has data-path changes | — | emit a **baseline-only** plan: only the Step 4 baseline cases |
+| time window (default `24h`) | `--since 3d` | PRs merged to `origin/main` in the window |
+| commit range | `a1b2c3..d4e5f6` | the PRs behind exactly these commits |
+| PR numbers | `--prs 3814,3820` | these PRs (merge commits on `origin/main`, or head vs base if unmerged) |
+
+No PRs in the change set, or none that maps to a data-path area → write an **empty plan** (`cases: []` plus the reason) and stop. There are no baseline or standing-catalog cases: every case must be attributable to a PR.
 
 Budget flag passed through to the plan: `--max-cases N` (default 30).
 
@@ -30,13 +31,12 @@ Budget flag passed through to the plan: `--max-cases N` (default 30).
 ## Workflow
 
 ```
-- [ ] Step 0: Resolve the change set
+- [ ] Step 0: Resolve the change set to PRs (stop if none)
 - [ ] Step 0.5: Build the live inventory
-- [ ] Step 1: Map changed code to data-path areas
+- [ ] Step 1: Map each PR's changed code to data-path areas (stop if none)
 - [ ] Step 2: Pick mechanisms and dimension slices per area
-- [ ] Step 3: Generate cases (pairwise, adversarial, with oracles)
-- [ ] Step 4: Add baseline cases
-- [ ] Step 5: Rank, cap, validate, write the plan
+- [ ] Step 3: Generate cases (pairwise, adversarial, with oracles), each linked to its PR(s)
+- [ ] Step 4: Rank, cap, validate, write the plan
 ```
 
 ### Step 0: Resolve the change set
@@ -50,7 +50,9 @@ gh pr view <N> --json headRefOid,baseRefOid,title,body
 git diff --stat <base> <head>
 ```
 
-Record `base`, `head`, commit list, and PR bodies (intent). The plan's target commit is `head` (default: `origin/main` tip).
+Map every commit to its PR: the `(#NNNN)` suffix of a squash-merge subject, else `gh api repos/yugabyte/yb-voyager/commits/<sha>/pulls -q '.[].number'`. Record `base`, `head`, the commit list, and each PR's number, title, body (intent) and merge commit. The plan's target commit is `head` (default: `origin/main` tip).
+
+**Gate.** If the change set has no PRs, write the empty plan and stop. Then do a quick Step 1 pass over the PR diffs before building the inventory: if no PR maps to a data-path area, write the empty plan (listing each PR and why it maps to nothing) and stop.
 
 ### Step 0.5: Build the live inventory
 
@@ -58,7 +60,7 @@ Follow `references/inventory.md` against the worktree at `head` and a `yb-voyage
 
 ### Step 1: Map changed code to areas
 
-Use the diff (full files for changed functions, not just hunks). Map each changed path/function to one or more **areas**:
+Use each PR's diff (full files for changed functions, not just hunks). Map each changed path/function to one or more **areas**, keeping track of which PR it came from:
 
 | Area | Typical paths |
 |---|---|
@@ -75,7 +77,7 @@ Use the diff (full files for changed functions, not just hunks). Map each change
 | `identifiers` | `sqlname`, `namereg`, case-sensitive names |
 | `guardrails` | pre-flight validations that allow/refuse configurations |
 
-If a commit only touches tests, docs, assessment, callhome, or schema-only paths, it maps to nothing; note it.
+If a PR only touches docs, assessment, callhome, or schema-only paths, it maps to nothing; note it. A PR that only adds tests maps to the areas those tests exercise (its cases attack the gaps in the new tests).
 
 ### Step 2: Mechanisms and dimension slices
 
@@ -83,7 +85,9 @@ For each area, take the mechanisms in `silent-loss-mechanisms.md` that list that
 
 ### Step 3: Generate cases
 
-Each case = one **mechanism** × a concrete **schema** × **workload** × **flags** × **run pattern** × **flow**, plus an **oracle** and an **expectation**. Rules:
+Each case = one **mechanism** × a concrete **schema** × **workload** × **flags** × **run pattern** × **flow**, plus an **oracle**, an **expectation** and the **PR(s) it attacks** (`linked_prs`). Rules:
+
+- **Attributable.** A case exists only because a specific PR changed a specific path; name both (`linked_prs`, `linked_change`). If you can't say which PR a case tests, drop it.
 
 - **Pairwise, not Cartesian.** Cover every pair of relevant dimension values at least once; do not enumerate the full product.
 - **Adversarial by construction.** The workload must create the condition the mechanism needs (same key in two leaves, a value freed and reused across channels, an update that touches only some columns of a composite key, a PK reused under a different custom key, …). A case whose data can't trigger its mechanism is useless — state in `why_it_can_fail` what has to go wrong for the case to fail.
@@ -92,32 +96,23 @@ Each case = one **mechanism** × a concrete **schema** × **workload** × **flag
 - **Workloads obey constraints.** Every source statement must succeed; a case whose delta errors on the source proves nothing.
 - **Every case has an oracle** (`dimensions.md` → Oracles): full-row source-vs-target comparison after quiescence, plus any case-specific check (per-partition counts, sequence values after cutover, rows-affected warnings).
 - **Expectation** is one of `consistent` (should migrate cleanly), `refused` (a guardrail in `inventory.guardrails` should reject it up front), `loud` (should fail with a clear error). A silent mismatch is a bug under every expectation.
-- **Value fuzzing:** when the change maps to `value-encoding` (data types, converters, Debezium config), add value-fuzz cases (`value_fuzz` in the plan). Value fuzzing applies **only when the change touches data types or value encoding** (area `value-encoding`: datatype mapping, value converters, Debezium config or plugin, snapshot/CDC value formatting). It is still a container test: create one column per affected type, then insert and update rows with randomized and edge values for each type (NULL, empty, min/max, precision and scale extremes, NaN/±Infinity/-0, time zones and infinities, unicode and very long strings, NULL array elements, JSON key order and duplicates, TOASTed sizes), through both the snapshot and the change stream, and compare source and target row by row. Use a fixed seed and log it so a failure reproduces.
+- **Value fuzzing:** when a PR maps to `value-encoding` (data types, converters, Debezium config), add value-fuzz cases (`value_fuzz` in the plan). Value fuzzing applies **only when the change touches data types or value encoding** (area `value-encoding`: datatype mapping, value converters, Debezium config or plugin, snapshot/CDC value formatting). It is still a container test: create one column per affected type, then insert and update rows with randomized and edge values for each type (NULL, empty, min/max, precision and scale extremes, NaN/±Infinity/-0, time zones and infinities, unicode and very long strings, NULL array elements, JSON key order and duplicates, TOASTed sizes), through both the snapshot and the change stream, and compare source and target row by row. Use a fixed seed and log it so a failure reproduces.
 - **Adversarial variants of new tests.** If the change adds tests, add cases that break their assumptions (the gaps a reviewer would flag: one-sided assertions, avoided edge values, only-forward flow).
 
-### Step 4: Baseline cases
-
-Add **at most 3 baseline cases** per plan: cases from the standing catalog that are *not* tied to the change set, rotating through mechanisms (pick by `hash(date) mod N` so consecutive runs differ). They catch older bugs, but they must stay a small, clearly labelled slice of the run:
-
-- Set `scope: "baseline"` and `linked_change: "baseline"` on each; every other case is `scope: "targeted"` and names the commit it attacks.
-- Baseline cases follow the same rules as targeted ones — in particular, **no value fuzzing** unless the change set itself maps to `value-encoding`.
-- If Step 1 mapped nothing, the plan is baseline-only: the same ≤ 3 cases, nothing else.
-- A baseline case is investigated only as far as the hunt's verification steps require; exploration beyond the planned case goes in the report as a lead.
-
-### Step 5: Rank, cap, validate, write
+### Step 4: Rank, cap, validate, write
 
 Priority:
 - **P0** — attacks a changed code path via a mechanism that yields silent loss, or a flag combination the change newly allows.
 - **P1** — changed area, mechanism yields loud failure or needs an unusual config.
-- **P2** — baseline / regression coverage.
+- **P2** — lower-likelihood variants and controls for P0/P1 cases.
 
 Cap to `--max-cases` (drop lowest priority first, keep at least one case per mechanism selected in Step 2). Validate each case against `plan-schema.md` (required fields, SQL non-empty, oracle present). Group container cases into **batches** of cases that can share one migration (same flow and flags, all `expect: consistent`) — a crash in one table would hide the rest, so never batch `refused`/`loud`/risky cases with others.
 
 Write:
 - `<scratch>/data-integrity/plan-<head-short>-<YYYYMMDD>.json` — the plan.
-- `<scratch>/data-integrity/plan-<head-short>-<YYYYMMDD>.md` — a one-screen summary: change set, areas, mechanisms, and a table of cases (id, priority, mechanism, flow, one-line setup, expectation).
+- `<scratch>/data-integrity/plan-<head-short>-<YYYYMMDD>.md` — a one-screen summary: PRs, areas, mechanisms, and a table of cases (id, PR, priority, mechanism, flow, one-line setup, expectation).
 
-Reply with the two paths and the P0 case titles. When chained from the hunt skill, return the plan path only.
+Reply with the two paths and the P0 case titles (or the reason the plan is empty). When chained from the hunt skill, return the plan path only.
 
 ## Anti-patterns
 

@@ -10,11 +10,11 @@ export YB_VOYAGER_SEND_DIAGNOSTICS=0 LANG=C.UTF-8 LC_ALL=C.UTF-8
 export JAVA_HOME=<jdk17>; export PATH=$SCRATCH/bin:$JAVA_HOME/bin:$PATH
 ```
 
-Failpoints (only if a case needs them): `failpoint-ctl enable` in `yb-voyager/` before building/testing, `failpoint-ctl disable` afterwards and before any commit.
+Failpoints (only if a case needs them): `failpoint-ctl enable` in `yb-voyager/` before building/testing, `failpoint-ctl disable` afterwards.
 
 ## Workspace
 
-- Work in a **dedicated git worktree** at the target commit (`git worktree add --detach $SCRATCH/di-wt <sha>`); never in the user's checkout. If the session cannot create worktrees, use a throwaway branch in its own worktree.
+- Work in a **dedicated git worktree** at the target commit (`git worktree add --detach $SCRATCH/di-wt <sha>`); never in the user's checkout. The worktree is never committed to or pushed.
 - Generated tests go in `yb-voyager/src/testlivemigration/data_integrity_<plan-date>_<case>_test.go` . Container tests use the existing framework only (`NewLiveMigrationTest`, `TestConfig`, `Start*`/`Wait*`/`Initiate*` methods, `ValidateDataConsistency`, `testutils.CompareTableData`) — do not add shared helper files.
 - Build tag: `integration_live_migration` unless a case needs failpoints; then `integration_live_migration_with_failpoint`.
 
@@ -42,7 +42,7 @@ Drop or adapt cases whose DDL fails; record them as `TEST_INVALID` with the erro
 - **`IsStopped()` reports an exit once.** It does a non-blocking receive on a one-slot channel that is written exactly once, so only the first call after the process exits returns true. Read it once per decision point, keep the result in a variable (e.g. `stopped := lm.GetImportRunner().IsStopped()`), and reuse that value for logging and classification. Never call it again to "record" a state a poll loop already observed — the second call returns false and turns a LOUD crash into a false SILENT candidate.
 - Oracle after the last phase: wait for quiescence (poll `ValidateDataConsistency` until it passes twice ~15s apart, the importer stops, or a timeout), latching `stopped` the first time `IsStopped()` returns true. Then record `stopped`, the `ValidateDataConsistency` error, per-partition counts when relevant, the stop reason (the `error executing batch` / `ERROR ... yugabytedb.go` lines and `GetImportCommandStderr()`), and the count of `unexpected rows affected` WARNs. Don't use the raw count of `ERROR` lines: healthy runs log 10–30 of them (framework polling before a phase starts, expected retries).
 - **In the run**, log one grep-able line per case (`t.Logf("DI-RESULT test=… outcome=… …")`) and never `t.Fatal` on a mismatch — one failing assertion must not hide the rest of the evidence. On any outcome other than CONSISTENT, call `t.Fail()` (not `Fatal`) so the framework **keeps the export dir** (it is deleted when a test passes), and log its path. On a mismatch, also dump the differing rows from both sides and the matching queue lines (`<export-dir>/data/queue/*.ndjson`) so the finding can be attributed without a rerun.
-- **In the PR** (see SKILL Step 6) the test asserts the correct behaviour — `require.NoError(t, lm.ValidateDataConsistency(...))` plus a single `require.False(t, lm.GetImportRunner().IsStopped())`, or an early return on refusal — so it fails until the bug is fixed. See `templates/example_case_test.go.tmpl`.
+- **In the issue's repro test** (see SKILL Step 6) the test asserts the correct behaviour — `require.NoError(t, lm.ValidateDataConsistency(...))` plus a single `require.False(t, lm.GetImportRunner().IsStopped())`, or an early return on refusal — so it fails until the bug is fixed. See `templates/example_case_test.go.tmpl`.
 - Case-sensitive names: quote in SQL (`"Sch"."Tbl"`), pass unquoted schema names in `SchemaNames`, and keep the `snapshot` map keys in `"schema"."table"` form.
 
 ## Running
@@ -67,21 +67,34 @@ go test -tags <tag> -count=1 -v -parallel <P> -timeout 60m -run '<regex>' ./src/
 |---|---|---|
 | `CONSISTENT` | target matches source | none |
 | `REFUSED` | voyager refused at export/import with a clear message | fine if `expect: refused`; if `expect: consistent`, report as **unexpected refusal** (usability, not data loss) |
-| `LOUD` | importer/exporter exited with an error (latched `stopped` is true, or a stop reason is logged) | fine if `expect: loud`; otherwise **unexpected loud failure** → report, no PR by default |
+| `LOUD` | importer/exporter exited with an error (latched `stopped` is true, or a stop reason is logged) | fine if `expect: loud`; otherwise **unexpected loud failure** → candidate → verify (below), issue if new |
 | `SILENT` | mismatch while the importer is still running after quiescence, or it exited 0 (WARN-only counts as silent) | **candidate bug** → verify (below) |
 | `SNAPSHOT_INCOMPLETE` | snapshot never reached the expected counts | log counts; if source > target with no error, treat as `SILENT` (M4); if an error, `LOUD` |
 | `INCONCLUSIVE` | mismatch plus timeout, unclear | rerun once with a longer timeout; else report |
 | `TEST_INVALID` | source SQL failed, DDL unsupported, wrong expected counts | fix the test and rerun once; else drop with the reason |
 
-## Verifying a SILENT candidate (all must hold before a PR)
+## Verifying a candidate (all must hold before an issue)
 
-1. **Reproduces**: rerun the case alone twice more; at least 2 of 3 runs `SILENT` (races may be probabilistic — record the rate).
-2. **Real divergence**: dump the differing rows from both sides (not just the first mismatch) and confirm the source rows are what the workload should produce.
-3. **Attributed**: say where it happens — never captured (queue lacks the events: M4), transformed (queue has a different value: M5), or applied wrongly (queue correct, target wrong: M1–M3/M6). Quote the evidence (queue line, log WARN, SQL shape).
-4. **Minimal**: shrink rows, statements, tables and flags while it still fails; the PR test must be the smallest repro.
-5. **Not already reported**: search open PRs and issues:
-   `gh pr list --repo yugabyte/yb-voyager --state open --search '"[data-integrity]" in:title'` and `gh issue list --search '<key terms>'`. Same signature → add a comment with the new evidence instead of a new PR.
-6. **Signature**: `<mechanism>|<schema shape>|<flags>|<workload>` in one line (e.g. `M3|partitioned root w/o PK, leaf PK(id), same id in 2 leaves|use-partition-root=true|update/delete only`). Used for dedupe.
+Applies to `SILENT` candidates and unexpected `LOUD` failures.
+
+1. **Reproduces**: rerun the case alone twice more. SILENT: at least 2 of 3 runs silent (races may be probabilistic — record the rate). LOUD: the same error both times.
+2. **Real**: SILENT — dump the differing rows from both sides (not just the first mismatch) and confirm the source rows are what the workload should produce. LOUD — the error comes from voyager or Debezium on valid source data, not from the test (bad SQL, wrong expected counts, a broken environment).
+3. **Located**: SILENT — never captured (queue lacks the events: M4), transformed (queue has a different value: M5), or applied wrongly (queue correct, target wrong: M1–M3/M6). LOUD — the stage (snapshot, streaming, cutover), the command, and the failing statement or value. Quote the evidence (queue line, log line, SQL shape).
+4. **Attributed to a PR**: name the PR(s) in `linked_prs` whose change the finding hits. Then build the PR's parent commit (the first parent of its merge commit) and run the minimised repro there: fails there too → `pre-existing, exposed by testing #<PR>`; passes there → `introduced by #<PR>`. If neither claim holds up (the failure has nothing to do with the PR's change), it goes in the report as a lead, not an issue.
+5. **Minimal**: shrink rows, statements, tables and flags while it still fails; the repro test must be the smallest one.
+6. **Signature**, one line. SILENT: `<mechanism>|<schema shape>|<flags>|<workload>` (e.g. `M3|partitioned root w/o PK, leaf PK(id), same id in 2 leaves|use-partition-root=true|update/delete only`). LOUD: `LOUD|<stage>|<SQLSTATE or error class>|<message with values, ids and paths removed>|<triggering type/value/shape>` (e.g. `LOUD|streaming|22009|time zone displacement out of range|timestamptz BC value`).
+7. **Dedupe**: list every earlier hunt issue and PR, open or closed:
+
+   ```bash
+   gh issue list --repo yugabyte/yb-voyager --state all --limit 300 --search '"data-integrity" in:title' --json number,title,state,stateReason,body
+   gh pr list    --repo yugabyte/yb-voyager --state all --limit 100 --search '"data-integrity" in:title' --json number,title,state,body
+   ```
+
+   Keep only titles starting with `[data-integrity]`, and read their `DI-SIG:` lines (older PRs end with a signature line too). Also search open issues by the finding's key terms (`gh issue list --state open --search '<type or error text>'`), since a human may have filed it. A match is the **same root cause** — same signature, or the same mechanism on the same code path with the same symptom even if the wording differs. Then:
+   - no match → **new**: file it (SKILL Step 6);
+   - match open (issue or PR) → **already reported**: don't file, don't comment; list it in the report and Slack;
+   - match closed as completed / merged fix, but it reproduces at the target → **regression**: file a new issue that references the old one;
+   - match closed as not planned → **known, won't fix**: report only.
 
 ## Cleanup (always, even on failure)
 

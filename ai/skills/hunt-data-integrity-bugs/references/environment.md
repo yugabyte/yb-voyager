@@ -130,5 +130,5 @@ Observed in Claude Code on the web / routines (Linux container, runs as root):
 - Go and Maven are preinstalled; the default JDK may be 21, which the installer rejects — install `openjdk-17-jdk-headless` with apt and point `JAVA_HOME` at it.
 - `JAVA_TOOL_OPTIONS` is preset with the proxy and truststore settings (visible as `Picked up JAVA_TOOL_OPTIONS` on every `java` call). Keep it, and check that its `-Dhttp.nonProxyHosts` covers the local addresses the exporter uses.
 - The repo is checked out under `/home/user/<repo>`; use a scratch dir under `/tmp` and a separate worktree for the target commit.
-- GitHub access for branches and PRs is available (via `git push` and the GitHub tools/`gh` if present). Slack posting uses the routine's attached Slack connector.
+- GitHub access is available through the GitHub tools or `gh` if present; the hunt uses it only to read PRs and to list and create issues. Slack posting uses the routine's attached Slack connector.
 - Sessions are long but not unbounded: respect `--time-budget`, and write the report incrementally so a cut-off run still leaves results.

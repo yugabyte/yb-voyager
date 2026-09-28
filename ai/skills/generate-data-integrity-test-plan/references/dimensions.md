@@ -60,12 +60,23 @@ Seed list only — the authoritative set is `inventory.flags` (Step 0.5). Flags 
 - `--use-partition-root true | false` ★ (with root PK vs leaf-only PK)
 - `--table-list` / `--exclude-table-list`: root only, some leaves only, glob patterns, case-sensitive names
 - `--source-db-schema` lists that omit a leaf's schema ★
-- `--start-clean` on re-run; `--parallel-jobs`; `--on-primary-key-conflict` (`ERROR-POLICY` / `IGNORE`)
-- `--disable-sequential-scan-on-update-deletes` (hidden flag, default true); `--max-retries-streaming`
+- `--table-list-file-path` / `--exclude-table-list-file-path` (same semantics as the inline lists)
+- `--start-clean` on re-run, with and without `--truncate-tables`; `--parallel-jobs`; `--on-primary-key-conflict` (`ERROR-POLICY` / `IGNORE`)
+- `--batch-size`; `--adaptive-parallelism` / `--adaptive-parallelism-max` (snapshot import batching and concurrency)
+- `--enable-upsert` (UPSERT on the target; unsafe with secondary indexes, per its help text); `--error-policy-snapshot` (`abort` / `stash-and-continue` — stashed rows are loud only if reported)
+- `--transaction-ordering`
+- `--target-endpoints` / `--use-public-ip` (which YB nodes receive the import)
+- `--skip-replication-checks`, `--run-guardrails-checks false` (skip pre-flight checks; a silent loss behind a skipped check is still worth reporting)
+- `--disable-sequential-scan-on-update-deletes` (hidden, default true — absent from `--help`, not stale); `--max-retries-streaming`
+- export `--use-yb-grpc-connector` (YB-as-source: fall-back / fall-forward export from target)
+- export `--disable-schema-snapshot-capture` / `--schema-snapshot-capture-interval` (schema snapshots for `schema detect-drift`)
+- `--prepare-for-fall-back` / `--restart-data-migration-source-target` (cutover commands)
 - export `--export-type snapshot-and-changes | changes-only`
 - host locale for the voyager/Debezium processes (`LANG`/`LC_ALL=C` vs `C.UTF-8`) — the JVM's default charset follows it; run the default suite under UTF-8 and cover `C` explicitly with non-ASCII text
 - env (internal/testing only): `NUM_EVENT_CHANNELS`, `MAX_EVENTS_PER_BATCH`, `MAX_INTERVAL_BETWEEN_BATCHES` — small channel counts raise collision rates
 - flag changes between runs (guardrails should refuse; a silently accepted change is M10)
+
+**Not data-path** (never reported as uncatalogued): connection and credentials (`--source-db-*`, `--source-replica-db-*`, `--target-db-*` except `--target-db-schema`, `--*-ssl-*`, `--oracle-*`), logging and UX (`--log-*`, `--disable-pb`, `--yes`, `--help`, `--send-diagnostics`, `--metrics-port`), paths and housekeeping (`--export-dir`, `--config-file`, `--backup-*`, `--archive-dir`, `--fs-utilization-threshold`, `--policy`, `--save-migration-reports`, `--exclude-file-list`), and Oracle-only export (`--allow-oracle-clob-data-export`).
 
 ## Run patterns
 - straight through to cutover

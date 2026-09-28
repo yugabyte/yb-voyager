@@ -7,7 +7,9 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
   "version": 1,
   "generated_at": "2026-09-25T10:00:00Z",
   "target_commit": "397711e0c…",           // what the hunt builds and tests
-  "change_set": { "base": "…", "head": "…", "commits": ["sha subject", "…"], "prs": [3814] },
+  "change_set": { "base": "…", "head": "…", "commits": ["sha subject", "…"],
+                  "prs": [{"number": 3814, "title": "…", "merge_commit": "397711e0c"}] },
+  "empty_reason": null,                    // set, with cases: [], when no PR is testable
   "areas": ["partitions", "apply-sql"],
   "assumptions": ["no YB version pinned; hunt uses the testcontainers default"],
   "inventory": {                           // built in Step 0.5 (references/inventory.md)
@@ -33,8 +35,8 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
 | `priority` | ✓ | `P0` \| `P1` \| `P2` |
 | `mechanism` | ✓ | `M1`…`M10` from `silent-loss-mechanisms.md` |
 | `areas` | ✓ | areas from the SKILL's Step 1 table |
-| `scope` | ✓ | `targeted` (attacks the change set) \| `baseline` (standing-catalog coverage, ≤ 3 per plan) |
-| `linked_change` | ✓ | commit SHA / file:function this case targets; `baseline` for baseline cases |
+| `linked_prs` | ✓ | PR numbers from `change_set.prs` this case attacks (non-empty) |
+| `linked_change` | ✓ | commit SHA and file:function this case targets |
 | `why_it_can_fail` | ✓ | the exact sequence that would produce silent loss if the code is wrong |
 | `flow` | ✓ | `live` \| `fallback` \| `fallforward` \| `changes-only` \| `iterative` \| `offline` |
 | `schemas` | ✓ | schema names passed to the framework (`SchemaNames`) |
@@ -60,8 +62,8 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
   "priority": "P0",
   "mechanism": "M3",
   "areas": ["partitions", "apply-sql", "guardrails"],
-  "scope": "baseline",
-  "linked_change": "baseline",
+  "linked_prs": [3790],
+  "linked_change": "a1b2c3d cmd/live_migration.go:GetEventPartitionKey",
   "why_it_can_fail": "Event.Key is the leaf PK {id}; with use-partition-root=true the statement runs on the root as WHERE id=…, which matches the same id in every leaf. Rows-affected≠1 is only a WARN, and with no INSERTs nothing trips ON CONFLICT.",
   "flow": "live",
   "schemas": ["kp"],
@@ -90,4 +92,4 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
 }
 ```
 
-`expect: refused` records what *should* happen (a guardrail). The observed outcome was silent corruption, so the hunt classified it `SILENT` and opened a PR.
+`expect: refused` records what *should* happen (a guardrail). The observed outcome was silent corruption, so the hunt classified it `SILENT` and filed an issue. (`linked_prs` above is illustrative.)
