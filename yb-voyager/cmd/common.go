@@ -1963,7 +1963,7 @@ func printCutoverSchemaDriftRecommendation() {
 	if !schemaDriftGuidanceIsUseful() {
 		return
 	}
-	utils.PrintAndLog(fmt.Sprintf("Recommendation: cutover to target ends schema capture on the source. Consider reviewing schema drift on the source before proceeding:\n%s",
+	utils.PrintAndLog(fmt.Sprintf("Recommendation: review schema drift on the source before cutting over:\n%s",
 		driftDetectionHint()))
 }
 
