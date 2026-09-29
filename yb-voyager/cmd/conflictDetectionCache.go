@@ -177,7 +177,7 @@ Put()
 	for each unique index:
 		if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY:
 			Can't add this check until we have predicate columns as we still need the event in index even if its unique columns are unchanged for predicate cases
-			but skipping the event not updating any normal unique index columns (see indexRelevantForUpdate)
+			but skipping the event not updating any normal unique index columns (see indexRelevantForUpdate) for now
 			if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
 				skip this index
 		add-to-cache (uklookup) <---- computeKey (beforeFields) (all columns should be present)
