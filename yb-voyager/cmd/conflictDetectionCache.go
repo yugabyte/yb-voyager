@@ -175,10 +175,11 @@ Put()
 	if ! U/D
 		return
 	for each unique index:
-		if U AND index is not partial AND changedColumns <intersection> UK columns == EMPTY:
-			skip this index (see indexRelevantForUpdate)
-		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
-			skip this index
+		if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY:
+			Can't add this check until we have predicate columns as we still need the event in index even if its unique columns are unchanged for predicate cases
+			but skipping the event not updating any normal unique index columns (see indexRelevantForUpdate)
+			if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
+				skip this index
 		add-to-cache (uklookup) <---- computeKey (beforeFields) (all columns should be present)
 */
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) error {
