@@ -425,11 +425,6 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 				totalConflictInfo = append(totalConflictInfo, conflict)
 			}
 		case "u":
-			if !indexRelevantForUpdate(incomingEvent, index) {
-				// non-partial index whose columns this UPDATE does not change: neither the
-				// before-after nor the before-before check can find a real conflict.
-				continue
-			}
 			if anyUniqueIndexColumnChanged(incomingEvent.Fields, index.Columns) {
 				conflict, err := c.checkBeforeAfterConflict(incomingEvent, index)
 				if err != nil {
@@ -439,12 +434,15 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 					totalConflictInfo = append(totalConflictInfo, conflict)
 				}
 			}
-			conflict, err := c.checkBeforeBeforeConflict(incomingEvent, index)
-			if err != nil {
-				return []Conflict{}, fmt.Errorf("error checking before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
-			}
-			if len(conflict.eventsConflicting) > 0 {
-				totalConflictInfo = append(totalConflictInfo, conflict)
+			if index.IsPartialIndex {
+				// check before-before conflict for partial index only
+				conflict, err := c.checkBeforeBeforeConflict(incomingEvent, index)
+				if err != nil {
+					return []Conflict{}, fmt.Errorf("error checking before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
+				}
+				if len(conflict.eventsConflicting) > 0 {
+					totalConflictInfo = append(totalConflictInfo, conflict)
+				}
 			}
 		}
 	}
