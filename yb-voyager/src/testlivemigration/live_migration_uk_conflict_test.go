@@ -2314,6 +2314,142 @@ func TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeaves(t *t
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
+// TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexWithDifferentCustomKey is the
+// true-positive counterpart of TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexAcrossLeaves:
+// same schema and same leaf-local unique indexes, but routed by a custom key (id) that is
+// neither the partition column nor the unique column.
+//
+// It is the only test that exercises unique-index conflict detection on a partitioned root
+// under custom routing. Every other partitioned custom-key test either routes by the partition
+// column (so a leaf's events share one channel and can never race) or has no unique index, so a
+// regression that lost the leaf unique indexes when building tableToUniqueIndexes for a
+// partitioned root - a wrong root/leaf NameTuple, say - would go unnoticed.
+//
+// All churn stays inside r1 and only on uk_val=1, across ids 100/1/2/3. Each freeing DELETE and
+// its reclaiming INSERT therefore hit the same leaf-local index (idx_test_live_r1_uk) on
+// different id channels, so every counted pair is a real unique-violation hazard. r2 is left
+// untouched and its values are disjoint, so no cross-leaf bucket match can inflate the count.
+func TestLiveMigrationCustomCdcPartitionKeyLeafLocalUniqueIndexWithDifferentCustomKey(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_custom_key_leaf_local_uk_diff_key",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_custom_key_leaf_local_uk_diff_key",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_live (
+				id int,
+				region text,
+				uk_val int,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.test_live_r1 PARTITION OF test_schema.test_live FOR VALUES IN ('r1');
+			CREATE TABLE test_schema.test_live_r2 PARTITION OF test_schema.test_live FOR VALUES IN ('r2');
+			-- Leaf-local unique indexes with distinct names: the same uk_val may exist once per leaf.
+			CREATE UNIQUE INDEX idx_test_live_r1_uk ON test_schema.test_live_r1 (uk_val);
+			CREATE UNIQUE INDEX idx_test_live_r2_uk ON test_schema.test_live_r2 (uk_val);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.test_live REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r1 REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.test_live_r2 REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			// r1 and r2 each hold uk_val=777 simultaneously (leaf-local indexes) plus disjoint
+			// value ranges. 8 snapshot rows total.
+			`INSERT INTO test_schema.test_live (id, region, uk_val) VALUES
+				(100, 'r1', 1), (101, 'r1', 2), (150, 'r1', 777),
+				(200, 'r2', 10001), (201, 'r2', 10002), (202, 'r2', 10003), (250, 'r2', 777),
+				(102, 'r1', 3);`,
+		},
+		SourceDeltaSQL: []string{
+			// Single transaction, all within r1: free and reclaim uk_val=1 three times across
+			// ids 100/1/2/3. Routing is by the id custom key, so each freeing DELETE and its
+			// reclaiming INSERT land on different channels and would race without the conflict
+			// cache. Root-level totals: 3 inserts, 3 deletes, 0 updates.
+			`DO $$
+			BEGIN
+				DELETE FROM test_schema.test_live WHERE id = 100 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (1, 'r1', 1);
+				DELETE FROM test_schema.test_live WHERE id = 1 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (2, 'r1', 1);
+				DELETE FROM test_schema.test_live WHERE id = 2 AND region = 'r1';
+				INSERT INTO test_schema.test_live (id, region, uk_val) VALUES (3, 'r1', 1);
+			END $$;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictCountFailpointEnv, uniqueKeyConflictStatsPath := uniqueKeyConflictCountFailpoint(lm)
+
+	err = lm.StartImportDataWithEnv(true, map[string]string{
+		"--cdc-partition-key":           "auto",
+		"--cdc-partition-key-overrides": "test_schema.test_live:(id)",
+	}, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	// 8 snapshot rows, including uk_val=777 present in both leaves at once.
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."test_live"`: 8,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	requireCustomCdcPartitionKeyPersisted(t, lm, `"test_schema"."test_live"`, []string{"id"})
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."test_live"`: {Inserts: 3, Updates: 0, Deletes: 3},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	require.False(t, lm.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflicts := readUniqueKeyConflictStatsOrNil(t, uniqueKeyConflictStatsPath)
+	require.NotNil(t, conflicts, "a within-leaf uk reclaim across id channels must be detected")
+	// At most one pair per reclaim: each reclaiming insert blocks on the freeing delete, and that
+	// wait drains it from the cache before the next delete is cached, so no insert can match two
+	// cached deletes. The lower bound is 1 rather than 3 because a delete whose batch drains
+	// before the matching insert is examined is applied in order anyway and never registers.
+	assert.GreaterOrEqual(t, conflicts.Total, 1,
+		"expected at least one detected conflict, got stats: %+v", conflicts)
+	assert.LessOrEqual(t, conflicts.Total, 3,
+		"conflict pairs cannot exceed the 3 reclaims, got stats: %+v", conflicts)
+	assert.Equal(t, map[string]int{`"test_schema"."test_live"`: conflicts.Total}, conflicts.ByTable,
+		"every conflict must be attributed to the churned table")
+
+	// Order by the full primary key: id repeats across leaves in the snapshot rows.
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."test_live"`}, "id, region")
+	testutils.FatalIfError(t, err, "target does not match source after streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
 // TestLiveMigrationCustomCdcPartitionKeyMultiLevelCrossSchemaPartitions pins that a custom
 // partition key works for a multi-level (LIST -> RANGE -> HASH) partitioned table whose leaf
 // partitions live in several different schemas.
