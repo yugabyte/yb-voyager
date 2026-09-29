@@ -922,7 +922,7 @@ func setupImportDataObservability() error {
 		return goerrors.Errorf("Failed to start metrics server: %w", err)
 	}
 	if callhome.SendDiagnostics {
-		callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
+		callhomeMetricsCollector = callhome.NewImportDataMetricsCollector(anonymizer)
 	}
 	return nil
 }
@@ -2016,16 +2016,15 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	// Set table list count
 	dataMetrics.TableListCount = len(importTableList)
 
-	anonymizedTableNames := buildAnonymizedTableNames(importTableList)
-
 	importDataStatusRecord, err := metaDB.GetImportDataStatusRecord()
 	if err != nil {
 		log.Warnf("callhome: error getting import data status record for cdc partition key map: %v", err)
 	}
 
-	// A nil record means import data never started, so the map stays empty.
+	// A nil record means import data never started, and a nil collector means diagnostics are
+	// off, so in both cases the map stays empty rather than nil (the field has no omitempty).
 	cdcPartitionKeyMap := make(map[string]string)
-	if importDataStatusRecord != nil {
+	if importDataStatusRecord != nil && callhomeMetricsCollector != nil {
 		tables := lo.Keys(importDataStatusRecord.TableToCDCPartitionKey)
 		sort.Strings(tables) // the payload must not change shape run to run
 		for i, table := range tables {
@@ -2034,9 +2033,9 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 				log.Warnf("callhome: lookup for table %q in name registry: %v", table, err)
 				continue
 			}
-			anonymized, ok := anonymizedTableNames.Get(nameTuple)
+			anonymized, ok := callhomeMetricsCollector.AnonymizedTableName(nameTuple)
 			if !ok {
-				log.Warnf("callhome: no anonymized table name precomputed for %s; putting all such tables in the conflict metric with prefix as XXX", nameTuple.ForOutput())
+				log.Warnf("callhome: no anonymized table name for %s; reporting it under a %s bucket", nameTuple.ForOutput(), constants.OBFUSCATE_STRING)
 				anonymized = fmt.Sprintf("%s_%d", constants.OBFUSCATE_STRING, i)
 			}
 			cdcPartitionKeyMap[anonymized] = importDataStatusRecord.TableToCDCPartitionKey[table].Strategy

@@ -335,7 +335,7 @@ Version History:
 1.4: Added CutoverTimings field
 1.5: Added table list count to ImportDataMetrics
 1.6: Added iterative cutover enabled and next iteration migration UUID fields
-1.7: Added CdcConflictCountPerTable field to ImportDataMetrics
+1.7: Added CdcConflictCountPerTable and CdcPartitionKeyMap fields to ImportDataMetrics
 */
 var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.7"
 

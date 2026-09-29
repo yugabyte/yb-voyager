@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -742,7 +743,10 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 		callhomeMetricsCollector = origCollector
 		callhome.SendDiagnostics = origSendDiagnostics
 	}()
-	callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
+	// No anonymizer: this test only checks that the conflict reaches the collector once, so it
+	// counts under the placeholder key. Anonymization itself is covered by the callhome package
+	// tests (TestIncrementConflictCountForTable_KeysByAnonymizedName).
+	callhomeMetricsCollector = callhome.NewImportDataMetricsCollector(nil)
 	callhome.SendDiagnostics = true
 
 	cache := newConflictCacheForTest([][]string{{"email"}})
@@ -762,11 +766,6 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	cachedSecond := cachedDeleteFreeingEmail(10, "10")
 	require.NoError(t, cache.Put(cachedFirst))
 	require.NoError(t, cache.Put(cachedSecond))
-
-	// Map the raw table to an anonymized name so the callhome metric is keyed by the anonymized
-	// name and the raw identifier never reaches it.
-	const anonTableName = "anon_schema.anon_users"
-	cache.anonymizedTableNames.Put(testTableTuple(), anonTableName)
 
 	// before-after conflict: incoming insert reuses the cached deletes' unique value.
 	incoming := withAfterFields(&tgtdb.Event{
@@ -808,14 +807,9 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	expectedConflicts := map[string]int{"public.users": 1}
 	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot())
 
-	// The callhome collector must also count the conflict exactly once, keyed by the anonymized
-	// table name — never the raw identifier.
-	callhomeCounts := callhomeMetricsCollector.GetCdcConflictCountPerTable()
-	assert.Equal(t, int64(1), callhomeCounts[anonTableName],
-		"callhome must count the conflict once under the anonymized table name")
-	assert.NotContains(t, callhomeCounts, cached.TableNameTup.ForOutput(),
-		"raw table name must never reach the callhome conflict metric")
-	assert.Len(t, callhomeCounts, 1)
+	// The callhome collector must be reached exactly once too.
+	expectedCallhomeConflicts := map[string]int64{constants.OBFUSCATE_STRING: 1}
+	assert.Equal(t, expectedCallhomeConflicts, callhomeMetricsCollector.GetCdcConflictCountPerTable())
 
 	// A non-conflicting event must not add to the count.
 	nonConflicting := withAfterFields(&tgtdb.Event{
@@ -830,8 +824,7 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot(), "a non-conflicting event must not be counted")
 
 	// The non-conflicting event must not add to the callhome count either.
-	assert.Equal(t, int64(1), callhomeMetricsCollector.GetCdcConflictCountPerTable()[anonTableName])
-	assert.Len(t, callhomeMetricsCollector.GetCdcConflictCountPerTable(), 1)
+	assert.Equal(t, expectedCallhomeConflicts, callhomeMetricsCollector.GetCdcConflictCountPerTable())
 }
 
 // RemoveEvents must clear both the primary map and the lookup index.

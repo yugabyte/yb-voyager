@@ -27,6 +27,7 @@
       "enable_upsert": false,
       "error": "",
       "phase": "SNAPSHOT",
+      "cdc_partition_key_map": {},
       "yb_cluster_metrics": {
         "avg_cpu_pct": 9.7938,
         "max_cpu_pct": 9.7938,

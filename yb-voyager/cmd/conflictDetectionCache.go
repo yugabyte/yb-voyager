@@ -135,12 +135,9 @@ type ConflictDetectionCache struct {
 	evChans              []chan *tgtdb.Event
 	sourceDBType         string
 
-	// importerRole and anonymizedTableNames are used only for the conflict metric
-	// (yb_voyager_import_data_cdc_conflicts_total). anonymizedTableNames is precomputed
-	// per table at construction so the record path is a lookup and no raw table name
-	// reaches the metrics endpoint.
-	importerRole         string
-	anonymizedTableNames *utils.StructMap[sqlname.NameTuple, string]
+	// importerRole is used only for the conflict metric
+	// (yb_voyager_import_data_cdc_conflicts_total).
+	importerRole string
 
 	// Per-table CDC partition key (strategy + custom key columns), used to compute an
 	// event's partition key (see GetEventPartitionKey). Two events with the same partition
@@ -165,7 +162,7 @@ type ConflictDetectionCache struct {
 	vsnToBuckets map[int64][]string
 }
 
-func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], importerRole string, anonymizedTableNames *utils.StructMap[sqlname.NameTuple, string]) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex], evChans []chan *tgtdb.Event, sourceDBType string, tablePartitionKeyMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], importerRole string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
@@ -176,7 +173,6 @@ func NewConflictDetectionCache(tableToUniqueIndexes *utils.StructMap[sqlname.Nam
 	c.vsnToBuckets = make(map[int64][]string)
 	c.tablePartitionKeyMap = tablePartitionKeyMap
 	c.importerRole = importerRole
-	c.anonymizedTableNames = anonymizedTableNames
 	return c
 }
 
@@ -334,10 +330,10 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 	return nil
 }
 
-// recordConflictMetricLocked increments the per-table conflict counter for the blocked
-// incoming event. Caller must hold the lock.
-func (c *ConflictDetectionCache) recordConflictMetricLocked(incomingEvent *tgtdb.Event) {
-	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup.ForOutput())
+// recordConflictMetric increments the per-table conflict counter for the blocked
+// incoming event.
+func (c *ConflictDetectionCache) recordConflictMetric(incomingEvent *tgtdb.Event) {
+	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup)
 
 	// The callhome conflict metric is best-effort: record it only when diagnostics are enabled
 	// AND the collector has been initialized. callhomeMetricsCollector is a global set up only
@@ -347,13 +343,7 @@ func (c *ConflictDetectionCache) recordConflictMetricLocked(incomingEvent *tgtdb
 	if !callhome.SendDiagnostics || callhomeMetricsCollector == nil {
 		return
 	}
-	anonymizedTableName, ok := c.anonymizedTableNames.Get(incomingEvent.TableNameTup)
-	if !ok {
-		log.Warnf("no anonymized table name precomputed for %s; putting all such tables in the conflict metric as XXX", incomingEvent.TableNameTup.ForOutput())
-		anonymizedTableName = "XXX"
-	}
-
-	callhomeMetricsCollector.IncrementConflictCountForTable(anonymizedTableName)
+	callhomeMetricsCollector.IncrementConflictCountForTable(incomingEvent.TableNameTup)
 }
 
 // Conflict describes the unique-index match that caused a value-path conflict.
