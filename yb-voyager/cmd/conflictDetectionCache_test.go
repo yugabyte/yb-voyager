@@ -52,6 +52,11 @@ func uidxPartial(columns ...string) tgtdb.UniqueIndex {
 	return tgtdb.UniqueIndex{Columns: columns, IsPartialIndex: true, IndexName: "idx_partial_" + strings.Join(columns, "_")}
 }
 
+// uidxPartialNND builds a partial NULLS NOT DISTINCT unique index for tests.
+func uidxPartialNND(columns ...string) tgtdb.UniqueIndex {
+	return tgtdb.UniqueIndex{Columns: columns, IsPartialIndex: true, NullsNotDistinct: true, IndexName: "idx_partial_nnd_" + strings.Join(columns, "_")}
+}
+
 // newConflictCacheForTest builds a cache with default (NULLS DISTINCT) unique
 // indexes from the given ordered column lists.
 func newConflictCacheForTest(indexes [][]string) *ConflictDetectionCache {
@@ -352,9 +357,9 @@ func TestEventsConflict_CompositeMixedNil(t *testing.T) {
 	require.Len(t, conflicts, 0)
 }
 
-// With NULLS NOT DISTINCT, two NULL before-values conflict (before-before check).
+// With NULLS NOT DISTINCT on a partial index, two NULL before-values conflict (before-before check).
 func TestEventsConflict_BothNilBeforeBefore_NullsNotDistinct(t *testing.T) {
-	cache := newConflictCacheForTestWithIndexes(uidxNND("check_id"))
+	cache := newConflictCacheForTestWithIndexes(uidxPartialNND("check_id"))
 	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
@@ -403,26 +408,38 @@ func TestEventsConflict_BothNilBeforeBefore_NullsDistinct(t *testing.T) {
 	require.Len(t, foundConflicts, 0)
 }
 
+// A cached DELETE and an incoming UK-changing UPDATE sharing the same before-value only
+// match through the before-before check, which runs for partial indexes alone: on a
+// non-partial index two rows can never hold the same value, so the pair is not a conflict.
 func TestEventsConflict_BeforeBeforeConflictOnly(t *testing.T) {
-	cache := newConflictCacheForTest([][]string{{"check_id"}})
-	cached := withAfterFields(&tgtdb.Event{
-		Vsn:          1,
-		Op:           "d",
-		TableNameTup: testTableTuple(),
-		Key:          map[string]*string{"id": strPtr("1")},
-		BeforeFields: map[string]*string{"check_id": strPtr("10")},
-	})
-	err := cache.Put(cached)
-	require.NoError(t, err)
-	incoming := withAfterFields(&tgtdb.Event{
-		Vsn:          2,
-		Op:           "u",
-		TableNameTup: testTableTuple(),
-		Key:          map[string]*string{"id": strPtr("2")},
-		BeforeFields: map[string]*string{"check_id": strPtr("10")},
-		Fields:       map[string]*string{"check_id": strPtr("20")},
-	})
-	conflicts := findConflictForTest(t, cache, incoming)
+	deletedRow := func() *tgtdb.Event {
+		return withAfterFields(&tgtdb.Event{
+			Vsn:          1,
+			Op:           "d",
+			TableNameTup: testTableTuple(),
+			Key:          map[string]*string{"id": strPtr("1")},
+			BeforeFields: map[string]*string{"check_id": strPtr("10")},
+		})
+	}
+	incomingUpdate := func() *tgtdb.Event {
+		return withAfterFields(&tgtdb.Event{
+			Vsn:          2,
+			Op:           "u",
+			TableNameTup: testTableTuple(),
+			Key:          map[string]*string{"id": strPtr("2")},
+			BeforeFields: map[string]*string{"check_id": strPtr("10")},
+			Fields:       map[string]*string{"check_id": strPtr("20")},
+		})
+	}
+
+	nonPartial := newConflictCacheForTestWithIndexes(uidx("check_id"))
+	require.NoError(t, nonPartial.Put(deletedRow()))
+	assert.Empty(t, findConflictForTest(t, nonPartial, incomingUpdate()),
+		"non-partial index must not run the before-before check even when the update changes the key")
+
+	partial := newConflictCacheForTestWithIndexes(uidxPartial("check_id"))
+	require.NoError(t, partial.Put(deletedRow()))
+	conflicts := findConflictForTest(t, partial, incomingUpdate())
 	require.Len(t, conflicts, 1)
 	assert.Equal(t, int64(1), conflicts[0].Vsn)
 }
@@ -452,7 +469,7 @@ func TestEventsConflict_BeforeBeforeNoConflictWhenValuesDiffer(t *testing.T) {
 }
 
 func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
-	cache := newConflictCacheForTest([][]string{{"a", "b"}})
+	cache := newConflictCacheForTestWithIndexes(uidxPartial("a", "b"))
 	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
@@ -475,7 +492,7 @@ func TestEventsConflict_BeforeBeforeMissingColumn(t *testing.T) {
 }
 
 func TestEventsConfict_BeforeBeforeConflict(t *testing.T) {
-	cache := newConflictCacheForTest([][]string{{"check_id"}})
+	cache := newConflictCacheForTestWithIndexes(uidxPartial("check_id"))
 	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "d",
@@ -603,9 +620,9 @@ func TestConflictLookup_FindsCompositeConflict(t *testing.T) {
 	assert.Equal(t, int64(1), got[0].Vsn)
 }
 
-// A NULLS NOT DISTINCT before-before conflict on NULL values must be found.
+// A NULLS NOT DISTINCT before-before conflict on NULL values must be found on a partial index.
 func TestConflictLookup_FindsBeforeBeforeConflict_NullsNotDistinct(t *testing.T) {
-	cache := newConflictCacheForTestWithIndexes(uidxNND("check_id"))
+	cache := newConflictCacheForTestWithIndexes(uidxPartialNND("check_id"))
 	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
 		Op:           "u",
@@ -807,11 +824,11 @@ func TestConflictWithMultipleIndexes(t *testing.T) {
 }
 
 // An incoming UPDATE with nil BeforeFields (e.g. replica identity not FULL)
-// makes the before-before probe fail; WaitUntilNoConflict must surface that
-// error so handleEvent aborts the import instead of silently skipping
+// makes the before-before probe of a partial index fail; WaitUntilNoConflict must
+// surface that error so handleEvent aborts the import instead of silently skipping
 // conflict detection for the event.
 func TestWaitUntilNoConflictPropagatesBeforeFieldsError(t *testing.T) {
-	cache := newConflictCacheForTest([][]string{{"a", "b"}})
+	cache := newConflictCacheForTestWithIndexes(uidxPartial("a", "b"))
 	incoming := withAfterFields(&tgtdb.Event{
 		Vsn:          2,
 		Op:           "u",
