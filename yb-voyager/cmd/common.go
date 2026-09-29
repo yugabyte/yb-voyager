@@ -1882,12 +1882,6 @@ func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
-	// Must stay above the payload-sent guard: that flag is only set once a payload
-	// actually goes out, so anything below it differs with --send-diagnostics off and on.
-	if utils.ErrExitErr != nil {
-		printSchemaDriftErrorHintOnExit(currentCommand)
-	}
-
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
@@ -2005,10 +1999,13 @@ func schemaDriftErrorHintLeadIn(commandPath string) (string, bool) {
 	}
 }
 
-// Called from the process exit path, the only place that sees the export and import
-// data failures which go through utils.ErrExit instead of a return value.
-func printSchemaDriftErrorHintOnExit(commandPath string) {
-	leadIn, ok := schemaDriftErrorHintLeadIn(commandPath)
+// An exit handler because it is the only place that sees the export and import data
+// failures which go through utils.ErrExit instead of a return value.
+func PrintSchemaDriftErrorHintOnExit() {
+	if utils.ErrExitErr == nil {
+		return
+	}
+	leadIn, ok := schemaDriftErrorHintLeadIn(currentCommand)
 	if !ok {
 		return
 	}
