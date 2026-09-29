@@ -386,9 +386,10 @@ func handleEvent(event *tgtdb.Event,
 				return goerrors.Errorf("error waiting for conflicts to clear for event vsn(%d): %w", event.Vsn, err)
 			}
 			if event.Op == "u" {
-				// Adding all the update events to the conflict detection cache since we need to check detect the conflicts in cases where
-				// unique key column is not changed in addition to unique key column is actually changed
-				// since the unique key is removed the index even if the column is actually changed because of partial predicate
+				// The update is only here if some unique index is relevant for it (see shouldHandleConflicts /
+				// indexRelevantForUpdate): it changes a column of a non-partial index, or the table has a partial
+				// index — where a predicate-only change can move the row out of the index without touching the
+				// key columns, so the event must still be cached for later before-after checks.
 				err = conflictDetectionCache.Put(event)
 				if err != nil {
 					return goerrors.Errorf("error putting event into conflict detection cache: %w", err)

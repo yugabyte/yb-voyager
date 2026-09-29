@@ -550,6 +550,230 @@ FROM generate_series(1, 20) as i;`,
 	})
 }
 
+// Non-UK-changing UPDATEs on a table with a NON-partial unique index are neither cached
+// nor checked for conflicts; the same shape on a PARTIAL index keeps today's behaviour.
+//
+// Phase 1 (crash failpoint): non-UK updates plus fresh-value churn, no unique value ever
+// reused across PKs — structurally conflict-free, so any detected conflict is a false
+// positive and stops the import.
+// Phase 2 (count failpoint): real DI / UI pairs with non-UK updates interleaved at every
+// step. The non-partial table must produce exactly 2 pairs per loop iteration and the
+// partial table exactly 1 (from a predicate-only update); any contribution from the
+// non-UK updates would show up as an excess, and a skipped partial index would show up
+// as a missing pair (and most likely a duplicate-key failure).
+func TestLiveMigrationWithNonUKChangingUpdatesOnNonPartialUniqueIndex(t *testing.T) {
+	t.Parallel()
+	const nonPartialTable = `"test_schema"."test_non_uk_update"`
+	const partialTable = `"test_schema"."test_non_uk_update_partial"`
+
+	falsePositiveDeltaSQL := []string{
+		`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 21..520 LOOP
+				-- non-partial unique index on email: only non-UK columns change, emails are fresh and never reused
+				UPDATE test_schema.test_non_uk_update SET name = 'n' || i, counter = counter + 1, updated_at = now() WHERE id = (i % 20) + 1;
+				UPDATE test_schema.test_non_uk_update SET name = 'm' || i, updated_at = now() WHERE id = (i % 20) + 1;
+				INSERT INTO test_schema.test_non_uk_update (id, email, name, counter, updated_at) VALUES (i, 'e' || i, 'n', 0, now());
+				UPDATE test_schema.test_non_uk_update SET name = 'x', counter = 1 WHERE id = i;
+				DELETE FROM test_schema.test_non_uk_update WHERE id = i;
+
+				-- partial unique index on email WHERE active: only a non-UK, non-predicate column changes
+				INSERT INTO test_schema.test_non_uk_update_partial (id, email, active, name, updated_at) VALUES (i, 'e' || i, true, 'n', now());
+				UPDATE test_schema.test_non_uk_update_partial SET name = 'x', updated_at = now() WHERE id = i;
+				DELETE FROM test_schema.test_non_uk_update_partial WHERE id = i;
+			END LOOP;
+		END $$;`,
+	}
+	truePositiveDeltaSQL := []string{
+		`DO $$
+		DECLARE
+			i INTEGER;
+		BEGIN
+			FOR i IN 1021..1520 LOOP
+				-- non-partial: exactly 2 true conflict pairs per iteration (DI, then UI)
+				INSERT INTO test_schema.test_non_uk_update (id, email, name, counter, updated_at) VALUES (i, 'r' || i, 'n', 0, now());
+				UPDATE test_schema.test_non_uk_update SET name = 'a1', counter = 1 WHERE id = i;                       -- non-UK
+				DELETE FROM test_schema.test_non_uk_update WHERE id = i;                                              -- cached D, before r_i
+				INSERT INTO test_schema.test_non_uk_update (id, email, name, counter, updated_at) VALUES (i + 1000, 'r' || i, 'n', 0, now()); -- DI pair
+				UPDATE test_schema.test_non_uk_update SET name = 'b1', counter = 2 WHERE id = i + 1000;                -- non-UK
+				UPDATE test_schema.test_non_uk_update SET email = 'q' || i WHERE id = i + 1000;                         -- cached U, before r_i
+				INSERT INTO test_schema.test_non_uk_update (id, email, name, counter, updated_at) VALUES (i + 2000, 'r' || i, 'n', 0, now()); -- UI pair
+				UPDATE test_schema.test_non_uk_update SET name = 'c1' WHERE id = i + 2000;                             -- non-UK
+
+				-- partial: exactly 1 true conflict pair per iteration, produced by a predicate-only update
+				INSERT INTO test_schema.test_non_uk_update_partial (id, email, active, name, updated_at) VALUES (i, 'r' || i, true, 'n', now());
+				UPDATE test_schema.test_non_uk_update_partial SET active = false WHERE id = i;                        -- predicate-only, cached because partial
+				INSERT INTO test_schema.test_non_uk_update_partial (id, email, active, name, updated_at) VALUES (i + 1000, 'r' || i, true, 'n', now()); -- must be caught
+				UPDATE test_schema.test_non_uk_update_partial SET name = 'x' WHERE id = i + 1000;                     -- non-UK, non-predicate
+			END LOOP;
+		END $$;`,
+	}
+
+	liveMigrationTest := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_non_uk_update",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_non_uk_update",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.test_non_uk_update (
+				id int PRIMARY KEY,
+				email text,
+				name text,
+				counter int,
+				updated_at timestamp
+			);
+			CREATE UNIQUE INDEX idx_test_non_uk_update_email ON test_schema.test_non_uk_update (email);
+
+			CREATE TABLE test_schema.test_non_uk_update_partial (
+				id int PRIMARY KEY,
+				email text,
+				active boolean,
+				name text,
+				updated_at timestamp
+			);
+			CREATE UNIQUE INDEX idx_test_non_uk_update_partial_email ON test_schema.test_non_uk_update_partial (email) WHERE active;`,
+		},
+		SourceSetupSchemaSQL: []string{
+			"ALTER TABLE test_schema.test_non_uk_update REPLICA IDENTITY FULL;",
+			"ALTER TABLE test_schema.test_non_uk_update_partial REPLICA IDENTITY FULL;",
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.test_non_uk_update (id, email, name, counter, updated_at)
+			SELECT i, 'e' || i, 'n', 0, now() FROM generate_series(1, 20) AS i;`,
+			`INSERT INTO test_schema.test_non_uk_update_partial (id, email, active, name, updated_at)
+			SELECT i, 'e' || i, true, 'n', now() FROM generate_series(1, 20) AS i;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer liveMigrationTest.Cleanup()
+
+	err := liveMigrationTest.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = liveMigrationTest.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = liveMigrationTest.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	uniqueKeyConflictFailpointEnv := testutils.GetFailpointEnvVar(
+		"github.com/yugabyte/yb-voyager/yb-voyager/cmd/uniqueKeyConflictDetected=return(true)",
+	)
+	uniqueKeyConflictFailpointMarker := filepath.Join(
+		liveMigrationTest.GetCurrentExportDir(), "failpoints", "failpoint-unique-key-conflict-detected.log")
+	uniqueKeyConflictCountFailpointEnv, uniqueKeyConflictStatsPath := uniqueKeyConflictCountFailpoint(liveMigrationTest)
+
+	// Phase 1: crash on any detected conflict.
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import data with crash failpoint")
+
+	err = liveMigrationTest.WaitForSnapshotComplete(map[string]int64{
+		nonPartialTable: 20,
+		partialTable:    20,
+	}, 80)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	tables := []string{nonPartialTable, partialTable}
+	err = liveMigrationTest.ValidateDataConsistency(tables, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency after snapshot")
+
+	// The assertions below only mean something if both tables are routed by PK (so events of
+	// different rows can land on different channels and conflict detection is actually active).
+	err = liveMigrationTest.InitMetaDB()
+	testutils.FatalIfError(t, err, "failed to initialize meta db")
+	importDataStatus, err := liveMigrationTest.GetMetaDB().GetImportDataStatusRecord()
+	testutils.FatalIfError(t, err, "failed to get import data status record")
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "test_non_uk_update\"", cmd.PARTITION_BY_PK)
+	assertStrategyInMap(t, importDataStatus.TableToCDCPartitionKey, "test_non_uk_update_partial", cmd.PARTITION_BY_PK)
+
+	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
+		liveMigrationTest.config.SourceDB.DatabaseName, falsePositiveDeltaSQL...)
+
+	falsePositiveChanges := map[string]ChangesCount{
+		nonPartialTable: {Inserts: 500, Updates: 1500, Deletes: 500},
+		partialTable:    {Inserts: 500, Updates: 500, Deletes: 500},
+	}
+	err = liveMigrationTest.WaitForForwardStreamingComplete(falsePositiveChanges, 300, 5)
+	testutils.FatalIfError(t, err, "failed to wait for false-positive streaming complete")
+
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should not exit during false-positive phase")
+	failpointTriggered, err := testutils.WaitForFailpointMarker(uniqueKeyConflictFailpointMarker, 2*time.Second, 200*time.Millisecond)
+	if err != nil && !os.IsNotExist(err) {
+		testutils.FatalIfError(t, err, "failed to read unique key conflict failpoint marker")
+	}
+	require.False(t, failpointTriggered,
+		"unique key conflict false positive detected for non-UK-changing updates; marker=%s", uniqueKeyConflictFailpointMarker)
+
+	err = liveMigrationTest.ValidateDataConsistency(tables, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency after false-positive phase")
+
+	err = liveMigrationTest.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import after false-positive phase")
+
+	// Phase 2: count every detected conflict.
+	err = liveMigrationTest.StartImportDataWithEnv(true, nil, []string{uniqueKeyConflictCountFailpointEnv})
+	testutils.FatalIfError(t, err, "failed to start import for true-positive phase with count failpoint")
+
+	liveMigrationTest.sourceContainer.ExecuteSqlsOnDB(
+		liveMigrationTest.config.SourceDB.DatabaseName, truePositiveDeltaSQL...)
+
+	// counts are cumulative since export started: phase 1 + phase 2
+	cumulativeChanges := map[string]ChangesCount{
+		nonPartialTable: {Inserts: 500 + 1500, Updates: 1500 + 2000, Deletes: 500 + 500},
+		partialTable:    {Inserts: 500 + 1000, Updates: 500 + 1000, Deletes: 500 + 0},
+	}
+	err = liveMigrationTest.WaitForForwardStreamingComplete(cumulativeChanges, 300, 5)
+	testutils.FatalIfError(t, err, "failed to wait for true-positive streaming complete")
+
+	require.False(t, liveMigrationTest.GetImportRunner().IsStopped(),
+		"import should keep running during count failpoint mode")
+
+	conflictStats, err := testutils.ReadUniqueKeyConflictStats(uniqueKeyConflictStatsPath)
+	testutils.FatalIfError(t, err, "failed to read unique key conflict stats")
+
+	// Upper bounds are exact and load-bearing: a cached event pairs with at most one incoming
+	// event (the reader blocks in WaitUntilNoConflict until the cached event is applied and
+	// evicted) and pairs are de-duplicated, so per iteration the non-partial table can record
+	// at most the D->I and U->I pairs (2 x 500) and the partial table at most the
+	// U(predicate-only)->I pair (1 x 500). The interleaved non-UK updates must add nothing;
+	// any contribution from them shows up as an excess over these bounds.
+	// Lower bounds are timing-dependent: a pair is only recorded if the cached event is still
+	// in the cache when the reusing INSERT is read (not yet applied by its channel). With the
+	// default batch sizes the reader runs well ahead of apply, so the large majority of pairs
+	// are caught; a partial-table count of 0 would mean the optimisation skipped the partial
+	// index (and the reusing INSERT would then race the predicate flip into a 23505).
+	require.LessOrEqual(t, conflictStats.ByTable[nonPartialTable], 1000,
+		"non-partial table: only the DI and UI pairs may be counted; non-UK updates must not contribute")
+	require.Greater(t, conflictStats.ByTable[nonPartialTable], 500,
+		"non-partial table: the DI/UI pairs should be detected for most iterations")
+	require.LessOrEqual(t, conflictStats.ByTable[partialTable], 500,
+		"partial table: only the predicate-only U->I pair may be counted; the non-UK update must not contribute")
+	require.Greater(t, conflictStats.ByTable[partialTable], 250,
+		"partial table: the predicate-only update must still be cached and caught by the reusing insert")
+	require.LessOrEqual(t, conflictStats.Total, 1500)
+
+	err = liveMigrationTest.ValidateDataConsistency(tables, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency after true-positive phase")
+
+	err = liveMigrationTest.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = liveMigrationTest.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
 func TestLiveMigrationWithUniqueKeyValuesWithPartialPredicateConflictDetectionCases(t *testing.T) {
 	t.Parallel()
 	lm := getPartialPredicateTestForUniqueConflictDetection(t, "test_unique_conflict_partial_predicate")
