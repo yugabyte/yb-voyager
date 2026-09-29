@@ -66,10 +66,18 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 		}
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr == nil {
+		return goerrors.Errorf("migration status record not found")
+	}
+
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	// Pointless once the answer is fixed or the decision already made: --yes answers the
 	// prompt below unseen, and the already-initiated check sits further down.
-	if dbRole == "target" && !utils.DoNotPrompt && GetCutoverStatus(metaDB) == NOT_INITIATED {
+	if dbRole == "target" && !utils.DoNotPrompt && !msr.CutoverToTargetRequested {
 		printCutoverSchemaDriftRecommendation()
 	}
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
@@ -79,10 +87,6 @@ func InitiateCutover(dbRole string, prepareforFallback bool, useYBgRPCConnector 
 	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
 
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return fmt.Errorf("failed to get migration status record: %w", err)
-	}
 	if restartSourceToTargetNextIteration {
 		if !iterativeCutoverSupported(msr) {
 			return goerrors.Errorf("iterative live migration is not supported for this migration")
