@@ -1933,24 +1933,12 @@ func PackAndSendCallhomePayloadOnExit() {
 	}
 }
 
-// Named because the export branch uses one directly: routing it through
-// schemaDriftErrorHintLeadIn would make exportDataCmd's initializer depend on a
-// function naming exportDataCmd, which Go rejects as an initialization cycle.
-const (
-	exportDataDriftHintLeadIn = "export data exited with an error."
-	importDataDriftHintLeadIn = "import data exited with an error."
-)
-
 func driftDetectionHint() string {
 	return fmt.Sprintf("\t%s --export-dir %q (with your source connection flags)", detectDriftCmd.CommandPath(), exportDir)
 }
 
-// Capture can be turned off, and older export dirs hold none, so without this gate a hint
-// below could send users to a command that fails with "holds no schema snapshots". Placeholders are
-// failed-capture markers carrying no schema, so they do not count.
-//
-// A listing failure is only logged, not returned: these hints are advisory, and the
-// call site that matters most is an exit path with nothing left to fail.
+// Placeholders carry no schema; with no real snapshot, detect-drift fails with "holds no
+// schema snapshots". A listing error only logs: the hints are advisory (spec §3.7).
 func schemaDriftGuidanceIsUseful() bool {
 	if metaDB == nil {
 		return false
@@ -1963,18 +1951,20 @@ func schemaDriftGuidanceIsUseful() bool {
 	return lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder })
 }
 
-func printSchemaDriftErrorHint(firstLine string) {
+func printSchemaDriftErrorHint(leadIn string) {
 	if !schemaDriftGuidanceIsUseful() {
 		return
 	}
-	utils.PrintAndLog(fmt.Sprintf("%s If the source schema may have changed since export began, review schema drift before retrying or cutting over:\n%s",
-		firstLine, driftDetectionHint()))
+	advice := fmt.Sprintf("If the source schema may have changed since export began, review schema drift before retrying or cutting over:\n%s",
+		driftDetectionHint())
+	if leadIn != "" {
+		advice = leadIn + " " + advice
+	}
+	utils.PrintAndLog(advice)
 }
 
-// The source exporter's exit capture is the last source-schema snapshot the migration
-// records -- `export data from target` takes none -- and it is not written until after
-// this prompt, so detect-drift's live source read is the only thing covering the
-// window up to cutover.
+// The source exporter's exit capture is written only after this prompt is confirmed,
+// so detect-drift's live read is what covers the window up to cutover.
 func printCutoverSchemaDriftRecommendation() {
 	if !schemaDriftGuidanceIsUseful() {
 		return
@@ -1983,18 +1973,33 @@ func printCutoverSchemaDriftRecommendation() {
 		driftDetectionHint()))
 }
 
-// Only the forward path qualifies. `import data to source`, `import data to
-// source-replica` and `export data from target` all run after cutover to target, past
-// the last source capture, which the design spec puts out of scope for v1.
+// Reads the MSR directly because GetCutoverStatus can utils.ErrExit, and this runs inside an atexit handler.
+func cutoverToTargetProcessedBy(processedByRole func(*metadb.MigrationStatusRecord) bool) bool {
+	if metaDB == nil {
+		return false
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("schema-drift guidance: could not read migration status record: %v", err)
+		return false
+	}
+	return msr != nil && processedByRole(msr)
+}
+
+// Post-cutover commands run past the last source capture, out of scope for v1 (spec §1).
 func schemaDriftErrorHintLeadIn(commandPath string) (string, bool) {
 	switch commandPath {
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		return importDataDriftHintLeadIn, true
-	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-		if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		if cutoverToTargetProcessedBy(func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter }) {
 			return "", false
 		}
-		return exportDataDriftHintLeadIn, true
+		return "import data exited with an error.", true
+	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
+		if exporterRole != SOURCE_DB_EXPORTER_ROLE ||
+			cutoverToTargetProcessedBy(func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedBySourceExporter }) {
+			return "", false
+		}
+		return "export data exited with an error.", true
 	default:
 		return "", false
 	}
