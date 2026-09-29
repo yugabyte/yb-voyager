@@ -581,7 +581,7 @@ func dedupeUniqueIndexes(indexes []UniqueIndex) []UniqueIndex {
 		key := strings.Join(idx.Columns, ",")
 		if pos, ok := indexByKey[key]; ok {
 			result[pos].NullsNotDistinct = result[pos].NullsNotDistinct || idx.NullsNotDistinct
-			result[pos].IsPartialIndex = result[pos].IsPartialIndex && idx.IsPartialIndex
+			result[pos].IsPartialIndex = result[pos].IsPartialIndex || idx.IsPartialIndex
 			continue
 		}
 		indexByKey[key] = len(result)
