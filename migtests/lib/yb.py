@@ -36,25 +36,18 @@ def has_pg15_merge(version_string):
 	return (major == 2 and minor >= 25) or (major >= 2025 and minor >= 1)
 
 
-# Extensions YugabyteDB installs into pg_catalog itself, and the version it started
-# doing so. From that version a migration can no longer place them in its own schema,
-# so tests must not hold the cluster's copy against the migration.
-CLUSTER_PREINSTALLED_EXTENSIONS = {
-	"postgres_fdw": "2026.1.2",  # yugabyte-db#30591, global views
-}
-
-
-def preinstalled_extensions(version_string) -> set:
+def has_preinstalled_postgres_fdw(version_string):
+	"""
+	YugabyteDB installs postgres_fdw into pg_catalog itself from 2026.1.2
+	(yugabyte-db#30591), so a migration can no longer place it in its own schema.
+	"""
 	three_dot_version = get_three_dot_version(version_string)
-	if not three_dot_version:
-		return set()
-	return {name for name, since in CLUSTER_PREINSTALLED_EXTENSIONS.items()
-		if Version(three_dot_version) >= Version(since)}
+	return bool(three_dot_version) and Version(three_dot_version) >= Version("2026.1.2")
 
 
 def get_three_dot_version(version_string):
 	# Extract the YB three-dot version (e.g. "2025.2.4") from a version() string.
-	match = re.search(r'YB-([0-9]+\.[0-9]+\.[0-9])', version_string or "")
+	match = re.search(r'YB-([0-9]+\.[0-9]+\.[0-9]+)', version_string or "")
 	return match.group(1) if match else ""
 
 
@@ -355,10 +348,11 @@ class PostgresDB:
 		cur.execute(f"SELECT extname FROM pg_extension")
 		return set(cur.fetchall())
 
-	def fetch_all_pg_extension_excluding_preinstalled(self, schema_name = "public") -> set[str]:
-		preinstalled = preinstalled_extensions(self.get_target_version())
-		return {extension for extension in self.fetch_all_pg_extension(schema_name)
-			if extension[0] not in preinstalled}
+	def fetch_all_pg_extension_excluding_preinstalled(self) -> set[tuple]:
+		extensions = self.fetch_all_pg_extension()
+		if has_preinstalled_postgres_fdw(self.get_target_version()):
+			extensions -= {("postgres_fdw",)}
+		return extensions
 
 	def fetch_all_schemas(self) -> set[str]:
 		cur = self.conn.cursor()
