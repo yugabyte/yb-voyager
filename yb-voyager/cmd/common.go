@@ -1933,7 +1933,7 @@ func driftDetectionHint() string {
 
 // Placeholders carry no schema; with no real snapshot, detect-drift fails with "holds no
 // schema snapshots". A listing error only logs: the hints are advisory (spec §3.7).
-func schemaDriftGuidanceIsUseful() bool {
+func schemaDriftHintIsUseful() bool {
 	if metaDB == nil {
 		return false
 	}
@@ -1945,8 +1945,8 @@ func schemaDriftGuidanceIsUseful() bool {
 	return lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder })
 }
 
-func printSchemaDriftErrorHint(leadIn string) {
-	if !schemaDriftGuidanceIsUseful() {
+func printFailureSchemaDriftHint(leadIn string) {
+	if !schemaDriftHintIsUseful() {
 		return
 	}
 	advice := fmt.Sprintf("If the source schema may have changed since export began, review schema drift before retrying or cutting over:\n%s",
@@ -1959,8 +1959,8 @@ func printSchemaDriftErrorHint(leadIn string) {
 
 // The source exporter's exit capture is written only after this prompt is confirmed,
 // so detect-drift's live read is what covers the window up to cutover.
-func printCutoverSchemaDriftRecommendation() {
-	if !schemaDriftGuidanceIsUseful() {
+func printCutoverSchemaDriftHint() {
+	if !schemaDriftHintIsUseful() {
 		return
 	}
 	utils.PrintAndLog(fmt.Sprintf("Recommendation: review schema drift on the source before cutting over:\n%s",
@@ -1981,7 +1981,7 @@ func cutoverToTargetProcessedBy(processedByRole func(*metadb.MigrationStatusReco
 }
 
 // Post-cutover commands run past the last source capture, out of scope for v1 (spec §1).
-func schemaDriftErrorHintLeadIn(commandPath string) (string, bool) {
+func failureSchemaDriftHintLeadIn(commandPath string) (string, bool) {
 	switch commandPath {
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
 		if cutoverToTargetProcessedBy(func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter }) {
@@ -2001,15 +2001,15 @@ func schemaDriftErrorHintLeadIn(commandPath string) (string, bool) {
 
 // An exit handler because it is the only place that sees the export and import data
 // failures which go through utils.ErrExit instead of a return value.
-func PrintSchemaDriftErrorHintOnExit() {
+func PrintFailureSchemaDriftHintOnExit() {
 	if utils.ErrExitErr == nil {
 		return
 	}
-	leadIn, ok := schemaDriftErrorHintLeadIn(currentCommand)
+	leadIn, ok := failureSchemaDriftHintLeadIn(currentCommand)
 	if !ok {
 		return
 	}
-	printSchemaDriftErrorHint(leadIn)
+	printFailureSchemaDriftHint(leadIn)
 }
 
 func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {

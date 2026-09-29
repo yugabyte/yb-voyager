@@ -819,7 +819,7 @@ func StringPtr(s string) *string {
 
 // Post-cutover commands and runs must stay out: they are past the last source capture,
 // so the hint would point at a report that cannot cover them.
-func TestSchemaDriftErrorHintLeadIn(t *testing.T) {
+func TestFailureSchemaDriftHintLeadIn(t *testing.T) {
 	origRole, origMetaDB := exporterRole, metaDB
 	t.Cleanup(func() { exporterRole, metaDB = origRole, origMetaDB })
 	metaDB = nil
@@ -894,7 +894,7 @@ func TestSchemaDriftErrorHintLeadIn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			exporterRole = tt.role
-			leadIn, ok := schemaDriftErrorHintLeadIn(tt.commandPath)
+			leadIn, ok := failureSchemaDriftHintLeadIn(tt.commandPath)
 			assert.Equal(t, tt.wantOK, ok)
 			if !tt.wantOK {
 				// A caller that ignored ok must not get a printable sentence.
@@ -927,21 +927,21 @@ func TestSchemaDriftErrorHintLeadIn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			metaDB = newTempMetaDB(t)
 			exporterRole = tt.role
-			_, ok := schemaDriftErrorHintLeadIn(tt.commandPath)
+			_, ok := failureSchemaDriftHintLeadIn(tt.commandPath)
 			assert.True(t, ok, "cutover requested but not yet processed by this role")
 
 			require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
 				msr.CutoverToTargetRequested = true
 				tt.markDone(msr)
 			}))
-			leadIn, ok := schemaDriftErrorHintLeadIn(tt.commandPath)
+			leadIn, ok := failureSchemaDriftHintLeadIn(tt.commandPath)
 			assert.False(t, ok)
 			assert.Equal(t, "", leadIn)
 		})
 	}
 }
 
-func TestSchemaDriftGuidanceIsUseful(t *testing.T) {
+func TestSchemaDriftHintIsUseful(t *testing.T) {
 	orig := metaDB
 	t.Cleanup(func() { metaDB = orig })
 	ctx := context.Background()
@@ -949,18 +949,18 @@ func TestSchemaDriftGuidanceIsUseful(t *testing.T) {
 
 	t.Run("no metaDB, the command died before opening the export dir", func(t *testing.T) {
 		metaDB = nil
-		assert.False(t, schemaDriftGuidanceIsUseful())
+		assert.False(t, schemaDriftHintIsUseful())
 	})
 	t.Run("no snapshots", func(t *testing.T) {
 		metaDB = newTempMetaDB(t)
-		assert.False(t, schemaDriftGuidanceIsUseful())
+		assert.False(t, schemaDriftHintIsUseful())
 	})
 	t.Run("placeholder only", func(t *testing.T) {
 		metaDB = newTempMetaDB(t)
 		_, err := schemasnapshot.SavePlaceholder(ctx, metaDB, schemasnapshot.SnapshotHeader{
 			Label: schemasnapshot.LabelExportSchema, CapturedAt: at})
 		require.NoError(t, err)
-		assert.False(t, schemaDriftGuidanceIsUseful())
+		assert.False(t, schemaDriftHintIsUseful())
 	})
 	t.Run("one real snapshot beside a placeholder", func(t *testing.T) {
 		metaDB = newTempMetaDB(t)
@@ -972,7 +972,7 @@ func TestSchemaDriftGuidanceIsUseful(t *testing.T) {
 			Content: &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: POSTGRESQL},
 		})
 		require.NoError(t, err)
-		assert.True(t, schemaDriftGuidanceIsUseful())
+		assert.True(t, schemaDriftHintIsUseful())
 	})
 }
 

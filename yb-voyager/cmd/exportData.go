@@ -245,7 +245,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 			// The exit handler cannot cover this: it is reached with ErrExitErr unset,
 			// which reads there as a clean exit rather than a failure.
-			printSchemaDriftErrorHint("")
+			printFailureSchemaDriftHint("")
 		}
 		atexit.Exit(1)
 	}
