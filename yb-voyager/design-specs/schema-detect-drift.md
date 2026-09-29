@@ -187,9 +187,11 @@ The failure hints print from the process exit handler, ahead of everything callh
 
 | Site | Prints when |
 | :---- | :---- |
-| `export data` failure | the command is `export data` or `export data from source`, the role is the source exporter, and the run failed — both the explicit failure branch and any `utils.ErrExit` path |
+| `export data` failure | the command is `export data` or `export data from source`, the role is the source exporter, and the run failed — both the explicit failure branch and any `utils.ErrExit` path. The explicit branch has already printed its own failure line, so it prints only the advisory |
 | `import data` failure | the command is `import data` or `import data to target` and it failed via `utils.ErrExit`. `import data to source` and `to source-replica` are excluded: they only run after cutover to target, which §1 puts out of scope |
 | `initiate cutover to target` | before the confirmation prompt, only when the user is actually prompted (`--yes` unset) and cutover to target has not already been requested |
+
+Neither failure hint prints on the `utils.ErrExit` path once this command's role has processed cutover to target. A re-run then exits with "cutover to target already processed", and any later failure is in fall-back or next-iteration setup. Both are past the window the hints cover.
 
 ## 4\. Data model
 
