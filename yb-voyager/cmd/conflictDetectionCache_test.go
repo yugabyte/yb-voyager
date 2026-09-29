@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -94,6 +95,14 @@ func withAfterFields(e *tgtdb.Event) *tgtdb.Event {
 	}
 	e.AfterFields = tgtdb.GenerateAfterFields(e.Op, e.BeforeFields, e.Fields)
 	return e
+}
+
+// anyIndexRelevantForUpdate reports whether at least one of the table's unique indexes is
+// relevant for the UPDATE event (see indexRelevantForUpdate).
+func anyIndexRelevantForUpdate(event *tgtdb.Event, indexes []tgtdb.UniqueIndex) bool {
+	return lo.SomeBy(indexes, func(index tgtdb.UniqueIndex) bool {
+		return indexRelevantForUpdate(event, index)
+	})
 }
 
 func TestIndexTupleConflicts_CompositeTrueConflict(t *testing.T) {

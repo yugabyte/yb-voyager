@@ -538,14 +538,6 @@ func indexRelevantForUpdate(event *tgtdb.Event, index tgtdb.UniqueIndex) bool {
 	return index.IsPartialIndex || anyUniqueIndexColumnChanged(event.Fields, index.Columns)
 }
 
-// anyIndexRelevantForUpdate reports whether at least one of the table's unique indexes is
-// relevant for the UPDATE event (see indexRelevantForUpdate).
-func anyIndexRelevantForUpdate(event *tgtdb.Event, indexes []tgtdb.UniqueIndex) bool {
-	return lo.SomeBy(indexes, func(index tgtdb.UniqueIndex) bool {
-		return indexRelevantForUpdate(event, index)
-	})
-}
-
 func anyUniqueIndexColumnValueIsNull(fields map[string]*string, indexColumns []string) bool {
 	for _, column := range indexColumns {
 		val, exists := fields[column]
