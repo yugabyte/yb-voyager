@@ -366,8 +366,8 @@ ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 // its own Query function) so the query and scan logic live in exactly one place.
 //
 // A partitioned table's primary key can live only on its leaf partitions when the root has
-// no primary key of its own (e.g. children carry PKs, imported via --use-partition-root).
-// Import events reference the root, so we discover the PK of every leaf partition (and the
+// no primary key of its own. With attributeLeafPKToRoot true (CDC applied on the leaves,
+// --use-partition-root false), we discover the PK of every leaf partition (and the
 // root/normal tables themselves) and attribute it to the root. A root's own primary key is
 // authoritative; a leaf's PK is used only when the root has none (partitions of the same
 // table share the same PK definition). With attributeLeafPKToRoot false, a root gets only its

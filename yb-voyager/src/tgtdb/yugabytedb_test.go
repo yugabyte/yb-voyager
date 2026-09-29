@@ -181,8 +181,6 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 		) PARTITION BY LIST (region);`,
 		`CREATE TABLE test_schema."CasePart_r1" PARTITION OF test_schema."CasePart" FOR VALUES IN ('r1');`,
 		`ALTER TABLE test_schema."CasePart_r1" ADD PRIMARY KEY ("Id");`,
-
-
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 

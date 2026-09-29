@@ -1433,14 +1433,13 @@ paths return an empty map since conflict detection does not run for them). Becau
 runs in the same process before streamChanges on both the first run and resume, the map does
 not need to be persisted in metaDB.
 
-It also fails fast, before the snapshot import, if a table routed by a custom partition key
-has no primary key on the target: custom routing adds the PK as a synthetic unique index for
-conflict detection (a recycled PK across different custom keys must be serialized), so a
-custom-key table without a PK cannot be made correct. Any other table without a PK is refused
-too, since conflict detection keys on it.
-
-With --use-partition-root true, events are applied on the root, so a partitioned root without
-its own PK has no key: its leaves' PK is not unique across partitions (#3834).
+It also fails fast, before the snapshot import, if any import table has no primary key on the
+target, since conflict detection keys on it. For a table routed by a custom partition key this
+is essential: custom routing adds the PK as a synthetic unique index for conflict detection (a
+recycled PK across different custom keys must be serialized), so a custom-key table without a
+PK cannot be made correct. With --use-partition-root true, events are applied on the root, so a
+partitioned root without its own PK has no key: its leaves' PK is not unique across partitions
+(#3834).
 */
 func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	tableToPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
