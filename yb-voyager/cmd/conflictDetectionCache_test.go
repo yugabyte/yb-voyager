@@ -1061,3 +1061,34 @@ func TestFindConflict_UpdateWithMixedIndexes(t *testing.T) {
 	require.Len(t, actualConflicts[0].eventsConflicting, 1)
 	assert.Equal(t, int64(1), actualConflicts[0].eventsConflicting[0].Vsn)
 }
+
+func TestPut_UpdateWithMixedPartialAndNonPartialIndexes(t *testing.T) {
+	cache := newConflictCacheForTestWithIndexes(uidx("email"), uidxPartial("code"))
+	ev := withAfterFields(&tgtdb.Event{Vsn: 1, Op: "u", TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"email": strPtr("e"), "code": strPtr("c"), "name": strPtr("a")},
+		Fields:       map[string]*string{"name": strPtr("b")}})
+	require.NoError(t, cache.Put(ev))
+	require.Len(t, cache.vsnToBuckets[1], 1)
+	assert.Contains(t, cache.vsnToBuckets[1][0], "idx_partial_code")
+	assert.NotContains(t, cache.vsnToBuckets[1][0], "idx_email")
+	require.Len(t, cache.ukLookup, 1)
+
+	insertSameEmail := withAfterFields(&tgtdb.Event{Vsn: 2, Op: "c", TableNameTup: testTableTuple(),
+		Key:    map[string]*string{"id": strPtr("2")},
+		Fields: map[string]*string{"id": strPtr("2"), "email": strPtr("e"), "code": strPtr("x"), "name": strPtr("z")}})
+	assert.Empty(t, findConflictForTest(t, cache, insertSameEmail),
+		"non-UK-changing update must not be indexed for the non-partial index")
+
+	insertSameCode := withAfterFields(&tgtdb.Event{Vsn: 3, Op: "c", TableNameTup: testTableTuple(),
+		Key:    map[string]*string{"id": strPtr("3")},
+		Fields: map[string]*string{"id": strPtr("3"), "email": strPtr("y"), "code": strPtr("c"), "name": strPtr("z")}})
+	conflicts := findConflictForTest(t, cache, insertSameCode)
+	require.Len(t, conflicts, 1, "partial index keeps the update indexed")
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
+
+	cache.RemoveEvents(ev)
+	assert.Empty(t, cache.ukLookup)
+	assert.Empty(t, cache.vsnToBuckets)
+	assert.Empty(t, findConflictForTest(t, cache, insertSameCode))
+}

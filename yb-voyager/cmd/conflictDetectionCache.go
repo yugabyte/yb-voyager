@@ -218,8 +218,6 @@ func (c *ConflictDetectionCache) indexEventLocked(event *tgtdb.Event) error {
 	}
 	for _, index := range uniqueIndexes {
 		if event.Op == "u" && !indexRelevantForUpdate(event, index) {
-			// an UPDATE that does not touch this (non-partial) index's columns cannot
-			// take part in a conflict on it; keep it out of the bucket.
 			continue
 		}
 		if !index.NullsNotDistinct && anyUniqueIndexColumnValueIsNull(event.BeforeFields, index.Columns) {
@@ -436,7 +434,8 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 				}
 			}
 			if index.IsPartialIndex {
-				// check before-before conflict for partial index only
+				// Non-partial: an UPDATE not touching the key cannot free/claim a value; any other row reusing it
+				// already waited on the releasing event via before-after. Partial: predicate-only changes move rows in/out.
 				conflict, err := c.checkBeforeBeforeConflict(incomingEvent, index)
 				if err != nil {
 					return []Conflict{}, fmt.Errorf("error checking before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
