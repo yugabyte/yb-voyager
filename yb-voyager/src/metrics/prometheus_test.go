@@ -49,7 +49,7 @@ yb_voyager_import_data_snapshot_rows_total{importer_role="target_db_importer",mi
 		assert.Equal(t, 1, testutil.CollectAndCount(r.importBatchSizeRows), "expected 1 batch_size_rows series")
 
 		val := testutil.ToFloat64(r.importLastBatchIngestedTS.WithLabelValues(
-			r.snapshotLabelValues("target_db_importer", tup)...))
+			r.importDataLabelValues("target_db_importer", tup)...))
 		assert.Greater(t, val, float64(0), "last-ingested timestamp gauge not set")
 	})
 
@@ -131,11 +131,11 @@ yb_voyager_import_data_snapshot_rows_total{importer_role="target_db_importer",mi
 		r.SetImportSnapshotTableStarted("target_db_importer", tup)
 		r.SetImportSnapshotTableCompleted("target_db_importer", tup)
 
-		total := r.importTableExpectedRows.WithLabelValues(r.snapshotLabelValues("target_db_importer", tup)...)
+		total := r.importTableExpectedRows.WithLabelValues(r.importDataLabelValues("target_db_importer", tup)...)
 		assert.Equal(t, float64(1000), testutil.ToFloat64(total), "expected total 1000")
-		start := r.importTableStartTS.WithLabelValues(r.snapshotLabelValues("target_db_importer", tup)...)
+		start := r.importTableStartTS.WithLabelValues(r.importDataLabelValues("target_db_importer", tup)...)
 		assert.Greater(t, testutil.ToFloat64(start), float64(0), "start ts not set")
-		done := r.importTableCompletedTS.WithLabelValues(r.snapshotLabelValues("target_db_importer", tup)...)
+		done := r.importTableCompletedTS.WithLabelValues(r.importDataLabelValues("target_db_importer", tup)...)
 		assert.Greater(t, testutil.ToFloat64(done), float64(0), "completed ts not set")
 	})
 
@@ -171,7 +171,7 @@ yb_voyager_import_data_snapshot_rows_total{importer_role="target_db_importer",mi
 		r := NewPrometheusRecorder("uuid-1", "sess-1")
 		tup := newTupleForTest("public", "orders")
 		r.InitImportSnapshotTable("target_db_importer", tup)
-		lv := r.snapshotLabelValues("target_db_importer", tup)
+		lv := r.importDataLabelValues("target_db_importer", tup)
 		assert.Equal(t, float64(0), testutil.ToFloat64(r.importRowsTotal.WithLabelValues(lv...)))
 		assert.Equal(t, float64(0), testutil.ToFloat64(r.importBytesTotal.WithLabelValues(lv...)))
 	})
@@ -205,7 +205,7 @@ func TestInitImportSnapshotTableCreatesZeroSeriesWithoutSeed(t *testing.T) {
 	tup := newTupleForTest("public", "orders")
 	rec.InitImportSnapshotTable("target_db_importer", tup)
 
-	lv := rec.snapshotLabelValues("target_db_importer", tup)
+	lv := rec.importDataLabelValues("target_db_importer", tup)
 	assert.Equal(t, float64(0), testutil.ToFloat64(rec.importRowsTotal.WithLabelValues(lv...)))
 	assert.Equal(t, 1, testutil.CollectAndCount(rec.importRowsTotal))
 }
