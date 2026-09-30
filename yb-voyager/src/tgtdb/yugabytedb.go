@@ -435,6 +435,9 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	if IsPgErrorCodeNonRetryable(err) {
 		return true
 	}
+	if isColumnNameResolutionError(err) {
+		return true
+	}
 
 	// String pattern matching for non-retryable errors
 	// Kept this for safety so that we dont disrupt the already existing checks
