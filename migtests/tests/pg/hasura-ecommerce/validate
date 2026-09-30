@@ -42,6 +42,10 @@ def migration_completed_checks(tgt):
 	# YB installs postgres_fdw into pg_catalog itself from 2026.1.2 (yugabyte-db#30591)
 	if Version(yb.get_three_dot_version(tgt.get_target_version())) >= Version("2026.1.2"):
 		expected_extension_set.add(("postgres_fdw",))
+
+	extension_list = tgt.fetch_all_pg_extension("public")
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {expected_extension_set}")
+	assert extension_list == expected_extension_set
  
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
@@ -67,9 +71,6 @@ def migration_completed_checks(tgt):
 	assert tgt.get_functions_count("hdb_catalog") == 1
  
 	# fetch and check all pg_extensions from given schema
-	extension_list = tgt.fetch_all_pg_extension("public")
-	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {expected_extension_set}")
-	assert extension_list == expected_extension_set
  
 	# fetch and check all schemas in the databases
 	schema_list = tgt.fetch_all_schemas()

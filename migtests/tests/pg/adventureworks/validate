@@ -122,6 +122,10 @@ def migration_completed_checks(tgt):
 	if Version(yb.get_three_dot_version(tgt.get_target_version())) >= Version("2026.1.2"):
 		expected_extension_set.add(("postgres_fdw",))
 
+	extension_list = tgt.fetch_all_pg_extension("public")
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {expected_extension_set}")
+	assert extension_list == expected_extension_set
+
 	check_validations_per_schema(tgt, "public")
 	check_validations_per_schema(tgt, "hr")
 	check_validations_per_schema(tgt, "humanresources")
@@ -133,10 +137,6 @@ def migration_completed_checks(tgt):
 	check_validations_per_schema(tgt, "purchasing")
 	check_validations_per_schema(tgt, "sa")
 	check_validations_per_schema(tgt, "sales")
-
-	extension_list = tgt.fetch_all_pg_extension("public")
-	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {expected_extension_set}")
-	assert extension_list == expected_extension_set
 
 	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('NameStyle','Phone','Flag','Name','OrderNumber','AccountNumber');"
 	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
