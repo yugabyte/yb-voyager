@@ -6,7 +6,6 @@ from xmlrpc.client import boolean
 import psycopg2
 import json
 import re
-from packaging.version import Version
 
 
 def has_pg15_merge(version_string):
@@ -34,15 +33,6 @@ def has_pg15_merge(version_string):
 	
 	# Preview versions >= 2.25 or stable versions >= 2025.1
 	return (major == 2 and minor >= 25) or (major >= 2025 and minor >= 1)
-
-
-def has_preinstalled_postgres_fdw(version_string):
-	"""
-	YugabyteDB installs postgres_fdw into pg_catalog itself from 2026.1.2
-	(yugabyte-db#30591), so a migration can no longer place it in its own schema.
-	"""
-	three_dot_version = get_three_dot_version(version_string)
-	return bool(three_dot_version) and Version(three_dot_version) >= Version("2026.1.2")
 
 
 def get_three_dot_version(version_string):
@@ -347,12 +337,6 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT extname FROM pg_extension")
 		return set(cur.fetchall())
-
-	def fetch_all_pg_extension_excluding_preinstalled(self) -> set[tuple]:
-		extensions = self.fetch_all_pg_extension()
-		if has_preinstalled_postgres_fdw(self.get_target_version()):
-			extensions -= {("postgres_fdw",)}
-		return extensions
 
 	def fetch_all_schemas(self) -> set[str]:
 		cur = self.conn.cursor()

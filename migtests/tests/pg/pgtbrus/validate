@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from packaging.version import Version
+
 import yb
 
 def main():
@@ -49,7 +51,7 @@ def migration_completed_checks(tgt):
 	# 2.25+: 60 functions / procedures
 	# Thus the change in count.
 
-	if yb.has_preinstalled_postgres_fdw(tgtVersion):
+	if Version(yb.get_three_dot_version(tgtVersion)) >= Version("2026.1.2"):
 		# YB owns the extension from 2026.1.2, so its routines stay in pg_catalog
 		assert len(fetched_procedures_functions) == 4
 	elif yb.has_pg15_merge(tgtVersion):

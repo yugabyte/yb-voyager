@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from packaging.version import Version
+
 import yb
 
 def main():
@@ -36,9 +38,13 @@ EXPECTED_INDEX_COUNT = {
 
 def migration_completed_checks(tgt):
 
-	extension_list = tgt.fetch_all_pg_extension_excluding_preinstalled()
-	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {EXPECTED_EXTENSION_SET}")
-	assert extension_list == EXPECTED_EXTENSION_SET
+	expected_extension_set = set(EXPECTED_EXTENSION_SET)
+	# YB installs postgres_fdw into pg_catalog itself from 2026.1.2 (yugabyte-db#30591)
+	if Version(yb.get_three_dot_version(tgt.get_target_version())) >= Version("2026.1.2"):
+		expected_extension_set.add(("postgres_fdw",))
+	extension_list = tgt.fetch_all_pg_extension("public")
+	print(f"extension_list: {extension_list}\n EXPECTED_EXTENSION_SET: {expected_extension_set}")
+	assert extension_list == expected_extension_set
 
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
