@@ -10,11 +10,12 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// snapshotLabels is the label set shared by the import snapshot counters.
+// importDataLabels is the label set shared by the import snapshot counters.
 // Order is fixed and must not change (compat surface).
-var snapshotLabels = []string{"migration_uuid", "session_id", "importer_role", "table_name", "schema_name"}
-var errorLabels = append(append([]string{}, snapshotLabels...), "error_kind")
+var importDataLabels = []string{"migration_uuid", "session_id", "importer_role", "table_name", "schema_name"}
+var errorLabels = append(append([]string{}, importDataLabels...), "error_kind")
 var importerRoleLabels = []string{"migration_uuid", "session_id", "importer_role"}
+
 var cdcEventLabels = append(append([]string{}, importerRoleLabels...), "event_type")
 var exportSnapshotLabels = []string{"migration_uuid", "session_id", "exporter_role", "table_name", "schema_name"}
 var exporterRoleLabels = []string{"migration_uuid", "session_id", "exporter_role"}
@@ -58,6 +59,9 @@ type PrometheusRecorder struct {
 	importCDCEstimatedSecondsToCatchUp *prometheus.GaugeVec
 	importCDCLastEventApplied          *prometheus.GaugeVec
 
+	// import CDC conflicts
+	importCDCConflictsTotal *prometheus.CounterVec
+
 	// export snapshot
 	exportSnapshotRows        *prometheus.CounterVec
 	exportRowsMu              sync.Mutex
@@ -90,51 +94,51 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 		importRowsTotal: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_data_snapshot_rows_total",
 			Help: "Total rows imported during snapshot",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importBytesTotal: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_data_snapshot_bytes_total",
 			Help: "Total bytes imported during snapshot",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importSnapshotBatchCreated: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_data_snapshot_batch_created_total",
 			Help: "Total number of batches created for import",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importSnapshotBatchSubmitted: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_data_snapshot_batch_submitted_total",
 			Help: "Total number of batches submitted to worker pool",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importSnapshotBatchIngested: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_import_data_snapshot_batch_ingested_total",
 			Help: "Total number of batches successfully ingested",
-		}, snapshotLabels),
+		}, importDataLabels),
 		// PromQL: histogram_quantile(0.9, sum by (le) (rate(yb_voyager_import_data_snapshot_batch_size_rows_bucket[5m])))
 		importBatchSizeRows: f.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "yb_voyager_import_data_snapshot_batch_size_rows",
 			Help:    "Distribution of import batch sizes in rows",
 			Buckets: []float64{100, 500, 1000, 5000, 10000, 50000, 100000},
-		}, snapshotLabels),
+		}, importDataLabels),
 		importBatchSizeBytes: f.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "yb_voyager_import_data_snapshot_batch_size_bytes",
 			Help:    "Distribution of import batch sizes in bytes",
 			Buckets: prometheus.ExponentialBuckets(1024, 4, 8), // 1KiB .. ~16MiB
-		}, snapshotLabels),
+		}, importDataLabels),
 		// PromQL: time() - yb_voyager_import_data_snapshot_table_last_batch_ingested_timestamp_seconds > 600  (stalled >10m)
 		importLastBatchIngestedTS: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_import_data_snapshot_table_last_batch_ingested_timestamp_seconds",
 			Help: "Unix timestamp of the most recent successful batch ingest per table",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importTableExpectedRows: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_import_data_snapshot_table_expected_rows",
 			Help: "Expected total rows for the table during snapshot import",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importTableStartTS: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_import_data_snapshot_table_start_timestamp_seconds",
 			Help: "Unix timestamp when import of the table started",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importTableCompletedTS: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_import_data_snapshot_table_completed_timestamp_seconds",
 			Help: "Unix timestamp when import of the table completed",
-		}, snapshotLabels),
+		}, importDataLabels),
 		importSnapshotTablesTotal: f.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "yb_voyager_import_data_snapshot_tables_total",
 			Help: "Number of tables in scope for the import snapshot phase; set once at phase start",
@@ -165,6 +169,11 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 			Name: "yb_voyager_import_data_cdc_last_event_applied_timestamp_seconds",
 			Help: "Unix timestamp of the most recent successfully applied CDC event batch",
 		}, importerRoleLabels),
+		// PromQL: sum by (schema_name, table_name) (rate(yb_voyager_import_data_cdc_conflicts_total[5m]))
+		importCDCConflictsTotal: f.NewCounterVec(prometheus.CounterOpts{
+			Name: "yb_voyager_import_data_cdc_conflicts_total",
+			Help: "Total streaming CDC events that had to block on a detected unique-key conflict (one per blocked event)",
+		}, importDataLabels),
 		exportSnapshotRows: f.NewCounterVec(prometheus.CounterOpts{
 			Name: "yb_voyager_export_data_snapshot_rows_total",
 			Help: "Total rows exported during snapshot",
@@ -218,8 +227,8 @@ func NewPrometheusRecorder(migrationUUID, sessionID string) *PrometheusRecorder 
 // Registry exposes the recorder's registry for the HTTP handler.
 func (p *PrometheusRecorder) Registry() *prometheus.Registry { return p.reg }
 
-// snapshotLabelValues returns label values in snapshotLabels order.
-func (p *PrometheusRecorder) snapshotLabelValues(importerRole string, t sqlname.NameTuple) []string {
+// importDataLabelValues returns label values in snapshotLabels order.
+func (p *PrometheusRecorder) importDataLabelValues(importerRole string, t sqlname.NameTuple) []string {
 	schema, table := t.ForKeyTableSchema()
 	return []string{p.migrationUUID, p.sessionID, importerRole, table, schema}
 }
@@ -273,15 +282,15 @@ func (p *PrometheusRecorder) RecordExportCDCEvents(exporterRole string, events i
 // import snapshot
 
 func (p *PrometheusRecorder) RecordImportSnapshotBatchCreated(importerRole string, t sqlname.NameTuple) {
-	p.importSnapshotBatchCreated.WithLabelValues(p.snapshotLabelValues(importerRole, t)...).Inc()
+	p.importSnapshotBatchCreated.WithLabelValues(p.importDataLabelValues(importerRole, t)...).Inc()
 }
 
 func (p *PrometheusRecorder) RecordImportSnapshotBatchSubmitted(importerRole string, t sqlname.NameTuple) {
-	p.importSnapshotBatchSubmitted.WithLabelValues(p.snapshotLabelValues(importerRole, t)...).Inc()
+	p.importSnapshotBatchSubmitted.WithLabelValues(p.importDataLabelValues(importerRole, t)...).Inc()
 }
 
 func (p *PrometheusRecorder) RecordImportSnapshotBatchIngested(importerRole string, t sqlname.NameTuple, rows, bytes int64) {
-	lv := p.snapshotLabelValues(importerRole, t)
+	lv := p.importDataLabelValues(importerRole, t)
 	p.importRowsTotal.WithLabelValues(lv...).Add(float64(rows))
 	p.importBytesTotal.WithLabelValues(lv...).Add(float64(bytes))
 	p.importSnapshotBatchIngested.WithLabelValues(lv...).Inc()
@@ -289,26 +298,26 @@ func (p *PrometheusRecorder) RecordImportSnapshotBatchIngested(importerRole stri
 }
 
 func (p *PrometheusRecorder) ObserveImportSnapshotBatchSize(importerRole string, t sqlname.NameTuple, rows, bytes int64) {
-	lv := p.snapshotLabelValues(importerRole, t)
+	lv := p.importDataLabelValues(importerRole, t)
 	p.importBatchSizeRows.WithLabelValues(lv...).Observe(float64(rows))
 	p.importBatchSizeBytes.WithLabelValues(lv...).Observe(float64(bytes))
 }
 
 func (p *PrometheusRecorder) RecordImportError(importerRole string, t sqlname.NameTuple, kind ErrorKind, rows, bytes int64) {
-	lv := append(p.snapshotLabelValues(importerRole, t), string(kind))
+	lv := append(p.importDataLabelValues(importerRole, t), string(kind))
 	p.importErrorsTotal.WithLabelValues(lv...).Add(float64(rows))
 	p.importErrorBytesTotal.WithLabelValues(lv...).Add(float64(bytes))
 }
 
 func (p *PrometheusRecorder) SetImportSnapshotTableExpectedRows(importerRole string, t sqlname.NameTuple, rows int64) {
-	p.importTableExpectedRows.WithLabelValues(p.snapshotLabelValues(importerRole, t)...).Set(float64(rows))
+	p.importTableExpectedRows.WithLabelValues(p.importDataLabelValues(importerRole, t)...).Set(float64(rows))
 }
 
 // InitImportSnapshotTable pre-registers the table's rows/bytes/batch series at
 // zero so panels aren't empty before the first batch is ingested. Counters are
 // not seeded with any cross-resume total; they reset to 0 per process.
 func (p *PrometheusRecorder) InitImportSnapshotTable(importerRole string, t sqlname.NameTuple) {
-	lv := p.snapshotLabelValues(importerRole, t)
+	lv := p.importDataLabelValues(importerRole, t)
 	p.importRowsTotal.WithLabelValues(lv...)
 	p.importBytesTotal.WithLabelValues(lv...)
 	p.importSnapshotBatchCreated.WithLabelValues(lv...)
@@ -317,11 +326,11 @@ func (p *PrometheusRecorder) InitImportSnapshotTable(importerRole string, t sqln
 }
 
 func (p *PrometheusRecorder) SetImportSnapshotTableStarted(importerRole string, t sqlname.NameTuple) {
-	p.importTableStartTS.WithLabelValues(p.snapshotLabelValues(importerRole, t)...).Set(float64(time.Now().Unix()))
+	p.importTableStartTS.WithLabelValues(p.importDataLabelValues(importerRole, t)...).Set(float64(time.Now().Unix()))
 }
 
 func (p *PrometheusRecorder) SetImportSnapshotTableCompleted(importerRole string, t sqlname.NameTuple) {
-	p.importTableCompletedTS.WithLabelValues(p.snapshotLabelValues(importerRole, t)...).Set(float64(time.Now().Unix()))
+	p.importTableCompletedTS.WithLabelValues(p.importDataLabelValues(importerRole, t)...).Set(float64(time.Now().Unix()))
 }
 
 func (p *PrometheusRecorder) SetImportSnapshotTablesTotal(importerRole string, count int) {
@@ -346,6 +355,10 @@ func (p *PrometheusRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole 
 
 func (p *PrometheusRecorder) SetImportCDCLastEventApplied(importerRole string) {
 	p.importCDCLastEventApplied.WithLabelValues(p.migrationUUID, p.sessionID, importerRole).Set(float64(time.Now().Unix()))
+}
+
+func (p *PrometheusRecorder) RecordImportCDCConflict(importerRole string, t sqlname.NameTuple) {
+	p.importCDCConflictsTotal.WithLabelValues(p.importDataLabelValues(importerRole, t)...).Inc()
 }
 
 // misc
