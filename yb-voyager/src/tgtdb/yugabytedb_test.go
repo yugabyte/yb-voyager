@@ -269,6 +269,45 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 	require.Equal(t, 0, len(emptyResult.Keys()))
 }
 
+func TestYugabyteGetPrimaryKeyColumnsForTablesMismatchedPartitionPKs(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		// partitions with different PK columns.
+		`CREATE TABLE test_schema.mm_cols (id INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.mm_cols_r1 PARTITION OF test_schema.mm_cols FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.mm_cols_r2 PARTITION OF test_schema.mm_cols FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.mm_cols_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.mm_cols_r2 ADD PRIMARY KEY (id, region);`,
+		// partitions with the same PK columns in a different order.
+		`CREATE TABLE test_schema.mm_order (id INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.mm_order_r1 PARTITION OF test_schema.mm_order FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.mm_order_r2 PARTITION OF test_schema.mm_order FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.mm_order_r1 ADD PRIMARY KEY (id, region);`,
+		`ALTER TABLE test_schema.mm_order_r2 ADD PRIMARY KEY (region, id);`,
+		// one partition with a PK, one without.
+		`CREATE TABLE test_schema.mm_nopk (id INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.mm_nopk_r1 PARTITION OF test_schema.mm_nopk FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.mm_nopk_r2 PARTITION OF test_schema.mm_nopk FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.mm_nopk_r1 ADD PRIMARY KEY (id);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	mismatchedCols := testutils.CreateNameTupleWithTargetName("test_schema.mm_cols", "public", YUGABYTEDB)
+	mismatchedOrder := testutils.CreateNameTupleWithTargetName("test_schema.mm_order", "public", YUGABYTEDB)
+	missingPK := testutils.CreateNameTupleWithTargetName("test_schema.mm_nopk", "public", YUGABYTEDB)
+	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK}
+
+	_, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(tablesList, true)
+	require.EqualError(t, err, "partitioned table(s) whose partitions have inconsistent primary keys on the target: "+
+		mismatchedCols.ForOutput()+": (id), (id, region); "+
+		missingPK.ForOutput()+": (id), (no primary key); "+
+		mismatchedOrder.ForOutput()+": (id, region), (region, id)")
+
+	ownPKResult, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(tablesList, false)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(ownPKResult.Keys()))
+}
+
 func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema`,
