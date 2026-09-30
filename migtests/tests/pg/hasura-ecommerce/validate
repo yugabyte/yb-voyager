@@ -31,12 +31,6 @@ EXPECTED_ROW_COUNT = {
 }
 
 EXPECTED_EXTENSION_SET = set([("pgcrypto",), ("pg_stat_statements",), ("plpgsql",)]) #  set of tuples
-
-def add_version_specific_extensions(tgt):
-	# YB installs postgres_fdw into pg_catalog itself from 2026.1.2 (yugabyte-db#30591)
-	if Version(yb.get_three_dot_version(tgt.get_target_version())) >= Version("2026.1.2"):
-		EXPECTED_EXTENSION_SET.add(("postgres_fdw",))
-
 EXPECTED_SCHEMA_SET = set([("hdb_catalog",), ("public",), ("ybvoyager_metadata",)])
 
 def YB_specific_checks(tgt):
@@ -44,7 +38,9 @@ def YB_specific_checks(tgt):
 
 def migration_completed_checks(tgt):
 
-	add_version_specific_extensions(tgt)
+	# YB installs postgres_fdw into pg_catalog itself from 2026.1.2 (yugabyte-db#30591)
+	if Version(yb.get_three_dot_version(tgt.get_target_version())) >= Version("2026.1.2"):
+		EXPECTED_EXTENSION_SET.add(("postgres_fdw",))
  
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
