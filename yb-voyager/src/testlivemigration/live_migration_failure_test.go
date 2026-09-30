@@ -19,6 +19,8 @@ package testlivemigration
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,6 +28,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -980,4 +983,108 @@ func TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium(t *testi
 
 	verifyNewIterationForward(t, lm, 5)
 	t.Log("TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium passed")
+}
+
+// ---------------------------------------------------------------------------
+// import-data-to-target crashes after it records CutoverDetectedByTargetImporter
+// in the MSR but before the event channels drain, so events read from the
+// segment ahead of the cutover event are still batched in memory and were
+// never applied. On resume, streamChanges sees cutoverInitiatedAndCutoverEventProcessed
+// and must still apply those in-flight events before postCutoverProcessing;
+// otherwise cutover completes with the target missing them.
+//
+// Data pattern: inFlightInserts rows are inserted on source while import is
+// stopped, so they sit in the queue segment directly before the cutover event.
+// MAX_INTERVAL_BETWEEN_BATCHES is raised to 60s so the channel processors cannot
+// flush those rows on the batch timer before the failpoint crashes the process,
+// and MAX_EVENTS_PER_BATCH (500) is never reached with inFlightInserts rows.
+// ---------------------------------------------------------------------------
+
+const inFlightInserts = int64(50)
+
+func TestCutoverToTargetResumption_ImporterCrashAfterCutoverDetectedBeforeChannelsDrained(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, newCutoverResumptionTestConfig(
+		"test_ct_resumption_importer_inflight_events"))
+	defer lm.Cleanup()
+
+	setupToForwardStreaming(t, lm)
+
+	err := lm.StopImportData()
+	require.NoError(t, err, "failed to stop import data")
+
+	err = lm.ExecuteOnSource(fmt.Sprintf(
+		`INSERT INTO test_schema.test_table (name, value)
+		SELECT 'inflight_' || i, 300 + i FROM generate_series(1, %d) i;`, inFlightInserts))
+	require.NoError(t, err, "failed to insert in-flight rows on source")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	require.NoError(t, err, "failed to initiate cutover to target")
+
+	// The exporter sets this flag only after Debezium has written the cutover
+	// event to the queue and exited, so once it is set the importer will read
+	// the in-flight rows and the cutover event back to back in the same segment.
+	require.Eventually(t, func() bool {
+		detected := false
+		err := lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
+			msr, err := mdb.GetMigrationStatusRecord()
+			if err != nil {
+				return err
+			}
+			detected = msr.CutoverDetectedBySourceExporter
+			return nil
+		})
+		return err == nil && detected
+	}, 180*time.Second, 2*time.Second, "exporter did not detect cutover and write the cutover event")
+
+	fpEnv := testutils.GetFailpointEnvVar(
+		fpPkgPrefix + "cutoverDetectedByImporterBeforeChannelsDrained=return(true)",
+	)
+	err = lm.StartImportDataWithEnv(true, nil, []string{fpEnv, "MAX_INTERVAL_BETWEEN_BATCHES=60000"})
+	require.NoError(t, err, "failed to start import data with failpoint")
+
+	markerPath := filepath.Join(lm.GetCurrentExportDir(), markerDir,
+		"failpoint-cutover-detected-by-importer-before-channels-drained.log")
+	err = lm.WaitForImportFailpointAndProcessCrash(
+		t, markerPath, 180*time.Second, 60*time.Second)
+	require.NoError(t, err, "import data did not crash after cutover detected, before channels drained")
+	t.Log("import data crashed after cutover detected with events in flight — resuming")
+
+	err = lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
+		msr, err := mdb.GetMigrationStatusRecord()
+		if err != nil {
+			return err
+		}
+		require.True(t, msr.CutoverDetectedByTargetImporter,
+			"importer should have recorded cutover detected before crashing")
+		return nil
+	})
+	require.NoError(t, err, "failed to read migration status record")
+
+	// Pins the edge case: none of the in-flight rows reached the target before the crash.
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		return testutils.AssertRowCount(context.Background(), target, tableName, int(snapshotRows+deltaInserts))
+	})
+	require.NoError(t, err, "in-flight rows were applied before the crash; the test did not exercise the edge case")
+
+	removeFailpointMarkers(lm.GetCurrentExportDir())
+
+	err = lm.StartImportData(true, nil)
+	require.NoError(t, err, "failed to resume import data")
+
+	err = lm.WaitForCutoverComplete(0, 180)
+	require.NoError(t, err, "cutover-to-target did not complete after resume")
+
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		return testutils.AssertRowCount(context.Background(), target, tableName, int(snapshotRows+deltaInserts+inFlightInserts))
+	})
+	require.NoError(t, err, "in-flight events from the crashed run were not applied on target after resume")
+
+	err = lm.ValidateDataConsistency([]string{tableName}, "id")
+	require.NoError(t, err, "data mismatch after cutover-to-target resume with in-flight events")
+
+	verifyFallbackAfterCutoverToTarget(t, lm)
+	t.Log("TestCutoverToTargetResumption_ImporterCrashAfterCutoverDetectedBeforeChannelsDrained passed")
 }

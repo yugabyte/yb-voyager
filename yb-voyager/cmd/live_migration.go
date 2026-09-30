@@ -272,6 +272,7 @@ func streamChangesFromSegment(
 				return goerrors.Errorf("error updating the migration status record for cutover detected case: %w", err)
 			}
 			updateCallhomeImportPhase(event)
+			injectCutoverDetectedByImporterBeforeChannelsDrained()
 
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
