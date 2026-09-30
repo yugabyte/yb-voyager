@@ -592,6 +592,12 @@ func TestLiveMigrationPartitionedTableWithChildPKRefusesUsePartitionRootTrue(t *
 
 	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
 
 /*
