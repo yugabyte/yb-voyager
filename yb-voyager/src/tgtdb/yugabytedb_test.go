@@ -181,6 +181,14 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 		) PARTITION BY LIST (region);`,
 		`CREATE TABLE test_schema."CasePart_r1" PARTITION OF test_schema."CasePart" FOR VALUES IN ('r1');`,
 		`ALTER TABLE test_schema."CasePart_r1" ADD PRIMARY KEY ("Id");`,
+		// multi-level partitioned table: no PK on the root or the intermediates, PK on the leaves only.
+		`CREATE TABLE test_schema.ml_part (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_part_r1 PARTITION OF test_schema.ml_part FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_part_r2 PARTITION OF test_schema.ml_part FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_part_r1_s1 PARTITION OF test_schema.ml_part_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_part_r2_s1 PARTITION OF test_schema.ml_part_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_part_r1_s1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.ml_part_r2_s1 ADD PRIMARY KEY (id);`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -233,6 +241,12 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 		{
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.\"CasePart\"", "public", YUGABYTEDB),
 			expectedPKCols: []string{"Id"},
+			leafPKOnly:     true,
+		},
+		{
+			// multi-level root: intermediates without a PK are not compared.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.ml_part", "public", YUGABYTEDB),
+			expectedPKCols: []string{"id"},
 			leafPKOnly:     true,
 		},
 	}
@@ -289,16 +303,26 @@ func TestYugabyteGetPrimaryKeyColumnsForTablesMismatchedPartitionPKs(t *testing.
 		`CREATE TABLE test_schema.mm_nopk_r1 PARTITION OF test_schema.mm_nopk FOR VALUES IN ('r1');`,
 		`CREATE TABLE test_schema.mm_nopk_r2 PARTITION OF test_schema.mm_nopk FOR VALUES IN ('r2');`,
 		`ALTER TABLE test_schema.mm_nopk_r1 ADD PRIMARY KEY (id);`,
+		// multi-level: leaves under different intermediates with different PK columns.
+		`CREATE TABLE test_schema.ml_mm (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_mm_r1 PARTITION OF test_schema.ml_mm FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_mm_r2 PARTITION OF test_schema.ml_mm FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_mm_r1_s1 PARTITION OF test_schema.ml_mm_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_mm_r2_s1 PARTITION OF test_schema.ml_mm_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_mm_r1_s1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.ml_mm_r2_s1 ADD PRIMARY KEY (id, sub);`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	mismatchedCols := testutils.CreateNameTupleWithTargetName("test_schema.mm_cols", "public", YUGABYTEDB)
 	mismatchedOrder := testutils.CreateNameTupleWithTargetName("test_schema.mm_order", "public", YUGABYTEDB)
 	missingPK := testutils.CreateNameTupleWithTargetName("test_schema.mm_nopk", "public", YUGABYTEDB)
-	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK}
+	multiLevelMismatch := testutils.CreateNameTupleWithTargetName("test_schema.ml_mm", "public", YUGABYTEDB)
+	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK, multiLevelMismatch}
 
 	_, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(tablesList, true)
 	require.EqualError(t, err, "partitioned table(s) whose partitions have inconsistent primary keys on the target: "+
+		multiLevelMismatch.ForOutput()+": (id), (id, sub); "+
 		mismatchedCols.ForOutput()+": (id), (id, region); "+
 		missingPK.ForOutput()+": (id), (no primary key); "+
 		mismatchedOrder.ForOutput()+": (id, region), (region, id)")
@@ -1441,7 +1465,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
 	require.True(t, ok)
 
-	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList, true)
 	require.NoError(t, err)
 	expectedLeafTableToRootTableMap := map[string]string{
 		table1.AsQualifiedCatalogName():           table1.AsQualifiedCatalogName(),

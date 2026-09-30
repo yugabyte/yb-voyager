@@ -370,10 +370,10 @@ ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 // no primary key of its own. With attributeLeafPKToRoot true (CDC applied on the leaves,
 // --use-partition-root false), we discover the PK of every leaf partition (and the
 // root/normal tables themselves) and attribute it to the root. A root's own primary key is
-// authoritative; a leaf's PK is used only when the root has none, and only if every partition
-// has the same PK (same columns, same order); otherwise it errors, since no single PK can be
-// attributed. Partitions include intermediates, so an intermediate without its own PK is flagged
-// even when its leaves agree. With attributeLeafPKToRoot false, a root gets only its
+// authoritative; a leaf's PK is used only when the root has none, and only if every leaf has
+// the same PK (same columns, same order); otherwise it errors, since no single PK can be
+// attributed. Intermediate partitions are not compared (as in export data's source-side check):
+// a PK declared on one is propagated to its leaves. With attributeLeafPKToRoot false, a root gets only its
 // own PK: a leaf's PK is not unique across partitions, so it is not a key of the root.
 func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple, attributeLeafPKToRoot bool) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -388,7 +388,7 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 	var tableToRootMap map[string]string
 	if attributeLeafPKToRoot {
 		var err error
-		tableToRootMap, err = getPartitionTableToRootTableMap(queryFn, tables)
+		tableToRootMap, err = getPartitionTableToRootTableMap(queryFn, tables, false)
 		if err != nil {
 			return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 		}
@@ -440,7 +440,7 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 		rootCatalogToTuple[t.AsQualifiedCatalogName()] = t
 	}
 
-	// For each root, the distinct PKs of its partitions (intermediate and leaf), formatted for output.
+	// For each root, the distinct PKs of its leaf partitions, formatted for output.
 	rootToPartitionPKs := make(map[string]map[string][]string)
 	for catalogName, rootCatalogName := range tableToRootMap {
 		if catalogName == rootCatalogName {
@@ -516,7 +516,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
 	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
 	// includes each leaf partition -> root, and each root/normal table -> itself.
-	tableToRootMap, err := getPartitionTableToRootTableMap(pg.Query, tableList)
+	tableToRootMap, err := getPartitionTableToRootTableMap(pg.Query, tableList, true)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
