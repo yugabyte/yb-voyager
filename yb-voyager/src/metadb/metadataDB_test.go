@@ -19,10 +19,12 @@ package metadb
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
@@ -198,15 +200,21 @@ func segmentImportedBy(t *testing.T, mdb *MetaDB, segmentNo int, importerRole st
 	return imported
 }
 
-// TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetected pins that the segment mark
-// and the cutover-detected flag are committed together or not at all.
-func TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetected(t *testing.T) {
-	t.Run("marks the segment and the importer's cutover flag together", func(t *testing.T) {
+// TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn pins that the segment
+// mark and the MSR update are committed together or not at all.
+func TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(t *testing.T) {
+	markTargetImporter := func(record *MigrationStatusRecord) error {
+		record.CutoverDetectedByTargetImporter = true
+		record.CutoverTimings.DetectedByTargetImporterAt = time.Now()
+		return nil
+	}
+
+	t.Run("marks the segment and updates the MSR together", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
 		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 0)
 
-		require.NoError(t, mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetected(1, constants.TARGET_DB_IMPORTER_ROLE))
+		require.NoError(t, mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(1, constants.TARGET_DB_IMPORTER_ROLE, markTargetImporter))
 
 		assert.Equal(t, 1, segmentImportedBy(t, mdb, 1, constants.TARGET_DB_IMPORTER_ROLE))
 		assert.Equal(t, 0, segmentImportedBy(t, mdb, 1, constants.SOURCE_DB_IMPORTER_ROLE))
@@ -218,26 +226,27 @@ func TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetected(t *testing.T) 
 		assert.False(t, msr.CutoverDetectedBySourceReplicaImporter)
 	})
 
-	t.Run("missing segment rolls back the cutover flag", func(t *testing.T) {
+	t.Run("missing segment rolls back the MSR update", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
 
-		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetected(1, constants.SOURCE_DB_IMPORTER_ROLE)
+		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(1, constants.TARGET_DB_IMPORTER_ROLE, markTargetImporter)
 		require.ErrorContains(t, err, "expected 1 row to be updated, got 0")
 
 		msr, err := mdb.GetMigrationStatusRecord()
 		require.NoError(t, err)
-		assert.False(t, msr.CutoverDetectedBySourceImporter)
-		assert.True(t, msr.CutoverTimings.DetectedBySourceImporterAt.IsZero())
+		assert.False(t, msr.CutoverDetectedByTargetImporter)
+		assert.True(t, msr.CutoverTimings.DetectedByTargetImporterAt.IsZero())
 	})
 
-	t.Run("unknown importer role writes nothing", func(t *testing.T) {
+	t.Run("updateFn error writes nothing", func(t *testing.T) {
 		mdb := newTestMetaDB(t)
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
 		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 0)
 
-		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetected(1, "bogus_importer")
-		require.EqualError(t, err, `cannot mark cutover detected for unknown importer role "bogus_importer"`)
+		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(1, constants.TARGET_DB_IMPORTER_ROLE,
+			func(*MigrationStatusRecord) error { return errors.New("update failed") })
+		require.EqualError(t, err, "update failed")
 
 		assert.Equal(t, 0, segmentImportedBy(t, mdb, 1, constants.TARGET_DB_IMPORTER_ROLE))
 		msr, err := mdb.GetMigrationStatusRecord()

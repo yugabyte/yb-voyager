@@ -1052,18 +1052,6 @@ func TestCutoverToTargetResumption_ImporterCrashAfterCutoverDetectedBeforeChanne
 	require.NoError(t, err, "import data did not crash after cutover detected, before channels drained")
 	t.Log("import data crashed after cutover detected with events in flight — resuming")
 
-	// err = lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
-	// 	msr, err := mdb.GetMigrationStatusRecord()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	require.True(t, msr.CutoverDetectedByTargetImporter,
-	// 		"importer should have recorded cutover detected before crashing")
-	// 	return nil
-	// })
-	// require.NoError(t, err, "failed to read migration status record")
-
-	// Pins the edge case: none of the in-flight rows reached the target before the crash.
 	err = lm.WithTargetConn(func(target *sql.DB) error {
 		return testutils.AssertRowCount(context.Background(), target, tableName, int(snapshotRows+deltaInserts))
 	})
