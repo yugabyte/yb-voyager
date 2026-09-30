@@ -2033,7 +2033,10 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 				log.Warnf("callhome: lookup for table %q in name registry: %v", table, err)
 				continue
 			}
-			anonymized, ok := callhomeMetricsCollector.AnonymizedTableName(nameTuple)
+			anonymized, ok, err := callhomeMetricsCollector.AnonymizedTableName(nameTuple)
+			if err != nil {
+				log.Warnf("callhome: %v", err)
+			}
 			if !ok {
 				log.Warnf("callhome: no anonymized table name for %s; reporting it under a %s bucket", nameTuple.ForOutput(), constants.OBFUSCATE_STRING)
 				anonymized = fmt.Sprintf("%s_%d", constants.OBFUSCATE_STRING, i)
