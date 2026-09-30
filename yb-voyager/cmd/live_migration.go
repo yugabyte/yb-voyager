@@ -278,14 +278,8 @@ func streamChangesFromSegment(
 		<-processingDoneChans[i]
 	}
 
-	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
-	if err != nil {
-		return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
-	}
-	log.Infof("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
-
 	if cutoverDetected {
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err = metaDB.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(segment.SegmentNum, importerRole, func(record *metadb.MigrationStatusRecord) error {
 			switch importerRole {
 			case TARGET_DB_IMPORTER_ROLE:
 				record.CutoverDetectedByTargetImporter = true
@@ -297,14 +291,22 @@ func streamChangesFromSegment(
 				record.CutoverDetectedBySourceImporter = true
 				record.CutoverTimings.DetectedBySourceImporterAt = utils.GetCurrentTimestamp()
 			}
+			return nil
 		})
 		if err != nil {
-			return goerrors.Errorf("error updating the migration status record for cutover detected case: %w", err)
+			return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
 		}
 		updateCallhomeImportPhase(cutoverEvent)
 		eventQueue.EndOfQueue = true
 		segment.MarkProcessed()
+	} else {
+		err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
+
+		if err != nil {
+			return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
+		}
 	}
+	log.Infof("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 
 	return nil
 }
