@@ -744,8 +744,7 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 		callhome.SendDiagnostics = origSendDiagnostics
 	}()
 	// No anonymizer: this test only checks that the conflict reaches the collector once, so it
-	// counts under the placeholder key. Anonymization itself is covered by the callhome package
-	// tests (TestIncrementConflictCountForTable_KeysByAnonymizedName).
+	// counts under the placeholder key.
 	callhomeMetricsCollector = callhome.NewImportDataMetricsCollector(nil)
 	callhome.SendDiagnostics = true
 

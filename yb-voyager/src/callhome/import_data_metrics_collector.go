@@ -16,12 +16,15 @@ limitations under the License.
 package callhome
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -36,36 +39,46 @@ type ImportDataMetricsCollector struct {
 
 	// anonymizer turns a table name into the form safe to put in a callhome payload. It is
 	// set once at construction and never reassigned, so reading it needs no lock.
-	anonymizer *anon.VoyagerAnonymizer
+	anonymizer                  *anon.VoyagerAnonymizer
+	nameTuplesToAnonymizeTables *utils.StructMap[sqlname.NameTuple, string]
 }
 
 func NewImportDataMetricsCollector(anonymizer *anon.VoyagerAnonymizer) *ImportDataMetricsCollector {
 	return &ImportDataMetricsCollector{
-		snapshotTotalRows:          0,
-		snapshotTotalBytes:         0,
-		currentParallelConnections: 0,
-		cdcConflictCountPerTable:   make(map[string]int64),
-		anonymizer:                 anonymizer,
+		snapshotTotalRows:           0,
+		snapshotTotalBytes:          0,
+		currentParallelConnections:  0,
+		cdcConflictCountPerTable:    make(map[string]int64),
+		anonymizer:                  anonymizer,
+		nameTuplesToAnonymizeTables: utils.NewStructMap[sqlname.NameTuple, string](),
 	}
 }
 
 // AnonymizedTableName returns the table's name in the form safe to report, and false when it
 // cannot be produced. It takes no lock, so IncrementConflictCountForTable can call it while
 // holding the write lock (RWMutex is not reentrant).
-func (c *ImportDataMetricsCollector) AnonymizedTableName(table sqlname.NameTuple) (string, bool) {
+func (c *ImportDataMetricsCollector) AnonymizedTableName(table sqlname.NameTuple) (string, bool, error) {
+	c.RLock()
+	defer c.RUnlock()
+	anon, ok := c.nameTuplesToAnonymizeTables.Get(table)
+	if ok {
+		return anon, true, nil
+	}
 	if c.anonymizer == nil {
-		return "", false
+		return "", false, errors.New("no anonymizer")
 	}
 	schema, name := table.ForCatalogQuery()
 	anonSchema, err := c.anonymizer.AnonymizeSchemaName(schema)
 	if err != nil {
-		return "", false
+		return "", false, fmt.Errorf("anonymize table name: %w", err)
 	}
 	anonName, err := c.anonymizer.AnonymizeTableName(name)
 	if err != nil {
-		return "", false
+		return "", false, fmt.Errorf("anonymize schema name: %w", err)
 	}
-	return anonSchema + "." + anonName, true
+	anonymized := anonSchema + "." + anonName
+	c.nameTuplesToAnonymizeTables.Put(table, anonymized)
+	return anonymized, true, nil
 }
 
 func (c *ImportDataMetricsCollector) IncrementSnapshotProgress(rows int64, bytes int64) {
@@ -81,7 +94,10 @@ func (c *ImportDataMetricsCollector) IncrementSnapshotProgress(rows int64, bytes
 func (c *ImportDataMetricsCollector) IncrementConflictCountForTable(table sqlname.NameTuple) {
 	c.Lock()
 	defer c.Unlock()
-	anonymized, ok := c.AnonymizedTableName(table)
+	anonymized, ok, err := c.AnonymizedTableName(table)
+	if err != nil {
+		log.Warnf("callhome: %v", err)
+	}
 	if !ok {
 		log.Warnf("callhome: no anonymized name for %s; counting its conflicts under %q", table.ForOutput(), constants.OBFUSCATE_STRING)
 		anonymized = constants.OBFUSCATE_STRING
