@@ -321,7 +321,7 @@ func TestYugabyteGetPrimaryKeyColumnsForTablesMismatchedPartitionPKs(t *testing.
 	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK, multiLevelMismatch}
 
 	_, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(tablesList, true)
-	require.EqualError(t, err, "partitioned table(s) whose partitions have inconsistent primary keys on the target: "+
+	require.EqualError(t, err, "partitioned table(s) whose leaf partitions have inconsistent primary keys on the target: "+
 		multiLevelMismatch.ForOutput()+": (id), (id, sub); "+
 		mismatchedCols.ForOutput()+": (id), (id, region); "+
 		missingPK.ForOutput()+": (id), (no primary key); "+
@@ -1509,6 +1509,13 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, expectedValue, returnedValue)
 	}
+
+	// Without intermediates, only the non-leaf partition table_partitioned_l1 drops out.
+	leavesOnlyMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList, false)
+	require.NoError(t, err)
+	delete(expectedLeafTableToRootTableMap, testutils.CreateNameTupleWithTargetName(
+		"test_expression_indexes.table_partitioned_l1", "public", YUGABYTEDB).AsQualifiedCatalogName())
+	assert.Equal(t, expectedLeafTableToRootTableMap, leavesOnlyMap)
 
 	tableTuplesHavingExpressionIndexes, err := yb.GetTablesHavingExpressionUniqueIndexes(tableTuplesList, true)
 	require.NoError(t, err)

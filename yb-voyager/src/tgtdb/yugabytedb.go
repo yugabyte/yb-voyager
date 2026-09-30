@@ -2571,7 +2571,7 @@ func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, erro
 		relkind
 	  FROM find_root
 	  WHERE NOT EXISTS (
-		SELECT 1 FROM pg_inherits inh2
+		SELECT 1 FROM pg_inherits inh2 
 		WHERE inh2.inhrelid = find_root.current_oid
 	  )
 	  ORDER BY table_oid

@@ -441,7 +441,7 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 	}
 
 	// For each root, the distinct PKs of its leaf partitions, formatted for output.
-	rootToPartitionPKs := make(map[string]map[string][]string)
+	rootToLeafPKs := make(map[string]map[string][]string)
 	for catalogName, rootCatalogName := range tableToRootMap {
 		if catalogName == rootCatalogName {
 			continue
@@ -454,10 +454,10 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 		if len(pkColumns) > 0 {
 			pkForOutput = "(" + strings.Join(pkColumns, ", ") + ")"
 		}
-		if rootToPartitionPKs[rootCatalogName] == nil {
-			rootToPartitionPKs[rootCatalogName] = make(map[string][]string)
+		if rootToLeafPKs[rootCatalogName] == nil {
+			rootToLeafPKs[rootCatalogName] = make(map[string][]string)
 		}
-		rootToPartitionPKs[rootCatalogName][pkForOutput] = pkColumns
+		rootToLeafPKs[rootCatalogName][pkForOutput] = pkColumns
 	}
 
 	var mismatches []string
@@ -468,25 +468,25 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 			result.Put(t, pkColumns)
 			continue
 		}
-		partitionPKs := rootToPartitionPKs[rootCatalogName]
-		switch len(partitionPKs) {
+		leafPKs := rootToLeafPKs[rootCatalogName]
+		switch len(leafPKs) {
 		case 0:
 			continue
 		case 1:
-			for _, pkColumns := range partitionPKs {
+			for _, pkColumns := range leafPKs {
 				if len(pkColumns) > 0 {
 					result.Put(t, pkColumns)
 				}
 			}
 		default:
-			pksForOutput := lo.Keys(partitionPKs)
+			pksForOutput := lo.Keys(leafPKs)
 			sort.Strings(pksForOutput)
 			mismatches = append(mismatches, fmt.Sprintf("%s: %s", t.ForOutput(), strings.Join(pksForOutput, ", ")))
 		}
 	}
 	if len(mismatches) > 0 {
 		sort.Strings(mismatches)
-		return nil, goerrors.Errorf("partitioned table(s) whose partitions have inconsistent primary keys on the target: %s",
+		return nil, goerrors.Errorf("partitioned table(s) whose leaf partitions have inconsistent primary keys on the target: %s",
 			strings.Join(mismatches, "; "))
 	}
 

@@ -297,7 +297,7 @@ func TestPostgresGetPrimaryKeyColumnsForTablesMismatchedPartitionPKs(t *testing.
 	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK, multiLevelMismatch}
 
 	_, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(tablesList, true)
-	require.EqualError(t, err, "partitioned table(s) whose partitions have inconsistent primary keys on the target: "+
+	require.EqualError(t, err, "partitioned table(s) whose leaf partitions have inconsistent primary keys on the target: "+
 		multiLevelMismatch.ForOutput()+": (id), (id, sub); "+
 		mismatchedCols.ForOutput()+": (id), (id, region); "+
 		missingPK.ForOutput()+": (id), (no primary key); "+
