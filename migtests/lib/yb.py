@@ -37,7 +37,7 @@ def has_pg15_merge(version_string):
 
 def get_three_dot_version(version_string):
 	# Extract the YB three-dot version (e.g. "2025.2.4") from a version() string.
-	match = re.search(r'YB-([0-9]+\.[0-9]+\.[0-9]+)', version_string or "")
+	match = re.search(r'YB-([0-9]+\.[0-9]+\.[0-9])', version_string or "")
 	return match.group(1) if match else ""
 
 
