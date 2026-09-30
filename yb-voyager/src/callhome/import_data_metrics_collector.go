@@ -92,8 +92,6 @@ func (c *ImportDataMetricsCollector) IncrementSnapshotProgress(rows int64, bytes
 // name. A table that cannot be anonymized is counted under a shared placeholder rather than
 // dropped, so the total stays accurate even when the per-table breakdown is incomplete.
 func (c *ImportDataMetricsCollector) IncrementConflictCountForTable(table sqlname.NameTuple) {
-	c.Lock()
-	defer c.Unlock()
 	anonymized, ok, err := c.AnonymizedTableName(table)
 	if err != nil {
 		log.Warnf("callhome: %v", err)
@@ -102,7 +100,9 @@ func (c *ImportDataMetricsCollector) IncrementConflictCountForTable(table sqlnam
 		log.Warnf("callhome: no anonymized name for %s; counting its conflicts under %q", table.ForOutput(), constants.OBFUSCATE_STRING)
 		anonymized = constants.OBFUSCATE_STRING
 	}
+	c.Lock()
 	c.cdcConflictCountPerTable[anonymized]++
+	c.Unlock()
 }
 
 func (c *ImportDataMetricsCollector) SetCurrentParallelConnections(connections int) {
