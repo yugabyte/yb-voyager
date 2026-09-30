@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -156,12 +157,20 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 		`CREATE TABLE test_schema.test_part2_r2 PARTITION OF test_schema.test_part2 FOR VALUES IN ('r2');`,
 		`ALTER TABLE public.test_part2_r1 ADD PRIMARY KEY (id);`,
 		`ALTER TABLE test_schema.test_part2_r2 ADD PRIMARY KEY (id);`,
+		// case-sensitive partitioned root whose primary key exists only on the leaf partitions.
+		`CREATE TABLE test_schema."CasePart" (
+			"Id" INT,
+			region TEXT
+		) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema."CasePart_r1" PARTITION OF test_schema."CasePart" FOR VALUES IN ('r1');`,
+		`ALTER TABLE test_schema."CasePart_r1" ADD PRIMARY KEY ("Id");`,
 	)
 	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	tests := []struct {
 		table          sqlname.NameTuple
 		expectedPKCols []string
+		leafPKOnly     bool
 	}{
 		{
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.foo", "public", POSTGRESQL),
@@ -192,11 +201,18 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 			// partitioned root whose PK lives only on the leaf partitions.
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part1", "public", POSTGRESQL),
 			expectedPKCols: []string{"id"},
+			leafPKOnly:     true,
 		},
 		{
 			// partitioned root whose PK lives only on the leaf partitions.
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.test_part2", "public", POSTGRESQL),
 			expectedPKCols: []string{"id"},
+			leafPKOnly:     true,
+		},
+		{
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.\"CasePart\"", "public", POSTGRESQL),
+			expectedPKCols: []string{"Id"},
+			leafPKOnly:     true,
 		},
 	}
 
@@ -206,7 +222,7 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 	}
 
 	// Batched: fetch primary keys for all tables in a single call.
-	result, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(tablesList)
+	result, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(tablesList, true)
 	require.NoError(t, err)
 
 	for _, tt := range tests {
@@ -214,8 +230,16 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
 	}
 
+	ownPKResult, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(tablesList, false)
+	require.NoError(t, err)
+
+	for _, tt := range tests {
+		pkCols, _ := ownPKResult.Get(tt.table)
+		testutils.AssertEqualStringSlices(t, lo.Ternary(tt.leafPKOnly, nil, tt.expectedPKCols), pkCols)
+	}
+
 	// Empty input returns an empty (non-nil) map without querying.
-	emptyResult, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(nil)
+	emptyResult, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, emptyResult)
 	require.Equal(t, 0, len(emptyResult.Keys()))

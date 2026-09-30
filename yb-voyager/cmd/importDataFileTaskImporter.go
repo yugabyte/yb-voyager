@@ -422,7 +422,9 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
 	*/
 	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup})
+	// Snapshot always imports into the root (--use-partition-root applies only to CDC), and the fast
+	// path's ON CONFLICT (<pk>) on the root needs the root's own PK; a leaf's PK fails with 42P10.
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables([]sqlname.NameTuple{tableNameTup}, false)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}

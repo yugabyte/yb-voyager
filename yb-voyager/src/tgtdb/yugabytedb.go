@@ -603,8 +603,8 @@ outer:
 // GetPrimaryKeyColumnsForTables returns, for each requested table, its primary-key columns
 // in PK-definition order. It delegates to the shared PG/YB helper (queryPGPrimaryKeyColumnsByCatalog)
 // so the query and scan logic live in one place for both target drivers.
-func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	return queryPGPrimaryKeyColumnsByCatalog(yb.Query, tables)
+func (yb *TargetYugabyteDB) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple, attributeLeafPKToRoot bool) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(yb.Query, tables, attributeLeafPKToRoot)
 }
 
 func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []UniqueIndex], error) {

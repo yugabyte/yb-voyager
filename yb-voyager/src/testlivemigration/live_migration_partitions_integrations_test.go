@@ -536,6 +536,70 @@ func TestLiveMigrationPartitionedTableWithChildPK(t *testing.T) {
 
 }
 
+// With '--use-partition-root true', UPDATE/DELETE on a root without its own PK would match the
+// partition PK in every partition (#3834), so import must refuse before the snapshot.
+func TestLiveMigrationPartitionedTableWithChildPKRefusesUsePartitionRootTrue(t *testing.T) {
+	lm := getLiveMigrationTestBasicForPartitionedTableWithChildPK(t, "test_partition_child_pk_refuse_root")
+
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(false, nil)
+	require.Error(t, err, "import data must refuse --use-partition-root true for a root without a primary key")
+	require.Contains(t, lm.GetImportCommandStderr(),
+		"table(s) public.orders have no primary key on the target; live migration is not allowed for these tables. "+
+			"If these are partitioned tables with a primary key only on their partitions, "+
+			"re-run with '--use-partition-root false' (requires YugabyteDB 2025.2.3.0 or later)")
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		var rowCount int
+		if err := target.QueryRow(`SELECT COUNT(*) FROM public.orders`).Scan(&rowCount); err != nil {
+			return err
+		}
+		require.Equal(t, 0, rowCount, "refused import must not have started the snapshot")
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to count target rows after refused import")
+
+	err = lm.ResumeImportData(true, map[string]string{
+		"--use-partition-root": "false",
+	})
+	testutils.FatalIfError(t, err, "failed to re-run import data with --use-partition-root false")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"public"."orders"`: 5,
+	}, 30)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"public"."orders"`: {
+			Inserts: 300,
+			Updates: 300,
+			Deletes: 50,
+		},
+	}, 30, 1)
+	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{`"public"."orders"`}, "id")
+	testutils.FatalIfError(t, err, "failed to validate data consistency")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 30)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
 /*
 Schema
 Root table: public.orders
