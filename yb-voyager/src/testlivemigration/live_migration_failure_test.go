@@ -1020,6 +1020,15 @@ func TestCutoverToTargetResumption_ImporterCrashAfterCutoverDetectedBeforeChanne
 
 	removeFailpointMarkers(lm.GetCurrentExportDir())
 
+	err = lm.WaitForExportedEvents(map[string]ChangesCount{
+		tableName: {
+			Inserts: inFlightInserts+deltaInserts,
+			Updates: 0,
+			Deletes: 0,
+		},
+	}, 60, 1)
+	require.NoError(t, err, "failed to wait for exported events")
+
 	err = lm.InitiateCutoverToTarget(true, nil)
 	require.NoError(t, err, "failed to initiate cutover to target")
 
