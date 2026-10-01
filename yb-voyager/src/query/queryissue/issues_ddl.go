@@ -1666,16 +1666,32 @@ var inheritanceIssue = issue.Issue{
 	Description: INHERITANCE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1129",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+	//In these versions, inheritance is supported by default but is in tech preview.
 	MinimumVersionsFixedInTP: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+	},
+	//In these versions, inheritance is supported by default in GA.
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
 	},
-	EnablingFlags: []string{"ysql_enable_inheritance"},
 }
 
 func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(inheritanceIssue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+}
+
+var inheritanceMigrationCaveat = issue.Issue{
+	Type:        INHERITANCE_MIGRATION_CAVEAT,
+	Name:        INHERITANCE_MIGRATION_CAVEAT_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: INHERITANCE_MIGRATION_CAVEAT_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/3848",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+}
+
+func NewInheritanceMigrationCaveatIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(inheritanceMigrationCaveat, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
 var securityInvokerViewIssue = issue.Issue{

@@ -463,6 +463,14 @@ func TestDDLIssues(t *testing.T) {
 		stmt53: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "bigint", "integer", ObjectUsageCategoryUnused),
 		},
+		stmt55: []QueryIssue{
+			NewInheritanceIssue("TABLE", "derived_items_1", stmt55),
+			NewInheritanceMigrationCaveatIssue("TABLE", "derived_items_1", stmt55),
+		},
+		stmt56: []QueryIssue{
+			NewInheritanceIssue("TABLE", "derived_items_2", stmt56),
+			NewInheritanceMigrationCaveatIssue("TABLE", "derived_items_2", stmt56),
+		},
 		stmt57: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "bigint", "integer", ObjectUsageCategoryUnused),
 		},
