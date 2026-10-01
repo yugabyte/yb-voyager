@@ -673,7 +673,7 @@ func TestYugabyteGetTableToUniqueIndexesMap(t *testing.T) {
 		{Columns: []string{"id3"}},
 	})
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.partial_unique_table", "public", YUGABYTEDB), []UniqueIndex{
-		{Columns: []string{"check_id"}},
+		{Columns: []string{"check_id"}, IsPartialIndex: true},
 	})
 	expectedIndexesByTable.Put(testutils.CreateNameTupleWithTargetName("test_schema.mixed_expression_unique_table", "public", YUGABYTEDB), []UniqueIndex{
 		{Columns: []string{"code"}},
@@ -740,6 +740,9 @@ func assertEqualUniqueIndexes(t *testing.T, expected, actual []UniqueIndex) {
 		testutils.AssertEqualStringSlices(t, expIdx.Columns, idx.Columns)
 		if expIdx.NullsNotDistinct != idx.NullsNotDistinct {
 			t.Fatalf("index %v: expected NullsNotDistinct=%v, got %v", idx.Columns, expIdx.NullsNotDistinct, idx.NullsNotDistinct)
+		}
+		if expIdx.IsPartialIndex != idx.IsPartialIndex {
+			t.Fatalf("index %v: expected IsPartialIndex=%v, got %v", idx.Columns, expIdx.IsPartialIndex, idx.IsPartialIndex)
 		}
 	}
 }

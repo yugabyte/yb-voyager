@@ -181,12 +181,12 @@ Put()
 
 	if ! U/D
 		return
-	if U:
+	for each unique index:
 		if changedColumns <intersection> (UK columns <union> predictate columns) == EMPTY:
-		Can't add this check until we have predicate columns as we still need the event in index even if its unique columns are unchanged for predicate cases
-			return
-		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
-			return
+			Can't add this check until we have predicate columns as we still need the event in index even if its unique columns are unchanged for predicate cases
+			but skipping the event not updating any normal unique index columns (see indexRelevantForUpdate) for now
+			if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
+				skip this index
 		add-to-cache (uklookup) <---- computeKey (beforeFields) (all columns should be present)
 */
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) error {
@@ -214,14 +214,19 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) error {
 
 // indexEventLocked adds the cached event to the value-keyed lookup index for every
 // unique index of its table whose columns are all present (and indexable) in the
-// event's BeforeFields. It is a no-op for events with nil/empty BeforeFields (e.g.
-// target-DB-exporter events). Caller must hold the lock.
+// event's BeforeFields. An UPDATE is only indexed for the unique indexes it is relevant
+// for (see indexRelevantForUpdate); a DELETE is indexed for every unique index. It is a
+// no-op for events with nil/empty BeforeFields (e.g. target-DB-exporter events).
+// Caller must hold the lock.
 func (c *ConflictDetectionCache) indexEventLocked(event *tgtdb.Event) error {
 	uniqueIndexes, _ := c.tableToUniqueIndexes.Get(event.TableNameTup)
 	if len(uniqueIndexes) == 0 {
 		return nil
 	}
 	for _, index := range uniqueIndexes {
+		if event.Op == "u" && !indexRelevantForUpdate(event, index) {
+			continue
+		}
 		if !index.NullsNotDistinct && anyUniqueIndexColumnValueIsNull(event.BeforeFields, index.Columns) {
 			//		if uniqueINdex.NullsDistinct AND ANY unique key column value is NULL:
 			continue
@@ -402,8 +407,6 @@ func (c *ConflictDetectionCache) findConflictLocked(incomingEvent *tgtdb.Event) 
 // result is de-duplicated by VSN, since a single cached event can match several indexes.
 
 /*
-TODO: to arrange it in this manner
-
 FindConflicts()
 
 	for each unique index:
@@ -423,7 +426,7 @@ FindConflicts()
 					skip-check
 				check before-after conflicts <---- computeKey (afterFields) (possible that only a subset of columns are present)
 
-			if uniqueIndex has partial predicate: (before-before)
+			if uniqueIndex is partial index: (before-before)
 				if uniqueINdex.NullsDistinct AND ANY unique key column value (before fields) is NULL:
 					skip-check
 				check before-before conflicts.  <---- computeKey (beforeFields) (all columns should be present)
@@ -458,12 +461,16 @@ func (c *ConflictDetectionCache) findValueConflictLocked(incomingEvent *tgtdb.Ev
 					totalConflictInfo = append(totalConflictInfo, conflict)
 				}
 			}
-			conflict, err := c.checkBeforeBeforeConflict(incomingEvent, index)
-			if err != nil {
-				return []Conflict{}, fmt.Errorf("error checking before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
-			}
-			if len(conflict.eventsConflicting) > 0 {
-				totalConflictInfo = append(totalConflictInfo, conflict)
+			if index.IsPartialIndex {
+				// Non-partial: an UPDATE not touching the key cannot free/claim a value; any other row reusing it
+				// already waited on the releasing event via before-after. Partial: predicate-only changes move rows in/out.
+				conflict, err := c.checkBeforeBeforeConflict(incomingEvent, index)
+				if err != nil {
+					return []Conflict{}, fmt.Errorf("error checking before-before conflict for incoming event(vsn=%d) and index %s: %w", incomingEvent.Vsn, index.IndexName, err)
+				}
+				if len(conflict.eventsConflicting) > 0 {
+					totalConflictInfo = append(totalConflictInfo, conflict)
+				}
 			}
 		}
 	}
@@ -543,6 +550,19 @@ func anyUniqueIndexColumnChanged(fields map[string]*string, indexColumns []strin
 		}
 	}
 	return false
+}
+
+// indexRelevantForUpdate reports whether an UPDATE event can interact with the given
+// unique index at all. It is always relevant for a partial index: an UPDATE that only
+// changes the predicate column (e.g. most_recent on "(parent_id) WHERE most_recent")
+// moves the row into or out of the index without touching any key column, so such
+// events must still be cached and checked. For a non-partial index the UPDATE is
+// relevant only when it changes at least one index column — an UPDATE that leaves the
+// key untouched can neither free nor claim a unique value, and any before-before match
+// it could produce is necessarily on its own row (same PK, same channel), which is
+// already excluded by the partition-key check.
+func indexRelevantForUpdate(event *tgtdb.Event, index tgtdb.UniqueIndex) bool {
+	return index.IsPartialIndex || anyUniqueIndexColumnChanged(event.Fields, index.Columns)
 }
 
 func anyUniqueIndexColumnValueIsNull(fields map[string]*string, indexColumns []string) bool {
@@ -762,8 +782,9 @@ DELETE-UPDATE
 NOTE: tableToUniqueIndexes is fetched live from the import target DB (see initializeConflictDetectionCache),
 which is the DB that actually enforces the unique constraints. Oracle sources always use PARTITION_BY_TABLE
 during live migration, so conflict detection never runs for them.
-TODO: optimization if no partial unique index then no need to check before=before
-TODO: DO not add-to-cache OR check-for-conflicts if the UPDATE does not change UK columns or partial predicate columns
+An UPDATE that does not change any column of a non-partial unique index is neither added to that index's
+bucket nor checked against it (see indexRelevantForUpdate); partial indexes keep the unconditional
+before-before check because a predicate-only change can move the row in or out of the index.
 */
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {

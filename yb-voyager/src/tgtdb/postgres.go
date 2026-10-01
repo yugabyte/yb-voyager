@@ -554,10 +554,11 @@ func (pg *TargetPostgreSQL) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 }
 
 // pgQueryTmplForUniqIndexes returns, for the given schema/table lists, every unique
-// constraint and unique index (excluding primary keys) with its ordered column list.
-// Unique constraints are included via their backing unique indexes in pg_index
-// (contype 'u'); only primary-key indexes (contype 'p') are excluded.
-// It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
+// constraint and unique index (excluding primary keys) with its ordered column list,
+// its NULLS NOT DISTINCT flag and whether it is a partial index (has a WHERE predicate,
+// i.e. pg_index.indpred IS NOT NULL). Unique constraints are included via their backing
+// unique indexes in pg_index (contype 'u'); only primary-key indexes (contype 'p') are
+// excluded. It is used for both PostgreSQL and YugabyteDB targets since YugabyteDB is
 // PG-compatible at the catalog level.
 // Note: this query doesn't include the key columns having expression in it.
 const pgQueryTmplForUniqIndexes = `
@@ -570,7 +571,9 @@ WITH unique_indexes AS (
         MIN(array_position(ix.indkey, a.attnum) + 1) AS ordinal_position,
         -- UNIQUE constraints/indexes can be declared with NULLS NOT DISTINCT (PG 15+);
         -- the flag lives on pg_index.indnullsnotdistinct.
-        bool_or(COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false)) AS nulls_not_distinct
+        bool_or(COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false)) AS nulls_not_distinct,
+        -- a partial unique index carries its WHERE predicate in pg_index.indpred
+        bool_or(ix.indpred IS NOT NULL) AS is_partial_index
     FROM
         pg_index ix
     JOIN
@@ -601,7 +604,8 @@ SELECT
     table_name,
     index_key,
     array_agg(column_name ORDER BY ordinal_position) AS columns,
-    bool_or(nulls_not_distinct) AS nulls_not_distinct
+    bool_or(nulls_not_distinct) AS nulls_not_distinct,
+    bool_or(is_partial_index) AS is_partial_index
 FROM unique_indexes
 GROUP BY table_schema, table_name, index_key
 ORDER BY table_schema, table_name, index_key;
@@ -618,6 +622,7 @@ func dedupeUniqueIndexes(indexes []UniqueIndex) []UniqueIndex {
 		key := strings.Join(idx.Columns, ",")
 		if pos, ok := indexByKey[key]; ok {
 			result[pos].NullsNotDistinct = result[pos].NullsNotDistinct || idx.NullsNotDistinct
+			result[pos].IsPartialIndex = result[pos].IsPartialIndex || idx.IsPartialIndex
 			continue
 		}
 		indexByKey[key] = len(result)
@@ -692,7 +697,8 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 		var schemaName, tableName, indexKey string
 		var columnsPgTypeArray pgtype.TextArray
 		var nullsNotDistinct bool
-		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray, &nullsNotDistinct)
+		var isPartialIndex bool
+		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray, &nullsNotDistinct, &isPartialIndex)
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique index: %w", err)
 		}
@@ -705,6 +711,7 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 			IndexName:        indexKey,
 			Columns:          columns,
 			NullsNotDistinct: nullsNotDistinct,
+			IsPartialIndex:   isPartialIndex,
 		})
 	}
 	if err := rows.Err(); err != nil {

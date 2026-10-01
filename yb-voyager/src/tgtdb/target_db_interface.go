@@ -37,6 +37,7 @@ import (
 type UniqueIndex struct {
 	IndexName        string
 	Columns          []string
+	IsPartialIndex   bool
 	NullsNotDistinct bool
 }
 
@@ -44,6 +45,9 @@ type UniqueIndex struct {
 // "[nulls not distinct]" when NULLS NOT DISTINCT is set.
 func (u UniqueIndex) String() string {
 	s := fmt.Sprintf("%s(%s)", u.IndexName, strings.Join(u.Columns, ", "))
+	if u.IsPartialIndex {
+		s += " [partial]"
+	}
 	if u.NullsNotDistinct {
 		s += " [nulls not distinct]"
 	}

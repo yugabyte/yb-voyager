@@ -310,10 +310,10 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 }
 
 // queryUniqueIndexes returns, per "schema.table", the table's unique
-// indexes/constraints as UniqueIndex values (ordered columns + NULLS NOT
-// DISTINCT; primary keys excluded, partial indexes included with their
-// predicate dropped) — mirroring what the import side fetches from the target
-// for conflict detection.
+// indexes/constraints as UniqueIndex values (ordered columns, NULLS NOT
+// DISTINCT and the partial-index flag; primary keys excluded, partial indexes
+// included with their predicate dropped but flagged) — mirroring what the
+// import side fetches from the target for conflict detection.
 func queryUniqueIndexes(connStr string, tables []string) (map[string][]tgtdb.UniqueIndex, error) {
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, connStr)
@@ -325,7 +325,8 @@ func queryUniqueIndexes(connStr string, tables []string) (map[string][]tgtdb.Uni
 	// indnullsnotdistinct is PG 15+; read via to_jsonb so older catalogs yield false.
 	rows, err := conn.Query(ctx, `
 		SELECT n.nspname, t.relname, i.relname AS index_name, a.attname,
-		       COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct
+		       COALESCE((to_jsonb(ix) ->> 'indnullsnotdistinct')::boolean, false) AS nulls_not_distinct,
+		       ix.indpred IS NOT NULL AS is_partial_index
 		FROM pg_index ix
 		JOIN pg_class i ON i.oid = ix.indexrelid
 		JOIN pg_class t ON t.oid = ix.indrelid
@@ -342,21 +343,24 @@ func queryUniqueIndexes(connStr string, tables []string) (map[string][]tgtdb.Uni
 
 	indexColumns := map[string]map[string][]string{} // table -> index -> ordered columns
 	indexNullsND := map[string]map[string]bool{}     // table -> index -> NULLS NOT DISTINCT
+	indexPartial := map[string]map[string]bool{}     // table -> index -> has a WHERE predicate
 	var indexOrder = map[string][]string{}           // table -> index names in first-seen order
 	for rows.Next() {
 		var schema, table, index, column string
-		var nullsNotDistinct bool
-		if err := rows.Scan(&schema, &table, &index, &column, &nullsNotDistinct); err != nil {
+		var nullsNotDistinct, isPartialIndex bool
+		if err := rows.Scan(&schema, &table, &index, &column, &nullsNotDistinct, &isPartialIndex); err != nil {
 			return nil, err
 		}
 		key := schema + "." + table
 		if indexColumns[key] == nil {
 			indexColumns[key] = map[string][]string{}
 			indexNullsND[key] = map[string]bool{}
+			indexPartial[key] = map[string]bool{}
 		}
 		if _, seen := indexColumns[key][index]; !seen {
 			indexOrder[key] = append(indexOrder[key], index)
 			indexNullsND[key][index] = nullsNotDistinct
+			indexPartial[key][index] = isPartialIndex
 		}
 		indexColumns[key][index] = append(indexColumns[key][index], column)
 	}
@@ -370,6 +374,7 @@ func queryUniqueIndexes(connStr string, tables []string) (map[string][]tgtdb.Uni
 			result[table] = append(result[table], tgtdb.UniqueIndex{
 				Columns:          indexColumns[table][index],
 				NullsNotDistinct: indexNullsND[table][index],
+				IsPartialIndex:   indexPartial[table][index],
 			})
 		}
 	}
