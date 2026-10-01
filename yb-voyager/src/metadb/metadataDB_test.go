@@ -200,9 +200,9 @@ func segmentImportedBy(t *testing.T, mdb *MetaDB, segmentNo int, importerRole st
 	return imported
 }
 
-// TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn pins that the segment
+// TestMarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn pins that the segment
 // mark and the MSR update are committed together or not at all.
-func TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(t *testing.T) {
+func TestMarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(t *testing.T) {
 	markTargetImporter := func(record *MigrationStatusRecord) error {
 		record.CutoverDetectedByTargetImporter = true
 		record.CutoverTimings.DetectedByTargetImporterAt = time.Now()
@@ -214,7 +214,7 @@ func TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(t *testin
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
 		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 0)
 
-		require.NoError(t, mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(1, constants.TARGET_DB_IMPORTER_ROLE, markTargetImporter))
+		require.NoError(t, mdb.MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(1, constants.TARGET_DB_IMPORTER_ROLE, markTargetImporter))
 
 		assert.Equal(t, 1, segmentImportedBy(t, mdb, 1, constants.TARGET_DB_IMPORTER_ROLE))
 		assert.Equal(t, 0, segmentImportedBy(t, mdb, 1, constants.SOURCE_DB_IMPORTER_ROLE))
@@ -230,7 +230,7 @@ func TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(t *testin
 		mdb := newTestMetaDB(t)
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
 
-		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(1, constants.TARGET_DB_IMPORTER_ROLE, markTargetImporter)
+		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(1, constants.TARGET_DB_IMPORTER_ROLE, markTargetImporter)
 		require.ErrorContains(t, err, "expected 1 row to be updated, got 0")
 
 		msr, err := mdb.GetMigrationStatusRecord()
@@ -244,7 +244,7 @@ func TestMarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(t *testin
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
 		insertQueueSegment(t, mdb, 1, testSourceDBExporterRole, 0, 0)
 
-		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(1, constants.TARGET_DB_IMPORTER_ROLE,
+		err := mdb.MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(1, constants.TARGET_DB_IMPORTER_ROLE,
 			func(*MigrationStatusRecord) error { return errors.New("update failed") })
 		require.EqualError(t, err, "update failed")
 
