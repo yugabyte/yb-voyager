@@ -855,10 +855,10 @@ func TestWaitUntilNoConflictPropagatesBeforeFieldsError(t *testing.T) {
 // column is reconstructed from BeforeFields into AfterFields so the before-after
 // check still matches the cached event's before-tuple. Pre-fix this returned 0
 // conflicts because Fields alone could not build the index key.
-// The cached UPDATE only changes most_recent (not an index column), so it is cached
-// solely because the index is partial — which is the real-world shape of this case
-// ("(c1,c2) WHERE most_recent").
-func TestEventsConflict_SubsetOfCompositeUKColumnsChanged(t *testing.T) {
+//
+// Partial-index shape ("(c1,c2) WHERE most_recent"): the cached UPDATE changes only
+// the predicate column, so it is cached solely because the index is partial.
+func TestEventsConflict_SubsetOfCompositeUKColumnsChanged_PartialIndex(t *testing.T) {
 	cache := newConflictCacheForTestWithIndexes(uidxPartial("c1", "c2"))
 	cached := withAfterFields(&tgtdb.Event{
 		Vsn:          1,
@@ -876,6 +876,35 @@ func TestEventsConflict_SubsetOfCompositeUKColumnsChanged(t *testing.T) {
 		Key:          map[string]*string{"id": strPtr("2")},
 		BeforeFields: map[string]*string{"c1": strPtr("100"), "c2": strPtr("21")},
 		Fields:       map[string]*string{"c2": strPtr("1000"), "most_recent": strPtr("true")},
+	})
+	conflicts := findConflictForTest(t, cache, incoming)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, int64(1), conflicts[0].Vsn)
+}
+
+// Non-partial shape of the same regression: the cached UPDATE changes c1, so it is
+// cached under its before-tuple; the incoming UPDATE changes only c2 into that freed
+// tuple and must still conflict.
+func TestEventsConflict_SubsetOfCompositeUKColumnsChanged_NonPartialIndex(t *testing.T) {
+	cache := newConflictCacheForTestWithIndexes(uidx("c1", "c2"))
+	cached := withAfterFields(&tgtdb.Event{
+		Vsn:          1,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("1")},
+		BeforeFields: map[string]*string{"c1": strPtr("100"), "c2": strPtr("1000")},
+		Fields:       map[string]*string{"c1": strPtr("200")},
+	})
+	require.NoError(t, cache.Put(cached))
+	require.Len(t, cache.vsnToBuckets[1], 1, "UPDATE changing c1 must be cached for the non-partial index")
+
+	incoming := withAfterFields(&tgtdb.Event{
+		Vsn:          2,
+		Op:           "u",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		BeforeFields: map[string]*string{"c1": strPtr("100"), "c2": strPtr("21")},
+		Fields:       map[string]*string{"c2": strPtr("1000")},
 	})
 	conflicts := findConflictForTest(t, cache, incoming)
 	require.Len(t, conflicts, 1)
