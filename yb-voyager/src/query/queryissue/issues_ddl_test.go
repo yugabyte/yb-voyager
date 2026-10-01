@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -73,7 +74,7 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	}
 }
 
-//TODO: remove it in next PR as its only for inheritance issue
+// TODO: remove it in next PR as its only for inheritance issue
 // assertErrorCorrectlyThrownForIssueMaturityForYBVersion is the counterpart of
 // assertErrorCorrectlyThrownForIssueForYBVersion for issues whose fix is gated on
 // MinimumVersionsFixedInTP/EA as well as GA: the statement is expected to succeed as
