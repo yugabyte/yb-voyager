@@ -58,6 +58,18 @@ The references name code by **stable strings first** (log messages, error text, 
 
 Anchors used today (update when the references change): `unexpected rows affected`, `ON CONFLICT (`, `conflict detected: event`, `duplicate key value`, `customKeyNullSentinel`, `added primary key .* as synthetic unique index`, `GetEventPartitionKey`, `hashEvent`, `GetEffectiveTableName`, `queryPGPrimaryKeyColumnsByCatalog`, `GetTableToUniqueIndexesMap`, `dedupeUniqueIndexes`.
 
+## 7. Failpoints
+
+```bash
+grep -rn --include='*.go' -e 'failpoint.Inject("' yb-voyager/cmd yb-voyager/src | grep -v _test.go
+```
+
+→ `inventory.failpoints`: `{name, file:line, enclosing function}`. M11 cases use an existing failpoint at their save point when one exists; the framework's `Wait*FailpointAndProcessCrash` helpers and the failpoint tests in `src/testlivemigration/live_migration_failure_test.go` show how they are enabled and awaited.
+
+## 8. Type warnings (for type sweeps)
+
+The lists of types voyager warns about or excludes change per release: derive them from code. Start from `GetPGLiveMigrationUnsupportedDatatypes` (`src/srcdb/postgres.go`), the `ReportUnsupportedDatatypes*` detectors (`src/query/queryissue/detectors_ddl.go`) and `fetchColumnsWithUnsupportedDataTypes` (`cmd/assessMigrationCommand.go`), and record for each list: which flows it applies to (offline, live, live with fall-forward/fall-back), and how it matches (exact type name, base type, arrays, domains). → `inventory.type_warnings`. The concrete types to sweep come from the source database at run time (hunt harness → Type sweep tests), not from here.
+
 ## Drift report
 
-Both skills end with a "Catalog drift" section: uncatalogued flags, stale flags, stale anchors (and their replacements), guardrails added/removed since the previous plan (if one is available), and templates that failed to compile. Drift is reported only; the hunt never files issues or PRs for it. A human folds the corrections into the reference files.
+Both skills end with a "Catalog drift" section: uncatalogued flags, stale flags, stale anchors (and their replacements), guardrails added/removed since the previous plan (if one is available), failpoints and type-warning lists that changed, and templates that failed to compile. Drift is reported only; the hunt never files issues or PRs for it. A human folds the corrections into the reference files.

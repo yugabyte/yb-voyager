@@ -33,7 +33,33 @@ Pick the slices relevant to the mechanisms selected for a plan, then combine pai
 - tables with many columns; wide rows; empty tables at snapshot
 
 ## Value types (M5)
+
+Seed list for hand-written M5 cases. For a type sweep, use the families below.
+
 unconstrained `numeric` ★, `numeric(p,s)`, `float4/8` (NaN, ±Infinity, -0), `money`, `timestamp` vs `timestamptz` (time zones, infinity), `date` (BC, infinity), `interval`, `time`/`timetz`, `bytea`, `json` vs `jsonb` (key order, whitespace, duplicate keys), arrays (NULL elements, multi-dim), `hstore` (NULL values), enums, domains, ranges, `uuid`, `inet/cidr`, `bit/varbit`, `char(n)` padding, text with NUL-adjacent/unicode/emoji/very long values, TOASTed values unchanged in an UPDATE.
+
+## Type sweep (M5, only for families a PR touches)
+
+Families, each with its edge values (the concrete types come from the source catalog at run time, including arrays and domains over them and extension types that are installed):
+
+| Family | Types (examples) | Edge values |
+|---|---|---|
+| integer / float | int2/4/8, float4/8 | min/max, `NaN`, `±Infinity`, `-0` |
+| numeric / money | numeric, numeric(p,s), money | unconstrained scale, trailing zeros, 100+ digits, `NaN`/`±Infinity` |
+| date / time | date, time, timetz, timestamp, timestamptz | BC dates, `±infinity`, `24:00:00`, year > 294276, odd time zones |
+| interval | interval | extreme fields, mixed signs |
+| text / char | text, varchar(n), char(n), name, "char", citext | unicode, emoji, quotes, backslashes, control bytes, padding, very long |
+| binary / bit | bytea, bit(n), varbit | empty, all-zero, > 64 bits |
+| json | json, jsonb, jsonpath | key order, whitespace, duplicate keys, nested arrays |
+| identifiers | uuid, inet, cidr, macaddr, macaddr8 | v4/v6, masks |
+| enum / composite / domain | user-defined | domain typmod, nested composites, NULL fields |
+| array | any `_type` | NULL elements, empty, multi-dim, special characters |
+| range / multirange | int4range … tstzrange, multiranges, custom ranges | empty, unbounded, inclusive/exclusive bounds |
+| geometric / text search | point, box, polygon, tsvector, tsquery | precision, weights |
+| system / catalog | oid, xid, xid8, tid, cid, reg*, pg_lsn, pg_snapshot, refcursor, int2vector | any non-trivial value |
+| extension types | hstore, ltree, … (whatever is installed) | NULL values, special characters |
+
+Each type runs through **offline, live and fall-back** and these operations: snapshot row, CDC INSERT, CDC UPDATE setting only that column, CDC UPDATE of another column while a large (TOASTed) value stays unchanged, CDC DELETE. Every migration carries **control columns** (`int`, `text`); a type's result counts only if the controls passed in the same run. Start from the existing `src/testlivemigration/live_migration_datatype_edge_cases_test.go` (`getDatatypeEdgeCasesTestConfig`, forward and fall-back tests) and extend its shape to the swept families.
 
 ## Workloads
 - insert-only; update-only (non-key columns only; UK columns; **subset of a composite UK**; partial-index predicate only); delete-only ★ (updates/deletes without inserts never trip ON CONFLICT errors — K4b)
@@ -89,6 +115,8 @@ Seed list only — the authoritative set is `inventory.flags` (Step 0.5). Flags 
 - archive changes enabled / segment cleanup
 - mid-stream DDL (new partitions, new unique indexes, added columns) — a clear failure is acceptable; silent divergence is a finding
 - failpoint-injected errors (retryable, retryable-after-commit, non-retryable) from `cmd/failpoints.go` / `src/tgtdb/failpoints.go`
+- **crash at a save point** (M11): crash exactly between a saved claim and the work it covers, with the window held open (backlog ahead of the trigger, target row lock), then resume ★ (#3854)
+- writes committed just before cutover is initiated (separate from cutover during a burst): are rows committed before `initiate cutover` always migrated?
 
 ## Flows
 
@@ -110,4 +138,7 @@ Entry points below are hints; `inventory.framework` lists what exists at the tar
 - Import/export logs: `ERROR`/`FATAL` lines (loud), `unexpected rows affected` WARNs (M3 signal), `conflict detected` counts, `duplicate key value` lines.
 - After cutover: sequence `last_value` / next generated id on the new primary vs source max.
 - Raw queue events (`<export-dir>/data/queue/*.ndjson`) to attribute a mismatch to capture (M4/M5) vs apply (M1–M3).
+- **Saved state after a crash** (M11): read the MSR and metaDB with `lm.WithMetaDB` right after the crash and before resuming; every saved claim must be true of the target at that moment (e.g. a segment marked imported has all its events on the target).
+- **Resume completes**: the resumed run reaches the next phase within a timeout; hanging, waiting forever or crash-looping is STUCK.
+- **Warned** (type sweeps): for each type and flow, whether assess-migration, analyze-schema or export warned (`inventory.type_warnings`). Silent loss with no warning is the worst cell; a warned type that works is a report-only note.
 - **Silent** = mismatch while the process is running or exited 0 and no ERROR/FATAL was logged (WARN-only counts as silent).

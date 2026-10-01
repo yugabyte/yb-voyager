@@ -35,7 +35,9 @@ Rows written to objects that aren't in the publication / table list / schema lis
 ## M5. Value transformation
 The value stored on the target differs from the source (lost scale, truncated precision, time-zone shifts, encoding, array/JSON formatting, NaN/-0, TOAST placeholders).
 - Areas: `value-encoding`, `snapshot` (live snapshot goes through Debezium, offline through `pg_dump`).
-- Found: unconstrained `numeric` loses trailing zeros in live migration (`4.000` → `4`); `numeric(p,s)` unaffected.
+- Differs by **flow** (offline goes through `pg_dump` text; live and fall-back go through the connector, which may have no mapping for a type) and by **operation** (streamed INSERTs bind values as parameters; UPDATEs splice literals into SQL).
+- Often paired with a **guardrail blind spot**: the unsupported-type checks in assess, analyze and export match the bare type name, so an array or domain over an unsupported type passes with no warning. A silent loss nobody warned about is the worst outcome.
+- Found: unconstrained `numeric` loses trailing zeros in live migration (`4.000` → `4`); `numeric(p,s)` unaffected. Datatype audit: built-in range types dropped from CDC events with no warning; types without a connector mapping (e.g. `refcursor`) stored as their hex encoding; float `NaN`/`Infinity` pasted unquoted into UPDATE (loud); `xid` written as 0; BC dates and infinities crash or saturate.
 
 ## M6. Resume / restart replays or skips work
 After a crash or restart, per-channel `lastAppliedVsn` differs across channels and the conflict cache starts empty. Events can be skipped (VSN ≤ last applied on a channel whose batch actually failed), re-applied (batch committed but reported failed), or reordered against a peer channel.
@@ -59,3 +61,11 @@ Sequence last values not restored (or restored low) after cutover → later inse
 A flag or schema combination that voyager accepts without a guardrail, where one of M1–M9 then happens deterministically. The current guardrails come from `inventory.guardrails` (derived from code each run); a combination that no guardrail covers is where to look.
 - Areas: `guardrails` + whatever the combination touches.
 - Workload: combine flags pairwise with schema shapes; any mismatch is a bug, and the fix is usually a new guardrail.
+
+## M11. Progress recorded before the work it vouches for
+Voyager saves a claim of progress — an MSR flag (e.g. `CutoverDetectedBy*Importer`, iteration and cutover states), a metaDB segment mark (`imported_by_<role>`), a channel's last-applied VSN, an export status or state file, a queue segment rotation or archive — before the work that claim covers is durable on the target. A crash between the two makes the resumed run trust the claim and skip the work. Variant: two writes that must hold together are committed separately; a crash between them leaves a state the resumed run can't progress from (it waits forever: STUCK) or that a later command misreads.
+- Why nothing fails: the resumed run sees a consistent-looking state and completes; the skipped events never surface.
+- Why ordinary tests miss it: the window is usually milliseconds wide, and a random SIGKILL almost never lands in it.
+- Areas: `persistence`, `resume-restart`, `cutover-iteration`.
+- Workload: queue a backlog ahead of the triggering event, hold the window open, crash inside it, resume (harness → Placing a crash at a save point); check the saved state against the target, then the full oracle.
+- Found: yb-voyager#3854 (the importer saved `CutoverDetectedBy*Importer` before its channels drained; fixed by PR #3850).

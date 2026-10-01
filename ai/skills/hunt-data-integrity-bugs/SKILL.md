@@ -1,6 +1,6 @@
 ---
 name: hunt-data-integrity-bugs
-description: Hunt for silent data loss / data corruption in yb-voyager data migration introduced or exposed by recently merged PRs. Turns a data-integrity test plan into real Go tests (container tests against PostgreSQL + YugabyteDB via src/testlivemigration, with randomized value fuzzing when a PR touches data types), runs them, classifies every outcome, verifies and minimises each silent divergence or unexpected loud failure, attributes it to the PR(s) under test, and files one deduplicated GitHub issue per distinct bug with a repro test. Unattended by default; skips entirely when no PRs were merged in the window. Accepts a plan file, or a change set (last N hours / commit range / PR numbers) for which it first runs generate-data-integrity-test-plan. Use when asked to "hunt for data-loss bugs", "run the data-integrity hunt", "fuzz voyager for silent corruption", or from a scheduled routine.
+description: Hunt for silent data loss / data corruption in yb-voyager data migration introduced or exposed by recently merged PRs. Turns a data-integrity test plan into real Go tests (container tests against PostgreSQL + YugabyteDB via src/testlivemigration, with crash placement at save points and a type sweep for the type families a PR touches), runs them, classifies every outcome, verifies and minimises each silent divergence or unexpected loud failure, attributes it to the PR(s) under test, and files one deduplicated GitHub issue per distinct bug with a repro test. Unattended by default; skips entirely when no PRs were merged in the window. Accepts a plan file, or a change set (last N hours / commit range / PR numbers) for which it first runs generate-data-integrity-test-plan. Use when asked to "hunt for data-loss bugs", "run the data-integrity hunt", "fuzz voyager for silent corruption", or from a scheduled routine.
 ---
 
 # Hunt data-integrity bugs
@@ -36,7 +36,7 @@ These hold in every mode, especially unattended:
 - **Only PR-attributable work.** Every case, finding and issue ties to one or more PRs in the change set. No PRs merged in the window → no tests at all (Step 0).
 - **Change only what the run owns.** Worktrees, scratch dirs, containers and processes the run created. Clean up by name or label (testcontainers label its containers `org.testcontainers=true`; probes use `di-probe*`), never with host-wide commands such as `docker ps -q | xargs docker rm -f` or `rm -rf /tmp/yb-voyager-export*`.
 - **System changes only in a throwaway sandbox.** Starting daemons, editing apt sources, installing packages or writing under `/opt` are fine in an ephemeral environment (a cloud session, a CI runner). On a developer machine or shared host, stop and report what is missing instead.
-- **The repo is read-only.** Never modify product code or existing tests, and never commit, push, open PRs or create branches. Test files live only in the run's scratch worktree; the repro test ships inside the issue body.
+- **Scratch is yours; the repo is not.** Inside the run's scratch worktree you may change anything — add failpoints, log lines or instrumentation, even edit product code — to place a crash or observe a value. Nothing is ever committed, pushed or opened as a PR, and the user's checkout is never touched. Every scratch change a finding depends on is listed in its issue (Step 6). A finding that only reproduces because a scratch edit changed behaviour (rather than only observing or pausing it) is not a bug.
 - **Stay on the plan.** Run the planned cases and the verification steps for their candidates. Anything else that looks interesting goes in the report as a lead, not a new investigation.
 - **One way out.** The outputs are: new `[data-integrity]` issues (Step 6), the Slack post if a channel was given (Step 7), and the report. The report is the final message plus the files under `$SCRATCH/data-integrity/`; don't publish it as a page, doc or artifact unless the caller asks for one. Don't comment on, edit, close or relabel existing issues or PRs. No push notifications, emails, Jira filing, subscriptions, reactions to CI/review events, or scheduled follow-ups.
 
@@ -45,7 +45,7 @@ These hold in every mode, especially unattended:
 ```
 - [ ] Step 0: Change set gate, preconditions, workspace
 - [ ] Step 1: Load and validate the plan
-- [ ] Step 2: Value fuzzing (only if a PR touches data types)
+- [ ] Step 2: Type sweep (only for type families a PR touches)
 - [ ] Step 3: Container cases (probe DDL, write, run in batches)
 - [ ] Step 4: Classify every case
 - [ ] Step 5: Verify, attribute, minimise, dedupe each candidate
@@ -70,14 +70,14 @@ Self-check against the target commit before writing any test:
 
 Validate against `plan-schema.md`; every case must name `linked_prs`. Drop malformed cases with a reason. Sort by priority (P0 first). Estimate duration (~2–5 min per container case at the chosen parallelism, kill/resume and multi-iteration cases ~2×); if the budget can't cover everything, keep all P0, then P1 by mechanism diversity, and list the skipped cases in the report.
 
-### Step 2: Value fuzzing (only if a PR touches data types)
+### Step 2: Type sweep (only for type families a PR touches)
 
-Value fuzzing applies **only when a PR in the change set touches data types or value encoding** (area `value-encoding`: datatype mapping, value converters, Debezium config or plugin, snapshot/CDC value formatting). It is still a container test: create one column per affected type, then insert and update rows with randomized and edge values for each type (NULL, empty, min/max, precision and scale extremes, NaN/±Infinity/-0, time zones and infinities, unicode and very long strings, NULL array elements, JSON key order and duplicates, TOASTed sizes), through both the snapshot and the change stream, and compare source and target row by row. Use a fixed seed and log it so a failure reproduces. Each divergent value, and each value that crashes the importer, is a candidate for Step 5; shrink it to the single value and operation (insert vs update, snapshot vs streaming) that fails.
+Runs only for `type_sweep` cases, which the plan adds only for the type families a PR touches. Follow harness → Type sweep tests: resolve the concrete types in those families from the source catalog, run each through offline, live and fall-back with the sweep operations and control columns, and record one cell per type × flow × operation (OK, SILENT, LOUD, STUCK) plus whether voyager warned. Every SILENT, LOUD or STUCK cell is a candidate for Step 5; shrink it to the single value, operation and flow that fails, then group cells by root cause (Step 5) — not by type.
 
 ### Step 3: Container cases
 
 1. Probe DDL for `ddl_probe` cases (harness → DDL probe).
-2. Write tests from cases (harness → Writing a container test). Batches from the plan share one test; everything else gets its own test. Risky cases (`expect: refused | loud`) never share a migration with others.
+2. Write tests from cases (harness → Writing a container test; M11 cases also follow harness → Placing a crash at a save point). Batches from the plan share one test; everything else gets its own test. Risky cases (`expect: refused | loud`) never share a migration with others.
 3. Compile: `go vet -tags <tag> ./src/testlivemigration/`.
 4. Run in background batches of `P` tests (harness → Running). As each batch finishes, summarise its `DI-RESULT` lines before starting the next, so a harness problem (e.g. every export failing at startup) is caught after one batch, not after the whole budget.
 
@@ -102,12 +102,13 @@ For each verified signature that dedupe marked **new** or **regression** (up to 
      ### Description
 
      **Attributed to:** #<PR> (<short-sha>) — introduced by it | pre-existing, exposed by testing it (repro at <base-sha> <fails|passes>)
-     **Symptom:** <what the target ends up with vs the source, or the error and where the importer stops>
+     **Symptom:** <what the target ends up with vs the source, or the error and where the importer stops or hangs>
      **Flow / flags:** <flow>, <non-default flags>
      **Setup and workload:** <synthetic schema and the statements that trigger it>
      **Expected:** <…>   **Actual:** <…>   **Repro rate:** <k/n>
      **Evidence:** <differing rows, queue line, log line — synthetic data only>
      **Suggested fix:** <one or two sentences, if clear>
+     **Scratch instrumentation:** none | <each scratch change the repro needs: file:function and what it does, e.g. `cmd/live_migration.go:streamChangesFromSegment` — new failpoint `diCrashAfterCutoverFlag` right after the MSR write>; patch in the second details block
      Regression of #<N>  ← only for regressions
 
      <details><summary>Repro test — save as yb-voyager/src/testlivemigration/data_integrity_<slug>_test.go and run
@@ -115,6 +116,13 @@ For each verified signature that dedupe marked **new** or **regression** (up to 
 
      ```go
      <the test file>
+     ```
+     </details>
+
+     <details><summary>Scratch patch (only if the repro needs one) — apply with <code>git apply</code>, then <code>failpoint-ctl enable</code></summary>
+
+     ```diff
+     <git diff of the scratch worktree, excluding the test file>
      ```
      </details>
 
@@ -160,5 +168,6 @@ Then clean up per harness → Cleanup, and **end the session** — no background
 - **Testing a stale binary.** The framework execs `yb-voyager` from PATH; always build the target commit and verify it by path and build time.
 - **Batching risky cases.** One crash in a shared migration hides every other table's result.
 - **Asserting in the run, not logging.** Fatal assertions during the hunt destroy evidence; assert only in the repro test.
-- **One issue per case.** Several cases hitting the same signature are one bug — one issue, with the other cases listed in its body.
+- **One issue per case.** Several cases hitting the same signature are one bug — one issue, with the other cases listed in its body. In a type sweep, many types failing the same way (e.g. every value pasted unquoted into UPDATE) are one issue listing the types.
+- **Random kills for narrow windows.** A SIGKILL at a random time almost never lands in a save-point window; place the crash deliberately.
 - **Re-filing a known bug.** Always dedupe against every earlier `[data-integrity]` issue and PR, open or closed, before filing.

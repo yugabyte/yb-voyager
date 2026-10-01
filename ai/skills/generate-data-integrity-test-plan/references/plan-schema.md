@@ -10,6 +10,11 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
   "change_set": { "base": "…", "head": "…", "commits": ["sha subject", "…"],
                   "prs": [{"number": 3814, "title": "…", "merge_commit": "397711e0c"}] },
   "empty_reason": null,                    // set, with cases: [], when no PR is testable
+  "save_points": [                         // Step 2 save-point map, when a PR maps to persistence/resume/cutover
+    { "where": "cmd/live_migration.go:streamChangesFromSegment", "write": "MSR CutoverDetectedByTargetImporter",
+      "claims": "every event before the cutover event is applied", "covers": "drain of all event channels",
+      "order": "claim-before-work | work-before-claim | split-pair", "linked_prs": [3850] }
+  ],
   "areas": ["partitions", "apply-sql"],
   "assumptions": ["no YB version pinned; hunt uses the testcontainers default"],
   "inventory": {                           // built in Step 0.5 (references/inventory.md)
@@ -33,7 +38,7 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
 | `id` | ✓ | `C1`, `C2`, … unique in the plan |
 | `title` | ✓ | one line, symptom-oriented |
 | `priority` | ✓ | `P0` \| `P1` \| `P2` |
-| `mechanism` | ✓ | `M1`…`M10` from `silent-loss-mechanisms.md` |
+| `mechanism` | ✓ | `M1`…`M11` from `silent-loss-mechanisms.md` |
 | `areas` | ✓ | areas from the SKILL's Step 1 table |
 | `linked_prs` | ✓ | PR numbers from `change_set.prs` this case attacks (non-empty) |
 | `linked_change` | ✓ | commit SHA and file:function this case targets |
@@ -48,10 +53,11 @@ One JSON document. `hunt-data-integrity-bugs` validates it before running and re
 | `export_flags` / `import_flags` | | CLI flags; `import_env` for env vars (e.g. `NUM_EVENT_CHANNELS`) |
 | `snapshot_rows` | ✓ | map `"schema"."table"` → rows expected after snapshot |
 | `tables` | ✓ | map table-as-in-SELECT → ORDER BY for the oracle |
-| `oracle_extra` | | extra checks: `per_partition_counts`, `sequence_after_cutover`, `no_rows_affected_warnings`, `queue_contains` |
+| `oracle_extra` | | extra checks: `per_partition_counts`, `sequence_after_cutover`, `no_rows_affected_warnings`, `queue_contains`, `saved_state` (after a crash, saved claims vs what reached the target), `resume_completes` (no STUCK), `warned` (type sweep: did assess/analyze/export warn) |
 | `expect` | ✓ | `consistent` \| `refused` \| `loud` |
 | `ddl_probe` | | `true` if any DDL may be unsupported on YB — probe first |
-| `value_fuzz` | | only for `value-encoding` changes: `{ "columns": [{"name", "type"}], "rows": N, "seed": S, "ops": ["insert", "update"], "edge_values": true }` — the hunt generates randomized and edge values per type |
+| `type_sweep` | | only for `value-encoding` changes: `{ "families": ["float", "range", …], "flows": ["offline", "live", "fallback"], "ops": ["snapshot", "cdc_insert", "cdc_update_col", "cdc_update_other_toast", "cdc_delete"], "seed": S }` — the hunt resolves the concrete types (incl. arrays and domains over them) from the source catalog and generates edge values per family |
+| `crash_at` | | for M11 cases: `{ "save_point": "<file:function from save_points>", "trigger": {"failpoint": "<name>"} \| {"log_line": "<regex>"}, "hold_open": "backlog" \| "target_row_lock" \| null, "scratch_failpoint": false, "then": "resume_import" }` |
 
 ## Worked example (the case that found yb-voyager#3834)
 

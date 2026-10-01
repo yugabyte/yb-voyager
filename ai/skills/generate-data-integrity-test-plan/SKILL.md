@@ -67,7 +67,8 @@ Use each PR's diff (full files for changed functions, not just hunks). Map each 
 | `cdc-routing` | `cmd/live_migration.go` (`hashEvent`, `GetEventPartitionKey`, `handleEvent`), `cmd/live_migration_cdc_partition_strategy.go`, `cmd/import.go` (cdc flags) |
 | `conflict-detection` | `cmd/conflictDetectionCache.go`, `addPrimaryKeyToConflictSetForCustomTables`, unique-index discovery in `src/tgtdb/*` |
 | `apply-sql` | `src/tgtdb/event.go` (stmt builders), `src/tgtdb/yugabytedb.go` / `postgres.go` `ExecuteBatch`, `processEvents` |
-| `value-encoding` | `src/dbzm/*`, `debezium-server-voyager/**`, value converters, datatype mapping |
+| `value-encoding` | `src/dbzm/*`, `debezium-server-voyager/**`, value converters, datatype mapping, unsupported-type lists (`GetPGLiveMigrationUnsupportedDatatypes`, `ReportUnsupportedDatatypes*`, `fetchColumnsWithUnsupportedDataTypes`) |
+| `persistence` | MSR writes (`UpdateMigrationStatusRecord`, fields in `src/metadb/migrationStatus.go`), metaDB marks (`MarkEventQueueSegmentAsProcessed`, `src/metadb/*`), status/state JSON files, queue segment rotation and archive, failpoints (`cmd/failpoints.go`, `cmd/export_failpoints.go`, `src/tgtdb/failpoints.go`) |
 | `table-selection` | table-list / exclude flags, name registry, publication / replication-slot setup, schema lists |
 | `partitions` | partition→root mapping, `--use-partition-root`, leaf/root PK and index resolution |
 | `snapshot` | export data snapshot, import data file tasks, snapshot/CDC boundary |
@@ -83,6 +84,10 @@ If a PR only touches docs, assessment, callhome, or schema-only paths, it maps t
 
 For each area, take the mechanisms in `silent-loss-mechanisms.md` that list that area, and the dimension slices in `dimensions.md` relevant to them. Read the changed code and write down, per mechanism, **the specific way the change could trigger it** (e.g. "new key derivation for partitioned roots → M3 statements hit rows in other leaves"). Mechanisms with no plausible link to the change are dropped for this plan.
 
+**Save-point map** (when a PR maps to `persistence`, `resume-restart` or `cutover-iteration`). For each changed function and its callers, list every durable write, what it claims (e.g. "segment N fully applied by the target importer"), and the work that claim covers. Flag (a) a claim written before its work is durable, and (b) two writes that must hold together but are committed separately. Each flagged point becomes an M11 case that crashes exactly there (`crash_at`), plus a control that crashes just after the work. Record the map in the plan's `save_points`; also check save points the PR *moved*, since a reordering can open a window it didn't have before.
+
+**Touched type families** (when a PR maps to `value-encoding`). From the converter, mapping or list the PR changes, name the type families it affects (`dimensions.md` → Type sweep). Only those families are swept; a PR that touches no family gets no sweep.
+
 ### Step 3: Generate cases
 
 Each case = one **mechanism** × a concrete **schema** × **workload** × **flags** × **run pattern** × **flow**, plus an **oracle**, an **expectation** and the **PR(s) it attacks** (`linked_prs`). Rules:
@@ -96,7 +101,8 @@ Each case = one **mechanism** × a concrete **schema** × **workload** × **flag
 - **Workloads obey constraints.** Every source statement must succeed; a case whose delta errors on the source proves nothing.
 - **Every case has an oracle** (`dimensions.md` → Oracles): full-row source-vs-target comparison after quiescence, plus any case-specific check (per-partition counts, sequence values after cutover, rows-affected warnings).
 - **Expectation** is one of `consistent` (should migrate cleanly), `refused` (a guardrail in `inventory.guardrails` should reject it up front), `loud` (should fail with a clear error). A silent mismatch is a bug under every expectation.
-- **Value fuzzing:** when a PR maps to `value-encoding` (data types, converters, Debezium config), add value-fuzz cases (`value_fuzz` in the plan). Value fuzzing applies **only when the change touches data types or value encoding** (area `value-encoding`: datatype mapping, value converters, Debezium config or plugin, snapshot/CDC value formatting). It is still a container test: create one column per affected type, then insert and update rows with randomized and edge values for each type (NULL, empty, min/max, precision and scale extremes, NaN/±Infinity/-0, time zones and infinities, unicode and very long strings, NULL array elements, JSON key order and duplicates, TOASTed sizes), through both the snapshot and the change stream, and compare source and target row by row. Use a fixed seed and log it so a failure reproduces.
+- **Type sweep:** when a PR maps to `value-encoding`, add one `type_sweep` case for the touched families only (`dimensions.md` → Type sweep): every type in those families × offline, live and fall-back × the sweep operations, with control columns and a warnings check. The hunt resolves the concrete types from the source catalog at run time.
+- **Crash placement:** an M11 case says where to crash (`crash_at`): an existing failpoint at the save point if there is one, else a log line that marks the window plus a way to hold it open; a scratch-only failpoint is the last resort. Random SIGKILL is not a substitute.
 - **Adversarial variants of new tests.** If the change adds tests, add cases that break their assumptions (the gaps a reviewer would flag: one-sided assertions, avoided edge values, only-forward flow).
 
 ### Step 4: Rank, cap, validate, write
