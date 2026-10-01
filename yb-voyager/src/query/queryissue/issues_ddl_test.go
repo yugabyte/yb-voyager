@@ -74,21 +74,6 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	}
 }
 
-// assertErrorCorrectlyThrownForIssueMaturityForYBVersion is the counterpart of
-// assertErrorCorrectlyThrownForIssueForYBVersion for issues whose fix is gated on
-// MinimumVersionsFixedInTP/EA as well as GA: the statement is expected to succeed as
-// soon as the feature is available at any maturity.
-func assertErrorCorrectlyThrownForIssueMaturityForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
-	maturity, err := issue.GetMaturityInTarget(testYbVersion)
-	testutils.FatalIfError(t, err)
-
-	if maturity != constants.MATURITY_UNSUPPORTED {
-		assert.NoError(t, execErr)
-	} else {
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, execErr, expectedError, issue)
-	}
-}
-
 func testStoredGeneratedFunctionsIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -1425,7 +1410,7 @@ func testInheritanceIssue(t *testing.T) {
 	CREATE TABLE inheritance_parent_table (id int, name text);
 	CREATE TABLE inheritance_child_table (extra text) INHERITS (inheritance_parent_table);
 	INSERT INTO inheritance_child_table VALUES (1, 'a', 'b');`)
-	assertErrorCorrectlyThrownForIssueMaturityForYBVersion(t, err, "INHERITS not supported yet", inheritanceIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "INHERITS not supported yet", inheritanceIssue)
 }
 
 func GetYBVersionEnv() string {
