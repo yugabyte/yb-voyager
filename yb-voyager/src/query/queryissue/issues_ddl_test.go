@@ -85,16 +85,8 @@ func assertErrorCorrectlyThrownForIssueMaturityForYBVersion(t *testing.T, execEr
 	if maturity != constants.MATURITY_UNSUPPORTED {
 		assert.NoError(t, execErr)
 	} else {
-		assert.ErrorContains(t, execErr, expectedError)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, execErr, expectedError, issue)
 	}
-}
-
-// isPG15BasedYBVersion reports whether the target runs the PG15-based YSQL (2.25 preview and
-// the 2025.1+ stable series); the PG11-based series emit different error text for some
-// statements.
-func isPG15BasedYBVersion() bool {
-	return testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) ||
-		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0)
 }
 
 func testStoredGeneratedFunctionsIssue(t *testing.T) {
@@ -1380,7 +1372,8 @@ func testInsufficientColumnsInPKForPartitionIssue(t *testing.T) {
 		event_date date
 	) PARTITION BY RANGE (event_date);`)
 	errMsg := "insufficient columns in PRIMARY KEY constraint definition"
-	if isPG15BasedYBVersion() {
+	if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) ||
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 		errMsg = "unique constraint on partitioned table must include all partitioning columns"
 	}
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, insufficientColumnsInPKForPartition)
