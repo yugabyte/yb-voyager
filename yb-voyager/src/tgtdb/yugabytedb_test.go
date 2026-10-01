@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 
@@ -181,6 +182,22 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 		) PARTITION BY LIST (region);`,
 		`CREATE TABLE test_schema."CasePart_r1" PARTITION OF test_schema."CasePart" FOR VALUES IN ('r1');`,
 		`ALTER TABLE test_schema."CasePart_r1" ADD PRIMARY KEY ("Id");`,
+		// multi-level partitioned table: no PK on the root or the intermediates, PK on the leaves only.
+		`CREATE TABLE test_schema.ml_part (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_part_r1 PARTITION OF test_schema.ml_part FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_part_r2 PARTITION OF test_schema.ml_part FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_part_r1_s1 PARTITION OF test_schema.ml_part_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_part_r2_s1 PARTITION OF test_schema.ml_part_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_part_r1_s1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.ml_part_r2_s1 ADD PRIMARY KEY (id);`,
+		// multi-level: one intermediate declares the PK (propagated to its leaf), the other leaf declares the same PK.
+		`CREATE TABLE test_schema.ml_ipk (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_ipk_r1 PARTITION OF test_schema.ml_ipk FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_r2 PARTITION OF test_schema.ml_ipk FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_r1_s1 PARTITION OF test_schema.ml_ipk_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_ipk_r2_s1 PARTITION OF test_schema.ml_ipk_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_ipk_r1 ADD PRIMARY KEY (id, sub);`,
+		`ALTER TABLE test_schema.ml_ipk_r2_s1 ADD PRIMARY KEY (id, sub);`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -235,6 +252,18 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 			expectedPKCols: []string{"Id"},
 			leafPKOnly:     true,
 		},
+		{
+			// multi-level root: intermediates without a PK are not compared.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.ml_part", "public", YUGABYTEDB),
+			expectedPKCols: []string{"id"},
+			leafPKOnly:     true,
+		},
+		{
+			// multi-level root: a PK declared on an intermediate is seen through its leaf.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.ml_ipk", "public", YUGABYTEDB),
+			expectedPKCols: []string{"id", "sub"},
+			leafPKOnly:     true,
+		},
 	}
 
 	tablesList := lo.Map(tests, func(tt struct {
@@ -267,6 +296,73 @@ func TestYugabyteGetPrimaryKeyColumnsForTables(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, emptyResult)
 	require.Equal(t, 0, len(emptyResult.Keys()))
+}
+
+func TestYugabyteGetPrimaryKeyColumnsForTablesMismatchedPartitionPKs(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		// partitions with different PK columns.
+		`CREATE TABLE test_schema.mm_cols (id INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.mm_cols_r1 PARTITION OF test_schema.mm_cols FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.mm_cols_r2 PARTITION OF test_schema.mm_cols FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.mm_cols_r1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.mm_cols_r2 ADD PRIMARY KEY (id, region);`,
+		// partitions with the same PK columns in a different order.
+		`CREATE TABLE test_schema.mm_order (id INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.mm_order_r1 PARTITION OF test_schema.mm_order FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.mm_order_r2 PARTITION OF test_schema.mm_order FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.mm_order_r1 ADD PRIMARY KEY (id, region);`,
+		`ALTER TABLE test_schema.mm_order_r2 ADD PRIMARY KEY (region, id);`,
+		// one partition with a PK, one without.
+		`CREATE TABLE test_schema.mm_nopk (id INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.mm_nopk_r1 PARTITION OF test_schema.mm_nopk FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema.mm_nopk_r2 PARTITION OF test_schema.mm_nopk FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema.mm_nopk_r1 ADD PRIMARY KEY (id);`,
+		// multi-level: leaves under different intermediates with different PK columns.
+		`CREATE TABLE test_schema.ml_mm (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_mm_r1 PARTITION OF test_schema.ml_mm FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_mm_r2 PARTITION OF test_schema.ml_mm FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_mm_r1_s1 PARTITION OF test_schema.ml_mm_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_mm_r2_s1 PARTITION OF test_schema.ml_mm_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_mm_r1_s1 ADD PRIMARY KEY (id);`,
+		`ALTER TABLE test_schema.ml_mm_r2_s1 ADD PRIMARY KEY (id, sub);`,
+		// case-sensitive root and PK column.
+		`CREATE TABLE test_schema."CaseMM" ("Id" INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema."CaseMM_r1" PARTITION OF test_schema."CaseMM" FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema."CaseMM_r2" PARTITION OF test_schema."CaseMM" FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema."CaseMM_r1" ADD PRIMARY KEY ("Id");`,
+		`ALTER TABLE test_schema."CaseMM_r2" ADD PRIMARY KEY ("Id", region);`,
+		// multi-level: a PK declared on an intermediate disagrees with another leaf's PK.
+		`CREATE TABLE test_schema.ml_ipk_mm (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r1 PARTITION OF test_schema.ml_ipk_mm FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r2 PARTITION OF test_schema.ml_ipk_mm FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r1_s1 PARTITION OF test_schema.ml_ipk_mm_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r2_s1 PARTITION OF test_schema.ml_ipk_mm_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_ipk_mm_r1 ADD PRIMARY KEY (id, sub);`,
+		`ALTER TABLE test_schema.ml_ipk_mm_r2_s1 ADD PRIMARY KEY (id);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	mismatchedCols := testutils.CreateNameTupleWithTargetName("test_schema.mm_cols", "public", YUGABYTEDB)
+	mismatchedOrder := testutils.CreateNameTupleWithTargetName("test_schema.mm_order", "public", YUGABYTEDB)
+	missingPK := testutils.CreateNameTupleWithTargetName("test_schema.mm_nopk", "public", YUGABYTEDB)
+	multiLevelMismatch := testutils.CreateNameTupleWithTargetName("test_schema.ml_mm", "public", YUGABYTEDB)
+	caseSensitiveMismatch := testutils.CreateNameTupleWithTargetName(`test_schema."CaseMM"`, "public", YUGABYTEDB)
+	intermediatePKMismatch := testutils.CreateNameTupleWithTargetName("test_schema.ml_ipk_mm", "public", YUGABYTEDB)
+	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK, multiLevelMismatch, caseSensitiveMismatch, intermediatePKMismatch}
+
+	_, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(tablesList, true)
+	require.EqualError(t, err, "partitioned table(s) whose leaf partitions have inconsistent primary keys on the target: "+
+		caseSensitiveMismatch.ForOutput()+": (Id), (Id, region); "+
+		intermediatePKMismatch.ForOutput()+": (id), (id, sub); "+
+		multiLevelMismatch.ForOutput()+": (id), (id, sub); "+
+		mismatchedCols.ForOutput()+": (id), (id, region); "+
+		missingPK.ForOutput()+": (id), (no primary key); "+
+		mismatchedOrder.ForOutput()+": (id, region), (region, id)")
+
+	ownPKResult, err := testYugabyteDBTarget.GetPrimaryKeyColumnsForTables(tablesList, false)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(ownPKResult.Keys()))
 }
 
 func TestYugabyteGetNonEmptyTables(t *testing.T) {
@@ -1402,7 +1498,7 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
 	require.True(t, ok)
 
-	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList, true)
 	require.NoError(t, err)
 	expectedLeafTableToRootTableMap := map[string]string{
 		table1.AsQualifiedCatalogName():           table1.AsQualifiedCatalogName(),
@@ -1446,6 +1542,14 @@ func TestGetTablesHavingExpressionIndexes(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, expectedValue, returnedValue)
 	}
+
+	// Without intermediates, only the non-leaf partition table_partitioned_l1 drops out.
+	leavesOnlyMap, err := getPartitionTableToRootTableMap(yb.Query, tableTuplesList, false)
+	require.NoError(t, err)
+	expectedLeavesOnlyMap := maps.Clone(expectedLeafTableToRootTableMap)
+	delete(expectedLeavesOnlyMap, testutils.CreateNameTupleWithTargetName(
+		"test_expression_indexes.table_partitioned_l1", "public", YUGABYTEDB).AsQualifiedCatalogName())
+	assert.Equal(t, expectedLeavesOnlyMap, leavesOnlyMap)
 
 	tableTuplesHavingExpressionIndexes, err := yb.GetTablesHavingExpressionUniqueIndexes(tableTuplesList, true)
 	require.NoError(t, err)

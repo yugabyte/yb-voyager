@@ -618,7 +618,7 @@ func (yb *TargetYugabyteDB) GetTableToUniqueIndexesMap(tableList []sqlname.NameT
 	// getPartitionTableToRootTableMap returns, for every table whose root is in tableList,
 	// a mapping of its catalog name ("schema.table") to its root's catalog name. This
 	// includes each leaf partition -> root, and each root/normal table -> itself.
-	tableToRootMap, err := getPartitionTableToRootTableMap(yb.Query, tableList)
+	tableToRootMap, err := getPartitionTableToRootTableMap(yb.Query, tableList, true)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
@@ -2432,7 +2432,7 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 func (yb *TargetYugabyteDB) GetTablesHavingExpressionUniqueIndexes(tableNames []sqlname.NameTuple, returnPartitionRootTable bool) ([]sqlname.NameTuple, error) {
 	log.Infof("getting leaf table to root table map")
 	//returns a map of catalog leaf table name to catalog root table name
-	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableNames)
+	leafTableToRootTableMap, err := getPartitionTableToRootTableMap(yb.Query, tableNames, true)
 	if err != nil {
 		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
 	}
@@ -2515,11 +2515,17 @@ SELECT
 // for leaf table, returns leaf table name -> root table name
 // for any non-leaf partitioned table, returns non-leaf partitioned table -> root table
 // for any non-partitioned/normal table, returns normal table -> normal table
-func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, error), tableNames []sqlname.NameTuple) (map[string]string, error) {
+// with includeIntermediatePartitions false, non-leaf partitioned tables (other than the root) are omitted
+func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, error), tableNames []sqlname.NameTuple, includeIntermediatePartitions bool) (map[string]string, error) {
 	tableNamesStr := strings.Join(lo.Map(tableNames, func(t sqlname.NameTuple, _ int) string {
 		schema, table := t.ForCatalogQuery()
 		return fmt.Sprintf("('%s','%s')", schema, table)
 	}), ",")
+	intermediatePartitionsFilter := ""
+	if !includeIntermediatePartitions {
+		// relkind 'p' is a partitioned table; keep it only when it is the root itself.
+		intermediatePartitionsFilter = " AND (relkind <> 'p' OR (table_schema, table_name) = (root_schema, root_name))"
+	}
 
 	query := fmt.Sprintf(`
 	WITH table_list(schema_name, table_name) AS (VALUES %s),
@@ -2533,7 +2539,8 @@ func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, erro
 		  n.nspname AS table_schema,
 		  t.relname AS table_name,
 		  n.nspname AS root_schema,
-		  t.relname AS root_name
+		  t.relname AS root_name,
+		  t.relkind AS relkind
 		FROM pg_class t
 		JOIN pg_namespace n ON t.relnamespace = n.oid
 		WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
@@ -2547,7 +2554,8 @@ func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, erro
 		  fr.table_schema,
 		  fr.table_name,
 		  parent_ns.nspname AS root_schema,
-		  parent_t.relname AS root_name
+		  parent_t.relname AS root_name,
+		  fr.relkind
 		FROM find_root fr
 		JOIN pg_inherits inh ON fr.current_oid = inh.inhrelid
 		JOIN pg_class parent_t ON inh.inhparent = parent_t.oid
@@ -2559,7 +2567,8 @@ func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, erro
 		table_schema,
 		table_name,
 		root_schema,
-		root_name
+		root_name,
+		relkind
 	  FROM find_root
 	  WHERE NOT EXISTS (
 		SELECT 1 FROM pg_inherits inh2 
@@ -2567,8 +2576,8 @@ func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, erro
 	  )
 	  ORDER BY table_oid
 	)
-	SELECT table_schema, table_name, root_schema, root_name FROM table_to_root WHERE (root_schema, root_name) IN (SELECT schema_name, table_name FROM table_list);
-`, tableNamesStr)
+	SELECT table_schema, table_name, root_schema, root_name FROM table_to_root WHERE (root_schema, root_name) IN (SELECT schema_name, table_name FROM table_list)%s;
+`, tableNamesStr, intermediatePartitionsFilter)
 
 	log.Debugf("query: %s", query)
 	rows, err := queryFn(query)
