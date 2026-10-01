@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -71,6 +72,29 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	} else {
 		assert.ErrorContains(t, execErr, expectedError)
 	}
+}
+
+// assertErrorCorrectlyThrownForIssueMaturityForYBVersion is the counterpart of
+// assertErrorCorrectlyThrownForIssueForYBVersion for issues whose fix is gated on
+// MinimumVersionsFixedInTP/EA as well as GA: the statement is expected to succeed as
+// soon as the feature is available at any maturity.
+func assertErrorCorrectlyThrownForIssueMaturityForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
+	maturity, err := issue.GetMaturityInTarget(testYbVersion)
+	testutils.FatalIfError(t, err)
+
+	if maturity != constants.MATURITY_UNSUPPORTED {
+		assert.NoError(t, execErr)
+	} else {
+		assert.ErrorContains(t, execErr, expectedError)
+	}
+}
+
+// isPG15BasedYBVersion reports whether the target runs the PG15-based YSQL (2.25 preview and
+// the 2025.1+ stable series); the PG11-based series emit different error text for some
+// statements.
+func isPG15BasedYBVersion() bool {
+	return testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) ||
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0)
 }
 
 func testStoredGeneratedFunctionsIssue(t *testing.T) {
@@ -1179,6 +1203,238 @@ func testExtensionSupportList(t *testing.T) {
 	}
 }
 
+func testUnsupportedIndexMethodsIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `CREATE TABLE index_method_table (id int, location point, score int);`)
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		sql    string
+		errMsg string
+		Issue  issue.Issue
+	}{
+		{
+			sql:    `CREATE INDEX index_method_gist ON index_method_table USING gist (location);`,
+			errMsg: `index method "gist" not supported yet`,
+			Issue:  unsupportedGistIndexMethodIssue,
+		},
+		{
+			sql:    `CREATE INDEX index_method_brin ON index_method_table USING brin (score);`,
+			errMsg: `index method "brin" not supported yet`,
+			Issue:  unsupportedBrinIndexMethodIssue,
+		},
+		{
+			sql:    `CREATE INDEX index_method_spgist ON index_method_table USING spgist (location);`,
+			errMsg: `index method "spgist" not supported yet`,
+			Issue:  unsupportedSpgistIndexMethodIssue,
+		},
+	}
+	for _, testCase := range testCases {
+		_, err = conn.Exec(ctx, testCase.sql)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, testCase.errMsg, testCase.Issue)
+	}
+}
+
+func testGinIndexVariantsIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `CREATE TABLE gin_variants_table (id int, tags int[], labels int[]);`)
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(ctx, `CREATE INDEX gin_variants_multi_column ON gin_variants_table USING gin (tags, labels);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `access method "ybgin" does not support multicolumn indexes`, multiColumnGinIndexIssue)
+
+	for _, ordering := range []string{"ASC", "DESC", "HASH"} {
+		_, err = conn.Exec(ctx, fmt.Sprintf(`CREATE INDEX gin_variants_%s ON gin_variants_table USING gin (tags %s);`, strings.ToLower(ordering), ordering))
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `access method "ybgin" does not support ASC/DESC/HASH options`, orderedGinIndexIssue)
+	}
+}
+
+func testExclusionConstraintIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE exclusion_constraint_table (
+		id int,
+		during int4range,
+		EXCLUDE USING gist (during WITH &&)
+	);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "EXCLUDE constraint not supported yet", exclusionConstraintIssue)
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE exclusion_constraint_table2 (id int);
+	ALTER TABLE exclusion_constraint_table2 ADD CONSTRAINT exclusion_constraint_table2_excl EXCLUDE USING btree (id WITH =);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "EXCLUDE constraint not supported yet", exclusionConstraintIssue)
+}
+
+// Only PRIMARY KEY / UNIQUE deferrable constraints are reported (the detector skips
+// deferrable foreign keys, which YugabyteDB does honor). The table-level constraint
+// syntax is used because YugabyteDB silently accepts the column-level form
+// ("id int UNIQUE DEFERRABLE") without actually deferring the check.
+func testDeferrableConstraintIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE deferrable_unique_table (
+		id int,
+		code int,
+		CONSTRAINT deferrable_unique_table_uk UNIQUE (code) DEFERRABLE INITIALLY DEFERRED
+	);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "DEFERRABLE unique constraints are not supported yet", deferrableConstraintIssue)
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE deferrable_pk_table (
+		id int,
+		CONSTRAINT deferrable_pk_table_pk PRIMARY KEY (id) DEFERRABLE INITIALLY DEFERRED
+	);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "DEFERRABLE primary key constraints are not supported yet", deferrableConstraintIssue)
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE deferrable_alter_table (id int, code int);
+	ALTER TABLE deferrable_alter_table ADD CONSTRAINT deferrable_alter_table_uk UNIQUE (code) DEFERRABLE;`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "DEFERRABLE unique constraints are not supported yet", deferrableConstraintIssue)
+}
+
+func testConstraintTriggerIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE constraint_trigger_table (id int);
+	CREATE FUNCTION constraint_trigger_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$;
+	CREATE CONSTRAINT TRIGGER constraint_trigger_trg
+		AFTER INSERT ON constraint_trigger_table
+		FOR EACH ROW EXECUTE FUNCTION constraint_trigger_fn();`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "CREATE CONSTRAINT TRIGGER not supported yet", constraintTriggerIssue)
+}
+
+func testReferencingClauseInTriggerIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE referencing_trigger_table (id int);
+	CREATE FUNCTION referencing_trigger_fn() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+	CREATE TRIGGER referencing_trigger_trg
+		AFTER INSERT ON referencing_trigger_table
+		REFERENCING NEW TABLE AS inserted_rows
+		FOR EACH STATEMENT EXECUTE FUNCTION referencing_trigger_fn();`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "REFERENCING clause (transition tables) not supported yet", referencingClauseInTriggerIssue)
+}
+
+func testExpressionPartitionWithPKIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE expression_partition_table (
+		id int,
+		event_date date,
+		PRIMARY KEY (id, event_date)
+	) PARTITION BY RANGE (extract(year from event_date));`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unsupported PRIMARY KEY constraint with partition key definition", expressionPartitionIssue)
+}
+
+func testMultiColumnListPartitionIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE multi_column_list_partition_table (
+		region text,
+		tier int
+	) PARTITION BY LIST (region, tier);`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `cannot use "list" partition strategy with more than one column`, multiColumnListPartition)
+}
+
+func testInsufficientColumnsInPKForPartitionIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE insufficient_pk_partition_table (
+		id int PRIMARY KEY,
+		event_date date
+	) PARTITION BY RANGE (event_date);`)
+	errMsg := "insufficient columns in PRIMARY KEY constraint definition"
+	if isPG15BasedYBVersion() {
+		errMsg = "unique constraint on partitioned table must include all partitioning columns"
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, insufficientColumnsInPKForPartition)
+}
+
+// PostGIS is not shipped with YugabyteDB, so none of its types resolve on the target.
+func testPostGISDatatypesIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	testCases := []struct {
+		datatype string
+		Issue    issue.Issue
+	}{
+		{"geometry", geometryDatatypeIssue},
+		{"geography", geographyDatatypeIssue},
+		{"box2d", box2dDatatypeIssue},
+		{"box3d", box3dDatatypeIssue},
+		{"topogeometry", topogeometryDatatypeIssue},
+		{"raster", rasterDatatypeIssue},
+	}
+	for _, testCase := range testCases {
+		_, err = conn.Exec(ctx, fmt.Sprintf(`CREATE TABLE postgis_%s_table (id int, shape %s);`, testCase.datatype, testCase.datatype))
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, fmt.Sprintf(`type "%s" does not exist`, testCase.datatype), testCase.Issue)
+	}
+}
+
+func testXMLDatatypeIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE xml_datatype_table (id int, doc xml);
+	INSERT INTO xml_datatype_table VALUES (1, '<note><to>voyager</to></note>');`)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unsupported XML feature", xmlDatatypeIssue)
+}
+
+func testInheritanceIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE inheritance_parent_table (id int, name text);
+	CREATE TABLE inheritance_child_table (extra text) INHERITS (inheritance_parent_table);
+	INSERT INTO inheritance_child_table VALUES (1, 'a', 'b');`)
+	assertErrorCorrectlyThrownForIssueMaturityForYBVersion(t, err, "INHERITS not supported yet", inheritanceIssue)
+}
+
 func GetYBVersionEnv() string {
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
@@ -1268,6 +1524,42 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "PK and UK on complex data type", ybVersion), testPKandUKONComplexDataType)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "unsupported index methods", ybVersion), testUnsupportedIndexMethodsIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "multi-column and ordered gin index", ybVersion), testGinIndexVariantsIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "exclusion constraint", ybVersion), testExclusionConstraintIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "deferrable constraint", ybVersion), testDeferrableConstraintIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "constraint trigger", ybVersion), testConstraintTriggerIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "referencing clause in trigger", ybVersion), testReferencingClauseInTriggerIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "expression partition with PK", ybVersion), testExpressionPartitionWithPKIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "multi-column list partition", ybVersion), testMultiColumnListPartitionIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "insufficient columns in PK for partition", ybVersion), testInsufficientColumnsInPKForPartitionIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "postgis datatypes", ybVersion), testPostGISDatatypesIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "xml datatype", ybVersion), testXMLDatatypeIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "table inheritance", ybVersion), testInheritanceIssue)
 	assert.True(t, success)
 
 	// TODO: enable this as part of this ticket - https://yugabyte.atlassian.net/browse/DB-15825

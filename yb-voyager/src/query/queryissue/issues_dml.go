@@ -229,7 +229,7 @@ func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatemen
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})	
+	return newQueryIssue(jsonQueryFunctionIssue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var loFunctionsIssue = issue.Issue{
@@ -324,6 +324,11 @@ var fetchWithTiesIssue = issue.Issue{
 	Description: FETCH_WITH_TIES_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
+		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
+		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
+	},
 }
 
 func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
