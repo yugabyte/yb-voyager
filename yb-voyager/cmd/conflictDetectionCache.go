@@ -26,6 +26,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -333,6 +334,16 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 // incoming event.
 func (c *ConflictDetectionCache) recordConflictMetric(incomingEvent *tgtdb.Event) {
 	metrics.Get().RecordImportCDCConflict(c.importerRole, incomingEvent.TableNameTup)
+
+	// The callhome conflict metric is best-effort: record it only when diagnostics are enabled
+	// AND the collector has been initialized. callhomeMetricsCollector is a global set up only
+	// by a full import run (see importData.go), so it is nil on paths/tests that never initialize
+	// it (e.g. import-data-to-source/source-replica, unit tests). This mirrors the nil guards at
+	// every other callhomeMetricsCollector call site.
+	if !callhome.SendDiagnostics || callhomeMetricsCollector == nil {
+		return
+	}
+	callhomeMetricsCollector.IncrementConflictCountForTable(incomingEvent.TableNameTup)
 }
 
 // Conflict describes the unique-index match that caused a value-path conflict.

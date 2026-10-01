@@ -27,6 +27,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -732,6 +734,20 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	defer metrics.SetRecorder(prev)
 	metrics.SetRecorder(rec)
 
+	// Initialize the callhome collector and force diagnostics on so the callhome conflict-metric
+	// path runs deterministically (it is otherwise gated by SendDiagnostics, which a dev may set
+	// to 0). Restore both globals afterwards to avoid polluting other tests.
+	origCollector := callhomeMetricsCollector
+	origSendDiagnostics := callhome.SendDiagnostics
+	defer func() {
+		callhomeMetricsCollector = origCollector
+		callhome.SendDiagnostics = origSendDiagnostics
+	}()
+	// No anonymizer: this test only checks that the conflict reaches the collector once, so it
+	// counts under the placeholder key.
+	callhomeMetricsCollector = callhome.NewImportDataMetricsCollector(nil)
+	callhome.SendDiagnostics = true
+
 	cache := newConflictCacheForTest([][]string{{"email"}})
 	cachedDeleteFreeingEmail := func(vsn int64, id string) *tgtdb.Event {
 		return withAfterFields(&tgtdb.Event{
@@ -790,6 +806,10 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	expectedConflicts := map[string]int{"public.users": 1}
 	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot())
 
+	// The callhome collector must be reached exactly once too.
+	expectedCallhomeConflicts := map[string]int64{constants.OBFUSCATE_STRING: 1}
+	assert.Equal(t, expectedCallhomeConflicts, callhomeMetricsCollector.GetCdcConflictCountPerTable())
+
 	// A non-conflicting event must not add to the count.
 	nonConflicting := withAfterFields(&tgtdb.Event{
 		Vsn:          3,
@@ -801,6 +821,9 @@ func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
 	})
 	require.NoError(t, cache.WaitUntilNoConflict(nonConflicting))
 	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot(), "a non-conflicting event must not be counted")
+
+	// The non-conflicting event must not add to the callhome count either.
+	assert.Equal(t, expectedCallhomeConflicts, callhomeMetricsCollector.GetCdcConflictCountPerTable())
 }
 
 // RemoveEvents must clear both the primary map and the lookup index.
