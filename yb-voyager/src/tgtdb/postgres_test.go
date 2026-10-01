@@ -172,6 +172,14 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 		`CREATE TABLE test_schema.ml_part_r2_s1 PARTITION OF test_schema.ml_part_r2 FOR VALUES IN ('s1');`,
 		`ALTER TABLE test_schema.ml_part_r1_s1 ADD PRIMARY KEY (id);`,
 		`ALTER TABLE test_schema.ml_part_r2_s1 ADD PRIMARY KEY (id);`,
+		// multi-level: one intermediate declares the PK (propagated to its leaf), the other leaf declares the same PK.
+		`CREATE TABLE test_schema.ml_ipk (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_ipk_r1 PARTITION OF test_schema.ml_ipk FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_r2 PARTITION OF test_schema.ml_ipk FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_r1_s1 PARTITION OF test_schema.ml_ipk_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_ipk_r2_s1 PARTITION OF test_schema.ml_ipk_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_ipk_r1 ADD PRIMARY KEY (id, sub);`,
+		`ALTER TABLE test_schema.ml_ipk_r2_s1 ADD PRIMARY KEY (id, sub);`,
 	)
 	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -226,6 +234,12 @@ func TestPostgresGetPrimaryKeyColumnsForTables(t *testing.T) {
 			// multi-level root: intermediates without a PK are not compared.
 			table:          testutils.CreateNameTupleWithTargetName("test_schema.ml_part", "public", POSTGRESQL),
 			expectedPKCols: []string{"id"},
+			leafPKOnly:     true,
+		},
+		{
+			// multi-level root: a PK declared on an intermediate is seen through its leaf.
+			table:          testutils.CreateNameTupleWithTargetName("test_schema.ml_ipk", "public", POSTGRESQL),
+			expectedPKCols: []string{"id", "sub"},
 			leafPKOnly:     true,
 		},
 	}
@@ -287,6 +301,20 @@ func TestPostgresGetPrimaryKeyColumnsForTablesMismatchedPartitionPKs(t *testing.
 		`CREATE TABLE test_schema.ml_mm_r2_s1 PARTITION OF test_schema.ml_mm_r2 FOR VALUES IN ('s1');`,
 		`ALTER TABLE test_schema.ml_mm_r1_s1 ADD PRIMARY KEY (id);`,
 		`ALTER TABLE test_schema.ml_mm_r2_s1 ADD PRIMARY KEY (id, sub);`,
+		// case-sensitive root and PK column.
+		`CREATE TABLE test_schema."CaseMM" ("Id" INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema."CaseMM_r1" PARTITION OF test_schema."CaseMM" FOR VALUES IN ('r1');`,
+		`CREATE TABLE test_schema."CaseMM_r2" PARTITION OF test_schema."CaseMM" FOR VALUES IN ('r2');`,
+		`ALTER TABLE test_schema."CaseMM_r1" ADD PRIMARY KEY ("Id");`,
+		`ALTER TABLE test_schema."CaseMM_r2" ADD PRIMARY KEY ("Id", region);`,
+		// multi-level: a PK declared on an intermediate disagrees with another leaf's PK.
+		`CREATE TABLE test_schema.ml_ipk_mm (id INT, region TEXT, sub TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r1 PARTITION OF test_schema.ml_ipk_mm FOR VALUES IN ('r1') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r2 PARTITION OF test_schema.ml_ipk_mm FOR VALUES IN ('r2') PARTITION BY LIST (sub);`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r1_s1 PARTITION OF test_schema.ml_ipk_mm_r1 FOR VALUES IN ('s1');`,
+		`CREATE TABLE test_schema.ml_ipk_mm_r2_s1 PARTITION OF test_schema.ml_ipk_mm_r2 FOR VALUES IN ('s1');`,
+		`ALTER TABLE test_schema.ml_ipk_mm_r1 ADD PRIMARY KEY (id, sub);`,
+		`ALTER TABLE test_schema.ml_ipk_mm_r2_s1 ADD PRIMARY KEY (id);`,
 	)
 	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
@@ -294,10 +322,14 @@ func TestPostgresGetPrimaryKeyColumnsForTablesMismatchedPartitionPKs(t *testing.
 	mismatchedOrder := testutils.CreateNameTupleWithTargetName("test_schema.mm_order", "public", POSTGRESQL)
 	missingPK := testutils.CreateNameTupleWithTargetName("test_schema.mm_nopk", "public", POSTGRESQL)
 	multiLevelMismatch := testutils.CreateNameTupleWithTargetName("test_schema.ml_mm", "public", POSTGRESQL)
-	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK, multiLevelMismatch}
+	caseSensitiveMismatch := testutils.CreateNameTupleWithTargetName(`test_schema."CaseMM"`, "public", POSTGRESQL)
+	intermediatePKMismatch := testutils.CreateNameTupleWithTargetName("test_schema.ml_ipk_mm", "public", POSTGRESQL)
+	tablesList := []sqlname.NameTuple{mismatchedCols, mismatchedOrder, missingPK, multiLevelMismatch, caseSensitiveMismatch, intermediatePKMismatch}
 
 	_, err := testPostgresTarget.GetPrimaryKeyColumnsForTables(tablesList, true)
 	require.EqualError(t, err, "partitioned table(s) whose leaf partitions have inconsistent primary keys on the target: "+
+		caseSensitiveMismatch.ForOutput()+": (Id), (Id, region); "+
+		intermediatePKMismatch.ForOutput()+": (id), (id, sub); "+
 		multiLevelMismatch.ForOutput()+": (id), (id, sub); "+
 		mismatchedCols.ForOutput()+": (id), (id, region); "+
 		missingPK.ForOutput()+": (id), (no primary key); "+
