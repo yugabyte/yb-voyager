@@ -279,7 +279,7 @@ func streamChangesFromSegment(
 	}
 
 	if cutoverDetected {
-		err = metaDB.MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(segment.SegmentNum, importerRole, func(record *metadb.MigrationStatusRecord) error {
+		err = metaDB.MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(segment.SegmentNum, importerRole, func(record *metadb.MigrationStatusRecord) error {
 			switch importerRole {
 			case TARGET_DB_IMPORTER_ROLE:
 				record.CutoverDetectedByTargetImporter = true
@@ -290,18 +290,19 @@ func streamChangesFromSegment(
 			case SOURCE_DB_IMPORTER_ROLE:
 				record.CutoverDetectedBySourceImporter = true
 				record.CutoverTimings.DetectedBySourceImporterAt = utils.GetCurrentTimestamp()
+			default:
+				return goerrors.Errorf("unknown importer role: %s", importerRole)
 			}
 			return nil
 		})
 		if err != nil {
-			return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
+			return goerrors.Errorf("error marking segment as processed and updating cutover detected in txn: %w", err)
 		}
 		updateCallhomeImportPhase(cutoverEvent)
 		eventQueue.EndOfQueue = true
 		segment.MarkProcessed()
 	} else {
 		err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
-
 		if err != nil {
 			return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
 		}

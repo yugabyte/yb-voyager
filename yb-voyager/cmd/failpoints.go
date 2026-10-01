@@ -330,7 +330,7 @@ func writeUniqueKeyConflictStatsLocked() error {
 }
 
 // injectCutoverDetectedByImporterBeforeChannelsDrained crashes the importer right
-// after it records CutoverDetectedBy*Importer in the MSR, while the event channels
+// after it detects the cutover event, while the event channels
 // still hold unapplied events from the same segment. Tests use it to pin that a
 // resumed importer still applies those in-flight events instead of skipping
 // streaming because the cutover was already detected.

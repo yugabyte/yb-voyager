@@ -986,8 +986,8 @@ func TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium(t *testi
 }
 
 // ---------------------------------------------------------------------------
-// import-data-to-target crashes after it records CutoverDetectedByTargetImporter
-// in the MSR but before the event channels drain, so events read from the
+// import-data-to-target crashes after it detects the cutover event
+//  but before the event channels drain, so events read from the
 // segment ahead of the cutover event are still batched in memory and were
 // never applied. On resume, streamChanges sees cutoverInitiatedAndCutoverEventProcessed
 // and must still apply those in-flight events before postCutoverProcessing;
@@ -1051,6 +1051,18 @@ func TestCutoverToTargetResumption_ImporterCrashAfterCutoverDetectedBeforeChanne
 		t, markerPath, 180*time.Second, 60*time.Second)
 	require.NoError(t, err, "import data did not crash after cutover detected, before channels drained")
 	t.Log("import data crashed after cutover detected with events in flight — resuming")
+
+	err = lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
+		msr, err := mdb.GetMigrationStatusRecord()
+		if err != nil {
+			return err
+		}
+		if msr.CutoverDetectedByTargetImporter {
+			return fmt.Errorf("CutoverDetectedByTargetImporter persisted before event channels drained")
+		}
+		return nil
+	})
+	require.NoError(t, err)
 
 	err = lm.WithTargetConn(func(target *sql.DB) error {
 		return testutils.AssertRowCount(context.Background(), target, tableName, int(snapshotRows+deltaInserts))

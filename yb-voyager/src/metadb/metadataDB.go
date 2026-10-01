@@ -178,7 +178,6 @@ func (m *MetaDB) QueryRow(query string, args ...any) (*sql.Row, error) {
 	return m.db.QueryRow(query, args...), nil
 }
 
-// sqlExecer is satisfied by both *sql.DB and *sql.Tx.
 type sqlExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
 }
@@ -187,12 +186,12 @@ func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64, importerRole
 	return markEventQueueSegmentAsProcessed(m.db, segmentNum, importerRole)
 }
 
-// MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn records, in one transaction, that
+// MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn records, in one transaction, that
 // the importer has applied every event of the segment carrying its cutover event and has
 // detected the cutover. The two facts must never be persisted separately: a segment marked
 // without the cutover flag makes the resumed importer wait forever for a next segment, and a
 // cutover flag without the segment mark leaves the segment pending for archive changes.
-func (m *MetaDB) MarkEventQueueSegmentAsProcessedAndUpdateCutoverDetectedInTxn(segmentNum int64, importerRole string, updateFn func(record *MigrationStatusRecord) error) error {
+func (m *MetaDB) MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(segmentNum int64, importerRole string, updateFn func(record *MigrationStatusRecord) error) error {
 	return m.runInTransaction(func(tx *sql.Tx) error {
 		err := updateJsonObject(m, tx, MIGRATION_STATUS_KEY, updateFn)
 		if err != nil {
