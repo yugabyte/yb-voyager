@@ -1194,24 +1194,6 @@
         "category": "unsupported_features",
         "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
         "impact": "LEVEL_2",
-        "name": "FETCH .. WITH TIES",
-        "object_name": "",
-        "object_type": "VIEW",
-        "type": "FETCH_WITH_TIES"
-      },
-      {
-        "category": "unsupported_features",
-        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_2",
-        "name": "FETCH .. WITH TIES",
-        "object_name": "",
-        "object_type": "VIEW",
-        "type": "FETCH_WITH_TIES"
-      },
-      {
-        "category": "unsupported_features",
-        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_2",
         "name": "Large Object Functions",
         "object_name": "",
         "object_type": "TRIGGER",
