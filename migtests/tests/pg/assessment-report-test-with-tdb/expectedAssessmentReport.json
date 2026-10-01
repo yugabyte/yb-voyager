@@ -2,7 +2,7 @@
     "VoyagerVersion": "main",
     "TargetDBVersion": "2.25.1.0",
     "MigrationComplexity": "HIGH",
-    "MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 23 Level 3 issue(s), resulting in HIGH migration complexity",
+    "MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 21 Level 3 issue(s), resulting in HIGH migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_assessment_report",
@@ -947,40 +947,30 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.child_table",
             "SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "schema2.child_table",
             "SqlStatement": "CREATE TABLE schema2.child_table (\n    specific_column1 date\n)\nINHERITS (schema2.parent_table);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
             "Category": "unsupported_features",

@@ -151,6 +151,7 @@ const (
 
 	FOREIGN_TABLE                            = "FOREIGN_TABLE"
 	INHERITANCE                              = "INHERITANCE"
+	INHERITANCE_MIGRATION_CAVEAT             = "INHERITANCE_MIGRATION_CAVEAT"
 	SECURITY_INVOKER_VIEWS                   = "SECURITY_INVOKER_VIEWS"
 	DETERMINISTIC_OPTION_WITH_COLLATION      = "DETERMINISTIC_OPTION_WITH_COLLATION"
 	NON_DETERMINISTIC_COLLATION              = "NON_DETERMINISTIC_COLLATION"
@@ -337,6 +338,7 @@ const (
 	NON_DECIMAL_INTEGER_LITERAL_ISSUE_NAME  = "Non-decimal integer literal"
 	TWO_PHASE_COMMIT_ISSUE_NAME             = "Two-Phase Commit (XA syntax)"
 	SAVEPOINT_USAGE_ISSUE_NAME              = "SAVEPOINT usage in transactions"
+	INHERITANCE_MIGRATION_CAVEAT_ISSUE_NAME = "Data migration of inherited tables"
 )
 
 // Issues Description
@@ -450,6 +452,7 @@ const (
 
 	FOREIGN_TABLE_ISSUE_DESCRIPTION                            = "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager."
 	INHERITANCE_ISSUE_DESCRIPTION                              = "Table inheritance is not yet supported in YugabyteDB."
+	INHERITANCE_MIGRATION_CAVEAT_ISSUE_DESCRIPTION             = "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows."
 	SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION                   = "Security invoker views are not yet supported in YugabyteDB."
 	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION      = "Deterministic option/attribute with collation is not yet supported in YugabyteDB."
 	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION              = "Non-Deterministic collations are not yet supported in YugabyteDB."

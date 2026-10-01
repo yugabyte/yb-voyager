@@ -438,7 +438,7 @@
             <p><strong>Database Version:</strong> 17.8 (Ubuntu 17.8-1.pgdg22.04+1)</p>
         
 
-        <p><strong>Target YB Version:</strong> 2025.2.3.0</p>
+        <p><strong>Target YB Version:</strong> 2026.1.1.1</p>
 
         
             <p><strong>Migration Complexity:</strong> MEDIUM</p>
@@ -658,15 +658,23 @@
                     <tbody>
                         
                             <tr>
-                                <td class="centered-cell">Unsupported Datatypes</td>
+                                <td class="centered-cell">Migration Caveats</td>
+                                <td class="centered-cell">2</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">0</td>
+                                <td class="centered-cell">2</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Performance Optimizations</td>
                                 <td class="centered-cell">1</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
                                 <td class="centered-cell">1</td>
                             </tr>
                         
                             <tr>
-                                <td class="centered-cell">Unsupported Features</td>
+                                <td class="centered-cell">Unsupported Datatypes</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">1</td>
@@ -689,29 +697,13 @@
                                 <td class="centered-cell">1</td>
                             </tr>
                         
-                            <tr>
-                                <td class="centered-cell">Migration Caveats</td>
-                                <td class="centered-cell">1</td>
-                                <td class="centered-cell">0</td>
-                                <td class="centered-cell">0</td>
-                                <td class="centered-cell">1</td>
-                            </tr>
-                        
-                            <tr>
-                                <td class="centered-cell">Performance Optimizations</td>
-                                <td class="centered-cell">1</td>
-                                <td class="centered-cell">0</td>
-                                <td class="centered-cell">0</td>
-                                <td class="centered-cell">1</td>
-                            </tr>
-                        
                     </tbody>
                 </table>
             
 
             <p>
                 <strong>Complexity:</strong> MEDIUM<br>
-                <strong>Reasoning:</strong> Found 2 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
+                <strong>Reasoning:</strong> Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity
             </p>
 
             <p>
@@ -893,9 +885,9 @@
                     
                     
                     <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_features"
-                        data-name="Table Inheritance"
-                        data-impact="LEVEL_3" 
+                        data-category="unsupported_query_constructs"
+                        data-name="System Column - ctid"
+                        data-impact="LEVEL_2" 
                         data-usage="">
                         
                         <!-- Summary Row -->
@@ -905,123 +897,6 @@
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
                                             <span id="arrow-1">&#9654;</span>
-                                        </div>
-                                        <span style="word-break: break-word;">Unsupported Features</span>
-                                    </div>
-                                </td>
-                            
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    
-                                    Table Inheritance
-                                </div>
-                            </td>
-                            <td class="centered-cell">
-                                
-                                    public.child_table
-                                
-                            </td>
-                            
-                            <td class="centered-cell" style="text-align: center;">Level 3</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-1" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Category Description</th>
-                                                        <td>
-                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                                Features of the source database that are not supported on the target YugabyteDB.
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                
-
-                                                <!-- Only show if ObjectType is present -->
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>TABLE</td>
-                                                    </tr>
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>public.child_table</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TABLE public.child_table (
-    specific_column1 date
-)
-INHERITS (public.parent_table);</pre>
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-
-                                                
-                                                
-                                                    
-                                                    
-                                                        <tr>
-                                                            <th class="centered-cell">Supported In (versions)</th>
-                                                            <td>>=2025.1.0.0 (2025.1 series) (TP), >=2025.2.0.0 (2025.2 series) (TP), >=2026.1.0.0 (2026.1 series) (TP)</td>
-                                                        </tr>
-                                                    
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.</pre>
-                                                                
-                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported">docs</a> for more details.</pre>
-                                                                
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                               
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    
-                    
-                    
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_query_constructs"
-                        data-name="System Column - ctid"
-                        data-impact="LEVEL_2" 
-                        data-usage="">
-                        
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2', false)">
-                            
-                                <td class="centered-cell">
-                                    <div class="category-cell-flex">
-                                        <div class="arrow-container">
-                                            <span id="arrow-2">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                     </div>
@@ -1044,7 +919,7 @@ FROM schema1.employees2
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-2" class="details-row">
+                        <tr id="details-1" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1117,12 +992,12 @@ FROM schema1.employees2</pre>
                         data-usage="">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3', false)">
+                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2', false)">
                             
                                 <td class="centered-cell">
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
-                                            <span id="arrow-3">&#9654;</span>
+                                            <span id="arrow-2">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                     </div>
@@ -1145,7 +1020,7 @@ FROM schema1.employees2
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-3" class="details-row">
+                        <tr id="details-2" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1218,12 +1093,12 @@ FROM schema1.employees2</pre>
                         data-usage="">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4', false)">
+                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3', false)">
                             
                                 <td class="centered-cell">
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
-                                            <span id="arrow-4">&#9654;</span>
+                                            <span id="arrow-3">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                     </div>
@@ -1246,7 +1121,7 @@ FROM schema1.employees2
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-4" class="details-row">
+                        <tr id="details-3" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1319,12 +1194,12 @@ FROM schema1.employees2</pre>
                         data-usage="">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5', false)">
+                        <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4', false)">
                             
                                 <td class="centered-cell">
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
-                                            <span id="arrow-5">&#9654;</span>
+                                            <span id="arrow-4">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                     </div>
@@ -1347,7 +1222,7 @@ FROM schema1.employees2
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-5" class="details-row">
+                        <tr id="details-4" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1420,12 +1295,12 @@ FROM schema1.employees2</pre>
                         data-usage="">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6', false)">
+                        <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5', false)">
                             
                                 <td class="centered-cell">
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
-                                            <span id="arrow-6">&#9654;</span>
+                                            <span id="arrow-5">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                     </div>
@@ -1448,7 +1323,7 @@ FROM schema1.employees2
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-6" class="details-row">
+                        <tr id="details-5" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1521,12 +1396,12 @@ FROM schema1.employees2</pre>
                         data-usage="">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7', false)">
+                        <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6', false)">
                             
                                 <td class="centered-cell">
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
-                                            <span id="arrow-7">&#9654;</span>
+                                            <span id="arrow-6">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Unsupported Plpgsql Objects</span>
                                     </div>
@@ -1548,7 +1423,7 @@ FROM schema1.employees2</pre>
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-7" class="details-row">
+                        <tr id="details-6" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1641,12 +1516,12 @@ FROM schema1.employees2</pre>
                         data-usage="">
                         
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8', false)">
+                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7', false)">
                             
                                 <td class="centered-cell">
                                     <div class="category-cell-flex">
                                         <div class="arrow-container">
-                                            <span id="arrow-8">&#9654;</span>
+                                            <span id="arrow-7">&#9654;</span>
                                         </div>
                                         <span style="word-break: break-word;">Migration Caveats</span>
                                     </div>
@@ -1668,7 +1543,7 @@ FROM schema1.employees2</pre>
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-8" class="details-row">
+                        <tr id="details-7" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1726,6 +1601,118 @@ FROM schema1.employees2</pre>
                                                                 <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Policies require specific roles (test_policy) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.</pre>
                                                                 
                                                                     <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="migration_caveats"
+                        data-name="Data migration of inherited tables"
+                        data-impact="LEVEL_1" 
+                        data-usage="">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-8">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Migration Caveats</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    Data migration of inherited tables
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    public.child_table
+                                
+                            </td>
+                            
+                            <td class="centered-cell" style="text-align: center;">Level 1</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-8" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Migration Caveats highlights the current limitations with the migration workflow.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>TABLE</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>public.child_table</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TABLE public.child_table (
+    specific_column1 date
+)
+INHERITS (public.parent_table);</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                
+                                                
+                                                    
+                                                    
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported">docs</a> for more details.</pre>
                                                                 
                                                             </div>
                                                         

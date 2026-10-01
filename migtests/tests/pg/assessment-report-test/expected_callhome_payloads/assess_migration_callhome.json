@@ -1238,24 +1238,24 @@
         "type": "DEFERRABLE_CONSTRAINTS"
       },
       {
-        "category": "unsupported_features",
-        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Table Inheritance",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Data migration of inherited tables",
         "object_name": "",
         "object_type": "TABLE",
         "sql_statement": "CREATE TABLE schema_a1717e859fc83d39.table_93e1de19aa34394b (col_86c9526271b4a1d0 date) INHERITS (schema_a1717e859fc83d39.table_b41e8c20f29c59f8)",
-        "type": "INHERITANCE"
+        "type": "INHERITANCE_MIGRATION_CAVEAT"
       },
       {
-        "category": "unsupported_features",
-        "category_description": "Features of the source database that are not supported on the target YugabyteDB.",
-        "impact": "LEVEL_3",
-        "name": "Table Inheritance",
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Data migration of inherited tables",
         "object_name": "",
         "object_type": "TABLE",
         "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_93e1de19aa34394b (col_86c9526271b4a1d0 date) INHERITS (schema_d7108fd530c9b1c2.table_b41e8c20f29c59f8)",
-        "type": "INHERITANCE"
+        "type": "INHERITANCE_MIGRATION_CAVEAT"
       },
       {
         "category": "unsupported_plpgsql_objects",
