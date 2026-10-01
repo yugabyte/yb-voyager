@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -79,7 +80,13 @@ func newConflictCacheForTestWithIndexes(indexes ...tgtdb.UniqueIndex) *ConflictD
 	// like the previous same-PK exclusion (routing by primary key).
 	tablePartitionKeyMap := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 	tablePartitionKeyMap.Put(table, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
-	return NewConflictDetectionCache(tableToIndexes, []chan *tgtdb.Event{make(chan *tgtdb.Event, 1)}, POSTGRESQL, tablePartitionKeyMap)
+	// WaitUntilNoConflict flushes all NUM_EVENT_CHANNELS channels on a real conflict, so
+	// the cache must be built with that many channels (not just one).
+	evChans := make([]chan *tgtdb.Event, NUM_EVENT_CHANNELS)
+	for i := range evChans {
+		evChans[i] = make(chan *tgtdb.Event, 1)
+	}
+	return NewConflictDetectionCache(tableToIndexes, evChans, POSTGRESQL, tablePartitionKeyMap, TARGET_DB_IMPORTER_ROLE)
 }
 
 func testTableTuple() sqlname.NameTuple {
@@ -740,6 +747,91 @@ func TestConflictLookup_NoConflictDoesNotBlock(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("WaitUntilNoConflict blocked despite no conflict")
 	}
+}
+
+// A blocked event must be counted exactly once (under its table name) no matter how many
+// cached events it conflicts with or how many times it re-waits, and a non-conflicting event
+// must not be counted.
+//
+// Two cached deletes sharing the unique value are what make the "once" claim testable: the
+// first detection sees both at once, and clearing only one wakes the wait without releasing
+// it, forcing a genuine second loop iteration in WaitUntilNoConflict. That second pass is the
+// only thing the !conflictLogged guard exists for.
+func TestConflictMetric_CountsBlockedEventOncePerTable(t *testing.T) {
+	rec := metrics.NewRecordingRecorder()
+	prev := metrics.Get()
+	defer metrics.SetRecorder(prev)
+	metrics.SetRecorder(rec)
+
+	cache := newConflictCacheForTest([][]string{{"email"}})
+	cachedDeleteFreeingEmail := func(vsn int64, id string) *tgtdb.Event {
+		return withAfterFields(&tgtdb.Event{
+			Vsn:          vsn,
+			Op:           "d",
+			TableNameTup: testTableTuple(),
+			Key:          map[string]*string{"id": strPtr(id)},
+			BeforeFields: map[string]*string{"email": strPtr("a@example.com")},
+			ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+		})
+	}
+	// Distinct primary keys, so neither is excluded by the partition-key check, and both land
+	// in the same unique-value bucket as the incoming insert.
+	cachedFirst := cachedDeleteFreeingEmail(1, "1")
+	cachedSecond := cachedDeleteFreeingEmail(10, "10")
+	require.NoError(t, cache.Put(cachedFirst))
+	require.NoError(t, cache.Put(cachedSecond))
+
+	// before-after conflict: incoming insert reuses the cached deletes' unique value.
+	incoming := withAfterFields(&tgtdb.Event{
+		Vsn:          2,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("2")},
+		Fields:       map[string]*string{"email": strPtr("a@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	})
+
+	waitErr := make(chan error, 1)
+	go func() { waitErr <- cache.WaitUntilNoConflict(incoming) }()
+
+	// Recorded at first detection, before the blocking wait: one increment even though the
+	// event conflicts with two cached events at once.
+	require.Eventually(t, func() bool {
+		return rec.ImportCDCConflictsSnapshot()["public.users"] == 1
+	}, 2*time.Second, 5*time.Millisecond, "blocked event should be counted once under its table name")
+
+	// Clearing one of the two conflicts must wake the wait without releasing it. A bounded
+	// wait is the only way to assert the call did NOT return.
+	cache.RemoveEvents(cachedFirst)
+	select {
+	case err := <-waitErr:
+		t.Fatalf("WaitUntilNoConflict returned while the second cached event was still in flight: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cache.RemoveEvents(cachedSecond)
+	select {
+	case err := <-waitErr:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitUntilNoConflict did not return after the conflict cleared")
+	}
+
+	// Still one: neither the second conflicting cached event nor the re-wait added a count.
+	expectedConflicts := map[string]int{"public.users": 1}
+	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot())
+
+	// A non-conflicting event must not add to the count.
+	nonConflicting := withAfterFields(&tgtdb.Event{
+		Vsn:          3,
+		Op:           "c",
+		TableNameTup: testTableTuple(),
+		Key:          map[string]*string{"id": strPtr("3")},
+		Fields:       map[string]*string{"email": strPtr("b@example.com")},
+		ExporterRole: SOURCE_DB_EXPORTER_ROLE,
+	})
+	require.NoError(t, cache.WaitUntilNoConflict(nonConflicting))
+	assert.Equal(t, expectedConflicts, rec.ImportCDCConflictsSnapshot(), "a non-conflicting event must not be counted")
 }
 
 // RemoveEvents must clear both the primary map and the lookup index.

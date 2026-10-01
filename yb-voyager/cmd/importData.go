@@ -1227,6 +1227,14 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if err != nil {
 		utils.ErrExit("Failed to prepare target DB for import: %w", err)
 	}
+	// Fetch the primary-key columns of the import tables from the target (before snapshot) so
+	// they can be passed to streamChanges and the conflict-detection cache without re-querying
+	// during streaming. Also fails fast if any import table has no primary key.
+	// Runs before start-clean so a refused run has not truncated tables or reset import state.
+	importTableToPKColumns, err := getPrimaryKeyColumnsForImportTables(importTableList)
+	if err != nil {
+		utils.ErrExit("Failed to get primary key columns for import tables: %w", err)
+	}
 
 	state := NewImportDataState(exportDir)
 
@@ -1252,13 +1260,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		utils.ErrExit("Failed to prepare cdc-partition-key: %w", err)
 	}
 
-	// Fetch the primary-key columns of the import tables from the target (before snapshot) so
-	// they can be passed to streamChanges and the conflict-detection cache without re-querying
-	// during streaming. Also fails fast if a custom-partition-key table has no primary key.
-	importTableToPKColumns, err := getPrimaryKeyColumnsForImportTables(importTableList)
-	if err != nil {
-		utils.ErrExit("Failed to get primary key columns for import tables: %w", err)
-	}
 	//updating the metadb after the startclean clears any required metadb state
 	err = updateImportDataStartedAndSomeConfigsInMetaDB()
 	if err != nil {
@@ -1432,12 +1433,13 @@ paths return an empty map since conflict detection does not run for them). Becau
 runs in the same process before streamChanges on both the first run and resume, the map does
 not need to be persisted in metaDB.
 
-It also fails fast, before the snapshot import, if a table routed by a custom partition key
-has no primary key on the target: custom routing adds the PK as a synthetic unique index for
-conflict detection (a recycled PK across different custom keys must be serialized), so a
-custom-key table without a PK cannot be made correct. This is scoped to custom-key tables so
-that legitimately PK-less tables under pk/table routing (e.g. partitioned roots imported via
---use-partition-root) are not blocked.
+It also fails fast, before the snapshot import, if any import table has no primary key on the
+target, since conflict detection keys on it. For a table routed by a custom partition key this
+is essential: custom routing adds the PK as a synthetic unique index for conflict detection (a
+recycled PK across different custom keys must be serialized), so a custom-key table without a
+PK cannot be made correct. With --use-partition-root true, events are applied on the root, so a
+partitioned root without its own PK has no key: its leaves' PK is not unique across partitions
+(#3834).
 */
 func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	tableToPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -1447,19 +1449,23 @@ func getPrimaryKeyColumnsForImportTables(tableNames []sqlname.NameTuple) (*utils
 		return tableToPKColumns, nil
 	}
 
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(tableNames)
+	// CDC applies events on the leaves only with --use-partition-root false; on the root a leaf's
+	// PK is not unique across partitions, so it must not count as the root's key.
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(tableNames, !tconf.UsePartitionRoot)
 	if err != nil {
 		return nil, fmt.Errorf("error getting primary key columns for import tables: %w", err)
 	}
 
-	var tablesWithoutPK []sqlname.NameTuple
+	var tablesWithoutPK []string
 	for _, t := range tableNames {
 		if pkColumns, _ := tableToPKColumns.Get(t); len(pkColumns) == 0 {
-			tablesWithoutPK = append(tablesWithoutPK, t)
+			tablesWithoutPK = append(tablesWithoutPK, t.ForOutput())
 		}
 	}
 	if len(tablesWithoutPK) > 0 {
-		return nil, goerrors.Errorf("table(s) %v have no primary key on the target; live migration is not allowed for these tables", tablesWithoutPK)
+		return nil, goerrors.Errorf("table(s) %s have no primary key on the target; live migration is not allowed for these tables. "+
+			"If these are partitioned tables with a primary key only on their partitions, "+
+			"re-run with '--use-partition-root false' (requires YugabyteDB 2025.2.3.0 or later)", strings.Join(tablesWithoutPK, ", "))
 	}
 
 	return tableToPKColumns, nil
@@ -1490,7 +1496,9 @@ func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileT
 		return nil
 	}
 
-	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(nonEmptyTables)
+	// Snapshot always imports into the root (--use-partition-root applies only to CDC), so only the
+	// root's own PK makes conflicting rows get ignored.
+	tableToPKColumns, err := tdb.GetPrimaryKeyColumnsForTables(nonEmptyTables, false)
 	if err != nil {
 		return fmt.Errorf("failed to get primary key columns for tables: %w", err)
 	}

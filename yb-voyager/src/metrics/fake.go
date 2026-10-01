@@ -2,11 +2,21 @@
 
 package metrics
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+import (
+	"sync"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
 
 // RecordingRecorder is a test-only Recorder that counts calls, for verifying
 // that call sites invoke metrics without a Prometheus registry.
+//
+// Only the conflict counter is guarded by mu, because the conflict cache records it
+// from a streaming goroutine while a test polls; read it via ImportCDCConflictsSnapshot.
+// The exported maps are unsynchronized and safe only in single-goroutine tests.
 type RecordingRecorder struct {
+	mu sync.Mutex
+
 	ImportCDCEventsPending    map[string]int64
 	ImportCDCEstimatedSeconds map[string]float64
 	ImportCDCLastEventApplied map[string]int
@@ -22,6 +32,11 @@ type RecordingRecorder struct {
 	ExportParallelism         map[string]int64
 	ImportSnapshotTablesTotal map[string]int64
 	ExportSnapshotTablesTotal map[string]int64
+
+	// importCDCConflicts is unexported because the conflict cache records into it
+	// from the streaming goroutine while a test polls for the count. Read it with
+	// ImportCDCConflictsSnapshot, never directly.
+	importCDCConflicts map[string]int
 }
 
 func NewRecordingRecorder() *RecordingRecorder {
@@ -41,6 +56,7 @@ func NewRecordingRecorder() *RecordingRecorder {
 		ExportParallelism:         map[string]int64{},
 		ImportSnapshotTablesTotal: map[string]int64{},
 		ExportSnapshotTablesTotal: map[string]int64{},
+		importCDCConflicts:        map[string]int{},
 	}
 }
 
@@ -84,6 +100,24 @@ func (r *RecordingRecorder) SetImportCDCEstimatedSecondsToCatchUp(importerRole s
 }
 func (r *RecordingRecorder) SetImportCDCLastEventApplied(importerRole string) {
 	r.ImportCDCLastEventApplied[importerRole]++
+}
+func (r *RecordingRecorder) RecordImportCDCConflict(importerRole string, t sqlname.NameTuple) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.importCDCConflicts[key(t)]++
+}
+
+// ImportCDCConflictsSnapshot returns a copy of the per-table conflict counts. Callers
+// must use this rather than touching the map, since the conflict cache records from the
+// streaming goroutine while the test reads.
+func (r *RecordingRecorder) ImportCDCConflictsSnapshot() map[string]int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	snapshot := make(map[string]int, len(r.importCDCConflicts))
+	for table, count := range r.importCDCConflicts {
+		snapshot[table] = count
+	}
+	return snapshot
 }
 
 // export snapshot

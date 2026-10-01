@@ -366,12 +366,13 @@ ORDER BY n.nspname, c.relname, array_position(i.indkey, a.attnum);`
 // its own Query function) so the query and scan logic live in exactly one place.
 //
 // A partitioned table's primary key can live only on its leaf partitions when the root has
-// no primary key of its own (e.g. children carry PKs, imported via --use-partition-root).
-// Import events reference the root, so we discover the PK of every leaf partition (and the
+// no primary key of its own. With attributeLeafPKToRoot true (CDC applied on the leaves,
+// --use-partition-root false), we discover the PK of every leaf partition (and the
 // root/normal tables themselves) and attribute it to the root. A root's own primary key is
 // authoritative; a leaf's PK is used only when the root has none (partitions of the same
-// table share the same PK definition).
-func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+// table share the same PK definition). With attributeLeafPKToRoot false, a root gets only its
+// own PK: a leaf's PK is not unique across partitions, so it is not a key of the root.
+func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, error), tables []sqlname.NameTuple, attributeLeafPKToRoot bool) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if len(tables) == 0 {
 		return result, nil
@@ -381,9 +382,13 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 	// mapping of its catalog name ("schema.table") to its root's catalog name. This includes
 	// each leaf partition -> root, and each root/normal table -> itself.
 	//TODO: need to separate this out of this function
-	tableToRootMap, err := getPartitionTableToRootTableMap(queryFn, tables)
-	if err != nil {
-		return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+	var tableToRootMap map[string]string
+	if attributeLeafPKToRoot {
+		var err error
+		tableToRootMap, err = getPartitionTableToRootTableMap(queryFn, tables)
+		if err != nil {
+			return nil, fmt.Errorf("error getting leaf table to root table map: %w", err)
+		}
 	}
 
 	var fullTableList []string
@@ -416,6 +421,15 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate PK column rows: %w", err)
+	}
+
+	if !attributeLeafPKToRoot {
+		for _, t := range tables {
+			if pkColumns, ok := catalogToPKColumns[t.AsQualifiedCatalogName()]; ok {
+				result.Put(t, pkColumns)
+			}
+		}
+		return result, nil
 	}
 
 	rootCatalogToTuple := make(map[string]sqlname.NameTuple, len(tables))
@@ -456,8 +470,8 @@ func queryPGPrimaryKeyColumnsByCatalog(queryFn func(query string) (*sql.Rows, er
 // in PK-definition order.
 // Implementing this for completion but not used in Postgres fall-forward/fall-back;
 // this info is only used in fast path import of batches (Target YugabyteDB).
-func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
-	return queryPGPrimaryKeyColumnsByCatalog(pg.Query, tables)
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumnsForTables(tables []sqlname.NameTuple, attributeLeafPKToRoot bool) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return queryPGPrimaryKeyColumnsByCatalog(pg.Query, tables, attributeLeafPKToRoot)
 }
 
 // No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there

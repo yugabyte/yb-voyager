@@ -66,7 +66,7 @@ func TestProcessEventsBasic(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride](), TARGET_DB_IMPORTER_ROLE)
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	evChan <- &tgtdb.Event{
@@ -93,7 +93,7 @@ func TestProcessEventsRemovesEventFromConflicDetectionCache(t *testing.T) {
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride](), TARGET_DB_IMPORTER_ROLE)
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e := &tgtdb.Event{
@@ -130,7 +130,7 @@ func TestProcessEventsRemovesIgnoredEventFromConflicDetectionCache(t *testing.T)
 	statsReporter := &reporter.StreamImportStatsReporter{}
 	state := NewImportDataState(exportDir)
 	tdb = &mockYugabyteDB{}
-	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]())
+	conflictDetectionCache = NewConflictDetectionCache(utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex](), []chan *tgtdb.Event{evChan}, POSTGRESQL, utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride](), TARGET_DB_IMPORTER_ROLE)
 
 	oname := sqlname.NewObjectName(YUGABYTEDB, "public", "public", "users")
 	e1 := &tgtdb.Event{
