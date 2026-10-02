@@ -37,6 +37,7 @@ func main() {
 
 	registerSignalHandlers()
 	atexit.Register(cmd.PackAndSendCallhomePayloadOnExit)
+	atexit.Register(cmd.PrintFailureSchemaDriftHintOnExit)
 	atexit.Register(cmd.CleanupChildProcesses)
 	atexit.Register(restoreTerminalState) // ensure terminal is always restored
 	cmd.Execute()

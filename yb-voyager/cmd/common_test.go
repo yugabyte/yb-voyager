@@ -18,18 +18,22 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -811,4 +815,172 @@ func Int64Ptr(i int64) *int64 {
 
 func StringPtr(s string) *string {
 	return &s
+}
+
+// Post-cutover commands and runs must stay out: they are past the last source capture,
+// so the hint would point at a report that cannot cover them.
+func TestFailureSchemaDriftHintLeadIn(t *testing.T) {
+	origRole, origMetaDB := exporterRole, metaDB
+	t.Cleanup(func() { exporterRole, metaDB = origRole, origMetaDB })
+	metaDB = nil
+
+	tests := []struct {
+		name        string
+		commandPath string
+		role        string
+		wantLeadIn  string
+		wantOK      bool
+	}{
+		{
+			name:        "import data",
+			commandPath: importDataCmd.CommandPath(),
+			wantLeadIn:  "import data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "import data to target",
+			commandPath: importDataToTargetCmd.CommandPath(),
+			wantLeadIn:  "import data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "import data to source is post-cutover",
+			commandPath: importDataToSourceCmd.CommandPath(),
+			wantOK:      false,
+		},
+		{
+			name:        "import data to source-replica is post-cutover",
+			commandPath: importDataToSourceReplicaCmd.CommandPath(),
+			wantOK:      false,
+		},
+		{
+			name:        "export data as the source exporter",
+			commandPath: exportDataCmd.CommandPath(),
+			role:        SOURCE_DB_EXPORTER_ROLE,
+			wantLeadIn:  "export data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "export data from source",
+			commandPath: exportDataFromSrcCmd.CommandPath(),
+			role:        SOURCE_DB_EXPORTER_ROLE,
+			wantLeadIn:  "export data exited with an error.",
+			wantOK:      true,
+		},
+		{
+			name:        "export data under the fall-back target exporter",
+			commandPath: exportDataCmd.CommandPath(),
+			role:        TARGET_DB_EXPORTER_FB_ROLE,
+			wantOK:      false,
+		},
+		{
+			name:        "export data from target",
+			commandPath: exportDataFromTargetCmd.CommandPath(),
+			role:        TARGET_DB_EXPORTER_FB_ROLE,
+			wantOK:      false,
+		},
+		{
+			name:        "import data file has no source schema",
+			commandPath: importDataFileCmd.CommandPath(),
+			wantOK:      false,
+		},
+		{
+			name:        "import schema is out of scope",
+			commandPath: importSchemaCmd.CommandPath(),
+			wantOK:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exporterRole = tt.role
+			leadIn, ok := failureSchemaDriftHintLeadIn(tt.commandPath)
+			assert.Equal(t, tt.wantOK, ok)
+			if !tt.wantOK {
+				// A caller that ignored ok must not get a printable sentence.
+				assert.Equal(t, "", leadIn)
+				return
+			}
+			assert.Equal(t, tt.wantLeadIn, leadIn)
+		})
+	}
+
+	afterCutover := []struct {
+		name        string
+		commandPath string
+		role        string
+		markDone    func(*metadb.MigrationStatusRecord)
+	}{
+		{
+			name:        "import data re-run after cutover to target",
+			commandPath: importDataToTargetCmd.CommandPath(),
+			markDone:    func(msr *metadb.MigrationStatusRecord) { msr.CutoverProcessedByTargetImporter = true },
+		},
+		{
+			name:        "export data re-run after cutover to target",
+			commandPath: exportDataFromSrcCmd.CommandPath(),
+			role:        SOURCE_DB_EXPORTER_ROLE,
+			markDone:    func(msr *metadb.MigrationStatusRecord) { msr.CutoverProcessedBySourceExporter = true },
+		},
+	}
+	for _, tt := range afterCutover {
+		t.Run(tt.name, func(t *testing.T) {
+			metaDB = newTempMetaDB(t)
+			exporterRole = tt.role
+			_, ok := failureSchemaDriftHintLeadIn(tt.commandPath)
+			assert.True(t, ok, "cutover requested but not yet processed by this role")
+
+			require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
+				msr.CutoverToTargetRequested = true
+				tt.markDone(msr)
+			}))
+			leadIn, ok := failureSchemaDriftHintLeadIn(tt.commandPath)
+			assert.False(t, ok)
+			assert.Equal(t, "", leadIn)
+		})
+	}
+}
+
+func TestSchemaDriftHintIsUseful(t *testing.T) {
+	orig := metaDB
+	t.Cleanup(func() { metaDB = orig })
+	ctx := context.Background()
+	at := time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
+
+	t.Run("no metaDB, the command died before opening the export dir", func(t *testing.T) {
+		metaDB = nil
+		assert.False(t, schemaDriftHintIsUseful())
+	})
+	t.Run("no snapshots", func(t *testing.T) {
+		metaDB = newTempMetaDB(t)
+		assert.False(t, schemaDriftHintIsUseful())
+	})
+	t.Run("placeholder only", func(t *testing.T) {
+		metaDB = newTempMetaDB(t)
+		_, err := schemasnapshot.SavePlaceholder(ctx, metaDB, schemasnapshot.SnapshotHeader{
+			Label: schemasnapshot.LabelExportSchema, CapturedAt: at})
+		require.NoError(t, err)
+		assert.False(t, schemaDriftHintIsUseful())
+	})
+	t.Run("one real snapshot beside a placeholder", func(t *testing.T) {
+		metaDB = newTempMetaDB(t)
+		_, err := schemasnapshot.SavePlaceholder(ctx, metaDB, schemasnapshot.SnapshotHeader{
+			Label: schemasnapshot.LabelExportSchema, CapturedAt: at})
+		require.NoError(t, err)
+		_, err = schemasnapshot.SaveSnapshot(ctx, metaDB, &schemasnapshot.SchemaSnapshot{
+			Header:  schemasnapshot.SnapshotHeader{Label: schemasnapshot.LabelExportSchema, CapturedAt: at.Add(time.Minute), Schemas: []string{"public"}},
+			Content: &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: POSTGRESQL},
+		})
+		require.NoError(t, err)
+		assert.True(t, schemaDriftHintIsUseful())
+	})
+}
+
+func newTempMetaDB(t *testing.T) *metadb.MetaDB {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, metadb.CreateAndInitMetaDBIfRequired(dir))
+	mdb, err := metadb.NewMetaDB(dir)
+	require.NoError(t, err)
+	return mdb
 }

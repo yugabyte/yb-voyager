@@ -57,6 +57,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -1924,6 +1925,91 @@ func PackAndSendCallhomePayloadOnExit() {
 	case archiveChangesCmd.CommandPath():
 		packAndSendArchiveChangesPayload(status, exitErr, metaDB, migrationUUID)
 	}
+}
+
+func driftDetectionHint() string {
+	return fmt.Sprintf("\t%s --export-dir %q (with your source connection flags)", detectDriftCmd.CommandPath(), exportDir)
+}
+
+// Placeholders carry no schema; with no real snapshot, detect-drift fails with "holds no
+// schema snapshots". A listing error only logs: the hints are advisory (spec §3.7).
+func schemaDriftHintIsUseful() bool {
+	if metaDB == nil {
+		return false
+	}
+	headers, err := schemasnapshot.ListSnapshots(metaDB)
+	if err != nil {
+		log.Warnf("schema-drift guidance: could not list schema snapshots: %v", err)
+		return false
+	}
+	return lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder })
+}
+
+func printFailureSchemaDriftHint(leadIn string) {
+	if !schemaDriftHintIsUseful() {
+		return
+	}
+	advice := fmt.Sprintf("If the source schema may have changed since export began, review schema drift before retrying or cutting over:\n%s",
+		driftDetectionHint())
+	if leadIn != "" {
+		advice = leadIn + " " + advice
+	}
+	utils.PrintAndLog(advice)
+}
+
+// The source exporter's exit capture is written only after this prompt is confirmed,
+// so detect-drift's live read is what covers the window up to cutover.
+func printCutoverSchemaDriftHint() {
+	if !schemaDriftHintIsUseful() {
+		return
+	}
+	utils.PrintAndLog(fmt.Sprintf("Recommendation: review schema drift on the source before cutting over:\n%s",
+		driftDetectionHint()))
+}
+
+// Reads the MSR directly because GetCutoverStatus can utils.ErrExit, and this runs inside an atexit handler.
+func cutoverToTargetProcessedBy(processedByRole func(*metadb.MigrationStatusRecord) bool) bool {
+	if metaDB == nil {
+		return false
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Warnf("schema-drift guidance: could not read migration status record: %v", err)
+		return false
+	}
+	return msr != nil && processedByRole(msr)
+}
+
+// Post-cutover commands run past the last source capture, out of scope for v1 (spec §1).
+func failureSchemaDriftHintLeadIn(commandPath string) (string, bool) {
+	switch commandPath {
+	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
+		if cutoverToTargetProcessedBy(func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedByTargetImporter }) {
+			return "", false
+		}
+		return "import data exited with an error.", true
+	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
+		if exporterRole != SOURCE_DB_EXPORTER_ROLE ||
+			cutoverToTargetProcessedBy(func(msr *metadb.MigrationStatusRecord) bool { return msr.CutoverProcessedBySourceExporter }) {
+			return "", false
+		}
+		return "export data exited with an error.", true
+	default:
+		return "", false
+	}
+}
+
+// An exit handler because it is the only place that sees the export and import data
+// failures which go through utils.ErrExit instead of a return value.
+func PrintFailureSchemaDriftHintOnExit() {
+	if utils.ErrExitErr == nil {
+		return
+	}
+	leadIn, ok := failureSchemaDriftHintLeadIn(currentCommand)
+	if !ok {
+		return
+	}
+	printFailureSchemaDriftHint(leadIn)
 }
 
 func updateExportSnapshotDataStatsInPayload(exportDataPayload *callhome.ExportDataPhasePayload) {
