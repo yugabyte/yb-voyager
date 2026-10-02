@@ -21,10 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
@@ -557,4 +559,122 @@ func TestNothingComparedError(t *testing.T) {
 			assert.NotContains(t, err.Error(), tt.absent)
 		})
 	}
+}
+
+// ─── countDriftsBy (the callhome histograms) ─────────────────────────────────
+
+func TestCountDriftsBy(t *testing.T) {
+	drifts := []schemadrift.DriftEntry{
+		{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+		{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+		{Diff: schemadrift.Diff{Type: schemadiff.TableDropped}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
+	}
+
+	byType := countDriftsBy(drifts, func(d schemadrift.DriftEntry) string { return string(d.Type) })
+	assert.Equal(t, map[string]int{
+		string(schemadiff.ColumnAdded):  2,
+		string(schemadiff.TableDropped): 1,
+	}, byType)
+
+	bySeverity := countDriftsBy(drifts, func(d schemadrift.DriftEntry) string { return string(d.Severity) })
+	assert.Equal(t, map[string]int{
+		string(schemadrift.SeverityAdvisory):            2,
+		string(schemadrift.SeverityBreaksUnrecoverable): 1,
+	}, bySeverity)
+
+	// nil rather than an empty map, so the field drops out of the payload JSON
+	// entirely instead of being sent as {}.
+	assert.Nil(t, countDriftsBy(nil, func(d schemadrift.DriftEntry) string { return string(d.Type) }))
+}
+
+// ─── buildSchemaDriftPayload ─────────────────────────────────────────────────
+
+func TestBuildSchemaDriftPayload(t *testing.T) {
+	origFormat := driftOutputFormat
+	t.Cleanup(func() { driftOutputFormat = origFormat })
+	driftOutputFormat = ""
+
+	report := schemadrift.Report{
+		Comparing: schemadrift.Comparing{
+			Schemas: []string{"public", "sales"},
+		},
+		Summary: schemadrift.Summary{
+			ChangeCount:           3,
+			ComparedIntervalCount: 2,
+			StoredCaptureCount:    4,
+			LiveCompared:          true,
+		},
+		Drifts: []schemadrift.DriftEntry{
+			{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+			{Diff: schemadrift.Diff{Type: schemadiff.TableDropped}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
+		},
+	}
+
+	t.Run("populated report", func(t *testing.T) {
+		got := buildSchemaDriftPayload(nil, &report)
+
+		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
+		assert.Equal(t, []string{"html", "json"}, got.OutputFormats)
+		assert.Equal(t, 3, got.ChangeCount)
+		assert.Equal(t, 2, got.ComparedIntervalCount)
+		assert.Equal(t, 4, got.StoredCaptureCount)
+		assert.True(t, got.LiveCompared)
+		assert.Equal(t, 2, got.SchemaCount)
+		assert.Equal(t, map[string]int{
+			string(schemadiff.ColumnAdded):  1,
+			string(schemadiff.TableDropped): 1,
+		}, got.DriftsByType)
+		assert.Equal(t, map[string]int{
+			string(schemadrift.SeverityAdvisory):            1,
+			string(schemadrift.SeverityBreaksUnrecoverable): 1,
+		}, got.DriftsBySeverity)
+		assert.Empty(t, got.Error)
+	})
+
+	// The run failed before a report existed. Everything report-derived must stay
+	// zero rather than be invented, and the histograms must drop out of the JSON.
+	t.Run("nil report", func(t *testing.T) {
+		got := buildSchemaDriftPayload(fmt.Errorf("source is unreachable"), nil)
+
+		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
+		assert.Equal(t, []string{"html", "json"}, got.OutputFormats)
+		assert.Zero(t, got.ChangeCount)
+		assert.Zero(t, got.ComparedIntervalCount)
+		assert.Zero(t, got.StoredCaptureCount)
+		assert.False(t, got.LiveCompared)
+		assert.Zero(t, got.SchemaCount)
+		assert.Nil(t, got.DriftsByType)
+		assert.Nil(t, got.DriftsBySeverity)
+		assert.Contains(t, got.Error, "source is unreachable")
+	})
+
+	t.Run("an invalid --output-format is not sent", func(t *testing.T) {
+		orig := driftOutputFormat
+		t.Cleanup(func() { driftOutputFormat = orig })
+		driftOutputFormat = "some text the user typed"
+
+		got := buildSchemaDriftPayload(fmt.Errorf("invalid report output format"), nil)
+		assert.Nil(t, got.OutputFormats)
+	})
+}
+
+// A flag that fails validation exits through the callhome handler before
+// detectDrift() opens metaDB, and every step below the guard dereferences it.
+func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
+	origSend := callhome.SendDiagnostics
+	origStart := startTime
+	origMetaDB := metaDB
+	t.Cleanup(func() {
+		callhome.SendDiagnostics = origSend
+		startTime = origStart
+		metaDB = origMetaDB
+	})
+
+	callhome.SendDiagnostics = true
+	startTime = time.Now()
+	metaDB = nil
+
+	assert.NotPanics(t, func() {
+		packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("bad flag"), nil)
+	})
 }
