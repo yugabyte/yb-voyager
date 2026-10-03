@@ -178,10 +178,30 @@ func (m *MetaDB) QueryRow(query string, args ...any) (*sql.Row, error) {
 	return m.db.QueryRow(query, args...), nil
 }
 
+type sqlExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64, importerRole string) error {
+	return markEventQueueSegmentAsProcessed(m.db, segmentNum, importerRole)
+}
+
+// MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn applies updateFn to the MSR and marks the
+// segment imported by importerRole in one transaction; if either fails, neither is persisted.
+func (m *MetaDB) MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(segmentNum int64, importerRole string, updateFn func(record *MigrationStatusRecord) error) error {
+	return m.runInTransaction(func(tx *sql.Tx) error {
+		err := updateJsonObject(m, tx, MIGRATION_STATUS_KEY, updateFn)
+		if err != nil {
+			return err
+		}
+		return markEventQueueSegmentAsProcessed(tx, segmentNum, importerRole)
+	})
+}
+
+func markEventQueueSegmentAsProcessed(execer sqlExecer, segmentNum int64, importerRole string) error {
 	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole, segmentNum)
 
-	result, err := m.db.Exec(query)
+	result, err := execer.Exec(query)
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
@@ -324,7 +344,46 @@ func (m *MetaDB) DeleteJsonObject(key string) error {
 }
 
 func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T)) error {
-	// Get a connection to the meta db.
+	return m.runInTransaction(func(tx *sql.Tx) error {
+		return updateJsonObject(m, tx, key, func(obj *T) error {
+			updateFn(obj)
+			return nil
+		})
+	})
+}
+
+func updateJsonObject[T any](m *MetaDB, tx *sql.Tx, key string, updateFn func(obj *T) error) error {
+	obj := new(T)
+	found, err := m.GetJsonObject(tx, key, obj)
+	if err != nil {
+		return fmt.Errorf("error while getting json object from meta db: %w", err)
+	}
+	err = updateFn(obj)
+	if err != nil {
+		return err
+	}
+	newJsonText, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("error while marshalling json: %w", err)
+	}
+	if !found {
+		err = m.InsertJsonObject(tx, key, obj)
+		if err != nil {
+			return fmt.Errorf("error while inserting json object into meta db: %w", err)
+		}
+		return nil
+	}
+	query := fmt.Sprintf(`UPDATE %s SET json_text = ? WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
+	_, err = tx.Exec(query, string(newJsonText), key)
+	if err != nil {
+		return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+	}
+	return nil
+}
+
+// runInTransaction runs fn on a dedicated connection inside a serializable transaction and
+// commits it when fn returns nil; any error rolls everything back.
+func (m *MetaDB) runInTransaction(fn func(tx *sql.Tx) error) error {
 	conn, err := m.db.Conn(context.Background())
 	if err != nil {
 		return fmt.Errorf("error while getting connection to meta db: %w", err)
@@ -335,7 +394,6 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 			log.Errorf("failed to close connection to meta db: %v", err)
 		}
 	}()
-	// Start a transaction.
 	tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("error while starting transaction on meta db: %w", err)
@@ -346,30 +404,9 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 			log.Errorf("failed to rollback transaction on meta db: %v", err)
 		}
 	}()
-	// Get the json object.
-	obj := new(T)
-	found, err := m.GetJsonObject(tx, key, obj)
+	err = fn(tx)
 	if err != nil {
-		return fmt.Errorf("error while getting json object from meta db: %w", err)
-	}
-	// Update the json object.
-	updateFn(obj)
-	// Update the json object in the meta db.
-	newJsonText, err := json.Marshal(obj)
-	if err != nil {
-		return fmt.Errorf("error while marshalling json: %w", err)
-	}
-	if !found {
-		err = m.InsertJsonObject(tx, key, obj)
-		if err != nil {
-			return fmt.Errorf("error while inserting json object into meta db: %w", err)
-		}
-	} else {
-		query := fmt.Sprintf(`UPDATE %s SET json_text = ? WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
-		_, err = tx.Exec(query, string(newJsonText), key)
-		if err != nil {
-			return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
-		}
+		return err
 	}
 	err = tx.Commit()
 	if err != nil {

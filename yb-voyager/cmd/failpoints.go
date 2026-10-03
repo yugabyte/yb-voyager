@@ -328,3 +328,17 @@ func writeUniqueKeyConflictStatsLocked() error {
 	}
 	return os.WriteFile(filepath.Join(failpointsDir, uniqueKeyConflictStatsFileName), payload, 0644)
 }
+
+// injectCutoverDetectedByImporterBeforeChannelsDrained crashes the importer right
+// after it detects the cutover event, while the event channels
+// still hold unapplied events from the same segment. Tests use it to pin that a
+// resumed importer still applies those in-flight events instead of skipping
+// streaming because the cutover was already detected.
+func injectCutoverDetectedByImporterBeforeChannelsDrained() {
+	failpoint.Inject("cutoverDetectedByImporterBeforeChannelsDrained", func(val failpoint.Value) {
+		if val != nil {
+			writeFailpointMarker("failpoint-cutover-detected-by-importer-before-channels-drained.log")
+			utils.ErrExit("failpoint: crash after cutover detected by importer, before event channels drained")
+		}
+	})
+}

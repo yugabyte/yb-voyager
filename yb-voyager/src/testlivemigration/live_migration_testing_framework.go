@@ -992,6 +992,24 @@ func (lm *LiveMigrationTest) WaitForFallForwardStreamingComplete(tables []string
 	return nil
 }
 
+func (lm *LiveMigrationTest) WaitForExportedEvents(expectedExportedEvents map[string]ChangesCount, streamingTimeout time.Duration, streamingSleep time.Duration) error {
+	lm.t.Logf("Waiting for exported events")
+
+	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
+		ok, err := lm.exportedEventsCompleted(expectedExportedEvents, "source")
+		if err != nil {
+			lm.t.Logf("failed to get exported events report: %v", err)
+			return false
+		}
+		return ok
+	})
+	if !ok {
+		return goerrors.Errorf("exported events did not complete within %v", streamingTimeout)
+	}
+	lm.t.Logf("Exported events complete")
+	return nil
+}
+
 // WaitForCutoverComplete waits until cutover is done
 func (lm *LiveMigrationTest) WaitForCutoverComplete(iterationNumber int, cutoverTimeout time.Duration) error {
 	lm.t.Logf("Waiting for cutover complete")
@@ -1357,6 +1375,37 @@ func (lm *LiveMigrationTest) streamingPhaseCompleted(changesCount map[string]Cha
 		}
 	}
 
+	return allMatches, nil
+}
+
+func (lm *LiveMigrationTest) exportedEventsCompleted(expectedExportedEvents map[string]ChangesCount, exportFrom string) (bool, error) {
+	report, err := lm.GetDataMigrationReport()
+	if err != nil {
+		return false, goerrors.Errorf("failed to get data migration report: %w", err)
+	}
+	allMatches := true
+	for tableName, exportedEvents := range expectedExportedEvents {
+		exportedInserts := int64(0)
+		exportedUpdates := int64(0)
+		exportedDeletes := int64(0)
+		for _, row := range report.RowData {
+			if row.TableName == tableName {
+				if row.DBType == exportFrom {
+					exportedInserts = row.ExportedInserts
+					exportedUpdates = row.ExportedUpdates
+					exportedDeletes = row.ExportedDeletes
+				}
+			}
+		}
+		expectedInserts := exportedEvents.Inserts
+		expectedUpdates := exportedEvents.Updates
+		expectedDeletes := exportedEvents.Deletes
+		changesMatchForTable := exportedInserts == expectedInserts && exportedUpdates == expectedUpdates && exportedDeletes == expectedDeletes
+		if !changesMatchForTable {
+			allMatches = false
+			break
+		}
+	}
 	return allMatches, nil
 }
 

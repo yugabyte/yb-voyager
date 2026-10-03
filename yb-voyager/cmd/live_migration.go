@@ -226,6 +226,8 @@ func streamChangesFromSegment(
 	}
 
 	log.Infof("streaming changes for segment %s", segment.FilePath)
+	var cutoverEvent *tgtdb.Event
+	var cutoverDetected bool
 	for !segment.IsProcessed() {
 		event, err := segment.NextEvent()
 		if err != nil {
@@ -255,26 +257,10 @@ func streamChangesFromSegment(
 			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 
-			err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-				switch importerRole {
-				case TARGET_DB_IMPORTER_ROLE:
-					record.CutoverDetectedByTargetImporter = true
-					record.CutoverTimings.DetectedByTargetImporterAt = utils.GetCurrentTimestamp()
-				case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-					record.CutoverDetectedBySourceReplicaImporter = true
-					record.CutoverTimings.DetectedBySourceReplicaImporterAt = utils.GetCurrentTimestamp()
-				case SOURCE_DB_IMPORTER_ROLE:
-					record.CutoverDetectedBySourceImporter = true
-					record.CutoverTimings.DetectedBySourceImporterAt = utils.GetCurrentTimestamp()
-				}
-			})
-			if err != nil {
-				return goerrors.Errorf("error updating the migration status record for cutover detected case: %w", err)
-			}
-			updateCallhomeImportPhase(event)
+			cutoverDetected = true
+			cutoverEvent = event
+			injectCutoverDetectedByImporterBeforeChannelsDrained()
 
-			eventQueue.EndOfQueue = true
-			segment.MarkProcessed()
 			break
 		}
 
@@ -292,11 +278,37 @@ func streamChangesFromSegment(
 		<-processingDoneChans[i]
 	}
 
-	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
-	if err != nil {
-		return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
+	if cutoverDetected {
+		err = metaDB.MarkEventQueueSegmentAsProcessedAndUpdateMSRInTxn(segment.SegmentNum, importerRole, func(record *metadb.MigrationStatusRecord) error {
+			switch importerRole {
+			case TARGET_DB_IMPORTER_ROLE:
+				record.CutoverDetectedByTargetImporter = true
+				record.CutoverTimings.DetectedByTargetImporterAt = utils.GetCurrentTimestamp()
+			case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+				record.CutoverDetectedBySourceReplicaImporter = true
+				record.CutoverTimings.DetectedBySourceReplicaImporterAt = utils.GetCurrentTimestamp()
+			case SOURCE_DB_IMPORTER_ROLE:
+				record.CutoverDetectedBySourceImporter = true
+				record.CutoverTimings.DetectedBySourceImporterAt = utils.GetCurrentTimestamp()
+			default:
+				return goerrors.Errorf("unknown importer role: %s", importerRole)
+			}
+			return nil
+		})
+		if err != nil {
+			return goerrors.Errorf("error marking segment as processed and updating cutover detected in txn: %w", err)
+		}
+		updateCallhomeImportPhase(cutoverEvent)
+		eventQueue.EndOfQueue = true
+		segment.MarkProcessed()
+	} else {
+		err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
+		if err != nil {
+			return goerrors.Errorf("error marking segment %s as processed: %w", segment.FilePath, err)
+		}
 	}
 	log.Infof("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
+
 	return nil
 }
 
