@@ -127,7 +127,7 @@ func testLOFunctionsIssue(t *testing.T) {
 	CREATE EXTENSION lo;
 	SELECT lo_create('2342');`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "Transaction for catalog table write operation 'pg_largeobject_metadata' not found", loDatatypeIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "Transaction for catalog table write operation 'pg_largeobject_metadata' not found", loFunctionsIssue)
 }
 
 func testJsonbSubscriptingIssue(t *testing.T) {
@@ -175,7 +175,7 @@ func testFetchWithTiesIssue(t *testing.T) {
 
 	for _, stmt := range stmts {
 		_, err = conn.Exec(ctx, stmt)
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "WITH"`, regexFunctionsIssue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "WITH"`, fetchWithTiesIssue)
 	}
 }
 
@@ -278,7 +278,7 @@ func testJsonPredicateIssue(t *testing.T) {
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, `SELECT js, js IS JSON "json?" FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "JSON"`, jsonConstructorFunctionsIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "JSON"`, jsonPredicateIssue)
 }
 
 func testJsonQueryFunctions(t *testing.T) {
@@ -301,7 +301,7 @@ WHERE JSON_EXISTS(details, '$.author');`,
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
 
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, jsonConstructorFunctionsIssue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, jsonQueryFunctionIssue)
 	}
 
 	jsonTableSQL := `SELECT * FROM json_table(
@@ -315,7 +315,7 @@ WHERE JSON_EXISTS(details, '$.author');`,
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, jsonTableSQL)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "COLUMNS"`, jsonConstructorFunctionsIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "COLUMNS"`, jsonQueryFunctionIssue)
 }
 
 func testMergeStmtIssue(t *testing.T) {
@@ -475,12 +475,9 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 	}
 }
 
-
 /*
-
 For YB version < 2025.2.3, LISTEN/NOTIFY is a no-op with a notice that it is not  supported
 For YB version >= 2025.2.3, LISTEN/NOTIFY is supported with a preview flag and is disabled by default and returns an error
-
 */
 func testEventsListenNotifyIssue(t *testing.T) {
 	type listenNotifyCase struct {
