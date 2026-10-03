@@ -52,7 +52,7 @@ type MigrationStatusRecord struct {
 	CutoverToSourceRequested        bool `json:"CutoverToSourceRequested"`
 	CutoverToSourceReplicaRequested bool `json:"CutoverToSourceReplicaRequested"`
 
-	//// Set by the corresponding importer only after it has applied every event preceding the cutover
+	// Set by the corresponding importer only after it has applied every event preceding the cutover
 	// event, in the same metaDB txn that marks that segment imported (see streamChangesFromSegment).
 	CutoverDetectedByTargetImporter        bool `json:"CutoverDetectedByTargetImporter"`
 	CutoverDetectedBySourceImporter        bool `json:"CutoverDetectedBySourceImporter"`

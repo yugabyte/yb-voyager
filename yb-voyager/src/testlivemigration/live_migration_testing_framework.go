@@ -998,7 +998,7 @@ func (lm *LiveMigrationTest) WaitForExportedEvents(expectedExportedEvents map[st
 	ok := utils.RetryWorkWithTimeout(streamingSleep, streamingTimeout, func() bool {
 		ok, err := lm.exportedEventsCompleted(expectedExportedEvents, "source")
 		if err != nil {
-			lm.t.Logf("failed to get streaming data report: %v", err)
+			lm.t.Logf("failed to get exported events report: %v", err)
 			return false
 		}
 		return ok

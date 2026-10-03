@@ -986,12 +986,10 @@ func TestCutoverToSourceResumption_ExporterCrashAfterCompletingDebezium(t *testi
 }
 
 // ---------------------------------------------------------------------------
-// import-data-to-target crashes after it detects the cutover event
-//  but before the event channels drain, so events read from the
-// segment ahead of the cutover event are still batched in memory and were
-// never applied. On resume, streamChanges sees cutoverInitiatedAndCutoverEventProcessed
-// and must still apply those in-flight events before postCutoverProcessing;
-// otherwise cutover completes with the target missing them.
+// import-data-to-target crashes after it reads the cutover event but before the event
+// channels drain, so events read from the segment ahead of the cutover event were never
+// applied. Pins that CutoverDetectedByTargetImporter and the segment's imported mark are
+// persisted only after the drain, so the resumed run re-reads the segment and applies them.
 //
 // Data pattern: inFlightInserts rows are inserted on source while import is
 // stopped, so they sit in the queue segment directly before the cutover event.
@@ -1022,7 +1020,7 @@ func TestCutoverToTargetResumption_ImporterCrashAfterCutoverDetectedBeforeChanne
 
 	err = lm.WaitForExportedEvents(map[string]ChangesCount{
 		tableName: {
-			Inserts: inFlightInserts+deltaInserts,
+			Inserts: inFlightInserts + deltaInserts,
 			Updates: 0,
 			Deletes: 0,
 		},
