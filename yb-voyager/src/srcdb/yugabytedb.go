@@ -890,7 +890,7 @@ func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
 	// For this query in case of case sensitive tables, minquoting is required
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.ForOutput())
+	WHERE c.oid = '%s'::regclass::oid AND c.relispartition`, table.ForOutput())
 
 	err := yb.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
@@ -982,7 +982,7 @@ FROM pg_inherits
     JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
     JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
     JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
-WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
+WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' AND child.relispartition`, tname, sname)
 
 	rows, err := yb.db.Query(query)
 	if err != nil {

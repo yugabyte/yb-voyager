@@ -365,8 +365,8 @@ func getExporterRoleID(exporterRole string) string {
 }
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
-const updateTemplate = "UPDATE %s SET %s WHERE %s"
-const deleteTemplate = "DELETE FROM %s WHERE %s"
+const updateTemplate = "UPDATE ONLY %s SET %s WHERE %s"
+const deleteTemplate = "DELETE FROM ONLY %s WHERE %s"
 
 func (event *Event) getInsertStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	columnList := make([]string, 0, len(event.Fields))
