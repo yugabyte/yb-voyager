@@ -365,6 +365,8 @@ func getExporterRoleID(exporterRole string) string {
 }
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
+
+//ONLY will not work for partitioned tables as partitioned tables doesn't have its own data its always have to go ti partition TODO: fix it
 const updateTemplate = "UPDATE ONLY %s SET %s WHERE %s"
 const deleteTemplate = "DELETE FROM ONLY %s WHERE %s"
 
