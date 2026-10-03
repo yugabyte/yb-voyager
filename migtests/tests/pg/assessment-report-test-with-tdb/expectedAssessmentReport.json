@@ -82,7 +82,7 @@
             {
                 "ObjectType": "VIEW",
                 "TotalCount": 10,
-                "InvalidCount": 5,
+                "InvalidCount": 3,
                 "ObjectNames": "public.ordersentry_view, public.sales_employees, public.top_employees_view, public.view_explicit_security_invoker, schema2.sales_employees, schema2.top_employees_view, test_views.v1, test_views.v2, test_views.v3, test_views.v4"
             },
             {
@@ -825,32 +825,6 @@
                     "lo_manage"
                 ]
             }
-        },
-        {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "FETCH_WITH_TIES",
-            "Name": "FETCH .. WITH TIES",
-            "Description": "FETCH .. WITH TIES is not yet supported in YugabyteDB.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "VIEW",
-            "ObjectName": "public.top_employees_view",
-            "SqlStatement": "CREATE VIEW public.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM public.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST (2) ROWS WITH TIES) top_employees;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "FETCH_WITH_TIES",
-            "Name": "FETCH .. WITH TIES",
-            "Description": "FETCH .. WITH TIES is not yet supported in YugabyteDB.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "VIEW",
-            "ObjectName": "schema2.top_employees_view",
-            "SqlStatement": "CREATE VIEW schema2.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM schema2.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST (2) ROWS WITH TIES) top_employees;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
         },
         {
             "Category": "unsupported_features",

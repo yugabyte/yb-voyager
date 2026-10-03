@@ -82,7 +82,7 @@
             {
                 "ObjectType": "VIEW",
                 "TotalCount": 10,
-                "InvalidCount": 5,
+                "InvalidCount": 3,
                 "ObjectNames": "public.ordersentry_view, public.sales_employees, public.top_employees_view, public.view_explicit_security_invoker, schema2.sales_employees, schema2.top_employees_view, test_views.v1, test_views.v2, test_views.v3, test_views.v4"
             },
             {
