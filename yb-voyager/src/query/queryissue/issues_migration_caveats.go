@@ -455,3 +455,51 @@ func NewTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement 
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
+
+var cidDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CID,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CID_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewCIDDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := cidDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+}
+
+var xid8UnsupportedLiveMigrationDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID8,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID8_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewXID8UnsupportedLiveMigrationDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := xid8UnsupportedLiveMigrationDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+}
+
+var xidUnsupportedLiveMigrationDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewXIDUnsupportedLiveMigrationDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := xidUnsupportedLiveMigrationDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+}

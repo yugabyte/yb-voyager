@@ -27,34 +27,34 @@ import (
 
 type QueryIssue struct {
 	issue.Issue
-	ObjectType   		string // TABLE, FUNCTION, DML_QUERY?
-	ObjectName   		string // table name/function name/etc
-	SqlStatement 		string
-	ObjectUsage  		string                 //FREQUENT, MODERATE, RARE, UNUSED
-	Details      		map[string]interface{} // additional details about the issue
-	InternalDetails		map[string]interface{} // extraneous details which won't go into report
+	ObjectType      string // TABLE, FUNCTION, DML_QUERY?
+	ObjectName      string // table name/function name/etc
+	SqlStatement    string
+	ObjectUsage     string                 //FREQUENT, MODERATE, RARE, UNUSED
+	Details         map[string]interface{} // additional details about the issue
+	InternalDetails map[string]interface{} // extraneous details which won't go into report
 }
 
 func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, internalDetails map[string]interface{}) QueryIssue {
 	return QueryIssue{
-		Issue:        		issue,
-		ObjectType:   		objectType,
-		ObjectName:   		objectName,
-		SqlStatement: 		sqlStatement,
-		Details:			details,
-		InternalDetails:	internalDetails,
+		Issue:           issue,
+		ObjectType:      objectType,
+		ObjectName:      objectName,
+		SqlStatement:    sqlStatement,
+		Details:         details,
+		InternalDetails: internalDetails,
 	}
 }
 
 func newQueryIssueWithUsageCategory(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}, internalDetails map[string]interface{}, usageCategory string) QueryIssue {
 	return QueryIssue{
-		Issue:        		issue,
-		ObjectType:   		objectType,
-		ObjectName:   		objectName,
-		SqlStatement: 		sqlStatement,
-		Details:      		details,
-		InternalDetails: 	internalDetails,
-		ObjectUsage:  		usageCategory,
+		Issue:           issue,
+		ObjectType:      objectType,
+		ObjectName:      objectName,
+		SqlStatement:    sqlStatement,
+		Details:         details,
+		InternalDetails: internalDetails,
+		ObjectUsage:     usageCategory,
 	}
 }
 
@@ -76,6 +76,9 @@ var UnsupportedDatatypesInLiveMigrationIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XML,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CID,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID8,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOMETRY,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_GEOGRAPHY,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX2D,

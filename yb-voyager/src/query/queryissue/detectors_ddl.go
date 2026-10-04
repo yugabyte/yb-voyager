@@ -371,6 +371,14 @@ func ReportUnsupportedDatatypes(baseTypeName string, columnName string, objType 
 			baseTypeName,
 			columnName,
 		)
+	case "xid8":
+		issue = NewXID8DatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
 	case "geometry":
 		issue = NewGeometryDatatypeIssue(
 			objType,
@@ -577,6 +585,30 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 		)
 	case "xml":
 		issue = NewXMLLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "xid8":
+		issue = NewXID8UnsupportedLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "xid":
+		issue = NewXIDUnsupportedLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
+	case "cid":
+		issue = NewCIDDatatypeIssue(
 			objType,
 			objName,
 			"",
