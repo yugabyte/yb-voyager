@@ -2,7 +2,7 @@
     "VoyagerVersion": "main",
     "TargetDBVersion": "2.25.1.0",
     "MigrationComplexity": "HIGH",
-    "MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 23 Level 3 issue(s), resulting in HIGH migration complexity",
+    "MigrationComplexityExplanation": "Found 30 Level 2 issue(s) and 21 Level 3 issue(s), resulting in HIGH migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_assessment_report",
@@ -64,7 +64,7 @@
             {
                 "ObjectType": "FUNCTION",
                 "TotalCount": 19,
-                "InvalidCount": 7,
+                "InvalidCount": 5,
                 "ObjectNames": "public.asterisks, public.asterisks1, public.auditlogfunc, public.check_sales_region, public.insert_non_decimal, public.manage_large_object, public.notify_and_insert, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.asterisks, schema2.asterisks1, schema2.auditlogfunc, schema2.insert_non_decimal, schema2.notify_and_insert, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"
             },
             {
@@ -750,26 +750,6 @@
         {
             "Category": "unsupported_features",
             "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "ADVISORY_LOCKS",
-            "Name": "Advisory Locks",
-            "Description": "Advisory locks are not yet implemented in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_advisory_locks.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "VIEW",
-            "ObjectName": "public.ordersentry_view",
-            "SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT order_id,\n    customer_name,\n    product_name,\n    quantity,\n    price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name), XMLELEMENT(NAME \"Quantity\", quantity), XMLELEMENT(NAME \"TotalPrice\", (price * (quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((customer_name || product_name)))::bigint) AS lock_acquired,\n    ctid AS row_ctid,\n    xmin AS transaction_id\n   FROM public.ordersentry;",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-            "MinimumVersionsFixedIn": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            },
-            "MinimumVersionsFixedInTP": {
-                "2.25": "2.25.1.0"
-            }
-        },
-        {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
             "Type": "XML_FUNCTIONS",
             "Name": "XML Functions",
             "Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1167,26 +1147,6 @@
         {
             "Category": "unsupported_query_constructs",
             "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "Type": "ADVISORY_LOCKS",
-            "Name": "Advisory Locks",
-            "Description": "Advisory locks are not yet implemented in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_advisory_locks.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "",
-            "ObjectName": "",
-            "SqlStatement": "SELECT pg_advisory_unlock($1,$2)",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-            "MinimumVersionsFixedIn": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            },
-            "MinimumVersionsFixedInTP": {
-                "2.25": "2.25.1.0"
-            }
-        },
-        {
-            "Category": "unsupported_query_constructs",
-            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
             "Type": "XML_FUNCTIONS",
             "Name": "XML Functions",
             "Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1212,26 +1172,6 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
             "MinimumVersionsFixedIn": {
                 "2026.1": "2026.1.0.0"
-            }
-        },
-        {
-            "Category": "unsupported_query_constructs",
-            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "Type": "ADVISORY_LOCKS",
-            "Name": "Advisory Locks",
-            "Description": "Advisory locks are not yet implemented in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_advisory_locks.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "",
-            "ObjectName": "",
-            "SqlStatement": "SELECT pg_advisory_unlock_all()",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-            "MinimumVersionsFixedIn": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            },
-            "MinimumVersionsFixedInTP": {
-                "2.25": "2.25.1.0"
             }
         },
         {
@@ -1326,46 +1266,6 @@
             "SqlStatement": "COPY employeesCopyOnError (id, name, age)\nFROM STDIN WITH (FORMAT csv, ON_ERROR IGNORE )",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "unsupported_query_constructs",
-            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "Type": "ADVISORY_LOCKS",
-            "Name": "Advisory Locks",
-            "Description": "Advisory locks are not yet implemented in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_advisory_locks.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "",
-            "ObjectName": "",
-            "SqlStatement": "SELECT pg_advisory_lock($1,$2)",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-            "MinimumVersionsFixedIn": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            },
-            "MinimumVersionsFixedInTP": {
-                "2.25": "2.25.1.0"
-            }
-        },
-        {
-            "Category": "unsupported_query_constructs",
-            "CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-            "Type": "ADVISORY_LOCKS",
-            "Name": "Advisory Locks",
-            "Description": "Advisory locks are not yet implemented in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_advisory_locks.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "",
-            "ObjectName": "",
-            "SqlStatement": "SELECT pg_advisory_xact_lock($1,$2)",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-            "MinimumVersionsFixedIn": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            },
-            "MinimumVersionsFixedInTP": {
-                "2.25": "2.25.1.0"
-            }
         },
         {
             "Category": "unsupported_plpgsql_objects",
@@ -1472,26 +1372,6 @@
         {
             "Category": "unsupported_plpgsql_objects",
             "CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "Type": "ADVISORY_LOCKS",
-            "Name": "Advisory Locks",
-            "Description": "Advisory locks are not yet implemented in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_advisory_locks.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "schema2.process_order",
-            "SqlStatement": "SELECT pg_advisory_unlock(orderid);",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-            "MinimumVersionsFixedIn": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            },
-            "MinimumVersionsFixedInTP": {
-                "2.25": "2.25.1.0"
-            }
-        },
-        {
-            "Category": "unsupported_plpgsql_objects",
-            "CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
             "Type": "NON_DECIMAL_INTEGER_LITERAL",
             "Name": "Non-decimal integer literal",
             "Description": "Non decimal integer literals are not supported in YugabyteDB",
@@ -1501,26 +1381,6 @@
             "SqlStatement": "SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010;",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "unsupported_plpgsql_objects",
-            "CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
-            "Type": "ADVISORY_LOCKS",
-            "Name": "Advisory Locks",
-            "Description": "Advisory locks are not yet implemented in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_yb_enable_advisory_locks.",
-            "Impact": "LEVEL_2",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "public.process_order",
-            "SqlStatement": "SELECT pg_advisory_unlock(orderid);",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-            "MinimumVersionsFixedIn": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            },
-            "MinimumVersionsFixedInTP": {
-                "2.25": "2.25.1.0"
-            }
         },
         {
             "Category": "unsupported_plpgsql_objects",
