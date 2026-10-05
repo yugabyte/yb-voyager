@@ -188,3 +188,77 @@ func TestLiveExportDataSkipsSchemaDriftCheckWhenDebeziumIsTerminated(t *testing.
 	assert.Contains(t, string(logBytes), "exit status 143", "Debezium must have exited with Java's SIGTERM code")
 	assertNoDriftCheck(t, lm)
 }
+
+// runCutoverToTarget runs cutover with --yes and returns its combined output and
+// whether it succeeded.
+func runCutoverToTarget(lm *LiveMigrationTest, extraArgs ...string) (string, bool) {
+	args := append([]string{"--export-dir", lm.exportDir, "--yes", "--prepare-for-fall-back", "false"}, extraArgs...)
+	runner := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithEnv(
+		"SOURCE_DB_PASSWORD=" + lm.sourceContainer.GetConfig().Password,
+	).WithT(lm.t)
+	err := runner.Run()
+	return runner.Stdout() + runner.Stderr(), err == nil
+}
+
+func cutoverToTargetRequested(t *testing.T, lm *LiveMigrationTest) bool {
+	requested := false
+	require.NoError(t, lm.WithMetaDB(0, func(m *metadb.MetaDB) error {
+		msr, err := m.GetMigrationStatusRecord()
+		if err != nil {
+			return err
+		}
+		requested = msr.CutoverToTargetRequested
+		return nil
+	}))
+	return requested
+}
+
+// TestLiveCutoverToTargetPreCheckPassesWithoutDrift pins that an unchanged
+// source lets cutover proceed after one "no drift" line.
+func TestLiveCutoverToTargetPreCheckPassesWithoutDrift(t *testing.T) {
+	t.Parallel()
+	lm := startStreamingExportForDriftCheck(t, "cutover_no_drift")
+
+	out, ok := runCutoverToTarget(lm)
+	require.True(t, ok, "cutover must succeed without drift: %s", out)
+	assert.Contains(t, out, "No schema drift found on the source. Report:")
+	assert.True(t, cutoverToTargetRequested(t, lm))
+}
+
+// TestLiveCutoverToTargetPreCheckBlocksOnDrift pins the pre-check's failure
+// paths in the order a user meets them: a check that cannot connect fails
+// cutover, drift found under --yes fails it, and --skip-pre-checks lets it
+// through. The column is added after streaming starts, so only the live read
+// sees it.
+func TestLiveCutoverToTargetPreCheckBlocksOnDrift(t *testing.T) {
+	t.Parallel()
+	lm := startStreamingExportForDriftCheck(t, "cutover_drift")
+
+	out, ok := runCutoverToTarget(lm, "--source-db-password", "not-the-password")
+	require.False(t, ok, "a check that cannot connect must fail cutover: %s", out)
+	assert.Contains(t, out, "Could not check the source schema for drift:")
+	assert.Contains(t, out, "--skip-pre-checks schema_drift")
+	assert.False(t, cutoverToTargetRequested(t, lm))
+
+	testutils.FatalIfError(t, lm.ExecuteOnSource(`ALTER TABLE test_schema.orders ADD COLUMN note TEXT;`), "failed to add a column")
+
+	out, ok = runCutoverToTarget(lm)
+	require.False(t, ok, "drift under --yes must fail cutover: %s", out)
+	assert.Contains(t, out, "Changes detected  : 1")
+	assert.Contains(t, out, "Cutover was not initiated because --yes skips the confirmation.")
+	assert.False(t, cutoverToTargetRequested(t, lm))
+
+	raw, err := os.ReadFile(filepath.Join(lm.GetCurrentExportDir(), "reports", "drift_analysis_report_cutover_to_target.json"))
+	require.NoError(t, err)
+	var report schemadrift.Report
+	require.NoError(t, json.Unmarshal(raw, &report))
+	assert.True(t, report.Summary.LiveCompared)
+	require.Len(t, report.Drifts, 1)
+	assert.Equal(t, schemadiff.ColumnAdded, report.Drifts[0].Type)
+	assert.Equal(t, "note", report.Drifts[0].SubObject)
+
+	out, ok = runCutoverToTarget(lm, "--skip-pre-checks", "schema_drift")
+	require.True(t, ok, "--skip-pre-checks must let cutover through: %s", out)
+	assert.Contains(t, out, "Skipping the schema drift check (--skip-pre-checks includes schema_drift).")
+	assert.True(t, cutoverToTargetRequested(t, lm))
+}

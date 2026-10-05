@@ -670,7 +670,10 @@ func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, ex
 		args = append(args, key, value)
 	}
 
-	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithT(lm.t)
+	// The schema drift pre-check connects to the source.
+	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithEnv(
+		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", lm.sourceContainer.GetConfig().Password),
+	).WithT(lm.t)
 	err := cutoverCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to initiate cutover: %w", err)
