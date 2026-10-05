@@ -176,6 +176,16 @@ main() {
     expected_file="${TEST_DIR}/expected_callhome_payloads/export_data_callhome.json"
     compare_callhome_json_reports "${expected_file}" "export-data"
 
+    step "Detect schema drift"
+    yb-voyager schema detect-drift --export-dir ${EXPORT_DIR} \
+        --source-db-type ${SOURCE_DB_TYPE} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT} \
+        --source-db-user ${SOURCE_DB_USER} --source-db-password ${SOURCE_DB_PASSWORD} \
+        --source-db-name ${SOURCE_DB_NAME} --source-db-schema ${SOURCE_DB_SCHEMA} \
+        --send-diagnostics=true
+    step "Compare actual and expected schema-detect-drift callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/schema_detect_drift_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "schema-detect-drift"
+
     step "Run Import Data"
     import_data --send-diagnostics=true
     step "Compare actual and expected import-data callhome data"
