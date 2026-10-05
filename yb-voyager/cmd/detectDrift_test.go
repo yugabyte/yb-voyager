@@ -615,7 +615,7 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 	// The run failed before a report existed. Everything report-derived must stay
 	// zero rather than be invented, and the histograms must drop out of the JSON.
 	t.Run("nil report", func(t *testing.T) {
-		got := buildSchemaDriftPayload(atDriftStep(driftStepCaptureLive, fmt.Errorf("source is unreachable")), nil)
+		got := buildSchemaDriftPayload(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, fmt.Errorf("source is unreachable")), nil)
 
 		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
 		assert.Zero(t, got.ChangeCount)
@@ -626,7 +626,7 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 		assert.Nil(t, got.ObjectTypes)
 		assert.Nil(t, got.DriftsByType)
 		assert.Nil(t, got.DriftsBySeverity)
-		assert.Equal(t, `{"msg":"capture live schema"}`, got.Error)
+		assert.Equal(t, `{"msg":"schema drift","step":"capture_live_schema"}`, got.Error)
 	})
 
 	t.Run("a report with no drift sends no histograms", func(t *testing.T) {
@@ -651,33 +651,33 @@ func TestSanitizeDriftError(t *testing.T) {
 		{name: "no error", err: nil, want: ""},
 		{
 			name: "a table pattern before the first colon",
-			err:  atDriftStep(driftStepResolveScope, fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`)),
-			want: `{"msg":"resolve scope"}`,
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`)),
+			want: `{"msg":"schema drift","step":"resolve_scope"}`,
 		},
 		{
 			name: "a table list with no colon at all",
-			err:  atDriftStep(driftStepResolveScope, fmt.Errorf(`--exclude-table-list "sales.\"Customer_PII\"" excludes every table in the comparison; nothing left to compare`)),
-			want: `{"msg":"resolve scope"}`,
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, fmt.Errorf(`--exclude-table-list "sales.\"Customer_PII\"" excludes every table in the comparison; nothing left to compare`)),
+			want: `{"msg":"schema drift","step":"resolve_scope"}`,
 		},
 		{
 			name: "an export-dir path",
-			err:  atDriftStep(driftStepWriteReports, fmt.Errorf(`failed to write json drift report to "/home/alice/acme-prod/reports/drift_analysis_report.json": no space left on device`)),
-			want: `{"msg":"write reports"}`,
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_WRITE_REPORTS, fmt.Errorf(`failed to write json drift report to "/home/alice/acme-prod/reports/drift_analysis_report.json": no space left on device`)),
+			want: `{"msg":"schema drift","step":"write_reports"}`,
 		},
 		{
 			name: "schema names in the nothing-compared reasons",
-			err:  atDriftStep(driftStepNothingCompared, fmt.Errorf("no two comparable schema snapshots: captured only public, sales, so it cannot answer for hr")),
-			want: `{"msg":"nothing compared"}`,
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, fmt.Errorf("no two comparable schema snapshots: captured only public, sales, so it cannot answer for hr")),
+			want: `{"msg":"schema drift","step":"nothing_compared"}`,
 		},
 		{
 			name: "an untagged error from flag validation",
 			err:  fmt.Errorf(`schema detect-drift currently supports PostgreSQL sources only (got --source-db-type="acme_prod")`),
-			want: `{"msg":"setup"}`,
+			want: `{"msg":"schema drift","step":"setup"}`,
 		},
 		{
 			name: "the SQLSTATE survives",
-			err:  atDriftStep(driftStepConnect, fmt.Errorf("failed to connect to source database: %w", &pgconnv5.PgError{Code: "28P01", Message: `password authentication failed for user "alice"`})),
-			want: `{"msg":"connect to source","pg_error_code":"28P01"}`,
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("failed to connect to source database: %w", &pgconnv5.PgError{Code: "28P01", Message: `password authentication failed for user "alice"`})),
+			want: `{"msg":"schema drift","pg_error_code":"28P01","step":"connect_to_source"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -687,15 +687,16 @@ func TestSanitizeDriftError(t *testing.T) {
 	}
 
 	// The exit handler receives the run's error re-wrapped by utils.ErrExit, which
-	// adds a go-errors stack, so only msg and the stack trace may be present.
+	// adds a go-errors stack, so only msg, step and the stack trace may be present.
 	t.Run("the step survives utils.ErrExit's wrapping", func(t *testing.T) {
-		tagged := atDriftStep(driftStepResolveScope, fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`))
+		tagged := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`))
 		got := sanitizeDriftError(goerrors.Errorf("%w", tagged))
 
 		var fields map[string]string
 		require.NoError(t, json.Unmarshal([]byte(got), &fields))
-		assert.Equal(t, "resolve scope", fields["msg"])
-		assert.ElementsMatch(t, []string{"msg", "stack_trace"}, lo.Keys(fields))
+		assert.Equal(t, "schema drift", fields["msg"])
+		assert.Equal(t, "resolve_scope", fields["step"])
+		assert.ElementsMatch(t, []string{"msg", "step", "stack_trace"}, lo.Keys(fields))
 		assert.NotContains(t, got, "customer_pii")
 	})
 }

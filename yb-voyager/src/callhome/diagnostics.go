@@ -695,12 +695,10 @@ func addImportBatchErrorContext(err error, context map[string]string) {
 	}
 }
 
-// The step replaces msg rather than joining it, because a drift error's text
-// before the first ":" can name tables.
 func addSchemaDriftErrorContext(err error, context map[string]string) {
 	var sde errs.SchemaDriftError
 	if errors.As(err, &sde) {
-		context["msg"] = sde.Step()
+		context["step"] = sde.Step()
 	}
 }
 

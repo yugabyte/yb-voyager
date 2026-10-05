@@ -448,20 +448,10 @@ func TestAddStackTrace_JoinedErrorsTraversal(t *testing.T) {
 	assert.Equal(t, string(rightErr.Stack()), got, "expected deepest stack from joined error tree")
 }
 
-func TestSanitizeErrorMsgSendsOnlyTheSchemaDriftStep(t *testing.T) {
+func TestSanitizeErrorMsgForSchemaDriftError(t *testing.T) {
 	cause := fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`)
+	sde := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, cause)
 
-	t.Run("the step replaces the message", func(t *testing.T) {
-		got := SanitizeErrorMsg(errs.NewSchemaDriftError("resolve scope", cause), nil)
-		assert.Equal(t, `{"msg":"resolve scope"}`, got)
-	})
-
-	t.Run("found through wrapping", func(t *testing.T) {
-		got := SanitizeErrorMsg(fmt.Errorf("detect drift: %w", errs.NewSchemaDriftError("resolve scope", cause)), nil)
-		assert.Equal(t, `{"msg":"resolve scope"}`, got)
-	})
-
-	t.Run("an untagged error keeps the text before the first colon", func(t *testing.T) {
-		assert.Equal(t, `{"msg":"invalid table name pattern \"proddb.sales.customer_pii\""}`, SanitizeErrorMsg(cause, nil))
-	})
+	assert.Equal(t, `schema drift: step=resolve_scope: invalid table name pattern "proddb.sales.customer_pii": syntax error`, sde.Error())
+	assert.Equal(t, `{"msg":"schema drift","step":"resolve_scope"}`, SanitizeErrorMsg(sde, nil))
 }

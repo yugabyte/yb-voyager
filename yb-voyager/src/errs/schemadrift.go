@@ -15,9 +15,21 @@ limitations under the License.
 */
 package errs
 
-// SchemaDriftError tags a schema drift check failure with the step it failed
-// at. Callhome sends only the step: the message can carry table-list patterns
-// and file paths.
+import "fmt"
+
+const (
+	// steps
+	SCHEMA_DRIFT_STEP_SETUP               = "setup"
+	SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE   = "connect_to_source"
+	SCHEMA_DRIFT_STEP_RESOLVE_SCHEMAS     = "resolve_schemas"
+	SCHEMA_DRIFT_STEP_LOAD_SNAPSHOTS      = "load_snapshots"
+	SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA = "capture_live_schema"
+	SCHEMA_DRIFT_STEP_RESOLVE_SCOPE       = "resolve_scope"
+	SCHEMA_DRIFT_STEP_BUILD_REPORT        = "build_report"
+	SCHEMA_DRIFT_STEP_NOTHING_COMPARED    = "nothing_compared"
+	SCHEMA_DRIFT_STEP_WRITE_REPORTS       = "write_reports"
+)
+
 type SchemaDriftError struct {
 	step string
 	err  error
@@ -28,7 +40,7 @@ func (e SchemaDriftError) Step() string {
 }
 
 func (e SchemaDriftError) Error() string {
-	return e.err.Error()
+	return fmt.Sprintf("schema drift: step=%s: %s", e.step, e.err.Error())
 }
 
 func (e SchemaDriftError) Unwrap() error {
@@ -36,5 +48,8 @@ func (e SchemaDriftError) Unwrap() error {
 }
 
 func NewSchemaDriftError(step string, err error) SchemaDriftError {
-	return SchemaDriftError{step: step, err: err}
+	return SchemaDriftError{
+		step: step,
+		err:  err,
+	}
 }
