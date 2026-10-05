@@ -8,6 +8,7 @@
     "compared_interval_count": 3,
     "control_plane_type": "",
     "error": "",
+    "invoked_by": "",
     "live_compared": true,
     "object_types": [
       "COLUMN",

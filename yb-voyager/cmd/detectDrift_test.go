@@ -599,9 +599,10 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 	}
 
 	t.Run("populated report", func(t *testing.T) {
-		got := buildSchemaDriftPayload(nil, &report)
+		got := buildSchemaDriftPayload(nil, &report, driftInvokerCommand)
 
 		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
+		assert.Equal(t, "", got.InvokedBy)
 		assert.Equal(t, 3, got.ChangeCount)
 		assert.Equal(t, 2, got.ComparedIntervalCount)
 		assert.Equal(t, 4, got.StoredCaptureCount)
@@ -622,7 +623,7 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 	// The run failed before a report existed. Everything report-derived must stay
 	// zero rather than be invented, and the histograms must drop out of the JSON.
 	t.Run("nil report", func(t *testing.T) {
-		got := buildSchemaDriftPayload(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, fmt.Errorf("source is unreachable")), nil)
+		got := buildSchemaDriftPayload(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, fmt.Errorf("source is unreachable")), nil, driftInvokerCommand)
 
 		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
 		assert.Zero(t, got.ChangeCount)
@@ -639,13 +640,18 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 	t.Run("a report with no drift sends no histograms", func(t *testing.T) {
 		clean := report
 		clean.Drifts = nil
-		raw, err := json.Marshal(buildSchemaDriftPayload(nil, &clean))
+		raw, err := json.Marshal(buildSchemaDriftPayload(nil, &clean, driftInvokerCommand))
 		require.NoError(t, err)
 
 		var fields map[string]any
 		require.NoError(t, json.Unmarshal(raw, &fields))
 		assert.NotContains(t, fields, "drifts_by_type")
 		assert.NotContains(t, fields, "drifts_by_severity")
+	})
+
+	t.Run("an in-process check names its invoker", func(t *testing.T) {
+		got := buildSchemaDriftPayload(nil, &report, driftInvoker("export-data"))
+		assert.Equal(t, "export-data", got.InvokedBy)
 	})
 }
 
@@ -708,9 +714,9 @@ func TestSanitizeDriftError(t *testing.T) {
 	})
 }
 
-// checkExportDirInitialised exits before initMetaDB when no migration has started,
-// so the exit handler reaches the drift sender with metaDB unset.
-func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
+// redirectCallhomeToTestServer points callhome at a local server and returns its
+// request count. It turns diagnostics on and restores every global it sets.
+func redirectCallhomeToTestServer(t *testing.T) *atomic.Int32 {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -723,20 +729,29 @@ func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
 
 	origSend, origStart, origMetaDB, origUUID := callhome.SendDiagnostics, startTime, metaDB, migrationUUID
 	origHost, origPort := callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT
+	origAnonymizer, origSent := anonymizer, callHomeErrorOrCompletePayloadSent
 	t.Cleanup(func() {
 		callhome.SendDiagnostics, startTime, metaDB, migrationUUID = origSend, origStart, origMetaDB, origUUID
 		callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT = origHost, origPort
+		anonymizer, callHomeErrorOrCompletePayloadSent = origAnonymizer, origSent
 	})
 	callhome.SendDiagnostics = true
 	startTime = time.Now()
 	migrationUUID = uuid.New()
 
-	// Proves the redirect works, so a zero below means nothing was sent.
+	// Proves the redirect works, so a missing request below means nothing was sent.
 	require.NoError(t, callhome.SendPayload(&callhome.Payload{}))
 	require.Equal(t, int32(1), requests.Load())
+	return &requests
+}
+
+// checkExportDirInitialised exits before initMetaDB when no migration has started,
+// so the exit handler reaches the drift sender with metaDB unset.
+func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
+	requests := redirectCallhomeToTestServer(t)
 
 	metaDB = nil
-	packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("Migration has not started yet"), nil)
+	packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("Migration has not started yet"), nil, driftInvokerCommand)
 	assert.Equal(t, int32(1), requests.Load(), "no payload may be sent without metaDB")
 }
 
@@ -790,7 +805,7 @@ func TestSchemaDriftErrorWithReportSentOnce(t *testing.T) {
 	report := schemadrift.Report{}
 	report.Summary.StoredCaptureCount = 1
 	failure := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, fmt.Errorf("captured only sales"))
-	packAndSendSchemaDriftPayload(ERROR, failure, &report)
+	packAndSendSchemaDriftPayload(ERROR, failure, &report, driftInvokerCommand)
 	utils.ErrExitErr = failure
 	PackAndSendCallhomePayloadOnExit()
 
@@ -819,4 +834,27 @@ func TestSchemaDriftErrorSentWithoutMigrationUUID(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, ERROR, got[0].Status)
 	assert.Equal(t, uuid.Nil, got[0].MigrationUUID)
+}
+
+func TestPackAndSendSchemaDriftPayloadSentGuard(t *testing.T) {
+	tests := []struct {
+		name      string
+		invoker   driftInvoker
+		wantGuard bool
+	}{
+		{name: "the command marks its phase as reported", invoker: driftInvokerCommand, wantGuard: true},
+		{name: "an in-process check leaves the guard to its host command", invoker: driftInvoker("export-data"), wantGuard: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requests := redirectCallhomeToTestServer(t)
+			metaDB = initMetaDB(t.TempDir())
+			callHomeErrorOrCompletePayloadSent = false
+
+			packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("export failed"), nil, tt.invoker)
+
+			assert.Equal(t, int32(2), requests.Load(), "the drift payload must be sent")
+			assert.Equal(t, tt.wantGuard, callHomeErrorOrCompletePayloadSent)
+		})
+	}
 }

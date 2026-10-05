@@ -1926,7 +1926,7 @@ func PackAndSendCallhomePayloadOnExit() {
 	case detectDriftCmd.CommandPath():
 		// nil report: a run that built one has already sent it, so reaching here
 		// means it failed earlier (or that send failed).
-		packAndSendSchemaDriftPayload(status, exitErr, nil)
+		packAndSendSchemaDriftPayload(status, exitErr, nil, driftInvokerCommand)
 	}
 }
 
