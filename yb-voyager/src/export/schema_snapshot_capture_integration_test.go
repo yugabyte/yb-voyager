@@ -368,4 +368,22 @@ func testSchemaSnapshotCaptureStartPeriodic(t *testing.T, db *sql.DB, meta schem
 		time.Sleep(1300 * time.Millisecond)
 		assert.Equal(t, stopped, countPeriodic(), "ticker must stop after context cancel")
 	})
+
+	t.Run("a failed tick leaves a placeholder", func(t *testing.T) {
+		ownMDB := newIntegrationTestMetaDB(t)
+		noDB := newSchemaSnapshotCapture(nil, meta, ownMDB, schemaName)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		noDB.StartPeriodic(ctx, 50*time.Millisecond)
+
+		require.Eventually(t, func() bool { return countLabel(t, ownMDB, schemasnapshot.LabelExportDataFromSourcePeriodic) >= 1 },
+			5*time.Second, 100*time.Millisecond, "a periodic tick without a database handle must record a placeholder")
+		cancel()
+		headers, err := schemasnapshot.ListSnapshots(ownMDB)
+		require.NoError(t, err)
+		for _, h := range headers {
+			assert.True(t, h.IsPlaceholder, "header %q must be a placeholder", h.Name())
+		}
+	})
 }
