@@ -375,8 +375,8 @@ func TestCallhomeStructs(t *testing.T) {
 				LiveCompared          bool           `json:"live_compared"`
 				DriftsByType          map[string]int `json:"drifts_by_type,omitempty"`
 				DriftsBySeverity      map[string]int `json:"drifts_by_severity,omitempty"`
-				SchemaCount           int            `json:"schema_count"`
-				OutputFormats         []string       `json:"output_formats,omitempty"`
+				TableCount            int            `json:"table_count"`
+				ObjectTypes           []string       `json:"object_types,omitempty"`
 				Error                 string         `json:"error"`
 				ControlPlaneType      string         `json:"control_plane_type"`
 			}{},

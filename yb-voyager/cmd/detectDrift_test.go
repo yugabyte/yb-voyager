@@ -590,13 +590,11 @@ func TestCountDriftsBy(t *testing.T) {
 // ─── buildSchemaDriftPayload ─────────────────────────────────────────────────
 
 func TestBuildSchemaDriftPayload(t *testing.T) {
-	origFormat := driftOutputFormat
-	t.Cleanup(func() { driftOutputFormat = origFormat })
-	driftOutputFormat = ""
-
 	report := schemadrift.Report{
 		Comparing: schemadrift.Comparing{
-			Schemas: []string{"public", "sales"},
+			Schemas:     []string{"public", "sales"},
+			Tables:      []string{"public.orders", "sales.items", `sales."Customers"`},
+			ObjectTypes: []string{"TABLE", "COLUMN"},
 		},
 		Summary: schemadrift.Summary{
 			ChangeCount:           3,
@@ -614,12 +612,12 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 		got := buildSchemaDriftPayload(nil, &report)
 
 		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
-		assert.Equal(t, []string{"html", "json"}, got.OutputFormats)
 		assert.Equal(t, 3, got.ChangeCount)
 		assert.Equal(t, 2, got.ComparedIntervalCount)
 		assert.Equal(t, 4, got.StoredCaptureCount)
 		assert.True(t, got.LiveCompared)
-		assert.Equal(t, 2, got.SchemaCount)
+		assert.Equal(t, 3, got.TableCount)
+		assert.Equal(t, []string{"TABLE", "COLUMN"}, got.ObjectTypes)
 		assert.Equal(t, map[string]int{
 			string(schemadiff.ColumnAdded):  1,
 			string(schemadiff.TableDropped): 1,
@@ -637,24 +635,15 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 		got := buildSchemaDriftPayload(fmt.Errorf("source is unreachable"), nil)
 
 		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
-		assert.Equal(t, []string{"html", "json"}, got.OutputFormats)
 		assert.Zero(t, got.ChangeCount)
 		assert.Zero(t, got.ComparedIntervalCount)
 		assert.Zero(t, got.StoredCaptureCount)
 		assert.False(t, got.LiveCompared)
-		assert.Zero(t, got.SchemaCount)
+		assert.Zero(t, got.TableCount)
+		assert.Nil(t, got.ObjectTypes)
 		assert.Nil(t, got.DriftsByType)
 		assert.Nil(t, got.DriftsBySeverity)
 		assert.Contains(t, got.Error, "source is unreachable")
-	})
-
-	t.Run("an invalid --output-format is not sent", func(t *testing.T) {
-		orig := driftOutputFormat
-		t.Cleanup(func() { driftOutputFormat = orig })
-		driftOutputFormat = "some text the user typed"
-
-		got := buildSchemaDriftPayload(fmt.Errorf("invalid report output format"), nil)
-		assert.Nil(t, got.OutputFormats)
 	})
 }
 
