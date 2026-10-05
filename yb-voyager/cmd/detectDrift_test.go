@@ -565,32 +565,6 @@ func TestNothingComparedError(t *testing.T) {
 	}
 }
 
-// ─── countDriftsBy (the callhome histograms) ─────────────────────────────────
-
-func TestCountDriftsBy(t *testing.T) {
-	drifts := []schemadrift.DriftEntry{
-		{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
-		{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
-		{Diff: schemadrift.Diff{Type: schemadiff.TableDropped}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
-	}
-
-	byType := countDriftsBy(drifts, func(d schemadrift.DriftEntry) string { return string(d.Type) })
-	assert.Equal(t, map[string]int{
-		string(schemadiff.ColumnAdded):  2,
-		string(schemadiff.TableDropped): 1,
-	}, byType)
-
-	bySeverity := countDriftsBy(drifts, func(d schemadrift.DriftEntry) string { return string(d.Severity) })
-	assert.Equal(t, map[string]int{
-		string(schemadrift.SeverityAdvisory):            2,
-		string(schemadrift.SeverityBreaksUnrecoverable): 1,
-	}, bySeverity)
-
-	// nil rather than an empty map, so the field drops out of the payload JSON
-	// entirely instead of being sent as {}.
-	assert.Nil(t, countDriftsBy(nil, func(d schemadrift.DriftEntry) string { return string(d.Type) }))
-}
-
 // ─── buildSchemaDriftPayload ─────────────────────────────────────────────────
 
 func TestBuildSchemaDriftPayload(t *testing.T) {
@@ -648,6 +622,18 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 		assert.Nil(t, got.DriftsByType)
 		assert.Nil(t, got.DriftsBySeverity)
 		assert.Equal(t, `{"msg":"capture live schema"}`, got.Error)
+	})
+
+	t.Run("a report with no drift sends no histograms", func(t *testing.T) {
+		clean := report
+		clean.Drifts = nil
+		raw, err := json.Marshal(buildSchemaDriftPayload(nil, &clean))
+		require.NoError(t, err)
+
+		var fields map[string]any
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		assert.NotContains(t, fields, "drifts_by_type")
+		assert.NotContains(t, fields, "drifts_by_severity")
 	})
 }
 

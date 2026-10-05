@@ -790,24 +790,13 @@ func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhom
 	driftPayload.LiveCompared = report.Summary.LiveCompared
 	driftPayload.TableCount = len(report.Comparing.Tables)
 	driftPayload.ObjectTypes = report.Comparing.ObjectTypes
-	driftPayload.DriftsByType = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+	driftPayload.DriftsByType = lo.CountValuesBy(report.Drifts, func(d schemadrift.DriftEntry) string {
 		return string(d.Type)
 	})
-	driftPayload.DriftsBySeverity = countDriftsBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+	driftPayload.DriftsBySeverity = lo.CountValuesBy(report.Drifts, func(d schemadrift.DriftEntry) string {
 		return string(d.Severity)
 	})
 	return driftPayload
-}
-
-func countDriftsBy(drifts []schemadrift.DriftEntry, key func(schemadrift.DriftEntry) string) map[string]int {
-	if len(drifts) == 0 {
-		return nil
-	}
-	counts := make(map[string]int)
-	for _, d := range drifts {
-		counts[key(d)]++
-	}
-	return counts
 }
 
 // ─── Output: report files and terminal summary ───────────────────────────────
