@@ -2305,7 +2305,7 @@
     ],
     "iops_interval": 0,
     "migration_complexity": "HIGH",
-    "migration_complexity_explanation": "Found 21 Level 2 issue(s) and 16 Level 3 issue(s), resulting in HIGH migration complexity",
+    "migration_complexity_explanation": "Found 21 Level 2 issue(s) and 14 Level 3 issue(s), resulting in HIGH migration complexity",
     "schema_summary": {
       "DatabaseObjects": [
         {
