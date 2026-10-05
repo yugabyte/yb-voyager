@@ -556,7 +556,7 @@
             "SqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "MinimumVersionsFixedIn": null
         },
         {

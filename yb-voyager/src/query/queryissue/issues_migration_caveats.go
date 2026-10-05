@@ -461,7 +461,7 @@ var inheritanceMigrationCaveat = issue.Issue{
 	Name:        INHERITANCE_MIGRATION_CAVEAT_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INHERITANCE_MIGRATION_CAVEAT_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yb-voyager/issues/3848",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/3874",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
 }
 

@@ -74,7 +74,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p10_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p10_deleted_check CHECK (dbid = 10 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -86,7 +86,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p10_not_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p10_not_deleted_check CHECK (dbid = 10 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -98,7 +98,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p11_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p11_deleted_check CHECK (dbid = 11 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -110,7 +110,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p11_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p11_not_deleted_check CHECK (dbid = 11 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -122,7 +122,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p12_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p12_deleted_check CHECK (dbid = 12 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -134,7 +134,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p12_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p12_not_deleted_check CHECK (dbid = 12 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -146,7 +146,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p13_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p13_deleted_check CHECK (dbid = 13 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -158,7 +158,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p13_not_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p13_not_deleted_check CHECK (dbid = 13 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -170,7 +170,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p14_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p14_deleted_check CHECK (dbid = 14 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -182,7 +182,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p14_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p14_not_deleted_check CHECK (dbid = 14 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -194,7 +194,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p15_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p15_deleted_check CHECK (dbid = 15 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -206,7 +206,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p15_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p15_not_deleted_check CHECK (dbid = 15 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -218,7 +218,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p16_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p16_deleted_check CHECK (dbid = 16 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -230,7 +230,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p16_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p16_not_deleted_check CHECK (dbid = 16 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -242,7 +242,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p17_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p17_deleted_check CHECK (dbid = 17 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -254,7 +254,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p17_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p17_not_deleted_check CHECK (dbid = 17 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -266,7 +266,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p18_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p18_deleted_check CHECK (dbid = 18 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -278,7 +278,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p18_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p18_not_deleted_check CHECK (dbid = 18 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -290,7 +290,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p19_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p19_deleted_check CHECK (dbid = 19 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -302,7 +302,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p19_not_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p19_not_deleted_check CHECK (dbid = 19 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -314,7 +314,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p1_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p1_deleted_check CHECK (dbid = 1 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -326,7 +326,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p1_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p1_not_deleted_check CHECK (dbid = 1 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -338,7 +338,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p20_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p20_deleted_check CHECK (dbid = 20 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -350,7 +350,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p20_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p20_not_deleted_check CHECK (dbid = 20 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -362,7 +362,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p21_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p21_deleted_check CHECK (dbid = 21 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -374,7 +374,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p21_not_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p21_not_deleted_check CHECK (dbid = 21 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -386,7 +386,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p22_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p22_deleted_check CHECK (dbid = 22 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -398,7 +398,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p22_not_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p22_not_deleted_check CHECK (dbid = 22 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -410,7 +410,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p23_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p23_deleted_check CHECK (dbid = 23 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -422,7 +422,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p23_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p23_not_deleted_check CHECK (dbid = 23 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -434,7 +434,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p24_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p24_deleted_check CHECK (dbid = 24 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -446,7 +446,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p24_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p24_not_deleted_check CHECK (dbid = 24 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -458,7 +458,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p25_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p25_deleted_check CHECK (dbid = 25 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -470,7 +470,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p25_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p25_not_deleted_check CHECK (dbid = 25 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -482,7 +482,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p26_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p26_deleted_check CHECK (dbid = 26 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -494,7 +494,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p26_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p26_not_deleted_check CHECK (dbid = 26 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -506,7 +506,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p27_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p27_deleted_check CHECK (dbid = 27 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -518,7 +518,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p27_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p27_not_deleted_check CHECK (dbid = 27 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -530,7 +530,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p28_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p28_deleted_check CHECK (dbid = 28 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -542,7 +542,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p28_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p28_not_deleted_check CHECK (dbid = 28 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -554,7 +554,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p29_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p29_deleted_check CHECK (dbid = 29 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -566,7 +566,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p29_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p29_not_deleted_check CHECK (dbid = 29 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -578,7 +578,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p2_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p2_deleted_check CHECK (dbid = 2 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -590,7 +590,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p2_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p2_not_deleted_check CHECK (dbid = 2 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -602,7 +602,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p30_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p30_deleted_check CHECK (dbid = 30 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -614,7 +614,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p30_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p30_not_deleted_check CHECK (dbid = 30 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -626,7 +626,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p31_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p31_deleted_check CHECK (dbid = 31 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -638,7 +638,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p31_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p31_not_deleted_check CHECK (dbid = 31 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -650,7 +650,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p32_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p32_deleted_check CHECK (dbid = 32 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -662,7 +662,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p32_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p32_not_deleted_check CHECK (dbid = 32 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -674,7 +674,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p33_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p33_deleted_check CHECK (dbid = 33 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -686,7 +686,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p33_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p33_not_deleted_check CHECK (dbid = 33 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -698,7 +698,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p34_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p34_deleted_check CHECK (dbid = 34 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -710,7 +710,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p34_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p34_not_deleted_check CHECK (dbid = 34 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -722,7 +722,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p35_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p35_deleted_check CHECK (dbid = 35 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -734,7 +734,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p35_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p35_not_deleted_check CHECK (dbid = 35 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -746,7 +746,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p36_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p36_deleted_check CHECK (dbid = 36 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -758,7 +758,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p36_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p36_not_deleted_check CHECK (dbid = 36 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -770,7 +770,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p37_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p37_deleted_check CHECK (dbid = 37 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -782,7 +782,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p37_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p37_not_deleted_check CHECK (dbid = 37 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -794,7 +794,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p38_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p38_deleted_check CHECK (dbid = 38 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -806,7 +806,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p38_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p38_not_deleted_check CHECK (dbid = 38 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -818,7 +818,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p39_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p39_deleted_check CHECK (dbid = 39 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -830,7 +830,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p39_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p39_not_deleted_check CHECK (dbid = 39 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -842,7 +842,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p3_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p3_deleted_check CHECK (dbid = 3 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -854,7 +854,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p3_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p3_not_deleted_check CHECK (dbid = 3 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -866,7 +866,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p40_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p40_deleted_check CHECK (dbid = 40 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -878,7 +878,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p40_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p40_not_deleted_check CHECK (dbid = 40 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -890,7 +890,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p41_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p41_deleted_check CHECK (dbid = 41 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -902,7 +902,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p41_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p41_not_deleted_check CHECK (dbid = 41 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -914,7 +914,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p42_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p42_deleted_check CHECK (dbid = 42 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -926,7 +926,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p42_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p42_not_deleted_check CHECK (dbid = 42 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -938,7 +938,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p43_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p43_deleted_check CHECK (dbid = 43 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -950,7 +950,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p43_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p43_not_deleted_check CHECK (dbid = 43 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -962,7 +962,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p44_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p44_deleted_check CHECK (dbid = 44 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -974,7 +974,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p44_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p44_not_deleted_check CHECK (dbid = 44 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -986,7 +986,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p45_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p45_deleted_check CHECK (dbid = 45 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -998,7 +998,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p45_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p45_not_deleted_check CHECK (dbid = 45 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1010,7 +1010,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p46_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p46_deleted_check CHECK (dbid = 46 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1022,7 +1022,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p46_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p46_not_deleted_check CHECK (dbid = 46 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1034,7 +1034,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p47_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p47_deleted_check CHECK (dbid = 47 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1046,7 +1046,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p47_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p47_not_deleted_check CHECK (dbid = 47 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1058,7 +1058,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p48_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p48_deleted_check CHECK (dbid = 48 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1070,7 +1070,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p48_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p48_not_deleted_check CHECK (dbid = 48 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1082,7 +1082,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p49_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p49_deleted_check CHECK (dbid = 49 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1094,7 +1094,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p49_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p49_not_deleted_check CHECK (dbid = 49 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1106,7 +1106,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p4_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p4_deleted_check CHECK (dbid = 4 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1118,7 +1118,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p4_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p4_not_deleted_check CHECK (dbid = 4 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1130,7 +1130,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p50_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p50_deleted_check CHECK (dbid = 50 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1142,7 +1142,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p50_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p50_not_deleted_check CHECK (dbid = 50 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1154,7 +1154,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p51_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p51_deleted_check CHECK (dbid = 51 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1166,7 +1166,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p51_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p51_not_deleted_check CHECK (dbid = 51 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1178,7 +1178,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p52_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p52_deleted_check CHECK (dbid = 52 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1190,7 +1190,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p52_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p52_not_deleted_check CHECK (dbid = 52 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1202,7 +1202,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p53_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p53_deleted_check CHECK (dbid = 53 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1214,7 +1214,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p53_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p53_not_deleted_check CHECK (dbid = 53 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1226,7 +1226,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p54_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint NOT NULL, CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p54_deleted_check CHECK (dbid = 54 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1238,7 +1238,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p54_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint NOT NULL, CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p54_not_deleted_check CHECK (dbid = 54 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1250,7 +1250,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p55_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p55_deleted_check CHECK (dbid = 55 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1262,7 +1262,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p55_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p55_not_deleted_check CHECK (dbid = 55 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1274,7 +1274,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p5_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p5_deleted_check CHECK (dbid = 5 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1286,7 +1286,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p5_not_deleted (CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p5_not_deleted_check CHECK (dbid = 5 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1298,7 +1298,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p6_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p6_deleted_check CHECK (dbid = 6 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1310,7 +1310,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p6_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p6_not_deleted_check CHECK (dbid = 6 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1322,7 +1322,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p7_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p7_deleted_check CHECK (dbid = 7 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1334,7 +1334,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p7_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p7_not_deleted_check CHECK (dbid = 7 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1346,7 +1346,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p8_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p8_deleted_check CHECK (dbid = 8 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1358,7 +1358,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p8_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p8_not_deleted_check CHECK (dbid = 8 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1370,7 +1370,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p9_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p9_deleted_check CHECK (dbid = 9 AND deleted = 'Y'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         },
@@ -1382,7 +1382,7 @@
             "SqlStatement": "CREATE TABLE rnacen.xref_p9_not_deleted (dbid smallint, created int, last int, upi varchar(26), version_i int, deleted char(1), \"timestamp\" timestamp DEFAULT ('now'::text::timestamp), userstamp varchar(20) DEFAULT ('USER'::varchar), ac varchar(300), version int, taxid bigint, id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass), CONSTRAINT \"ck_xref$deleted\" CHECK (deleted = ANY(ARRAY['Y'::bpchar, 'N'::bpchar])), CONSTRAINT xref_p9_not_deleted_check CHECK (dbid = 9 AND deleted = 'N'::bpchar)) INHERITS (rnacen.xref) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/3848",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "MinimumVersionsFixedIn": null
         }
