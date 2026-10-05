@@ -27,8 +27,8 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -105,6 +105,9 @@ summary.change_count in the JSON report); 1 = error (bad flags, unreachable sour
 unsupported source type, etc.).`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if err := retrieveMigrationUUID(); err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		resolveDetectDriftFlagDefaults()
 		validateDetectDriftFlags()
 		// Resolve the source password from the --source-db-password flag, the
@@ -747,15 +750,10 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 	if !shouldSendCallhome() {
 		return
 	}
-	// Unlike the other commands that send from here, detect-drift is not on
-	// exportDirInitialisedCheckNeededList, so a flag that fails validation reaches
-	// the exit handler before detectDrift() opens metaDB. retrieveMigrationUUID
-	// dereferences metaDB, and the anonymizer is initialised alongside it.
-	if metaDB == nil {
-		return
-	}
-	if err := retrieveMigrationUUID(); err != nil {
-		log.Infof("callhome: could not retrieve migration UUID: %v", err)
+	// checkExportDirInitialised exits before initMetaDB when no migration has
+	// started, and initMetaDB is what sets up the anonymizer. PreRun fetches the
+	// UUID first, so it is unset only when that fetch itself failed.
+	if metaDB == nil || migrationUUID == uuid.Nil {
 		return
 	}
 

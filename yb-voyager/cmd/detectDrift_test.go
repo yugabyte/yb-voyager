@@ -21,10 +21,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/google/uuid"
 	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -695,23 +700,34 @@ func TestSanitizeDriftError(t *testing.T) {
 	})
 }
 
-// A flag that fails validation exits through the callhome handler before
-// detectDrift() opens metaDB, and every step below the guard dereferences it.
+// checkExportDirInitialised exits before initMetaDB when no migration has started,
+// so the exit handler reaches the drift sender with metaDB unset.
 func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
-	origSend := callhome.SendDiagnostics
-	origStart := startTime
-	origMetaDB := metaDB
-	t.Cleanup(func() {
-		callhome.SendDiagnostics = origSend
-		startTime = origStart
-		metaDB = origMetaDB
-	})
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+	}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", serverURL.Hostname())
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", serverURL.Port())
 
+	origSend, origStart, origMetaDB, origUUID := callhome.SendDiagnostics, startTime, metaDB, migrationUUID
+	origHost, origPort := callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT
+	t.Cleanup(func() {
+		callhome.SendDiagnostics, startTime, metaDB, migrationUUID = origSend, origStart, origMetaDB, origUUID
+		callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT = origHost, origPort
+	})
 	callhome.SendDiagnostics = true
 	startTime = time.Now()
-	metaDB = nil
+	migrationUUID = uuid.New()
 
-	assert.NotPanics(t, func() {
-		packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("bad flag"), nil)
-	})
+	// Proves the redirect works, so a zero below means nothing was sent.
+	require.NoError(t, callhome.SendPayload(&callhome.Payload{}))
+	require.Equal(t, int32(1), requests.Load())
+
+	metaDB = nil
+	packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("Migration has not started yet"), nil)
+	assert.Equal(t, int32(1), requests.Load(), "no payload may be sent without metaDB")
 }
