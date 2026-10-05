@@ -1196,6 +1196,8 @@ func ShouldFilterOutIssue(issue QueryIssue, issueTypeMap map[string]bool) bool {
 		return issueTypeMap[UNSUPPORTED_DATATYPE_PG_LSN]
 	case UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TXID_SNAPSHOT:
 		return issueTypeMap[UNSUPPORTED_DATATYPE_TXID_SNAPSHOT]
+	case INHERITANCE_MIGRATION_CAVEAT:
+		return issueTypeMap[INHERITANCE]
 
 	default:
 		return false

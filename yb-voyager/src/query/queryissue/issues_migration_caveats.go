@@ -455,3 +455,16 @@ func NewTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement 
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
+
+var inheritanceMigrationCaveat = issue.Issue{
+	Type:        INHERITANCE_MIGRATION_CAVEAT,
+	Name:        INHERITANCE_MIGRATION_CAVEAT_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: INHERITANCE_MIGRATION_CAVEAT_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/3848",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+}
+
+func NewInheritanceMigrationCaveatIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(inheritanceMigrationCaveat, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+}
