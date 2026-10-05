@@ -604,8 +604,9 @@ func checkSchemaDriftOnExportFailure() {
 type driftInvoker string
 
 const (
-	driftInvokerDetectDrift driftInvoker = "detect-drift"
-	driftInvokerExportData  driftInvoker = "export-data"
+	driftInvokerDetectDrift     driftInvoker = "detect-drift"
+	driftInvokerExportData      driftInvoker = "export-data"
+	driftInvokerCutoverToTarget driftInvoker = "cutover-to-target"
 )
 
 func driftReportBaseName(invoker driftInvoker) string {
@@ -680,7 +681,15 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 	// to the candidate universe.
 	var live *schemasnapshot.SchemaSnapshot
 	if in.LiveRead {
-		live, err = captureLiveSnapshotForDrift(in.Schemas)
+		ctx := context.Background()
+		// Another command is waiting on an in-process check, so bound the read as a
+		// capture is bound. The command itself waits as long as the read takes.
+		if in.Invoker != driftInvokerDetectDrift {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, schemasnapshot.CaptureTimeout)
+			defer cancel()
+		}
+		live, err = captureLiveSnapshotForDrift(ctx, in.Schemas)
 		if err != nil {
 			return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, err)
 		}
@@ -725,7 +734,7 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 // captureLiveSnapshotForDrift captures the source schema in memory for comparison
 // against the stored snapshots. Unlike CaptureAndSaveSnapshot, the result is never
 // persisted.
-func captureLiveSnapshotForDrift(schemas []string) (*schemasnapshot.SchemaSnapshot, error) {
+func captureLiveSnapshotForDrift(ctx context.Context, schemas []string) (*schemasnapshot.SchemaSnapshot, error) {
 	pg, ok := source.DB().(*srcdb.PostgreSQL)
 	if !ok {
 		return nil, goerrors.Errorf("live schema capture: source is %T, expected *srcdb.PostgreSQL", source.DB())
@@ -734,7 +743,7 @@ func captureLiveSnapshotForDrift(schemas []string) (*schemasnapshot.SchemaSnapsh
 	if db == nil {
 		return nil, goerrors.Errorf("live schema capture: no database handle after a successful connect")
 	}
-	snap, err := schemasnapshot.Capture(context.Background(), db, schemasnapshot.CaptureParams{
+	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{
 		DatabaseType: source.DBType,
 		DBMetadata:   schemasnapshot.DBMetadata{Host: source.Host, Port: source.Port, Database: source.DBName, User: source.User},
 		Schemas:      schemas,

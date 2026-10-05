@@ -553,6 +553,12 @@ initiate-cutover-to-target:
   ### [DO NOT CHANGE]
   prepare-for-fall-back: true
 
+  ### Comma-separated cutover pre-checks to skip. Supported: schema_drift.
+  ### schema_drift compares the source schema against the snapshots taken during the migration,
+  ### including a live read of the source. It connects with source.db-password from the source section.
+  ### Default - none skipped
+  # skip-pre-checks: schema_drift
+
   ### Applicable to Fall-forward/fall-back workflows where it is required to export changes from YugabyteDB during 'export data from target'. 
   ### YugabyteDB provides two types of CDC (Change Data Capture) connectors:
   ### Logical Connector(GA): It does not require access to internal ports. It is recommended for all deployments unless the version is less than 2024.1.1.

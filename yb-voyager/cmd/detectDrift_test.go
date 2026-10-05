@@ -989,3 +989,28 @@ func TestDebeziumReachedStreaming(t *testing.T) {
 		})
 	}
 }
+
+func TestParseCutoverPreChecksToSkip(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    []string
+		wantErr string
+	}{
+		{name: "unset skips nothing", raw: "", want: []string{}},
+		{name: "schema_drift", raw: "schema_drift", want: []string{"schema_drift"}},
+		{name: "spaces and empty entries are trimmed", raw: " schema_drift , ", want: []string{"schema_drift"}},
+		{name: "an unknown name is an error", raw: "schema_drift,disk_space", wantErr: "unknown --skip-pre-checks value(s) [disk_space]; supported: schema_drift"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseCutoverPreChecksToSkip(tt.raw)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, got)
+		})
+	}
+}
