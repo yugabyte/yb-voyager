@@ -1508,6 +1508,8 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			schemaAnalysisReport, false))
 		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, "", queryissue.POLICY_WITH_ROLES,
 			schemaAnalysisReport, false))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(INHERITANCE_CAVEAT_FEATURE, "", queryissue.INHERITANCE_MIGRATION_CAVEAT,
+			schemaAnalysisReport, false))
 
 		// Check for SAVEPOINT usage in transactions detected by parser
 		if parserIssueDetector.IsSavepointUsed() {
