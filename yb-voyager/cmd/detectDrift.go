@@ -32,6 +32,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
@@ -708,40 +709,18 @@ const (
 	driftStepWriteReports    driftStep = "write reports"
 )
 
-// driftStepError tags err with the step it came from. Its message is err's, so
-// the user sees the same error.
-type driftStepError struct {
-	step  driftStep
-	cause error
-}
-
-func (e driftStepError) Error() string { return e.cause.Error() }
-func (e driftStepError) Unwrap() error { return e.cause }
-
 func atDriftStep(step driftStep, err error) error {
-	return driftStepError{step: step, cause: err}
+	return errs.NewSchemaDriftError(string(step), err)
 }
-
-// driftCallhomeError is err as callhome sees it: the step as its whole message,
-// unwrapping to err so SanitizeErrorMsg still finds the stack trace and SQLSTATE.
-type driftCallhomeError struct {
-	step  driftStep
-	cause error
-}
-
-func (e driftCallhomeError) Error() string { return string(e.step) }
-func (e driftCallhomeError) Unwrap() error { return e.cause }
 
 func sanitizeDriftError(err error) string {
 	if err == nil {
 		return ""
 	}
-	step := driftStepSetup
-	var tagged driftStepError
-	if errors.As(err, &tagged) {
-		step = tagged.step
+	if !errors.As(err, new(errs.SchemaDriftError)) {
+		err = atDriftStep(driftStepSetup, err)
 	}
-	return callhome.SanitizeErrorMsg(driftCallhomeError{step: step, cause: err}, anonymizer)
+	return callhome.SanitizeErrorMsg(err, anonymizer)
 }
 
 // report is nil when the run failed before one was built, which is itself worth

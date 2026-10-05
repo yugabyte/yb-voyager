@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -445,4 +446,22 @@ func TestAddStackTrace_JoinedErrorsTraversal(t *testing.T) {
 	got, ok := context["stack_trace"]
 	require.True(t, ok, "expected stack_trace in context")
 	assert.Equal(t, string(rightErr.Stack()), got, "expected deepest stack from joined error tree")
+}
+
+func TestSanitizeErrorMsgSendsOnlyTheSchemaDriftStep(t *testing.T) {
+	cause := fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`)
+
+	t.Run("the step replaces the message", func(t *testing.T) {
+		got := SanitizeErrorMsg(errs.NewSchemaDriftError("resolve scope", cause), nil)
+		assert.Equal(t, `{"msg":"resolve scope"}`, got)
+	})
+
+	t.Run("found through wrapping", func(t *testing.T) {
+		got := SanitizeErrorMsg(fmt.Errorf("detect drift: %w", errs.NewSchemaDriftError("resolve scope", cause)), nil)
+		assert.Equal(t, `{"msg":"resolve scope"}`, got)
+	})
+
+	t.Run("an untagged error keeps the text before the first colon", func(t *testing.T) {
+		assert.Equal(t, `{"msg":"invalid table name pattern \"proddb.sales.customer_pii\""}`, SanitizeErrorMsg(cause, nil))
+	})
 }

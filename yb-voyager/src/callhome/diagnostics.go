@@ -641,6 +641,7 @@ func addSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 	}
 
 	addImportBatchErrorContext(err, context)
+	addSchemaDriftErrorContext(err, context)
 	addPostgreSQLErrorContext(err, context)
 	addExecuteDDLErrorContext(err, anonymizer, context)
 	addStackTrace(err, context)
@@ -691,6 +692,15 @@ func addImportBatchErrorContext(err error, context map[string]string) {
 	if errors.As(err, &ibe) {
 		context["step"] = ibe.Step()
 		context["flow"] = ibe.Flow()
+	}
+}
+
+// The step replaces msg rather than joining it, because a drift error's text
+// before the first ":" can name tables.
+func addSchemaDriftErrorContext(err error, context map[string]string) {
+	var sde errs.SchemaDriftError
+	if errors.As(err, &sde) {
+		context["msg"] = sde.Step()
 	}
 }
 
