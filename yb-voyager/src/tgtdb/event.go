@@ -366,9 +366,12 @@ func getExporterRoleID(exporterRole string) string {
 
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
 
-//ONLY will not work for partitioned tables as partitioned tables doesn't have its own data its always have to go ti partition TODO: fix it
-const updateTemplate = "UPDATE ONLY %s SET %s WHERE %s"
-const deleteTemplate = "DELETE FROM ONLY %s WHERE %s"
+// ONLY will not work for partitioned tables as partitioned tables doesn't have its own data its always have to go ti partition TODO: fix it
+const updateTemplate = "UPDATE %s SET %s WHERE %s"
+
+const updateOnlyTemplate = "UPDATE ONLY %s SET %s WHERE %s"
+const deleteTemplate = "DELETE FROM %s WHERE %s"
+const deleteOnlyTemplate = "DELETE FROM ONLY %s WHERE %s"
 
 func (event *Event) getInsertStmt(tdb TargetDB, usePartitionRoot bool) (string, error) {
 	columnList := make([]string, 0, len(event.Fields))
@@ -428,7 +431,8 @@ func (event *Event) getUpdateStmt(tdb TargetDB, usePartitionRoot bool) (string, 
 	if err != nil {
 		return "", err
 	}
-	stmt = fmt.Sprintf(updateTemplate, tableName.ForUserQuery(), setClause, whereClause)
+	template := lo.Ternary(event.IsPartitionEvent(), updateTemplate, updateOnlyTemplate)
+	stmt = fmt.Sprintf(template, tableName.ForUserQuery(), setClause, whereClause)
 	return stmt, nil
 }
 
@@ -450,7 +454,8 @@ func (event *Event) getDeleteStmt(tdb TargetDB, usePartitionRoot bool) (string, 
 	if err != nil {
 		return "", err
 	}
-	stmt = fmt.Sprintf(deleteTemplate, tableName.ForUserQuery(), whereClause)
+	template := lo.Ternary(event.IsPartitionEvent(), deleteTemplate, deleteOnlyTemplate)
+	stmt = fmt.Sprintf(template, tableName.ForUserQuery(), whereClause)
 	return stmt, nil
 }
 
@@ -517,7 +522,8 @@ func (event *Event) getPreparedUpdateStmt(tdb TargetDB, usePartitionRoot bool) (
 	if err != nil {
 		return "", err
 	}
-	stmt = fmt.Sprintf(updateTemplate, tableName.ForUserQuery(), setClause, whereClause)
+	template := lo.Ternary(event.IsPartitionEvent(), updateTemplate, updateOnlyTemplate)
+	stmt = fmt.Sprintf(template, tableName.ForUserQuery(), setClause, whereClause)
 	return stmt, nil
 }
 
@@ -537,7 +543,8 @@ func (event *Event) getPreparedDeleteStmt(tdb TargetDB, usePartitionRoot bool) (
 	if err != nil {
 		return "", err
 	}
-	stmt = fmt.Sprintf(deleteTemplate, tableName.ForUserQuery(), whereClause)
+	template := lo.Ternary(event.IsPartitionEvent(), deleteTemplate, deleteOnlyTemplate)
+	stmt = fmt.Sprintf(template, tableName.ForUserQuery(), whereClause)
 	return stmt, nil
 }
 
