@@ -571,7 +571,10 @@ func detectDrift() error {
 // invoked_by.
 type driftInvoker string
 
-const driftInvokerDetectDrift driftInvoker = "detect-drift"
+const (
+	driftInvokerDetectDrift driftInvoker = "detect-drift"
+	driftInvokerExportData  driftInvoker = "export-data"
+)
 
 func driftReportBaseName(invoker driftInvoker) string {
 	if invoker == driftInvokerDetectDrift {

@@ -228,7 +228,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	handleCutoverAlreadyProcessedForExportData()
 
-	success := exportData()
+	success, failure := exportData()
 	if success {
 		sendPayloadAsPerExporterRole(COMPLETE, nil)
 
@@ -241,6 +241,9 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
+		if errors.As(failure, new(debeziumStreamingFailure)) {
+			checkSchemaDriftOnExportFailure()
+		}
 		sendPayloadAsPerExporterRole(ERROR, nil)
 		atexit.Exit(1)
 	}
@@ -689,7 +692,9 @@ func captureSourceGeneratedStoredColumns(finalTableList []sqlname.NameTuple) err
 	return nil
 }
 
-func exportData() (ok bool) {
+// failure is the error behind a false ok, when the export returned one rather
+// than exiting.
+func exportData() (ok bool, failure error) {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %w", err)
@@ -907,7 +912,7 @@ func exportData() (ok bool) {
 		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
 		if err != nil {
 			log.Errorf("Failed to start debezium: %v", err)
-			return false
+			return false, err
 		}
 		utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
 		if changeStreamingIsEnabled(exportType) {
@@ -962,7 +967,7 @@ func exportData() (ok bool) {
 		}
 		// The else branch (useDebezium && !changeStreamingIsEnabled) is a snapshot-only
 		// export via debezium: no cutover was processed, so successReason stays complete.
-		return true
+		return true, nil
 	} else {
 		exportPhase = dbzm.MODE_SNAPSHOT
 		err = storeTableListInMSR(finalTableList)
@@ -972,10 +977,42 @@ func exportData() (ok bool) {
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
-			return false
+			return false, err
 		}
-		return true
+		return true, nil
 	}
+}
+
+// checkSchemaDriftOnExportFailure reports drift after Debezium failed while
+// streaming. Best effort: it never changes the export's exit code.
+func checkSchemaDriftOnExportFailure() {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE || ProcessShutdownRequested.Load() {
+		return
+	}
+	if enabled, _ := sourceCapture().Enabled(); !enabled {
+		return
+	}
+
+	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
+	// No live read and no catalog listing: exportData has disconnected, and its exit
+	// capture stored the end state moments earlier.
+	report, paths, err := checkSchemaDrift(driftCheckInput{
+		Schemas: source.GetSchemaListUnquoted(),
+		Formats: driftValidOutputFormats,
+		Invoker: driftInvokerExportData,
+	})
+	if err != nil {
+		utils.PrintAndLogfWarning("Could not check the source schema for drift: %v\n", err)
+		packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerExportData)
+		return
+	}
+	if report.Summary.ChangeCount == 0 {
+		// paths follows driftValidOutputFormats, which lists html first.
+		utils.PrintAndLogfSuccess("No schema drift found on the source. Report: %s\n", paths[0])
+	} else {
+		printDriftSummary(*report, paths)
+	}
+	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerExportData)
 }
 
 func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string],

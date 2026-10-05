@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -398,6 +399,28 @@ func isCutoverInitiatedAndCutoverDetected(exporterRole string) (bool, error) {
 	return false, nil
 }
 
+// debeziumStreamingFailure is a Debezium failure after it switched to streaming
+// changes: the one export failure that schema drift can cause.
+type debeziumStreamingFailure struct {
+	cause error
+}
+
+func (e debeziumStreamingFailure) Error() string { return e.cause.Error() }
+func (e debeziumStreamingFailure) Unwrap() error { return e.cause }
+
+// Java exits with these on SIGINT and SIGTERM, and run.sh execs Java. Ctrl-C
+// reaches Debezium too, since it is in Voyager's process group.
+var debeziumInterruptExitCodes = []int{130, 143}
+
+func debeziumFailure(err error, snapshotComplete bool) error {
+	failure := fmt.Errorf("debezium failed with error: %w", err)
+	var exitErr *exec.ExitError
+	if !snapshotComplete || (errors.As(err, &exitErr) && lo.Contains(debeziumInterruptExitCodes, exitErr.ExitCode())) {
+		return failure
+	}
+	return debeziumStreamingFailure{cause: failure}
+}
+
 func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -449,7 +472,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 		time.Sleep(time.Millisecond * 500)
 	}
 	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed with error: %w", err)
+		return debeziumFailure(err, snapshotComplete)
 	}
 	// handle case where debezium finished before snapshot completion
 	// was handled in above loop

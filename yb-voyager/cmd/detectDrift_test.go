@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -922,4 +923,37 @@ func TestCheckSchemaDriftWithoutLiveRead(t *testing.T) {
 	assert.Equal(t, schemadiff.TableAdded, report.Drifts[0].Type)
 	assert.Equal(t, "products", report.Drifts[0].Object.Name)
 	assert.Equal(t, []string{filepath.Join(exportDir, "reports", "drift_analysis_report_export_data.json")}, paths)
+}
+
+// Only a Debezium failure while streaming may trigger the drift check on export
+// failure: drift can't fail the snapshot, and an interrupt is not a failure.
+func TestDebeziumFailure(t *testing.T) {
+	exitWith := func(code int) error {
+		err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", code)).Run()
+		require.Error(t, err)
+		return err
+	}
+	tests := []struct {
+		name             string
+		err              error
+		snapshotComplete bool
+		wantStreaming    bool
+	}{
+		{name: "fails while streaming", err: exitWith(1), snapshotComplete: true, wantStreaming: true},
+		{name: "fails during the snapshot", err: exitWith(1), snapshotComplete: false, wantStreaming: false},
+		{name: "SIGINT while streaming", err: exitWith(130), snapshotComplete: true, wantStreaming: false},
+		{name: "SIGTERM while streaming", err: exitWith(143), snapshotComplete: true, wantStreaming: false},
+		{name: "a non-exit error while streaming", err: fmt.Errorf("pipe closed"), snapshotComplete: true, wantStreaming: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := debeziumFailure(tt.err, tt.snapshotComplete)
+
+			assert.Equal(t, "debezium failed with error: "+tt.err.Error(), got.Error())
+			assert.ErrorIs(t, got, tt.err)
+			// Wrapped the way startDebeziumAsPerExportTypeIfRequired wraps it.
+			wrapped := fmt.Errorf("failed to export data using debezium: %w", got)
+			assert.Equal(t, tt.wantStreaming, errors.As(wrapped, new(debeziumStreamingFailure)))
+		})
+	}
 }
