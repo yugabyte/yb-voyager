@@ -160,7 +160,7 @@ jobs:
       - name: "TEST: Assessment Report Test"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
 
-      - name: "TEST: Assessment Report Test with  2.25.0.0 target-db-version"
+      - name: "TEST: Assessment Report Test with 2025.1.4.0 target-db-version"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test-with-tdb
       
       - name: "TEST: Assessment Report Test (Schema list UQC)"
