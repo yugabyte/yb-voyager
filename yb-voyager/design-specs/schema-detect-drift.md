@@ -421,6 +421,32 @@ The command captures the current source schema in memory under `LabelSourceLive`
 
 The in-process check in `export data` runs without a live read: the exit capture stored the end state moments earlier. Such a report ends at the last stored capture. Its `live_compared` is false, and the terminal summary and the HTML footer leave out the live read.
 
+### 5.7 Check on export failure
+
+The source exporter checks for drift in one case: Debezium failed after it switched to streaming changes. That is the one export failure drift can cause, for example an added column the connector cannot handle. The check runs right after "Export of data failed!", through `checkSchemaDrift` (§3.7), and never changes the exit code.
+
+| How the export ends | Check |
+| :---- | :---- |
+| Debezium fails while streaming | yes |
+| Debezium fails during its snapshot, or before | no |
+| `pg_dump` fails | no: it holds `ACCESS SHARE` locks, so DDL waits and an added column is simply dumped |
+| Any other error, or an `ErrExit` | no |
+| Ctrl-C, SIGTERM, an end-migration stop | no |
+| Success or cutover | no |
+
+Ctrl-C reaches Voyager and Debezium together, since they share a process group, so Debezium's error alone does not mean it failed. Two guards keep an interrupt out: Debezium's exit code 130 or 143, which Java exits with on SIGINT or SIGTERM, is not a failure; and the check returns at once when Voyager is shutting down.
+
+The check compares every table in the export's schemas, ignoring `--table-list` and `--exclude-table-list`, so a new table still shows. It takes no live read and no catalog listing, and it does not reconnect: the exit capture stored the end state moments earlier. When that capture failed, the report ends at the last stored one. It follows `--disable-schema-snapshot-capture`, because without captures there is nothing to compare.
+
+```
+Export of data failed! Check <export-dir>/logs for more details.
+
+Checking the source schema for drift...
+No schema drift found on the source. Report: <export-dir>/reports/drift_analysis_report_export_data.html
+```
+
+With drift it prints the summary of §5.1 instead. If the check fails, it prints `Could not check the source schema for drift: <reason>`.
+
 ## 6\. Migration-flow matrix
 
 Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
@@ -449,6 +475,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | One stored snapshot, and the live read makes it a pair | warning; report covers that single interval | Not an error: one stored capture plus the live read is a real interval. Zero stored snapshots gets no warning, because it can never form an interval and always lands on the row below. |
 | No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
+| The check on export failure fails (§5.7) | one line, export exit code unchanged | The export's own error is the failure. The check is best effort, like capture. |
 | The HTML renderer meets a state it cannot display (§3.5) | error, exit 1 | Rendering past it drops or misprints a finding in a report that still looks complete. |
 | Report file already exists | overwritten with a notice | Reports are regenerated, not versioned. |
 
