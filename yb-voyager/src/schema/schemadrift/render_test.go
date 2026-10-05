@@ -458,3 +458,26 @@ func TestRenderHTML_UnknownCaptureLabelStillRenders(t *testing.T) {
 	assert.Contains(t, html, "table added", "the findings must still render")
 	assert.Contains(t, html, "import_data_start", "the footer still lists the capture")
 }
+
+// The in-process check in export data takes no live read, so its footer must not
+// claim one.
+func TestRenderHTML_FooterMentionsTheLiveReadOnlyWhenThereIsOne(t *testing.T) {
+	const liveSentence = "plus a final compare"
+
+	t.Run("no live read", func(t *testing.T) {
+		out, err := RenderHTML(fixtureReport())
+		require.NoError(t, err)
+		assert.NotContains(t, string(out), liveSentence)
+	})
+
+	t.Run("ends at a live read", func(t *testing.T) {
+		r := fixtureReport()
+		r.CapturePoints = append(r.CapturePoints, CapturePoint{
+			Label:      schemasnapshot.LabelSourceLive,
+			CapturedAt: r.CapturePoints[1].CapturedAt.Add(time.Hour),
+		})
+		out, err := RenderHTML(r)
+		require.NoError(t, err)
+		assert.Contains(t, string(out), liveSentence)
+	})
+}

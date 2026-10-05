@@ -134,3 +134,11 @@ type CapturePoint struct {
 	// A reader needs it to tell "nothing changed here" from "nobody looked here".
 	Excluded string `json:"excluded,omitempty"`
 }
+
+// HasLiveRead reports whether the timeline ends at a live read of the source.
+// LiveCompared is not the same question: a live read can be on the timeline and
+// still be excluded from the comparison.
+func (r Report) HasLiveRead() bool {
+	n := len(r.CapturePoints)
+	return n > 0 && r.CapturePoints[n-1].Label == schemasnapshot.LabelSourceLive
+}
