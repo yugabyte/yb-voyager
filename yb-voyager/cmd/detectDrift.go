@@ -521,7 +521,7 @@ func detectDrift() error {
 	sqlname.SourceDBType = source.DBType
 
 	if err := source.DB().Connect(); err != nil {
-		return fmt.Errorf("failed to connect to source database: %w", err)
+		return atDriftStep(driftStepConnect, fmt.Errorf("failed to connect to source database: %w", err))
 	}
 	defer source.DB().Disconnect()
 
@@ -529,11 +529,11 @@ func detectDrift() error {
 
 	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 	if err != nil {
-		return fmt.Errorf("failed to fetch schema names from source: %w", err)
+		return atDriftStep(driftStepResolveSchemas, fmt.Errorf("failed to fetch schema names from source: %w", err))
 	}
 	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 	if err != nil {
-		return err
+		return atDriftStep(driftStepResolveSchemas, err)
 	}
 	// Raw (unquoted) names: compared against catalog values, never interpolated into
 	// SQL. The quoted form matches nothing -- see srcdb.Source.GetSchemaListUnquoted.
@@ -545,7 +545,7 @@ func detectDrift() error {
 	// from the live catalog still appears.
 	headers, err := schemasnapshot.ListSnapshots(metaDB)
 	if err != nil {
-		return fmt.Errorf("failed to list schema snapshots: %w", err)
+		return atDriftStep(driftStepLoadSnapshots, fmt.Errorf("failed to list schema snapshots: %w", err))
 	}
 	// Only the one-snapshot case gets a warning. With none at all the run cannot
 	// form an interval however the live read goes, so it always ends at
@@ -567,7 +567,7 @@ func detectDrift() error {
 			case lerr == nil:
 				content = c
 			case errors.Is(lerr, schemasnapshot.ErrSnapshotVersionUnsupported):
-				return fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr)
+				return atDriftStep(driftStepLoadSnapshots, fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr))
 			case errors.Is(lerr, schemasnapshot.ErrPlaceholderSnapshot), errors.Is(lerr, schemasnapshot.ErrSnapshotNotFound):
 				utils.PrintAndLogfWarning("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			default:
@@ -581,12 +581,12 @@ func detectDrift() error {
 	// to the candidate universe.
 	live, err := captureLiveSnapshotForDrift(schemas)
 	if err != nil {
-		return err
+		return atDriftStep(driftStepCaptureLive, err)
 	}
 
 	scope, err := resolveDriftScope(snapshots, live, schemas)
 	if err != nil {
-		return err
+		return atDriftStep(driftStepResolveScope, err)
 	}
 	snapshots = append(snapshots, *live)
 
@@ -602,13 +602,13 @@ func detectDrift() error {
 		Scope:     scope,
 	})
 	if err != nil {
-		return fmt.Errorf("build the drift report: %w", err)
+		return atDriftStep(driftStepBuildReport, fmt.Errorf("build the drift report: %w", err))
 	}
 
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
 	// examined.
 	if report.Summary.ComparedIntervalCount == 0 {
-		nothingCompared := nothingComparedError(report)
+		nothingCompared := atDriftStep(driftStepNothingCompared, nothingComparedError(report))
 		// Sent from here rather than left to the atexit handler, which has no report
 		// to pass: how many captures existed and why none were usable is the whole
 		// signal on this path.
@@ -618,6 +618,7 @@ func detectDrift() error {
 
 	writtenPaths, err := writeDriftReports(report, driftReportFormats(driftOutputFormat))
 	if err != nil {
+		err = atDriftStep(driftStepWriteReports, err)
 		packAndSendSchemaDriftPayload(ERROR, err, &report)
 		return err
 	}
@@ -687,6 +688,59 @@ func nothingComparedError(r schemadrift.Report) error {
 
 // ─── Telemetry ───────────────────────────────────────────────────────────────
 
+// driftStep is the only part of a failed run's error that callhome receives. The
+// error text itself can carry table names, --table-list patterns and file paths.
+type driftStep string
+
+const (
+	// Untagged errors: flag validation, the password read and the root pre-run.
+	driftStepSetup           driftStep = "setup"
+	driftStepConnect         driftStep = "connect to source"
+	driftStepResolveSchemas  driftStep = "resolve schemas"
+	driftStepLoadSnapshots   driftStep = "load snapshots"
+	driftStepCaptureLive     driftStep = "capture live schema"
+	driftStepResolveScope    driftStep = "resolve scope"
+	driftStepBuildReport     driftStep = "build report"
+	driftStepNothingCompared driftStep = "nothing compared"
+	driftStepWriteReports    driftStep = "write reports"
+)
+
+// driftStepError tags err with the step it came from. Its message is err's, so
+// the user sees the same error.
+type driftStepError struct {
+	step  driftStep
+	cause error
+}
+
+func (e driftStepError) Error() string { return e.cause.Error() }
+func (e driftStepError) Unwrap() error { return e.cause }
+
+func atDriftStep(step driftStep, err error) error {
+	return driftStepError{step: step, cause: err}
+}
+
+// driftCallhomeError is err as callhome sees it: the step as its whole message,
+// unwrapping to err so SanitizeErrorMsg still finds the stack trace and SQLSTATE.
+type driftCallhomeError struct {
+	step  driftStep
+	cause error
+}
+
+func (e driftCallhomeError) Error() string { return string(e.step) }
+func (e driftCallhomeError) Unwrap() error { return e.cause }
+
+func sanitizeDriftError(err error) string {
+	if err == nil {
+		return ""
+	}
+	step := driftStepSetup
+	var tagged driftStepError
+	if errors.As(err, &tagged) {
+		step = tagged.step
+	}
+	return callhome.SanitizeErrorMsg(driftCallhomeError{step: step, cause: err}, anonymizer)
+}
+
 // report is nil when the run failed before one was built, which is itself worth
 // recording: it is the population that could not use the feature at all.
 func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schemadrift.Report) {
@@ -723,7 +777,7 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhome.SchemaDriftPhasePayload {
 	driftPayload := callhome.SchemaDriftPhasePayload{
 		PayloadVersion:   callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION,
-		Error:            callhome.SanitizeErrorMsg(errorMsg, anonymizer),
+		Error:            sanitizeDriftError(errorMsg),
 		ControlPlaneType: getControlPlaneType(),
 	}
 	if report == nil {
