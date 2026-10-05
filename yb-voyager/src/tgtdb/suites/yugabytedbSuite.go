@@ -51,6 +51,33 @@ func quoteValueIfRequiredWithEscaping(value string, formatIfRequired bool, _ *sc
 	}
 }
 
+const (
+	microsPerSecond = int64(1_000_000)
+	microsPerDay    = 24 * 60 * 60 * microsPerSecond
+)
+
+// Debezium encodes time-of-day as an offset since midnight, not a Unix timestamp:
+// PostgreSQL's 24:00:00 arrives as exactly one day and must not wrap to 00:00:00.
+func formatTimeOfDay(micros int64, fractionDigits int) (string, error) {
+	if micros < 0 || micros > microsPerDay {
+		return "", goerrors.Errorf("time-of-day offset %d µs is outside [0, 24:00:00]", micros)
+	}
+	secs := micros / microsPerSecond
+	clock := fmt.Sprintf("%02d:%02d:%02d", secs/3600, (secs/60)%60, secs%60)
+	frac := micros % microsPerSecond
+	switch fractionDigits {
+	case 0:
+		return clock, nil
+	case 3:
+		if frac == 0 {
+			return clock, nil
+		}
+		return fmt.Sprintf("%s.%03d", clock, frac/1000), nil
+	default:
+		return fmt.Sprintf("%s.%06d", clock, frac), nil
+	}
+}
+
 var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.data.Json":     quoteValueIfRequiredWithEscaping,
 	"io.debezium.data.Enum":     quoteValueIfRequiredWithEscaping,
@@ -101,8 +128,10 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %w", err)
 		}
-		epochSecs := epochMilliSecs / 1000
-		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
+		timeValue, err := formatTimeOfDay(epochMilliSecs*1000, 3)
+		if err != nil {
+			return columnValue, err
+		}
 		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
@@ -110,10 +139,10 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch microseconds: %w", err)
 		}
-		epochSeconds := epochMicroSecs / 1000000
-		epochNanos := (epochMicroSecs % 1000000) * 1000
-		MICRO_TIME_FORMAT := "15:04:05.000000"
-		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
+		timeValue, err := formatTimeOfDay(epochMicroSecs, 6)
+		if err != nil {
+			return columnValue, err
+		}
 		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
