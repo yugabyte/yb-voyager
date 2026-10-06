@@ -2925,6 +2925,8 @@ var liveToOfflineDatatypePairs = map[string]string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RASTER:         UNSUPPORTED_DATATYPE_RASTER,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PG_LSN:         UNSUPPORTED_DATATYPE_PG_LSN,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TXID_SNAPSHOT:  UNSUPPORTED_DATATYPE_TXID_SNAPSHOT,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID:            UNSUPPORTED_DATATYPE_XID,
+	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID8:           UNSUPPORTED_DATATYPE_XID8,
 }
 
 func issueOfType(issueType string) QueryIssue {
@@ -2965,6 +2967,7 @@ func TestShouldFilterOutIssue(t *testing.T) {
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE,
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR,
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CID,
 	}
 	for _, liveOnlyType := range liveOnlyTypes {
 		assert.False(t, ShouldFilterOutIssue(issueOfType(liveOnlyType), allOffline),
@@ -3023,4 +3026,84 @@ func TestXMLDatatypeVersionGateThroughGetDDLIssues(t *testing.T) {
 	assert.Equal(t, 1, len(issues))
 	assert.True(t, cmp.Equal(NewXMLLiveMigrationDatatypeIssue("TABLE", "test_xml_gate", stmt, "XML", "data"), issues[0]),
 		"expected live-migration xml caveat from 2026.1, got: %v", issues[0])
+}
+
+// xid and xid8 have an offline unsupported-datatype issue that hides their live
+// caveat, while cid is unsupported only for live migration. The cidr column guards
+// that datatype matching is exact: "cid" must not match "cidr".
+func TestTransactionIDDatatypesThroughGetDDLIssues(t *testing.T) {
+	testCases := []struct {
+		name     string
+		stmt     string
+		expected func(stmt string) []QueryIssue
+	}{
+		{
+			name: "xid reports only the offline issue",
+			stmt: `CREATE TABLE xid_table (id int PRIMARY KEY, txn xid);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewXIDDatatypeIssue("TABLE", "xid_table", stmt, "xid", "txn")}
+			},
+		},
+		{
+			name: "xid8 reports only the offline issue",
+			stmt: `CREATE TABLE xid8_table (id int PRIMARY KEY, txn xid8);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewXID8DatatypeIssue("TABLE", "xid8_table", stmt, "xid8", "txn")}
+			},
+		},
+		{
+			name: "cid reports only the live-migration issue",
+			stmt: `CREATE TABLE cid_table (id int PRIMARY KEY, cmd cid);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewCIDDatatypeIssue("TABLE", "cid_table", stmt, "cid", "cmd")}
+			},
+		},
+		{
+			name: "cidr is not reported",
+			stmt: `CREATE TABLE cidr_table (id int PRIMARY KEY, net cidr);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{}
+			},
+		},
+		{
+			name: "all three in one table, in column order",
+			stmt: `CREATE TABLE txn_ids_table (id int PRIMARY KEY, a xid, b xid8, c cid);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewXIDDatatypeIssue("TABLE", "txn_ids_table", stmt, "xid", "a"),
+					NewXID8DatatypeIssue("TABLE", "txn_ids_table", stmt, "xid8", "b"),
+					NewCIDDatatypeIssue("TABLE", "txn_ids_table", stmt, "cid", "c"),
+				}
+			},
+		},
+		{
+			name: "foreign table reports the offline xid8 issue",
+			stmt: `CREATE FOREIGN TABLE xid8_foreign (id int, txn xid8) SERVER remote_server OPTIONS (table_name 'xid8_remote');`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewForeignTableIssue("FOREIGN TABLE", "xid8_foreign", stmt, "remote_server"),
+					NewXID8DatatypeIssue("FOREIGN TABLE", "xid8_foreign", stmt, "xid8", "txn"),
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := NewParserIssueDetector().GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			assert.NoError(t, err)
+			expected := tc.expected(tc.stmt)
+			assert.True(t, cmp.Equal(expected, issues), "issues mismatch (-expected +actual):\n%s", cmp.Diff(expected, issues))
+		})
+	}
+}
+
+func TestTransactionIDDatatypesAreLiveMigrationIssues(t *testing.T) {
+	for _, issueType := range []string{
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_XID8,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CID,
+	} {
+		assert.Contains(t, UnsupportedDatatypesInLiveMigrationIssues, issueType)
+	}
 }

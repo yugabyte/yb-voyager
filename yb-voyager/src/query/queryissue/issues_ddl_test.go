@@ -230,6 +230,40 @@ func testLoDatatypeIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", loDatatypeIssue)
 }
 
+// xid8 exists only from PG 13. PG 11-based YB rejects the type. PG 15-based YB creates
+// the column but does not keep the value: inserting 42 reads back a value whose low 32
+// bits are 42 and whose epoch bits are garbage.
+func testXID8DatatypeIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	defer conn.Close(context.Background())
+
+	var serverVersionNum int
+	err = conn.QueryRow(ctx, `SELECT current_setting('server_version_num')::int`).Scan(&serverVersionNum)
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(ctx, `CREATE TABLE xid8_datatype_table (id int PRIMARY KEY, txn xid8);`)
+	if serverVersionNum < 130000 {
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `type "xid8" does not exist`, xid8DatatypeIssue)
+		return
+	}
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(ctx, `INSERT INTO xid8_datatype_table VALUES (1, '42'::xid8);`)
+	assert.NoError(t, err)
+
+	var readBack string
+	err = conn.QueryRow(ctx, `SELECT txn::text FROM xid8_datatype_table WHERE id = 1;`).Scan(&readBack)
+	assert.NoError(t, err)
+
+	var roundTripErr error
+	if readBack != "42" {
+		roundTripErr = fmt.Errorf("xid8 value not preserved: inserted 42, read back %s", readBack)
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, roundTripErr, "xid8 value not preserved", xid8DatatypeIssue)
+}
+
 func testMultiRangeDatatypeIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -1233,6 +1267,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "lo datatype", ybVersion), testLoDatatypeIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "xid8 datatype", ybVersion), testXID8DatatypeIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "multi range datatype", ybVersion), testMultiRangeDatatypeIssue)

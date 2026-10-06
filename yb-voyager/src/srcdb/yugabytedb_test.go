@@ -739,6 +739,48 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 	})
 }
 
+// Neither YB CDC connector can stream xml, xid, xid8, or cid, so live export from YB
+// (fall-back/fall-forward, or YB as source) must drop those columns. cidr guards that
+// matching is exact, and the quoted column guards case-sensitive names.
+func TestYugabyteGetColumnsWithSupportedTypes_TransactionIDAndXMLTypes(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA txn_types;`,
+		`CREATE TABLE txn_types.txn_ids_table (
+			id INT PRIMARY KEY,
+			doc XML,
+			txn_xid XID,
+			"TxnXid8" XID8,
+			cmd_cid CID,
+			net CIDR
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA txn_types CASCADE;`)
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	originalIsGrpc := ybDB.source.IsYBGrpcConnector
+	defer func() { ybDB.source.IsYBGrpcConnector = originalIsGrpc }()
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("txn_types.txn_ids_table", "txn_types", constants.YUGABYTEDB),
+	}
+
+	for _, isGrpc := range []bool{false, true} {
+		t.Run(fmt.Sprintf("grpc=%t", isGrpc), func(t *testing.T) {
+			ybDB.source.IsYBGrpcConnector = isGrpc
+			supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
+			assert.NilError(t, err)
+
+			supported, exists := supportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected txn_types.txn_ids_table in supported map")
+			testutils.AssertEqualStringSlices(t, []string{"id", "net"}, supported)
+
+			unsupported, exists := unsupportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected txn_types.txn_ids_table in unsupported map")
+			testutils.AssertEqualStringSlices(t, []string{"doc", "txn_xid", "TxnXid8", "cmd_cid"}, unsupported)
+		})
+	}
+}
+
 func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 	// In YugabyteDB, the default replica identity for new tables is already CHANGE ('c'),
 	// unlike PostgreSQL which defaults to DEFAULT ('d'). To test a table without CHANGE
