@@ -592,7 +592,7 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			columnName,
 		)
 	case "xid8":
-		issue = NewXID8UnsupportedLiveMigrationDatatypeIssue(
+		issue = NewXID8LiveMigrationDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -600,7 +600,7 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			columnName,
 		)
 	case "xid":
-		issue = NewXIDUnsupportedLiveMigrationDatatypeIssue(
+		issue = NewXIDLiveMigrationDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -608,7 +608,7 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			columnName,
 		)
 	case "cid":
-		issue = NewCIDDatatypeIssue(
+		issue = NewCIDLiveMigrationDatatypeIssue(
 			objType,
 			objName,
 			"",
