@@ -465,8 +465,11 @@ func TestRenderHTML_FooterMentionsTheLiveReadOnlyWhenThereIsOne(t *testing.T) {
 	const liveSentence = "plus a final compare"
 
 	t.Run("no live read", func(t *testing.T) {
-		out, err := RenderHTML(fixtureReport())
+		r := fixtureReport()
+		r.Summary.LiveCompared = false
+		out, err := RenderHTML(r)
 		require.NoError(t, err)
+		assert.Contains(t, string(out), "The changes come from diffing consecutive captures. These names are internal")
 		assert.NotContains(t, string(out), liveSentence)
 	})
 
