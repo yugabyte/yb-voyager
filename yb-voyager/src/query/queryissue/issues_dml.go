@@ -325,6 +325,7 @@ var fetchWithTiesIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2025_2: ybversion.V2025_2_0_0,
 		ybversion.SERIES_2026_1: ybversion.V2026_1_0_0,
