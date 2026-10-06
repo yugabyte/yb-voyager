@@ -499,12 +499,9 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	if len(filters.excludeObjectTypes) > 0 {
 		objectTypes = complementDriftObjectTypes(filters.excludeObjectTypes)
 		if len(objectTypes) == 0 {
-			typeNames := func(types []schemadiff.ObjectType) string {
-				return strings.Join(lo.Map(types, func(t schemadiff.ObjectType, _ int) string { return string(t) }), ", ")
-			}
 			return schemadiff.Scope{}, goerrors.Errorf(
-				"--exclude-object-type-list %q excludes every supported object type (%s); nothing left to compare",
-				typeNames(filters.excludeObjectTypes), typeNames(allDriftObjectTypes))
+				"--exclude-object-type-list excludes every supported object type (%s); nothing left to compare",
+				strings.Join(lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) }), ", "))
 		}
 	}
 
@@ -596,11 +593,14 @@ type driftCheckInput struct {
 // The caller owns the source connection. The report is nil when the check failed
 // before building one.
 func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error) {
+	if in.Invoker == "" {
+		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, goerrors.Errorf("checkSchemaDrift: invoker not set"))
+	}
 	// An in-process check runs inside another command's output, so its notes go to
 	// the log only.
-	note := utils.PrintAndLogfWarning
+	note, info := utils.PrintAndLogfWarning, utils.PrintAndLogf
 	if in.Invoker != driftInvokerDetectDrift {
-		note = log.Warnf
+		note, info = log.Warnf, log.Infof
 	}
 
 	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
@@ -680,7 +680,7 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 		return &report, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, nothingComparedError(report))
 	}
 
-	writtenPaths, err := writeDriftReports(report, in.Formats, driftReportBaseName(in.Invoker))
+	writtenPaths, err := writeDriftReports(report, in.Formats, driftReportBaseName(in.Invoker), info)
 	if err != nil {
 		return &report, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_WRITE_REPORTS, err)
 	}
@@ -819,7 +819,7 @@ func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report, invoker
 // writeDriftReports renders and writes report to <export-dir>/reports/<baseName>
 // in each of formats, creating the reports directory if necessary. Returns the
 // paths written, in the same order as formats.
-func writeDriftReports(report schemadrift.Report, formats []string, baseName string) ([]string, error) {
+func writeDriftReports(report schemadrift.Report, formats []string, baseName string, info func(string, ...interface{})) ([]string, error) {
 	reportsDir := filepath.Join(exportDir, "reports")
 	if err := os.MkdirAll(reportsDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create reports directory %q: %w", reportsDir, err)
@@ -844,7 +844,7 @@ func writeDriftReports(report schemadrift.Report, formats []string, baseName str
 
 		path := filepath.Join(reportsDir, fmt.Sprintf("%s.%s", baseName, f))
 		if utils.FileOrFolderExists(path) {
-			utils.PrintAndLogf("\n%s already exists, overwriting it with a new generated report\n", filepath.Base(path))
+			info("\n%s already exists, overwriting it with a new generated report\n", filepath.Base(path))
 		}
 		if err := os.WriteFile(path, data, 0644); err != nil {
 			return nil, fmt.Errorf("failed to write %s drift report to %q: %w", f, path, err)

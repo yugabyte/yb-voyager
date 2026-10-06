@@ -18,12 +18,14 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -37,6 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
@@ -842,4 +845,81 @@ func TestPackAndSendSchemaDriftPayloadSentGuard(t *testing.T) {
 			assert.Equal(t, tt.wantGuard, callHomeErrorOrCompletePayloadSent)
 		})
 	}
+}
+
+// ─── checkSchemaDrift (the in-process entry point) ────────────────────────────
+
+func TestDriftReportBaseName(t *testing.T) {
+	assert.Equal(t, "drift_analysis_report", driftReportBaseName(driftInvokerDetectDrift))
+	assert.Equal(t, "drift_analysis_report_export_data", driftReportBaseName(driftInvoker("export-data")))
+	assert.Equal(t, "drift_analysis_report_cutover_to_target", driftReportBaseName(driftInvoker("cutover-to-target")))
+}
+
+func TestCheckSchemaDriftRejectsAnUnsetInvoker(t *testing.T) {
+	report, paths, err := checkSchemaDrift(driftCheckInput{Schemas: []string{"public"}, Formats: []string{"json"}})
+	var sde errs.SchemaDriftError
+	require.ErrorAs(t, err, &sde)
+	assert.Equal(t, errs.SCHEMA_DRIFT_STEP_SETUP, sde.Step())
+	assert.Nil(t, report)
+	assert.Nil(t, paths)
+}
+
+func TestWriteDriftReportsRoutesTheOverwriteNote(t *testing.T) {
+	saved := exportDir
+	t.Cleanup(func() { exportDir = saved })
+	exportDir = t.TempDir()
+
+	var notes []string
+	info := func(format string, args ...interface{}) { notes = append(notes, fmt.Sprintf(format, args...)) }
+
+	_, err := writeDriftReports(schemadrift.Report{}, []string{"json"}, "drift_analysis_report_export_data", info)
+	require.NoError(t, err)
+	assert.Empty(t, notes, "a first write overwrites nothing")
+
+	_, err = writeDriftReports(schemadrift.Report{}, []string{"json"}, "drift_analysis_report_export_data", info)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"\ndrift_analysis_report_export_data.json already exists, overwriting it with a new generated report\n"}, notes)
+}
+
+// The export-data caller's shape: stored snapshots only, no live read.
+func TestCheckSchemaDriftWithoutLiveRead(t *testing.T) {
+	savedMetaDB, savedExportDir, savedSource := metaDB, exportDir, source
+	t.Cleanup(func() { metaDB, exportDir, source = savedMetaDB, savedExportDir, savedSource })
+	exportDir = t.TempDir()
+	metaDB = initMetaDB(exportDir)
+	source.DBType = constants.POSTGRESQL
+
+	table := func(name, id string) schemasnapshot.Table {
+		return schemasnapshot.Table{ObjectRef: schemasnapshot.ObjectRef{Schema: "public", Name: name}, ID: id, Kind: schemasnapshot.TableKindOrdinary}
+	}
+	start := time.Date(2026, 10, 6, 10, 0, 0, 0, time.UTC)
+	for i, snap := range []schemasnapshot.SchemaSnapshot{
+		{
+			Header:  schemasnapshot.SnapshotHeader{Label: schemasnapshot.LabelExportDataFromSourceStart, Reason: schemasnapshot.ReasonInitial, CapturedAt: start, Schemas: []string{"public"}},
+			Content: &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: constants.POSTGRESQL, Tables: []schemasnapshot.Table{table("orders", "1")}},
+		},
+		{
+			Header:  schemasnapshot.SnapshotHeader{Label: schemasnapshot.LabelExportDataFromSourceExit, Reason: schemasnapshot.ReasonError, CapturedAt: start.Add(time.Hour), Schemas: []string{"public"}},
+			Content: &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: constants.POSTGRESQL, Tables: []schemasnapshot.Table{table("orders", "1"), table("products", "2")}},
+		},
+	} {
+		_, err := schemasnapshot.SaveSnapshot(context.Background(), metaDB, &snap)
+		require.NoError(t, err, "snapshot %d", i)
+	}
+
+	report, paths, err := checkSchemaDrift(driftCheckInput{
+		Schemas: []string{"public"},
+		Formats: []string{"json"},
+		Invoker: driftInvoker("export-data"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.False(t, report.HasLiveRead())
+	assert.False(t, report.Summary.LiveCompared)
+	assert.Equal(t, 1, report.Summary.ComparedIntervalCount)
+	assert.Equal(t, 2, report.Summary.StoredCaptureCount)
+	require.Len(t, report.Drifts, 1)
+	assert.Equal(t, schemadiff.TableAdded, report.Drifts[0].Type)
+	assert.Equal(t, "products", report.Drifts[0].Object.Name)
+	assert.Equal(t, []string{filepath.Join(exportDir, "reports", "drift_analysis_report_export_data.json")}, paths)
 }
