@@ -1274,6 +1274,64 @@ func (pg *PostgreSQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList [
 	return tables, nil
 }
 
+var PG_QUERY_TO_GET_TABLES_INVOLVED_IN_INHERITANCE = `SELECT DISTINCT n.nspname AS schema_name, c.relname AS table_name
+FROM pg_inherits inh
+JOIN pg_class child ON child.oid = inh.inhrelid
+-- report both sides of the relationship: the inheriting table and the table it inherits from
+JOIN pg_class c ON c.oid IN (inh.inhrelid, inh.inhparent)
+JOIN pg_namespace n ON n.oid = c.relnamespace
+-- pg_inherits also records declarative partitions; only INHERITS relationships are unsupported
+WHERE NOT child.relispartition
+AND (n.nspname, c.relname) IN (%s);`
+
+func (pg *PostgreSQL) GetTablesInvolvedInInheritance(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return getTablesInvolvedInInheritanceForPGAndYB(pg.db, tableList)
+}
+
+// getTablesInvolvedInInheritanceForPGAndYB returns the tables out of tableList that inherit from
+// another table or are inherited from (INHERITS). Partitions are not reported.
+func getTablesInvolvedInInheritanceForPGAndYB(db *sql.DB, tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	if len(tableList) == 0 {
+		return nil, nil
+	}
+	tableToTuple := make(map[string]sqlname.NameTuple)
+	for _, table := range tableList {
+		tableToTuple[table.AsQualifiedCatalogName()] = table
+	}
+	queryTablesString := strings.Join(lo.Map(tableList, func(table sqlname.NameTuple, _ int) string {
+		schema, tableName := table.ForCatalogQuery()
+		return fmt.Sprintf("('%s', '%s')", schema, tableName)
+	}), ", ")
+	query := fmt.Sprintf(PG_QUERY_TO_GET_TABLES_INVOLVED_IN_INHERITANCE, queryTablesString)
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying(%q) source database for tables involved in inheritance: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	var tables []sqlname.NameTuple
+	for rows.Next() {
+		var schemaName, tableName string
+		err := rows.Scan(&schemaName, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for tables involved in inheritance: %w", err)
+		}
+		tableTuple, ok := tableToTuple[fmt.Sprintf("%s.%s", schemaName, tableName)]
+		if !ok {
+			return nil, goerrors.Errorf("table not found in requested table list: %s.%s", schemaName, tableName)
+		}
+		tables = append(tables, tableTuple)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error in iterating query rows for tables involved in inheritance: %w", err)
+	}
+	return tables, nil
+}
+
 // =============================== Guardrails ===============================
 
 func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {

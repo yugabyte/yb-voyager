@@ -1337,3 +1337,7 @@ func (yb *YugabyteDB) GetSchemasMissingUsagePermissions() ([]string, error) {
 func (yb *YugabyteDB) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }
+
+func (yb *YugabyteDB) GetTablesInvolvedInInheritance(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return getTablesInvolvedInInheritanceForPGAndYB(yb.db, tableList)
+}

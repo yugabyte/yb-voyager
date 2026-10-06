@@ -2370,6 +2370,10 @@ func generateGlobalExportImportArguments() []string {
 func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	reportUnsupportedTablesForLiveMigration(finalTableList, partitionsToRootTableMap)
 	reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration(finalTableList, partitionsToRootTableMap)
+	err := checkTablesInvolvedInInheritance(finalTableList)
+	if err != nil {
+		utils.ErrExit("%s", err)
+	}
 	log.Infof("initial all tables table list for data export: %v", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
 		return t.ForOutput()
 	}))
@@ -2411,6 +2415,26 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsTo
 		return t.ForOutput()
 	}))
 	return finalTableList, tablesColumnList
+}
+
+// checkTablesInvolvedInInheritance rejects the export, offline or live, if any table in the list
+// inherits from another table or is inherited from. Both sides are reported because excluding
+// only one of them still leaves the other in an inheritance relationship.
+func checkTablesInvolvedInInheritance(finalTableList []sqlname.NameTuple) error {
+	inheritanceTables, err := source.DB().GetTablesInvolvedInInheritance(finalTableList)
+	if err != nil {
+		return fmt.Errorf("get tables involved in inheritance: %w", err)
+	}
+	if len(inheritanceTables) == 0 {
+		return nil
+	}
+	tableNames := lo.Map(inheritanceTables, func(t sqlname.NameTuple, _ int) string {
+		return t.ForOutput()
+	})
+	sort.Strings(tableNames)
+	return goerrors.Errorf("Voyager does not support data migration for tables that use inheritance (INHERITS), "+
+		"in both offline and live migration.\nThe following tables are involved in inheritance: %s\n"+
+		"Exclude these tables using the --exclude-table-list argument.", strings.Join(tableNames, ", "))
 }
 
 // reportTablesWithUniqueAndPKDeferrableConstraintsForLiveMigration fails the export if any table

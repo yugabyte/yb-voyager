@@ -94,6 +94,56 @@ There are some GIN indexes present in the schema, but GIN indexes are partially 
 	assert.Equal(t, expectedJsonString, actualString, "The unsupported index types in the report do not match the expected output")
 }
 
+// Offline export must refuse tables involved in INHERITS and name all of them. Excluding
+// them lets the export run.
+func TestExportData_RejectsTablesInvolvedInInheritance(t *testing.T) {
+	ctx := context.Background()
+
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(ctx)
+	testutils.FatalIfError(t, err, "Failed to start Postgres container")
+
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA inh_guardrail;`,
+		`CREATE TABLE inh_guardrail.parent_t (id INT PRIMARY KEY, name TEXT);`,
+		`CREATE TABLE inh_guardrail."ChildT" (extra TEXT) INHERITS (inh_guardrail.parent_t);`,
+		`CREATE TABLE inh_guardrail.plain_t (id INT PRIMARY KEY);`,
+		`INSERT INTO inh_guardrail.parent_t VALUES (1, 'a');`,
+		`INSERT INTO inh_guardrail."ChildT" VALUES (2, 'b', 'c');`,
+		`INSERT INTO inh_guardrail.plain_t VALUES (1);`,
+	)
+	defer postgresContainer.ExecuteSqls(`DROP SCHEMA inh_guardrail CASCADE;`)
+
+	runExportData := func(extraArgs ...string) *testutils.VoyagerCommandRunner {
+		exportDir = testutils.CreateTempExportDir()
+		t.Cleanup(func() { testutils.RemoveTempExportDir(exportDir) })
+		args := append([]string{
+			"--export-dir", exportDir,
+			"--source-db-schema", "inh_guardrail",
+			"--disable-pb", "true",
+			"--yes",
+		}, extraArgs...)
+		runner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", args, nil, false)
+		err := runner.Run()
+		if len(extraArgs) == 0 {
+			assert.Error(t, err, "export data must fail when tables are involved in inheritance")
+		} else {
+			assert.NoError(t, err, "export data must succeed once inheritance tables are excluded")
+		}
+		return runner
+	}
+
+	t.Run("rejected", func(t *testing.T) {
+		runner := runExportData()
+		assert.Contains(t, runner.Stderr(), "Voyager does not support data migration for tables that use inheritance (INHERITS), in both offline and live migration.")
+		assert.Contains(t, runner.Stderr(), `The following tables are involved in inheritance: inh_guardrail."ChildT", inh_guardrail.parent_t`)
+	})
+
+	t.Run("excluded", func(t *testing.T) {
+		runExportData("--exclude-table-list", `parent_t,"ChildT"`)
+	})
+}
+
 func Test_ContainerResumption(t *testing.T) {
 	mysqlContainer := testcontainers.NewTestContainer(testcontainers.MYSQL, nil)
 	if err := mysqlContainer.Start(context.Background()); err != nil {

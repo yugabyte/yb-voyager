@@ -68,6 +68,7 @@ type SourceDB interface {
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)
 	GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error)
+	GetTablesInvolvedInInheritance(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error)
 	Query(query string) (*sql.Rows, error)
 	QueryRow(query string) *sql.Row
 }

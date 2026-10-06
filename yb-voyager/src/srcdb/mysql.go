@@ -594,3 +594,8 @@ func (ms *MySQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 func (ms *MySQL) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }
+
+// MySQL does not support table inheritance.
+func (ms *MySQL) GetTablesInvolvedInInheritance(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return nil, nil
+}

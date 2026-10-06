@@ -739,6 +739,10 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 	})
 }
 
+func TestYugabyteGetTablesInvolvedInInheritance(t *testing.T) {
+	assertTablesInvolvedInInheritance(t, testYugabyteDBSource.TestContainer.ExecuteSqls, testYugabyteDBSource.DB(), constants.YUGABYTEDB)
+}
+
 func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 	// In YugabyteDB, the default replica identity for new tables is already CHANGE ('c'),
 	// unlike PostgreSQL which defaults to DEFAULT ('d'). To test a table without CHANGE
