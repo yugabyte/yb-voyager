@@ -307,60 +307,45 @@ func snapContent(refs ...schemasnapshot.ObjectRef) *schemasnapshot.SnapshotConte
 }
 
 func TestDriftTableUniverse(t *testing.T) {
-	t.Run("listing error is returned", func(t *testing.T) {
-		failing := func(string) ([]string, error) { return nil, fmt.Errorf("connection reset") }
-		got, err := driftTableUniverse(failing, []string{"public"}, nil, nil)
-		require.EqualError(t, err, `list the tables in schema "public": connection reset`)
-		assert.Nil(t, got)
-	})
-
-	t.Run("each schema's tables become universe entries", func(t *testing.T) {
-		tablesBySchema := map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}
-		listing := func(schema string) ([]string, error) { return tablesBySchema[schema], nil }
-		got, err := driftTableUniverse(listing, []string{"public", "Sales"}, nil, nil)
-		require.NoError(t, err)
-		assert.Equal(t, map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}, got)
-	})
-
-	t.Run("snapshot-only (dropped) table is still in the universe; dedup across live+snapshot", func(t *testing.T) {
-		// Headline universe-fix case: products is present ONLY in a historical
-		// snapshot (dropped from the live catalog) yet must still be nameable.
-		// orders appears in both live catalog and snapshot => deduped to one.
-		listing := func(string) ([]string, error) { return []string{"orders", "customers"}, nil }
-		got, err := driftTableUniverse(listing, []string{"public"}, []*schemasnapshot.SnapshotContent{
+	t.Run("snapshot-only (dropped) table is still in the universe; dedup across snapshots", func(t *testing.T) {
+		// Headline universe-fix case: products is present ONLY in an older snapshot
+		// (dropped from the source since) yet must still be nameable. orders appears
+		// in both snapshots => deduped to one.
+		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{
 			snapContent(
-				schemasnapshot.ObjectRef{Schema: "public", Name: "products"},
 				schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+				schemasnapshot.ObjectRef{Schema: "public", Name: "products"},
 			),
+			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}),
 		}, nil)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"orders", "customers", "products"}, got["public"])
+		assert.Equal(t, map[string][]string{"public": {"orders", "products"}}, got)
 	})
 
 	t.Run("live capture contributes an extra table", func(t *testing.T) {
-		listing := func(string) ([]string, error) { return []string{"orders"}, nil }
-		got, err := driftTableUniverse(listing, []string{"public"},
+		got := driftTableUniverse(
 			[]*schemasnapshot.SnapshotContent{snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})},
 			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "audit"}))
-		require.NoError(t, err)
-		assert.Equal(t, []string{"orders", "products", "audit"}, got["public"])
+		assert.Equal(t, map[string][]string{"public": {"products", "audit"}}, got)
 	})
 
-	t.Run("same table in all three sources yields a single entry", func(t *testing.T) {
+	t.Run("same table in a snapshot and the live capture yields a single entry", func(t *testing.T) {
 		orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
-		listing := func(string) ([]string, error) { return []string{"orders"}, nil }
-		got, err := driftTableUniverse(listing, []string{"public"},
-			[]*schemasnapshot.SnapshotContent{snapContent(orders)}, snapContent(orders))
-		require.NoError(t, err)
-		assert.Equal(t, []string{"orders"}, got["public"])
+		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{snapContent(orders)}, snapContent(orders))
+		assert.Equal(t, map[string][]string{"public": {"orders"}}, got)
+	})
+
+	t.Run("each schema keeps its own tables, case preserved", func(t *testing.T) {
+		got := driftTableUniverse(nil, snapContent(
+			schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+			schemasnapshot.ObjectRef{Schema: "Sales", Name: "Invoices"},
+		))
+		assert.Equal(t, map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}, got)
 	})
 
 	t.Run("nil snapshot content is skipped", func(t *testing.T) {
-		listing := func(string) ([]string, error) { return []string{"orders"}, nil }
-		got, err := driftTableUniverse(listing, []string{"public"},
+		got := driftTableUniverse(
 			[]*schemasnapshot.SnapshotContent{nil, snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})}, nil)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"orders", "products"}, got["public"])
+		assert.Equal(t, map[string][]string{"public": {"products"}}, got)
 	})
 }
 

@@ -267,14 +267,12 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 // ─── Scope resolution ────────────────────────────────────────────────────────
 
 // driftTableUniverse builds the --table-list / --exclude-table-list matching
-// universe, deduped per schema, in the order live catalog -> snapshots -> live
-// capture.
+// universe, deduped per schema, in the order snapshots -> live capture.
 //
-// It is the union rather than the live catalog alone because a table dropped from
+// It is the union rather than the live capture alone because a table dropped from
 // the source is gone from the catalog but must still be nameable, to see its own
 // drop reported. Only the stored snapshots still know about it.
-func driftTableUniverse(listTables func(schema string) ([]string, error), schemas []string,
-	snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) (map[string][]string, error) {
+func driftTableUniverse(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) map[string][]string {
 	seen := make(map[string]map[string]bool)
 	universe := make(map[string][]string)
 	add := func(schema, name string) {
@@ -288,19 +286,6 @@ func driftTableUniverse(listTables func(schema string) ([]string, error), schema
 		universe[schema] = append(universe[schema], name)
 	}
 
-	// Nil for the in-process checks: export data has already disconnected, and
-	// cutover's live read covers the catalog. Neither takes table filters to match.
-	if listTables != nil {
-		for _, schema := range schemas {
-			names, err := listTables(schema)
-			if err != nil {
-				return nil, fmt.Errorf("list the tables in schema %q: %w", schema, err)
-			}
-			for _, name := range names {
-				add(schema, name)
-			}
-		}
-	}
 	for _, c := range snapshotContents {
 		if c == nil {
 			continue // placeholder / failed-to-load snapshot; nothing to contribute.
@@ -315,7 +300,7 @@ func driftTableUniverse(listTables func(schema string) ([]string, error), schema
 		}
 	}
 
-	return universe, nil
+	return universe
 }
 
 // driftObjectRefs takes the unquoted source-side names, which is how schemadiff.Scope
@@ -454,7 +439,7 @@ type driftScopeFilters struct {
 // -- when neither flag was passed -- the whole universe, spelled out rather than
 // left empty, because Scope keeps nothing for an empty dimension.
 func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasnapshot.SchemaSnapshot, schemas []string,
-	filters driftScopeFilters, listTables func(schema string) ([]string, error)) (schemadiff.Scope, error) {
+	filters driftScopeFilters) (schemadiff.Scope, error) {
 	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshots))
 	for _, si := range snapshots {
 		snapshotContents = append(snapshotContents, si.Content)
@@ -466,10 +451,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	universe, err := driftTableUniverse(listTables, schemas, snapshotContents, liveContent)
-	if err != nil {
-		return schemadiff.Scope{}, err
-	}
+	universe := driftTableUniverse(snapshotContents, liveContent)
 	reg, err := namereg.NewInMemorySourceNameRegistry(source.DBType, schemas, universe)
 	if err != nil {
 		return schemadiff.Scope{}, err
@@ -569,10 +551,9 @@ func detectDrift() error {
 			objectTypes:        driftParsedFlags.objectTypes,
 			excludeObjectTypes: driftParsedFlags.excludeObjectTypes,
 		},
-		ListTables: source.DB().GetAllTableNamesRaw,
-		LiveRead:   true,
-		Formats:    driftReportFormats(driftOutputFormat),
-		Invoker:    driftInvokerCommand,
+		LiveRead: true,
+		Formats:  driftReportFormats(driftOutputFormat),
+		Invoker:  driftInvokerCommand,
 	})
 	if err != nil {
 		// Sent from here rather than left to the atexit handler, which has no report
@@ -604,14 +585,11 @@ func driftReportBaseName(invoker driftInvoker) string {
 
 type driftCheckInput struct {
 	// Unquoted schema names, already resolved.
-	Schemas []string
-	Filters driftScopeFilters
-	// Lists a schema's tables from the catalog. Nil skips the listing, so the table
-	// universe comes from the snapshots and the live capture alone.
-	ListTables func(schema string) ([]string, error)
-	LiveRead   bool
-	Formats    []string
-	Invoker    driftInvoker
+	Schemas  []string
+	Filters  driftScopeFilters
+	LiveRead bool
+	Formats  []string
+	Invoker  driftInvoker
 }
 
 // checkSchemaDrift builds and writes a drift report over the stored snapshots.
@@ -673,7 +651,7 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 		}
 	}
 
-	scope, err := resolveDriftScope(snapshots, live, in.Schemas, in.Filters, in.ListTables)
+	scope, err := resolveDriftScope(snapshots, live, in.Schemas, in.Filters)
 	if err != nil {
 		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, err)
 	}
