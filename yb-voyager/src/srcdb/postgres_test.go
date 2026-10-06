@@ -139,11 +139,11 @@ func TestPostgresGetColumnsWithSupportedTypes_TransactionIDTypes(t *testing.T) {
 		assert.Equal(t, true, exists, "Expected test_schema.txn_ids_table in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"txn_xid", "TxnXid8", "cmd_cid"}, unsupported)
 
-		supported, exists := supportedCols.Get(tableList[1])
+		supported, exists = supportedCols.Get(tableList[1])
 		assert.Equal(t, true, exists, "Expected test_schema.refcursor_table in supported map")
 		testutils.AssertEqualStringSlices(t, []string{"id", "note"}, supported)
 
-		unsupported, exists := unsupportedCols.Get(tableList[1])
+		unsupported, exists = unsupportedCols.Get(tableList[1])
 		assert.Equal(t, true, exists, "Expected test_schema.refcursor_table in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"CurName"}, unsupported)
 	})
@@ -155,7 +155,7 @@ func TestPostgresGetColumnsWithSupportedTypes_TransactionIDTypes(t *testing.T) {
 		_, exists := unsupportedCols.Get(tableList[0])
 		assert.Equal(t, false, exists, "Expected no unsupported columns for offline migration")
 
-		_, exists := unsupportedCols.Get(tableList[1])
+		_, exists = unsupportedCols.Get(tableList[1])
 		assert.Equal(t, false, exists, "Expected no unsupported columns for offline migration")
 	})
 }
