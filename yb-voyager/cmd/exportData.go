@@ -994,8 +994,8 @@ func checkSchemaDriftOnExportFailure() {
 	}
 
 	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
-	// No live read and no catalog listing: exportData has disconnected, and its exit
-	// capture stored the end state moments earlier.
+	// No live read: exportData has disconnected, and its exit capture stored the end
+	// state moments earlier.
 	report, paths, err := checkSchemaDrift(driftCheckInput{
 		Schemas: source.GetSchemaListUnquoted(),
 		Formats: driftValidOutputFormats,
