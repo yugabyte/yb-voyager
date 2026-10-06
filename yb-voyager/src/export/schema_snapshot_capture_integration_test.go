@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -377,11 +378,20 @@ func testSchemaSnapshotCaptureStartPeriodic(t *testing.T, db *sql.DB, meta schem
 
 		noDB.StartPeriodic(ctx, 50*time.Millisecond)
 
-		require.Eventually(t, func() bool { return countLabel(t, ownMDB, schemasnapshot.LabelExportDataFromSourcePeriodic) >= 1 },
-			5*time.Second, 100*time.Millisecond, "a periodic tick without a database handle must record a placeholder")
+		// Assert on the headers read inside the poll, so nothing reads metaDB after
+		// cancel() while the goroutine may still be writing.
+		var headers []schemasnapshot.SnapshotHeader
+		require.Eventually(t, func() bool {
+			hs, err := schemasnapshot.ListSnapshots(ownMDB)
+			if err != nil {
+				return false
+			}
+			headers = hs
+			return lo.SomeBy(hs, func(h schemasnapshot.SnapshotHeader) bool {
+				return h.Label == schemasnapshot.LabelExportDataFromSourcePeriodic
+			})
+		}, 5*time.Second, 100*time.Millisecond, "a periodic tick without a database handle must record a placeholder")
 		cancel()
-		headers, err := schemasnapshot.ListSnapshots(ownMDB)
-		require.NoError(t, err)
 		for _, h := range headers {
 			assert.True(t, h.IsPlaceholder, "header %q must be a placeholder", h.Name())
 		}
