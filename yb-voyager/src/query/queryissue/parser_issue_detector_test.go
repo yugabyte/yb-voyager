@@ -2968,6 +2968,7 @@ func TestShouldFilterOutIssue(t *testing.T) {
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR,
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CID,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_REFCURSOR,
 	}
 	for _, liveOnlyType := range liveOnlyTypes {
 		assert.False(t, ShouldFilterOutIssue(issueOfType(liveOnlyType), allOffline),
@@ -3096,6 +3097,30 @@ func TestTransactionIDDatatypesThroughGetDDLIssues(t *testing.T) {
 			assert.True(t, cmp.Equal(expected, issues), "issues mismatch (-expected +actual):\n%s", cmp.Diff(expected, issues))
 		})
 	}
+}
+
+// refcursor has no offline unsupported-datatype issue, so only the live-migration
+// issue is reported, whether or not the type is schema-qualified.
+func TestRefcursorDatatypeThroughGetDDLIssues(t *testing.T) {
+	testCases := []struct {
+		name string
+		stmt string
+		obj  string
+	}{
+		{"unqualified", `CREATE TABLE refcursor_table (id int PRIMARY KEY, cur refcursor);`, "refcursor_table"},
+		{"pg_catalog qualified", `CREATE TABLE refcursor_qualified_table (id int PRIMARY KEY, cur pg_catalog.refcursor);`, "refcursor_qualified_table"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := NewParserIssueDetector().GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			assert.NoError(t, err)
+			expected := []QueryIssue{NewRefCursorUnsupportedLiveMigrationDatatypeIssue("TABLE", tc.obj, tc.stmt, "refcursor", "cur")}
+			assert.True(t, cmp.Equal(expected, issues), "issues mismatch (-expected +actual):\n%s", cmp.Diff(expected, issues))
+		})
+	}
+
+	assert.Contains(t, UnsupportedDatatypesInLiveMigrationIssues, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_REFCURSOR)
 }
 
 func TestTransactionIDDatatypesAreLiveMigrationIssues(t *testing.T) {
