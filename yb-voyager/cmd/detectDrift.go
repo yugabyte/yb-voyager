@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -259,7 +260,7 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 	if len(invalid) > 0 {
 		return nil, goerrors.Errorf("unknown object type(s) %v; supported types: TABLE, COLUMN", invalid)
 	}
-	return out, nil
+	return lo.Uniq(out), nil
 }
 
 // ─── Scope resolution ────────────────────────────────────────────────────────
@@ -744,7 +745,7 @@ func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhom
 	driftPayload.StoredCaptureCount = report.Summary.StoredCaptureCount
 	driftPayload.LiveCompared = report.Summary.LiveCompared
 	driftPayload.TableCount = len(report.Comparing.Tables)
-	driftPayload.ObjectTypes = report.Comparing.ObjectTypes
+	driftPayload.ObjectTypes = slices.Sorted(slices.Values(report.Comparing.ObjectTypes))
 	driftPayload.DriftsByType = lo.CountValuesBy(report.Drifts, func(d schemadrift.DriftEntry) string {
 		return string(d.Type)
 	})

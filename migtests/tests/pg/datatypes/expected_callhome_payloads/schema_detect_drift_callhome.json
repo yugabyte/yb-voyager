@@ -10,8 +10,8 @@
     "error": "",
     "live_compared": true,
     "object_types": [
-      "TABLE",
-      "COLUMN"
+      "COLUMN",
+      "TABLE"
     ],
     "payload_version": 1.0,
     "stored_capture_count": 3,

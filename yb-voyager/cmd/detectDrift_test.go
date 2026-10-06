@@ -204,6 +204,11 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
 		},
 		{
+			name: "a type named twice is kept once",
+			raw:  "TABLE,table",
+			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
+		},
+		{
 			name:    "unknown type errors",
 			raw:     "SEQUENCE",
 			wantErr: true,
@@ -602,7 +607,7 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 		assert.Equal(t, 4, got.StoredCaptureCount)
 		assert.True(t, got.LiveCompared)
 		assert.Equal(t, 3, got.TableCount)
-		assert.Equal(t, []string{"TABLE", "COLUMN"}, got.ObjectTypes)
+		assert.Equal(t, []string{"COLUMN", "TABLE"}, got.ObjectTypes)
 		assert.Equal(t, map[string]int{
 			string(schemadiff.ColumnAdded):  1,
 			string(schemadiff.TableDropped): 1,
