@@ -288,6 +288,8 @@ func driftTableUniverse(listTables func(schema string) ([]string, error), schema
 		universe[schema] = append(universe[schema], name)
 	}
 
+	// Nil for the in-process checks: export data has already disconnected, and
+	// cutover's live read covers the catalog. Neither takes table filters to match.
 	if listTables != nil {
 		for _, schema := range schemas {
 			names, err := listTables(schema)
@@ -605,7 +607,7 @@ type driftCheckInput struct {
 	Schemas []string
 	Filters driftScopeFilters
 	// Lists a schema's tables from the catalog. Nil skips the listing, so the table
-	// universe comes from the snapshots alone.
+	// universe comes from the snapshots and the live capture alone.
 	ListTables func(schema string) ([]string, error)
 	LiveRead   bool
 	Formats    []string
