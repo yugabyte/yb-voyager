@@ -516,8 +516,8 @@ var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.0"
 // anonymized schema names travel in the envelope's SourceDBDetails instead.
 type SchemaDriftPhasePayload struct {
 	PayloadVersion string `json:"payload_version"`
-	// Empty for `schema detect-drift`; the command that ran the check in process
-	// otherwise, e.g. "export-data".
+	// "detect-drift" for `schema detect-drift`; the command that ran the check in
+	// process otherwise, e.g. "export-data".
 	InvokedBy string `json:"invoked_by"`
 
 	ChangeCount int `json:"change_count"`

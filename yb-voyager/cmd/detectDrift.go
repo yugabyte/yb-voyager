@@ -553,20 +553,20 @@ func detectDrift() error {
 		},
 		LiveRead: true,
 		Formats:  driftReportFormats(driftOutputFormat),
-		Invoker:  driftInvokerCommand,
+		Invoker:  driftInvokerDetectDrift,
 	})
 	if err != nil {
 		// Sent from here rather than left to the atexit handler, which has no report
 		// to pass: how many captures existed and why none were usable is the whole
 		// signal on this path.
 		if report != nil {
-			packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerCommand)
+			packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerDetectDrift)
 		}
 		return err
 	}
 
 	printDriftSummary(*report, writtenPaths)
-	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerCommand)
+	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerDetectDrift)
 	return nil
 }
 
@@ -574,10 +574,10 @@ func detectDrift() error {
 // invoked_by.
 type driftInvoker string
 
-const driftInvokerCommand driftInvoker = ""
+const driftInvokerDetectDrift driftInvoker = "detect-drift"
 
 func driftReportBaseName(invoker driftInvoker) string {
-	if invoker == driftInvokerCommand {
+	if invoker == driftInvokerDetectDrift {
 		return DRIFT_REPORT_FILE_NAME
 	}
 	return DRIFT_REPORT_FILE_NAME + "_" + strings.ReplaceAll(string(invoker), "-", "_")
@@ -599,7 +599,7 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 	// An in-process check runs inside another command's output, so its notes go to
 	// the log only.
 	note := utils.PrintAndLogfWarning
-	if in.Invoker != driftInvokerCommand {
+	if in.Invoker != driftInvokerDetectDrift {
 		note = log.Warnf
 	}
 
@@ -783,7 +783,7 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 	err := callhome.SendPayload(&payload)
 	// The guard belongs to the running command. An in-process check that set it
 	// would stop export data from sending its own error payload.
-	if err == nil && invoker == driftInvokerCommand && (status == COMPLETE || status == ERROR) {
+	if err == nil && invoker == driftInvokerDetectDrift && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
 }

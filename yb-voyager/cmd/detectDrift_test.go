@@ -584,10 +584,10 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 	}
 
 	t.Run("populated report", func(t *testing.T) {
-		got := buildSchemaDriftPayload(nil, &report, driftInvokerCommand)
+		got := buildSchemaDriftPayload(nil, &report, driftInvokerDetectDrift)
 
 		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
-		assert.Equal(t, "", got.InvokedBy)
+		assert.Equal(t, "detect-drift", got.InvokedBy)
 		assert.Equal(t, 3, got.ChangeCount)
 		assert.Equal(t, 2, got.ComparedIntervalCount)
 		assert.Equal(t, 4, got.StoredCaptureCount)
@@ -608,7 +608,7 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 	// The run failed before a report existed. Everything report-derived must stay
 	// zero rather than be invented, and the histograms must drop out of the JSON.
 	t.Run("nil report", func(t *testing.T) {
-		got := buildSchemaDriftPayload(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, fmt.Errorf("source is unreachable")), nil, driftInvokerCommand)
+		got := buildSchemaDriftPayload(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, fmt.Errorf("source is unreachable")), nil, driftInvokerDetectDrift)
 
 		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
 		assert.Zero(t, got.ChangeCount)
@@ -625,7 +625,7 @@ func TestBuildSchemaDriftPayload(t *testing.T) {
 	t.Run("a report with no drift sends no histograms", func(t *testing.T) {
 		clean := report
 		clean.Drifts = nil
-		raw, err := json.Marshal(buildSchemaDriftPayload(nil, &clean, driftInvokerCommand))
+		raw, err := json.Marshal(buildSchemaDriftPayload(nil, &clean, driftInvokerDetectDrift))
 		require.NoError(t, err)
 
 		var fields map[string]any
@@ -736,7 +736,7 @@ func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
 	requests := redirectCallhomeToTestServer(t)
 
 	metaDB = nil
-	packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("Migration has not started yet"), nil, driftInvokerCommand)
+	packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("Migration has not started yet"), nil, driftInvokerDetectDrift)
 	assert.Equal(t, int32(1), requests.Load(), "no payload may be sent without metaDB")
 }
 
@@ -790,7 +790,7 @@ func TestSchemaDriftErrorWithReportSentOnce(t *testing.T) {
 	report := schemadrift.Report{}
 	report.Summary.StoredCaptureCount = 1
 	failure := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, fmt.Errorf("captured only sales"))
-	packAndSendSchemaDriftPayload(ERROR, failure, &report, driftInvokerCommand)
+	packAndSendSchemaDriftPayload(ERROR, failure, &report, driftInvokerDetectDrift)
 	utils.ErrExitErr = failure
 	PackAndSendCallhomePayloadOnExit()
 
@@ -827,7 +827,7 @@ func TestPackAndSendSchemaDriftPayloadSentGuard(t *testing.T) {
 		invoker   driftInvoker
 		wantGuard bool
 	}{
-		{name: "the command marks its phase as reported", invoker: driftInvokerCommand, wantGuard: true},
+		{name: "the command marks its phase as reported", invoker: driftInvokerDetectDrift, wantGuard: true},
 		{name: "an in-process check leaves the guard to its host command", invoker: driftInvoker("export-data"), wantGuard: false},
 	}
 	for _, tt := range tests {
