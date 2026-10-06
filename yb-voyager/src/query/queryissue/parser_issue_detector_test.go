@@ -3055,7 +3055,7 @@ func TestTransactionIDDatatypesThroughGetDDLIssues(t *testing.T) {
 			name: "cid reports only the live-migration issue",
 			stmt: `CREATE TABLE cid_table (id int PRIMARY KEY, cmd cid);`,
 			expected: func(stmt string) []QueryIssue {
-				return []QueryIssue{NewCIDDatatypeIssue("TABLE", "cid_table", stmt, "cid", "cmd")}
+				return []QueryIssue{NewCIDLiveMigrationDatatypeIssue("TABLE", "cid_table", stmt, "cid", "cmd")}
 			},
 		},
 		{
@@ -3072,7 +3072,7 @@ func TestTransactionIDDatatypesThroughGetDDLIssues(t *testing.T) {
 				return []QueryIssue{
 					NewXIDDatatypeIssue("TABLE", "txn_ids_table", stmt, "xid", "a"),
 					NewXID8DatatypeIssue("TABLE", "txn_ids_table", stmt, "xid8", "b"),
-					NewCIDDatatypeIssue("TABLE", "txn_ids_table", stmt, "cid", "c"),
+					NewCIDLiveMigrationDatatypeIssue("TABLE", "txn_ids_table", stmt, "cid", "c"),
 				}
 			},
 		},
