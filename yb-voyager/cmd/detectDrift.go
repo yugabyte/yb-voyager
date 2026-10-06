@@ -620,7 +620,7 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 			"single interval between it and the live read (if available).\n")
 	}
 
-	snapshots := make([]schemasnapshot.SchemaSnapshot, 0, len(headers)+1)
+	snapshots := make([]schemasnapshot.SchemaSnapshot, 0, len(headers))
 	for _, h := range headers {
 		var content *schemasnapshot.SnapshotContent
 		if h.IsPlaceholder {
