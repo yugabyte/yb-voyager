@@ -41,6 +41,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
@@ -933,12 +934,20 @@ func TestDebeziumFailure(t *testing.T) {
 		require.Error(t, err)
 		return err
 	}
+	killedBySignal := func() error {
+		err := exec.Command("sh", "-c", "kill -9 $$").Run()
+		require.Error(t, err)
+		return err
+	}
 	tests := []struct {
 		name             string
 		err              error
 		snapshotComplete bool
 		wantStreaming    bool
 	}{
+		// What the live test and the OOM killer produce: ExitCode() is -1.
+		{name: "killed by SIGKILL while streaming", err: killedBySignal(), snapshotComplete: true, wantStreaming: true},
+		{name: "SIGINT during the snapshot", err: exitWith(130), snapshotComplete: false, wantStreaming: false},
 		{name: "fails while streaming", err: exitWith(1), snapshotComplete: true, wantStreaming: true},
 		{name: "fails during the snapshot", err: exitWith(1), snapshotComplete: false, wantStreaming: false},
 		{name: "SIGINT while streaming", err: exitWith(130), snapshotComplete: true, wantStreaming: false},
@@ -954,6 +963,29 @@ func TestDebeziumFailure(t *testing.T) {
 			// Wrapped the way startDebeziumAsPerExportTypeIfRequired wraps it.
 			wrapped := fmt.Errorf("failed to export data using debezium: %w", got)
 			assert.Equal(t, tt.wantStreaming, errors.As(wrapped, new(debeziumStreamingFailure)))
+		})
+	}
+}
+
+func TestDebeziumReachedStreaming(t *testing.T) {
+	status := func(mode string) func() (*dbzm.ExportStatus, error) {
+		return func() (*dbzm.ExportStatus, error) { return &dbzm.ExportStatus{Mode: mode}, nil }
+	}
+	tests := []struct {
+		name       string
+		observed   bool
+		readStatus func() (*dbzm.ExportStatus, error)
+		want       bool
+	}{
+		{name: "the poll loop saw the switch", observed: true, readStatus: status(dbzm.MODE_SNAPSHOT), want: true},
+		{name: "died after the switch, before the next poll", observed: false, readStatus: status(dbzm.MODE_STREAMING), want: true},
+		{name: "died during the snapshot", observed: false, readStatus: status(dbzm.MODE_SNAPSHOT), want: false},
+		{name: "no status file yet", observed: false, readStatus: func() (*dbzm.ExportStatus, error) { return nil, nil }, want: false},
+		{name: "status file unreadable", observed: false, readStatus: func() (*dbzm.ExportStatus, error) { return nil, fmt.Errorf("bad json") }, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, debeziumReachedStreaming(tt.observed, tt.readStatus))
 		})
 	}
 }

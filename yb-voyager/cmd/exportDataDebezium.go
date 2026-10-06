@@ -412,6 +412,20 @@ func (e debeziumStreamingFailure) Unwrap() error { return e.cause }
 // reaches Debezium too, since it is in Voyager's process group.
 var debeziumInterruptExitCodes = []int{130, 143}
 
+// The poll loop sleeps between reads, so Debezium can switch to streaming and die
+// before the loop sees the switch. Its status file still records it.
+func debeziumReachedStreaming(observed bool, readStatus func() (*dbzm.ExportStatus, error)) bool {
+	if observed {
+		return true
+	}
+	status, err := readStatus()
+	if err != nil {
+		log.Warnf("read the debezium export status after it failed: %v", err)
+		return false
+	}
+	return status != nil && status.SnapshotExportIsComplete()
+}
+
 func debeziumFailure(err error, snapshotComplete bool) error {
 	failure := fmt.Errorf("debezium failed with error: %w", err)
 	var exitErr *exec.ExitError
@@ -472,7 +486,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 		time.Sleep(time.Millisecond * 500)
 	}
 	if err := debezium.Error(); err != nil {
-		return debeziumFailure(err, snapshotComplete)
+		return debeziumFailure(err, debeziumReachedStreaming(snapshotComplete, debezium.GetExportStatus))
 	}
 	// handle case where debezium finished before snapshot completion
 	// was handled in above loop
