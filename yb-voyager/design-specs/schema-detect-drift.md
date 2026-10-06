@@ -434,6 +434,8 @@ The source exporter checks for drift in one case: Debezium failed after it switc
 | Ctrl-C, SIGTERM, an end-migration stop | no |
 | Success or cutover | no |
 
+Whether Debezium had switched to streaming is read from its status file once it has exited, not only from the exporter's last poll of it, so a crash moments after the switch still counts as a streaming failure.
+
 Ctrl-C reaches Voyager and Debezium together, since they share a process group, so Debezium's error alone does not mean it failed. Two guards keep an interrupt out: Debezium's exit code 130 or 143, which Java exits with on SIGINT or SIGTERM, is not a failure; and the check returns at once when Voyager is shutting down.
 
 The check compares every table in the export's schemas, ignoring `--table-list` and `--exclude-table-list`, so a new table still shows. It takes no live read and does not reconnect: the exit capture stored the end state moments earlier. When that capture failed, the report ends at the last stored one. It follows `--disable-schema-snapshot-capture`, because without captures there is nothing to compare.
