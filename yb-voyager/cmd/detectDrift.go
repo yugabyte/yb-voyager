@@ -27,7 +27,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
@@ -710,9 +709,8 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 		return
 	}
 	// checkExportDirInitialised exits before initMetaDB when no migration has
-	// started, and initMetaDB is what sets up the anonymizer. PreRun fetches the
-	// UUID first, so it is unset only when that fetch itself failed.
-	if metaDB == nil || migrationUUID == uuid.Nil {
+	// started, and initMetaDB is what sets up the anonymizer.
+	if metaDB == nil {
 		return
 	}
 

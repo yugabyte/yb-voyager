@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // ─── complementDriftTableRefs ────────────────────────────────────────────────
@@ -731,4 +733,85 @@ func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
 	metaDB = nil
 	packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("Migration has not started yet"), nil)
 	assert.Equal(t, int32(1), requests.Load(), "no payload may be sent without metaDB")
+}
+
+// captureCallhomePayloads points callhome at a local server with metaDB open and
+// returns the payloads it receives. It restores every global it sets.
+func captureCallhomePayloads(t *testing.T) func() []callhome.Payload {
+	var mu sync.Mutex
+	var payloads []callhome.Payload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var p callhome.Payload
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			t.Errorf("decode callhome request: %v", err)
+		}
+		mu.Lock()
+		payloads = append(payloads, p)
+		mu.Unlock()
+	}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", serverURL.Hostname())
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", serverURL.Port())
+
+	origSend, origStart, origMetaDB, origUUID := callhome.SendDiagnostics, startTime, metaDB, migrationUUID
+	origHost, origPort := callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT
+	origAnonymizer, origSent := anonymizer, callHomeErrorOrCompletePayloadSent
+	origCommand, origExitErr := currentCommand, utils.ErrExitErr
+	t.Cleanup(func() {
+		callhome.SendDiagnostics, startTime, metaDB, migrationUUID = origSend, origStart, origMetaDB, origUUID
+		callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT = origHost, origPort
+		anonymizer, callHomeErrorOrCompletePayloadSent = origAnonymizer, origSent
+		currentCommand, utils.ErrExitErr = origCommand, origExitErr
+	})
+	callhome.SendDiagnostics = true
+	startTime = time.Now()
+	callHomeErrorOrCompletePayloadSent = false
+	currentCommand = detectDriftCmd.CommandPath()
+	metaDB = initMetaDB(t.TempDir())
+
+	return func() []callhome.Payload {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]callhome.Payload(nil), payloads...)
+	}
+}
+
+func TestSchemaDriftErrorWithReportSentOnce(t *testing.T) {
+	received := captureCallhomePayloads(t)
+	migrationUUID = uuid.New()
+
+	report := schemadrift.Report{}
+	report.Summary.StoredCaptureCount = 1
+	failure := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, fmt.Errorf("captured only sales"))
+	packAndSendSchemaDriftPayload(ERROR, failure, &report)
+	utils.ErrExitErr = failure
+	PackAndSendCallhomePayloadOnExit()
+
+	got := received()
+	require.Len(t, got, 1, "the exit handler must not send a second ERROR row")
+	assert.Equal(t, ERROR, got[0].Status)
+	var phase callhome.SchemaDriftPhasePayload
+	require.NoError(t, json.Unmarshal([]byte(got[0].PhasePayload), &phase))
+	assert.Equal(t, 1, phase.StoredCaptureCount)
+	var errFields map[string]string
+	require.NoError(t, json.Unmarshal([]byte(phase.Error), &errFields))
+	assert.Equal(t, "schema drift", errFields["msg"])
+	assert.Equal(t, "nothing_compared", errFields["step"])
+	assert.NotContains(t, phase.Error, "sales")
+}
+
+// The root pre-run can exit after initMetaDB and before PreRun reads the UUID.
+func TestSchemaDriftErrorSentWithoutMigrationUUID(t *testing.T) {
+	received := captureCallhomePayloads(t)
+	migrationUUID = uuid.Nil
+
+	utils.ErrExitErr = fmt.Errorf("export directory was created by an incompatible voyager version")
+	PackAndSendCallhomePayloadOnExit()
+
+	got := received()
+	require.Len(t, got, 1)
+	assert.Equal(t, ERROR, got[0].Status)
+	assert.Equal(t, uuid.Nil, got[0].MigrationUUID)
 }
