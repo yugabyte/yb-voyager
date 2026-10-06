@@ -981,38 +981,6 @@ func exportData() (failure error) {
 	}
 }
 
-// checkSchemaDriftOnExportFailure reports drift after Debezium failed while
-// streaming. Best effort: it never changes the export's exit code.
-func checkSchemaDriftOnExportFailure() {
-	if exporterRole != SOURCE_DB_EXPORTER_ROLE || ProcessShutdownRequested.Load() {
-		return
-	}
-	if enabled, _ := sourceCapture().Enabled(); !enabled {
-		return
-	}
-
-	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
-	// No live read: exportData has disconnected, and its exit capture stored the end
-	// state moments earlier.
-	report, paths, err := checkSchemaDrift(driftCheckInput{
-		Schemas: source.GetSchemaListUnquoted(),
-		Formats: driftValidOutputFormats,
-		Invoker: driftInvokerExportData,
-	})
-	if err != nil {
-		utils.PrintAndLogfWarning("Could not check the source schema for drift: %v\n", err)
-		packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerExportData)
-		return
-	}
-	if report.Summary.ChangeCount == 0 {
-		// paths follows driftValidOutputFormats, which lists html first.
-		utils.PrintAndLogfSuccess("No schema drift found on the source. Report: %s\n", paths[0])
-	} else {
-		printDriftSummary(*report, paths)
-	}
-	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerExportData)
-}
-
 func startDebeziumAsPerExportTypeIfRequired(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string],
 	leafPartitions *utils.StructMap[sqlname.NameTuple, []sqlname.NameTuple], partitionsToRootTableMap map[string]string) error {
 	ok, err := isCutoverInitiatedAndCutoverDetected(exporterRole)
