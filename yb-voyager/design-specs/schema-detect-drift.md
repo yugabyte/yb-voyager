@@ -197,13 +197,13 @@ type driftCheckInput struct {
 
 `schema detect-drift` and the in-process callers in `export data` and `initiate cutover to target` share this function. It runs from the snapshot load through the report write. The caller owns the source connection, and `checkSchemaDrift` never connects or disconnects. It takes no lock: a standalone run at the same moment only reads metaDB and writes its own files. The returned report is nil when the run failed before one was built.
 
-| Invoker | Report files under `reports/` | Snapshot-load notes |
+| Invoker | Report files under `reports/` | Notes (snapshot load, report overwrite) |
 | :---- | :---- | :---- |
 | `schema detect-drift` | `drift_analysis_report.html`, `.json` | console |
 | `export data` | `drift_analysis_report_export_data.html`, `.json` | log |
 | `initiate cutover to target` | `drift_analysis_report_cutover_to_target.html`, `.json` | log |
 
-Each writer overwrites only its own files, so a failure or a cutover never overwrites the report the user is reading.
+Each writer overwrites only its own files, so a failure or a cutover never overwrites the report the user is reading. Every caller names its invoker; an unset one is an error, so a caller cannot fall into the command's files, console output or callhome guard by omission.
 
 ## 4\. Data model
 
