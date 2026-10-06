@@ -529,8 +529,6 @@ func detectDrift() error {
 	}
 	defer source.DB().Disconnect()
 
-	source.FetchSourceInfo()
-
 	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 	if err != nil {
 		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCHEMAS, fmt.Errorf("failed to fetch schema names from source: %w", err))
@@ -539,6 +537,7 @@ func detectDrift() error {
 	if err != nil {
 		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCHEMAS, err)
 	}
+	source.FetchSourceInfo()
 	// Raw (unquoted) names: compared against catalog values, never interpolated into
 	// SQL. The quoted form matches nothing -- see srcdb.Source.GetSchemaListUnquoted.
 	schemas := source.GetSchemaListUnquoted()
