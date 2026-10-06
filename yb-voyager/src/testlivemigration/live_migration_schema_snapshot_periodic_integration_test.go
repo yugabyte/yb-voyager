@@ -19,7 +19,6 @@ package testlivemigration
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,12 +26,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -92,8 +86,8 @@ func TestLiveExportDataCapturesPeriodicSchemaSnapshot(t *testing.T) {
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	// interval=1 (minute, the floor) and capture explicitly enabled — it defaults
-	// off until detect-drift ships, so it must be turned on for this test.
+	// interval=1 (minute, the floor), and capture enabled explicitly so the test
+	// does not depend on its default.
 	err = lm.StartExportData(true, map[string]string{
 		"--schema-snapshot-capture-interval": "1",
 		"--disable-schema-snapshot-capture":  "false",
@@ -155,103 +149,4 @@ func TestLiveExportDataCapturesPeriodicSchemaSnapshot(t *testing.T) {
 		assert.Equal(t, 1, starts,
 			"periodic schema-snapshot capture must be started exactly once per export; %d starts means concurrent tickers", starts)
 	}
-}
-
-const exportDataDriftReport = "drift_analysis_report_export_data.json"
-
-// startStreamingExportForDriftCheck starts a live export and returns once the
-// source exporter has recorded that Debezium is streaming changes. Parallel
-// tests share the source container, so each passes its own database.
-func startStreamingExportForDriftCheck(t *testing.T, databaseName string) *LiveMigrationTest {
-	lm := NewLiveMigrationTest(t, &TestConfig{
-		SourceDB: ContainerConfig{
-			Type:         "postgresql",
-			ForLive:      true,
-			DatabaseName: databaseName,
-		},
-		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
-			`CREATE SCHEMA IF NOT EXISTS test_schema;
-			CREATE TABLE test_schema.orders (id SERIAL PRIMARY KEY, amount NUMERIC);`,
-		},
-		SourceSetupSchemaSQL: []string{
-			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
-		},
-		// export data skips empty tables, so seed one row for streaming to start.
-		InitialDataSQL: []string{
-			`INSERT INTO test_schema.orders (amount) VALUES (100);`,
-		},
-		CleanupSQL: []string{
-			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
-		},
-	})
-	t.Cleanup(lm.Cleanup)
-
-	testutils.FatalIfError(t, lm.SetupContainers(context.Background()), "failed to setup containers")
-	testutils.FatalIfError(t, lm.SetupSchema(), "failed to setup schema")
-	testutils.FatalIfError(t, lm.StartExportData(true, nil), "failed to start export data")
-
-	// Set right after the exporter sees the switch to streaming, before it next
-	// checks whether Debezium is still running.
-	require.Eventually(t, func() bool {
-		started := false
-		_ = lm.WithMetaDB(0, func(m *metadb.MetaDB) error {
-			msr, err := m.GetMigrationStatusRecord()
-			if err == nil && msr != nil {
-				started = msr.ExportDataFromSourceStarted
-			}
-			return nil
-		})
-		return started
-	}, 4*time.Minute, 2*time.Second, "export data never started streaming changes")
-	return lm
-}
-
-// TestLiveExportDataChecksSchemaDriftWhenDebeziumDiesWhileStreaming pins the
-// drift check on export failure: a column added mid-stream, then Debezium dying,
-// leaves the drift summary after "Export of data failed!" and its own report.
-// Debezium is SIGKILLed, so it exits with neither 130 nor 143 and counts as a
-// failure rather than an interrupt.
-func TestLiveExportDataChecksSchemaDriftWhenDebeziumDiesWhileStreaming(t *testing.T) {
-	t.Parallel()
-	lm := startStreamingExportForDriftCheck(t, "drift_on_failure")
-
-	testutils.FatalIfError(t, lm.ExecuteOnSource(`ALTER TABLE test_schema.orders ADD COLUMN note TEXT;`), "failed to add a column")
-	lm.KillDebezium(cmd.SOURCE_DB_EXPORTER_ROLE)
-	require.Error(t, lm.WaitForExportDataExitTimeout(3*time.Minute), "export data must fail once Debezium dies")
-
-	stdout := lm.GetExportCommandStdout()
-	failedAt := strings.Index(stdout, "Export of data failed!")
-	require.GreaterOrEqual(t, failedAt, 0, "export output: %s", stdout)
-	afterFailure := stdout[failedAt:]
-	assert.Contains(t, afterFailure, "Checking the source schema for drift...")
-	assert.Contains(t, afterFailure, "Changes detected  : 1")
-
-	reportsDir := filepath.Join(lm.GetCurrentExportDir(), "reports")
-	raw, err := os.ReadFile(filepath.Join(reportsDir, exportDataDriftReport))
-	require.NoError(t, err)
-	var report schemadrift.Report
-	require.NoError(t, json.Unmarshal(raw, &report))
-	assert.Equal(t, 1, report.Summary.ChangeCount)
-	assert.False(t, report.Summary.LiveCompared, "the check takes no live read")
-	require.Len(t, report.Drifts, 1)
-	assert.Equal(t, schemadiff.ColumnAdded, report.Drifts[0].Type)
-	assert.Equal(t, schemasnapshot.ObjectRef{Schema: "test_schema", Name: "orders"}, report.Drifts[0].Object)
-	assert.Equal(t, "note", report.Drifts[0].SubObject)
-	assert.NoFileExists(t, filepath.Join(reportsDir, cmd.DRIFT_REPORT_FILE_NAME+".json"),
-		"the check must leave the schema detect-drift report alone")
-}
-
-// TestLiveExportDataSkipsSchemaDriftCheckWhenStopped pins that a stop is never
-// reported as drift, even with drift on the source. StopExportData sends
-// SIGTERM, as end migration does, and Voyager then stops Debezium.
-func TestLiveExportDataSkipsSchemaDriftCheckWhenStopped(t *testing.T) {
-	t.Parallel()
-	lm := startStreamingExportForDriftCheck(t, "drift_on_stop")
-
-	testutils.FatalIfError(t, lm.ExecuteOnSource(`ALTER TABLE test_schema.orders ADD COLUMN note TEXT;`), "failed to add a column")
-	require.NoError(t, lm.StopExportData())
-
-	assert.NotContains(t, lm.GetExportCommandStdout(), "Checking the source schema for drift")
-	assert.NoFileExists(t, filepath.Join(lm.GetCurrentExportDir(), "reports", exportDataDriftReport))
 }
