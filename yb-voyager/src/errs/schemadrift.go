@@ -15,10 +15,7 @@ limitations under the License.
 */
 package errs
 
-import "fmt"
-
 const (
-	// steps
 	SCHEMA_DRIFT_STEP_SETUP               = "setup"
 	SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE   = "connect_to_source"
 	SCHEMA_DRIFT_STEP_RESOLVE_SCHEMAS     = "resolve_schemas"
@@ -40,7 +37,7 @@ func (e SchemaDriftError) Step() string {
 }
 
 func (e SchemaDriftError) Error() string {
-	return fmt.Sprintf("schema drift: step=%s: %s", e.step, e.err.Error())
+	return e.err.Error()
 }
 
 func (e SchemaDriftError) Unwrap() error {

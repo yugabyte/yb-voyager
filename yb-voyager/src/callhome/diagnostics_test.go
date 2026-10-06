@@ -452,6 +452,9 @@ func TestSanitizeErrorMsgForSchemaDriftError(t *testing.T) {
 	cause := fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`)
 	sde := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, cause)
 
-	assert.Equal(t, `schema drift: step=resolve_scope: invalid table name pattern "proddb.sales.customer_pii": syntax error`, sde.Error())
+	assert.Equal(t, `invalid table name pattern "proddb.sales.customer_pii": syntax error`, sde.Error())
 	assert.Equal(t, `{"msg":"schema drift","step":"resolve_scope"}`, SanitizeErrorMsg(sde, nil))
+
+	wrapped := fmt.Errorf("table %q: %w", "sales.customer_pii", sde)
+	assert.Equal(t, `{"msg":"schema drift","step":"resolve_scope"}`, SanitizeErrorMsg(wrapped, nil))
 }

@@ -698,6 +698,8 @@ func addImportBatchErrorContext(err error, context map[string]string) {
 func addSchemaDriftErrorContext(err error, context map[string]string) {
 	var sde errs.SchemaDriftError
 	if errors.As(err, &sde) {
+		// The cause's text, and anything wrapping it, can name tables and paths.
+		context["msg"] = "schema drift"
 		context["step"] = sde.Step()
 	}
 }
