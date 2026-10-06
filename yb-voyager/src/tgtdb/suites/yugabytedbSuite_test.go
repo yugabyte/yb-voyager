@@ -2091,6 +2091,8 @@ func TestNanoTimestampConversion(t *testing.T) {
 }
 
 // Test 7.5: TestTimeConversion
+// Debezium sends time-of-day as an offset since midnight. PostgreSQL's 24:00:00 arrives as
+// exactly one day and must stay 24:00:00, not wrap to 00:00:00.
 func TestTimeConversion(t *testing.T) {
 	testCases := []struct {
 		name             string
@@ -2100,7 +2102,12 @@ func TestTimeConversion(t *testing.T) {
 	}{
 		{"midnight", "0", true, "'00:00:00'"},
 		{"noon", "43200000", true, "'12:00:00'"},
-		{"end of day", "86399000", true, "'23:59:59'"},
+		{"last whole second", "86399000", true, "'23:59:59'"},
+		{"last millisecond", "86399999", true, "'23:59:59.999'"},
+		{"24:00:00 does not wrap to midnight", "86400000", true, "'24:00:00'"},
+		{"milliseconds are kept", "43200123", true, "'12:00:00.123'"},
+		{"milliseconds keep leading zeros", "1005", true, "'00:00:01.005'"},
+		{"unquoted when formatting is not required", "86400000", false, "24:00:00"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2111,21 +2118,52 @@ func TestTimeConversion(t *testing.T) {
 	}
 }
 
-// Test 7.6: TestMicroTimeConversion
 func TestMicroTimeConversion(t *testing.T) {
 	testCases := []struct {
 		name             string
 		input            string
 		formatIfRequired bool
-		expectedContains string
+		expected         string
 	}{
-		{"microsecond time", "1000000", true, "'00:00:01"},
+		{"midnight", "0", true, "'00:00:00.000000'"},
+		{"one microsecond", "1", true, "'00:00:00.000001'"},
+		{"one second", "1000000", true, "'00:00:01.000000'"},
+		{"noon with microseconds", "43200123456", true, "'12:00:00.123456'"},
+		{"last microsecond", "86399999999", true, "'23:59:59.999999'"},
+		{"24:00:00 does not wrap to midnight", "86400000000", true, "'24:00:00.000000'"},
+		{"unquoted when formatting is not required", "86400000000", false, "24:00:00.000000"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := YBValueConverterSuite["io.debezium.time.MicroTime"](tc.input, tc.formatIfRequired, nil)
 			assert.NoError(t, err)
-			assert.Contains(t, result, tc.expectedContains)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+// A time-of-day offset past 24:00:00 or below zero is not a valid PostgreSQL time and must
+// fail instead of being wrapped into the next or previous day.
+func TestTimeAndMicroTimeConversionInvalidInput(t *testing.T) {
+	testCases := []struct {
+		name      string
+		converter string
+		input     string
+		errMsg    string
+	}{
+		{"Time past 24:00:00", "io.debezium.time.Time", "86400001", "time-of-day offset 86400001000 µs is outside [0, 24:00:00]"},
+		{"Time negative", "io.debezium.time.Time", "-1", "time-of-day offset -1000 µs is outside [0, 24:00:00]"},
+		{"Time not a number", "io.debezium.time.Time", "abc", "parsing epoch milliseconds"},
+		{"Time empty", "io.debezium.time.Time", "", "parsing epoch milliseconds"},
+		{"MicroTime past 24:00:00", "io.debezium.time.MicroTime", "86400000001", "time-of-day offset 86400000001 µs is outside [0, 24:00:00]"},
+		{"MicroTime negative", "io.debezium.time.MicroTime", "-1", "time-of-day offset -1 µs is outside [0, 24:00:00]"},
+		{"MicroTime not a number", "io.debezium.time.MicroTime", "abc", "parsing epoch microseconds"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := YBValueConverterSuite[tc.converter](tc.input, true, nil)
+			assert.ErrorContains(t, err, tc.errMsg)
+			assert.Equal(t, tc.input, result, "the raw value is returned alongside the error")
 		})
 	}
 }

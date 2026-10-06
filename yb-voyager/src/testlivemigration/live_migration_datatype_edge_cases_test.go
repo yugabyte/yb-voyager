@@ -1154,6 +1154,24 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 					'12:00:00'
 					-- '12:00:00+00'  -- EXCLUDED: TIMETZ
 			);`,
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				time_midnight,
+				time_noon
+			) VALUES
+			(
+				NULL,                                   -- will be set to non-NULL then back to NULL
+				NULL,                                   -- will be set to non-NULL then back to NULL
+				'2024-01-01',
+				'2024-01-01 00:00:00',
+				'2000-01-01 00:00:00',
+				'24:00:00',
+				'12:00:00'
+			);`,
 
 			// --- ZONEDTIMESTAMP (zonedtimestamp_edge_cases) ---
 
@@ -2346,9 +2364,27 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'2020-01-01 00:00:00',
 				NULL,
 				'2025-06-15 12:00:00+00',
-				'06:00:00',
+				'00:00:00',
 				NULL,
 				'18:30:45.123456'
+			);`,
+
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				time_midnight,
+				time_noon
+			) VALUES (
+				NULL,                                   -- will be set to non-NULL then back to NULL
+				NULL,                                   -- will be set to non-NULL then back to NULL
+				'2024-01-01',
+				'2024-01-01 00:00:00',
+				'2000-01-01 00:00:00',
+				'24:00:00',
+				'12:00:00'
 			);`,
 
 			`UPDATE test_schema.datetime_edge_cases
@@ -2374,6 +2410,10 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 			SET date_epoch = '2025-01-01',
 				date_negative = '2000-01-01'
 			WHERE id = 6 AND date_epoch IS NULL;`,
+
+			`UPDATE test_schema.datetime_edge_cases
+			SET time_midnight = '24:00:00'
+			WHERE id = 1;`,			
 
 			`DELETE FROM test_schema.datetime_edge_cases WHERE id = 3;`,
 
@@ -3289,9 +3329,27 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				'2020-01-01 00:00:00',
 				NULL,
 				'2025-06-15 12:00:00+00',
-				'06:00:00',
+				'00:00:00',
 				NULL,
 				'18:30:45.123456'
+			);`,
+
+			`INSERT INTO test_schema.datetime_edge_cases (
+				date_epoch,
+				date_negative,
+				date_future,
+				timestamp_epoch,
+				timestamp_negative,
+				time_midnight,
+				time_noon
+			) VALUES (
+				NULL,                                   -- will be set to non-NULL then back to NULL
+				NULL,                                   -- will be set to non-NULL then back to NULL
+				'2024-01-01',
+				'2024-01-01 00:00:00',
+				'2000-01-01 00:00:00',
+				'24:00:00',
+				'12:00:00'
 			);`,
 
 			`UPDATE test_schema.datetime_edge_cases
@@ -3299,6 +3357,10 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				timestamp_epoch = '2026-11-20 09:15:45',
 				time_midnight = '02:03:04'
 				-- time_with_tz = '02:03:04-05'  -- EXCLUDED: Known Debezium limitation
+			WHERE id = 1;`,
+
+			`UPDATE test_schema.datetime_edge_cases
+			SET time_midnight = '00:00:00'
 			WHERE id = 1;`,
 
 			`UPDATE test_schema.datetime_edge_cases
@@ -3757,7 +3819,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		`"test_schema"."json_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."enum_edge_cases"`:           6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."bytes_edge_cases"`:          6, // 6 rows (5 edge cases + 1 with NULL for transitions)
-		`"test_schema"."datetime_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
+		`"test_schema"."datetime_edge_cases"`:       7, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."uuid_ltree_edge_cases"`:     6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."map_edge_cases"`:            6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."interval_edge_cases"`:       6, // 6 rows (5 edge cases + 1 with NULL for transitions)
@@ -3796,8 +3858,8 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			Deletes: 1, // 1 DELETE operation: delete BYTES row 3
 		},
 		`"test_schema"."datetime_edge_cases"`: {
-			Inserts: 2, // 2 INSERT operations: DATETIME with various dates/times + 1 with NULLs
-			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Inserts: 3, // 2 INSERT operations: DATETIME with various dates/times + 1 with NULLs
+			Updates: 5, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
@@ -3875,7 +3937,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		`"test_schema"."json_edge_cases"`:           6,
 		`"test_schema"."enum_edge_cases"`:           6,
 		`"test_schema"."bytes_edge_cases"`:          6,
-		`"test_schema"."datetime_edge_cases"`:       6,
+		`"test_schema"."datetime_edge_cases"`:       7,
 		`"test_schema"."uuid_ltree_edge_cases"`:     6,
 		`"test_schema"."map_edge_cases"`:            6,
 		`"test_schema"."interval_edge_cases"`:       6,
@@ -3914,8 +3976,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`"test_schema"."datetime_edge_cases"`: {
-			Inserts: 2, // 1 basic + 1 with NULLs
-			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Inserts: 3, // 1 basic + 1 with NULLs
+			Updates: 5, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
@@ -3997,8 +4059,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`"test_schema"."datetime_edge_cases"`: {
-			Inserts: 2, // 1 basic + 1 with NULLs
-			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
+			Inserts: 3, // 1 basic + 1 with NULLs
+			Updates: 5, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
