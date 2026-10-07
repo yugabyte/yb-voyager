@@ -1668,17 +1668,6 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
-            "ObjectName": "top_employees_view",
-            "Reason": "FETCH .. WITH TIES is not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE VIEW top_employees_view AS SELECT * FROM (\n\t\t\tSELECT * FROM employees\n\t\t\tORDER BY salary DESC\n\t\t\tFETCH FIRST 2 ROWS WITH TIES\n\t\t) AS top_employees;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "VIEW",
             "ObjectName": "zz",
             "Reason": "Non decimal integer literals are not supported in YugabyteDB",
             "SqlStatement": "CREATE VIEW zz AS\n    SELECT\n        5678901234 AS DEC,\n        0x1527D27F2 AS hex,\n        0o52237223762 AS oct,\n        0b101010010011111010010011111110010 AS bin;",
