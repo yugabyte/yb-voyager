@@ -150,3 +150,16 @@ func NewUnknownTableErr(typeOfList string, unknownTables []string, validTableNam
 		validTableNames: validTableNames,
 	}
 }
+
+// DebeziumStreamingError is a Debezium failure after it switched to streaming
+// changes: the one export failure that schema drift can cause.
+type DebeziumStreamingError struct {
+	cause error
+}
+
+func (e DebeziumStreamingError) Error() string { return e.cause.Error() }
+func (e DebeziumStreamingError) Unwrap() error { return e.cause }
+
+func NewDebeziumStreamingError(cause error) DebeziumStreamingError {
+	return DebeziumStreamingError{cause: cause}
+}

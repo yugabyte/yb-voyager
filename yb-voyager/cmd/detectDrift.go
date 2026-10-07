@@ -570,7 +570,7 @@ func detectDrift() error {
 // checkSchemaDriftOnExportFailure reports drift after Debezium failed while
 // streaming. Best effort: it never changes the export's exit code.
 func checkSchemaDriftOnExportFailure() {
-	if exporterRole != SOURCE_DB_EXPORTER_ROLE || ProcessShutdownRequested.Load() {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE || source.DBType != POSTGRESQL || ProcessShutdownRequested.Load() {
 		return
 	}
 	if enabled, _ := sourceCapture().Enabled(); !enabled {

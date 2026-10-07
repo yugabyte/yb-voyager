@@ -228,8 +228,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	handleCutoverAlreadyProcessedForExportData()
 
-	failure := exportData()
-	if failure == nil {
+	err = exportData()
+	if err == nil {
 		sendPayloadAsPerExporterRole(COMPLETE, nil)
 
 		setDataIsExported()
@@ -241,7 +241,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
-		if errors.As(failure, new(debeziumStreamingFailure)) {
+		if errors.As(err, new(errs.DebeziumStreamingError)) {
 			checkSchemaDriftOnExportFailure()
 		}
 		sendPayloadAsPerExporterRole(ERROR, nil)

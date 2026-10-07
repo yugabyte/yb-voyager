@@ -942,27 +942,27 @@ func TestDebeziumFailure(t *testing.T) {
 	tests := []struct {
 		name             string
 		err              error
-		snapshotComplete bool
+		reachedStreaming bool
 		wantStreaming    bool
 	}{
 		// What the live test and the OOM killer produce: ExitCode() is -1.
-		{name: "killed by SIGKILL while streaming", err: killedBySignal(), snapshotComplete: true, wantStreaming: true},
-		{name: "SIGINT during the snapshot", err: exitWith(130), snapshotComplete: false, wantStreaming: false},
-		{name: "fails while streaming", err: exitWith(1), snapshotComplete: true, wantStreaming: true},
-		{name: "fails during the snapshot", err: exitWith(1), snapshotComplete: false, wantStreaming: false},
-		{name: "SIGINT while streaming", err: exitWith(130), snapshotComplete: true, wantStreaming: false},
-		{name: "SIGTERM while streaming", err: exitWith(143), snapshotComplete: true, wantStreaming: false},
-		{name: "a non-exit error while streaming", err: fmt.Errorf("pipe closed"), snapshotComplete: true, wantStreaming: true},
+		{name: "killed by SIGKILL while streaming", err: killedBySignal(), reachedStreaming: true, wantStreaming: true},
+		{name: "SIGINT during the snapshot", err: exitWith(130), reachedStreaming: false, wantStreaming: false},
+		{name: "fails while streaming", err: exitWith(1), reachedStreaming: true, wantStreaming: true},
+		{name: "fails during the snapshot", err: exitWith(1), reachedStreaming: false, wantStreaming: false},
+		{name: "SIGINT while streaming", err: exitWith(130), reachedStreaming: true, wantStreaming: false},
+		{name: "SIGTERM while streaming", err: exitWith(143), reachedStreaming: true, wantStreaming: false},
+		{name: "a non-exit error while streaming", err: fmt.Errorf("pipe closed"), reachedStreaming: true, wantStreaming: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := debeziumFailure(tt.err, tt.snapshotComplete)
+			got := debeziumFailure(tt.err, tt.reachedStreaming)
 
 			assert.Equal(t, "debezium failed with error: "+tt.err.Error(), got.Error())
 			assert.ErrorIs(t, got, tt.err)
 			// Wrapped the way startDebeziumAsPerExportTypeIfRequired wraps it.
 			wrapped := fmt.Errorf("failed to export data using debezium: %w", got)
-			assert.Equal(t, tt.wantStreaming, errors.As(wrapped, new(debeziumStreamingFailure)))
+			assert.Equal(t, tt.wantStreaming, errors.As(wrapped, new(errs.DebeziumStreamingError)))
 		})
 	}
 }

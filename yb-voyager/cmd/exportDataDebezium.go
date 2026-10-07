@@ -37,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -399,15 +400,6 @@ func isCutoverInitiatedAndCutoverDetected(exporterRole string) (bool, error) {
 	return false, nil
 }
 
-// debeziumStreamingFailure is a Debezium failure after it switched to streaming
-// changes: the one export failure that schema drift can cause.
-type debeziumStreamingFailure struct {
-	cause error
-}
-
-func (e debeziumStreamingFailure) Error() string { return e.cause.Error() }
-func (e debeziumStreamingFailure) Unwrap() error { return e.cause }
-
 // Java exits with these on SIGINT and SIGTERM, and run.sh execs Java. Ctrl-C
 // reaches Debezium too, since it is in Voyager's process group.
 var debeziumInterruptExitCodes = []int{130, 143}
@@ -426,13 +418,13 @@ func debeziumReachedStreaming(observed bool, readStatus func() (*dbzm.ExportStat
 	return status != nil && status.SnapshotExportIsComplete()
 }
 
-func debeziumFailure(err error, snapshotComplete bool) error {
+func debeziumFailure(err error, reachedStreaming bool) error {
 	failure := fmt.Errorf("debezium failed with error: %w", err)
 	var exitErr *exec.ExitError
-	if !snapshotComplete || (errors.As(err, &exitErr) && lo.Contains(debeziumInterruptExitCodes, exitErr.ExitCode())) {
+	if !reachedStreaming || (errors.As(err, &exitErr) && lo.Contains(debeziumInterruptExitCodes, exitErr.ExitCode())) {
 		return failure
 	}
-	return debeziumStreamingFailure{cause: failure}
+	return errs.NewDebeziumStreamingError(failure)
 }
 
 func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
