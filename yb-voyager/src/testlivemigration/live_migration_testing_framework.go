@@ -658,6 +658,12 @@ func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 
 // InitiateCutover initiates cutover to target
 func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string) error {
+	_, err := lm.InitiateCutoverToTargetWithOutput(prepareForFallback, extraArgs)
+	return err
+}
+
+// InitiateCutoverToTargetWithOutput also returns the command's combined stdout and stderr.
+func (lm *LiveMigrationTest) InitiateCutoverToTargetWithOutput(prepareForFallback bool, extraArgs map[string]string) (string, error) {
 	lm.t.Logf("Initiating cutover to target")
 	args := []string{
 		"--export-dir", lm.exportDir,
@@ -675,11 +681,12 @@ func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, ex
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", lm.sourceContainer.GetConfig().Password),
 	).WithT(lm.t)
 	err := cutoverCmd.Run()
+	output := cutoverCmd.Stdout() + cutoverCmd.Stderr()
 	if err != nil {
-		return goerrors.Errorf("failed to initiate cutover: %w", err)
+		return output, goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
 	lm.t.Logf("Cutover initiated to target")
-	return nil
+	return output, nil
 }
 
 func (lm *LiveMigrationTest) StartArchiveChanges(withArchive bool) error {
