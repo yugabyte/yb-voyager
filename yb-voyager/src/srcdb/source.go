@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
@@ -70,6 +71,9 @@ type Source struct {
 	RunGuardrailsChecks       utils.BoolStr        `json:"run_guardrails_checks"`
 	AllowOracleClobDataExport utils.BoolStr        `json:"allow_oracle_clob_data_export"`
 	IsYBGrpcConnector         bool                 `json:"-"`
+	// Bounds dial, TLS and auth when non-zero; zero keeps the driver's default.
+	// Only the PostgreSQL source reads it.
+	ConnectTimeout time.Duration `json:"-"`
 
 	ExportObjectTypeList []string `json:"-"`
 	sourceDB             SourceDB `json:"-"`
