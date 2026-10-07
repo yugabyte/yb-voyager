@@ -406,6 +406,23 @@ func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement stri
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
 }
 
+var xid8DatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_XID8,
+	Name:        UNSUPPORTED_DATATYPE_XID8_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	Suggestion:  XID_DATATYPE_ISSUE_SUGGESTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/15638",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported",
+}
+
+func NewXID8DatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := xid8DatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+}
+
 var geometryDatatypeIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPE_GEOMETRY,
 	Name:        UNSUPPORTED_DATATYPE_GEOMETRY_ISSUE_NAME,

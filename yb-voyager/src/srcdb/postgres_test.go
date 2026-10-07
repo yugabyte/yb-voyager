@@ -96,6 +96,53 @@ func TestPostgresGetColumnsWithSupportedTypes_TimetzExcluded(t *testing.T) {
 	testutils.AssertEqualStringSlices(t, []string{"reminder_at"}, unsupported)
 }
 
+// Debezium cannot stream xid, xid8, or cid, so live export must drop those columns.
+// Offline export goes through pg_dump and drops nothing. cidr guards that matching is
+// exact, and the quoted column guards case-sensitive names.
+func TestPostgresGetColumnsWithSupportedTypes_TransactionIDTypes(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.txn_ids_table (
+			id INT PRIMARY KEY,
+			txn_xid XID,
+			"TxnXid8" XID8,
+			cmd_cid CID,
+			net CIDR
+		);`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.txn_ids_table", "test_schema", testPostgresSource.DBType),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+
+	t.Run("live migration", func(t *testing.T) {
+		supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
+		assert.NilError(t, err)
+
+		supported, exists := supportedCols.Get(tableList[0])
+		assert.Equal(t, true, exists, "Expected test_schema.txn_ids_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id", "net"}, supported)
+
+		unsupported, exists := unsupportedCols.Get(tableList[0])
+		assert.Equal(t, true, exists, "Expected test_schema.txn_ids_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"txn_xid", "TxnXid8", "cmd_cid"}, unsupported)
+	})
+
+	t.Run("offline migration", func(t *testing.T) {
+		_, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, false, false)
+		assert.NilError(t, err)
+
+		_, exists := unsupportedCols.Get(tableList[0])
+		assert.Equal(t, false, exists, "Expected no unsupported columns for offline migration")
+	})
+}
+
 func TestPGGetColumnToSequenceMap(t *testing.T) {
 
 	testPostgresSource.TestContainer.ExecuteSqls(
