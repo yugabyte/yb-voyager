@@ -106,17 +106,21 @@ func assertNoDriftCheck(t *testing.T, lm *LiveMigrationTest) {
 }
 
 // TestLiveExportDataChecksSchemaDriftWhenDebeziumDiesWhileStreaming pins the
-// drift check on export failure: a column added mid-stream, then Debezium dying,
-// leaves the drift summary after "Export of data failed!" and its own report,
-// and the export still exits 1. Debezium is SIGKILLed, so it exits with neither
-// 130 nor 143 and counts as a failure rather than an interrupt.
+// drift check on export failure: a column added mid-stream makes Debezium fail on
+// its own once a row uses it. The drift summary then follows "Export of data
+// failed!", the check writes its own report, and the export still exits 1.
 func TestLiveExportDataChecksSchemaDriftWhenDebeziumDiesWhileStreaming(t *testing.T) {
 	t.Parallel()
 	lm := startStreamingExportForDriftCheck(t, "drift_on_failure")
 
-	testutils.FatalIfError(t, lm.ExecuteOnSource(`ALTER TABLE test_schema.orders ADD COLUMN note TEXT;`), "failed to add a column")
-	lm.KillDebezium(cmd.SOURCE_DB_EXPORTER_ROLE)
-	require.Error(t, lm.WaitForExportDataExitTimeout(3*time.Minute), "export data must fail once Debezium dies")
+	// Voyager's exporter fails on a change event carrying a column it holds no
+	// schema for, so the row after the ALTER is what stops Debezium.
+	testutils.FatalIfError(t, lm.ExecuteOnSource(
+		`INSERT INTO test_schema.orders (amount) VALUES (150);`,
+		`ALTER TABLE test_schema.orders ADD COLUMN note TEXT;`,
+		`INSERT INTO test_schema.orders (amount, note) VALUES (200, 'after the change');`,
+	), "failed to change the schema mid-stream")
+	require.Error(t, lm.WaitForExportDataExitTimeout(3*time.Minute), "export data must fail once Debezium meets the new column")
 	assert.Equal(t, testutils.ExitCode(1), lm.exportCmd.ExitCode(), "the check must not change the export's exit code")
 
 	stdout := lm.GetExportCommandStdout()
