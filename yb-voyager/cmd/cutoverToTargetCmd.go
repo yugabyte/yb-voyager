@@ -18,6 +18,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -214,41 +216,59 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 		return nil
 	}
 	if msr.SourceDBConf == nil {
-		return goerrors.Errorf("source database configuration not found in the migration status record")
+		return goerrors.Errorf("Could not check the source schema for drift: the migration status record has no source database configuration.\nFix the cause, or %s.", cutoverDriftSkipHint)
 	}
 	if msr.SourceDBConf.DBType != POSTGRESQL {
-		utils.PrintAndLogf("Skipping the schema drift check: it supports only PostgreSQL sources.\n")
+		log.Infof("skipping the schema drift pre-check: it supports only PostgreSQL sources, and this source is %s", msr.SourceDBConf.DBType)
 		return nil
 	}
 	headers, err := schemasnapshot.ListSnapshots(metaDB)
 	if err != nil {
 		return fmt.Errorf("Could not check the source schema for drift: failed to list schema snapshots: %w\nFix the cause, or %s.", err, cutoverDriftSkipHint)
 	}
-	if !lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder }) {
+	if len(headers) == 0 {
 		utils.PrintAndLogf("Skipping the schema drift check: this export directory holds no schema snapshots.\n")
 		return nil
 	}
+	if !lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder }) {
+		utils.PrintAndLogfWarning("Skipping the schema drift check: all %d schema snapshot captures in this export directory failed; see the export data log.\n", len(headers))
+		return nil
+	}
 	if err := retrieveMigrationUUID(); err != nil {
-		return fmt.Errorf("failed to get migration UUID: %w", err)
+		return fmt.Errorf("Could not check the source schema for drift: failed to get the migration UUID: %w\nFix the cause, or %s.", err, cutoverDriftSkipHint)
 	}
 
 	var report *schemadrift.Report
-	fail := func(err error) error {
+	const connectHint = "Check the source connection and --source-db-password, or "
+	fail := func(err error, hint string) error {
 		packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerCutoverToTarget)
-		return fmt.Errorf("Could not check the source schema for drift: %w\nCheck the source connection and --source-db-password, or %s.", err, cutoverDriftSkipHint)
+		return fmt.Errorf("Could not check the source schema for drift: %w\n%s%s.", err, hint, cutoverDriftSkipHint)
 	}
 
+	// checkSchemaDrift, its live read and the callhome payload read the package-level
+	// source; cutover sets up no source of its own.
 	source = *msr.SourceDBConf
+	// sqlname's quoting helpers read this global; nothing else in cutover sets it.
 	sqlname.SourceDBType = source.DBType
-	if source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD"); err != nil {
-		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, err))
+	if !cmd.Flags().Changed("source-db-password") && os.Getenv("SOURCE_DB_PASSWORD") == "" {
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE,
+				goerrors.Errorf("it connects to the source, and there is no terminal to prompt for the password")),
+				"Pass --source-db-password or set SOURCE_DB_PASSWORD, or ")
+		}
+		utils.PrintAndLogf("The schema drift pre-check connects to the source.\n")
 	}
+	if source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD"); err != nil {
+		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, err), connectHint)
+	}
+
+	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
+	source.ConnectTimeout = schemasnapshot.CaptureTimeout
 	if err := source.DB().Connect(); err != nil {
-		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("connect to source: %w", err)))
+		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("connect to source: %w", err)), connectHint)
 	}
 	defer source.DB().Disconnect()
 
-	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
 	var paths []string
 	report, paths, err = checkSchemaDrift(driftCheckInput{
 		Schemas:  source.GetSchemaListUnquoted(),
@@ -257,16 +277,19 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 		Invoker:  driftInvokerCutoverToTarget,
 	})
 	if err != nil {
-		return fail(err)
+		return fail(err, "Fix the cause, or ")
 	}
 	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerCutoverToTarget)
 
-	if report.Summary.ChangeCount == 0 {
-		// paths follows driftValidOutputFormats, which lists html first.
-		utils.PrintAndLogfSuccess("No schema drift found on the source. Report: %s\n", paths[0])
+	htmlReport, hasHTML := lo.Find(paths, func(p string) bool { return strings.HasSuffix(p, ".html") })
+	if report.Summary.ChangeCount == 0 && hasHTML {
+		utils.PrintAndLogfSuccess("No schema drift found on the source. Report: %s\n", htmlReport)
 		return nil
 	}
 	printDriftSummary(*report, paths)
+	if report.Summary.ChangeCount == 0 {
+		return nil
+	}
 	if utils.DoNotPrompt {
 		return goerrors.Errorf("The source schema changed during this migration. Cutover was not initiated because --yes skips the confirmation.\n" +
 			"Review the report, then re-run without --yes, or pass --skip-pre-checks " + cutoverPreCheckSchemaDrift + ".")
