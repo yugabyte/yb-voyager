@@ -53,6 +53,9 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-maven-
 
+    - name: Cache Debezium build Maven
+      uses: ./.github/actions/cache-debezium-maven
+
     - name: Set up Go
       uses: actions/setup-go@v4
       with:

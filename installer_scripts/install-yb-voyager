@@ -34,6 +34,10 @@ DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"1b9f1a87c35bc111ac44f875
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
 # Connector URLs are derived from yb-cdc-connector-versions.json in package_debezium_server_local().
+# Pinned because the Debezium build's quarkus-maven-plugin 2.7.2 breaks on Maven 3.10+.
+# .github/actions/cache-debezium-maven reads this line to key its cache.
+DEBEZIUM_BUILD_MAVEN_VERSION="3.9.16"
+DEBEZIUM_BUILD_MAVEN_HOME="/opt/yb-voyager/yb-debezium-maven-${DEBEZIUM_BUILD_MAVEN_VERSION}"
 
 # only rebuild voyager
 REBUILD_VOYAGER_LOCAL="false"
@@ -375,31 +379,30 @@ install_debezium_server_from_release() {
 }
 
 check_install_maven() {
-	MIN_REQUIRED_MAVEN_VERSION='3.8.4'
-	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}')
-	version_ok=$(version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER")
-	if [[ $version_ok -eq 1 ]]
-	then 
-		output "Found sufficient maven version = ${MAVEN_VER}"
-	else
-		output "Maven not found or not sufficient. Installing..."
+	if [ ! -x "${DEBEZIUM_BUILD_MAVEN_HOME}/bin/mvn" ]
+	then
+		output "Installing maven ${DEBEZIUM_BUILD_MAVEN_VERSION}..."
 		install_maven
 	fi
+	export PATH=${DEBEZIUM_BUILD_MAVEN_HOME}/bin:$PATH
+	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}')
+	if [ "${MAVEN_VER}" != "${DEBEZIUM_BUILD_MAVEN_VERSION}" ]
+	then
+		output "ERROR: expected maven ${DEBEZIUM_BUILD_MAVEN_VERSION} from ${DEBEZIUM_BUILD_MAVEN_HOME}, but mvn -version reports '${MAVEN_VER}'"
+		exit 1
+	fi
+	output "Using maven ${MAVEN_VER} from ${DEBEZIUM_BUILD_MAVEN_HOME}"
 }
 
 install_maven() {
-	# if dir already present, assuming it was installed in a previous run
-	if [ ! -d "/opt/yb-voyager/yb-debezium-maven-3.8.4" ]
-	then
-		sudo mkdir -p /opt/yb-voyager
-		MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
-		wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz 1>&2
-		tar -xzvf apache-maven-3.8.4-bin.tar.gz 1>&2
-		sudo mv apache-maven-3.8.4 yb-debezium-maven-3.8.4
-		sudo mv yb-debezium-maven-3.8.4 /opt/yb-voyager/
-		rm apache-maven-3.8.4-bin.tar.gz
-	fi
-	export PATH=/opt/yb-voyager/yb-debezium-maven-3.8.4/bin:$PATH
+	maven_dist="apache-maven-${DEBEZIUM_BUILD_MAVEN_VERSION}"
+	MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/${DEBEZIUM_BUILD_MAVEN_VERSION}/binaries/${maven_dist}-bin.tar.gz"
+	wget -nv ${MAVEN_URL} -O ${maven_dist}-bin.tar.gz 1>&2
+	tar -xzvf ${maven_dist}-bin.tar.gz 1>&2
+	sudo mkdir -p /opt/yb-voyager
+	sudo rm -rf ${DEBEZIUM_BUILD_MAVEN_HOME}
+	sudo mv ${maven_dist} ${DEBEZIUM_BUILD_MAVEN_HOME}
+	rm ${maven_dist}-bin.tar.gz
 }
 
 clean_debezium(){

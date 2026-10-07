@@ -1,0 +1,44 @@
+name: Cache Debezium build Maven
+description: >-
+  Caches the pinned Maven that installer_scripts/install-yb-voyager uses for the
+  local Debezium build, so each job doesn't download it from archive.apache.org.
+  Run it after actions/checkout and before the installer.
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve pinned Maven version
+      id: maven
+      shell: bash
+      run: |
+        version=$(sed -n 's/^DEBEZIUM_BUILD_MAVEN_VERSION="\(.*\)"$/\1/p' installer_scripts/install-yb-voyager)
+        if [ -z "${version}" ]; then
+          echo "::error::DEBEZIUM_BUILD_MAVEN_VERSION not found in installer_scripts/install-yb-voyager"
+          exit 1
+        fi
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        echo "path=/opt/yb-voyager/yb-debezium-maven-${version}" >> "$GITHUB_OUTPUT"
+        # /opt is root-owned and the cache is restored as the runner user.
+        sudo mkdir -p /opt/yb-voyager
+        sudo chown "$(id -u):$(id -g)" /opt/yb-voyager
+
+    # Same save policy as the ~/.m2 cache: save only from the default branch (or a
+    # PR labelled `cache-maven`), so PRs share main's entry instead of each adding
+    # their own. actions/cache saves in its post step, only if the job succeeded.
+    - name: Restore and save Debezium build Maven
+      if: >-
+        github.ref == 'refs/heads/main' ||
+        contains(github.event.pull_request.labels.*.name, 'cache-maven')
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.maven.outputs.path }}
+        key: ${{ runner.os }}-debezium-maven-${{ steps.maven.outputs.version }}
+
+    - name: Restore Debezium build Maven
+      if: >-
+        !(github.ref == 'refs/heads/main' ||
+        contains(github.event.pull_request.labels.*.name, 'cache-maven'))
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.maven.outputs.path }}
+        key: ${{ runner.os }}-debezium-maven-${{ steps.maven.outputs.version }}

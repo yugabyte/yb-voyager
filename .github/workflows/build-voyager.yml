@@ -47,6 +47,10 @@ jobs:
             CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o yb-voyager-darwin-arm64
           fi
 
+      - name: Cache Debezium build Maven
+        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        uses: ./.github/actions/cache-debezium-maven
+
       - name: Build Debezium
         run: |
           if [ ${{ matrix.os }} == "ubuntu-22.04" ]; then

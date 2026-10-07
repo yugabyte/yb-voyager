@@ -61,6 +61,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Cache Debezium build Maven
+        uses: ./.github/actions/cache-debezium-maven
+
       - name: Free disk 
         run: df -h /
 

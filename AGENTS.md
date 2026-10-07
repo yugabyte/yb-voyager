@@ -29,7 +29,7 @@ Current scopes: repo root (this file), `debezium-server-voyager/`, `migtests/`, 
 
 - **Go 1.24.2** — required by `go.mod`.
 - **JDK 17** (not 21+) — the installer script enforces Java 17–19 for the Debezium build. Set `JAVA_HOME` accordingly.
-- **Maven 3.8.4** — auto-installed by the installer.
+- **Maven 3.9.16** — auto-installed by the installer and always used for the Debezium build (pinned; the system Maven is ignored).
 - **PostgreSQL client 18** — provides `pg_dump`/`pg_restore`.
 - **YugabyteDB** — target database.
 - **`rsync`** — required by the installer's `-l` (local build) flag.
@@ -241,7 +241,7 @@ The following is specific to the Cursor Cloud (Ubuntu Linux) sandbox. Local macO
 
 - Go: `/usr/local/go/bin/go`
 - JDK 17: `/usr/lib/jvm/java-17-openjdk-amd64`
-- Maven: `/opt/yb-voyager/yb-debezium-maven-3.8.4` (auto-installed by the installer)
+- Maven: `/opt/yb-voyager/yb-debezium-maven-3.9.16` (auto-installed by the installer)
 - YugabyteDB: `/opt/yugabyte-2025.2.1.0`
 
 ```
