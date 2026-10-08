@@ -453,6 +453,8 @@ With drift it prints the summary of §5.1 instead. If the check fails, it prints
 
 `initiate cutover to target` checks for drift just before its confirmation prompt, so the user reads the result before answering. The check includes the live read: the exporter is still running, so the live read is the only view of drift since the last periodic capture.
 
+The check covers only the tables the migration exports: the stored export table list (`TableListExportedFromSource`), passed as its table list, so each partitioned root brings in all its partitions, including leaves added mid-migration. DDL on other tables in the migrated schemas does not count, since those tables are not on the target. Known gap: the list holds a table's name at export time, so after a rename only the rename itself is reported, not later changes under the new name.
+
 ```
 yb-voyager initiate cutover to target --export-dir <dir> --prepare-for-fall-back <yes|no> \
     [--source-db-password <p>] [--skip-pre-checks schema_drift]
