@@ -46,6 +46,12 @@ const exportDataDriftReport = "drift_analysis_report_export_data.json"
 // source exporter has recorded that Debezium is streaming changes. Parallel
 // tests share the source container, so each passes its own database.
 func startStreamingExportForDriftCheck(t *testing.T, databaseName string) *LiveMigrationTest {
+	return startStreamingExportForDriftCheckWith(t, databaseName, nil, nil)
+}
+
+// startStreamingExportForDriftCheckWith also runs extraSchemaSQL after the base
+// schema and passes extraExportArgs to export data.
+func startStreamingExportForDriftCheckWith(t *testing.T, databaseName string, extraSchemaSQL []string, extraExportArgs map[string]string) *LiveMigrationTest {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -53,10 +59,10 @@ func startStreamingExportForDriftCheck(t *testing.T, databaseName string) *LiveM
 			DatabaseName: databaseName,
 		},
 		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
+		SchemaSQL: append([]string{
 			`CREATE SCHEMA IF NOT EXISTS test_schema;
 			CREATE TABLE test_schema.orders (id SERIAL PRIMARY KEY, amount NUMERIC);`,
-		},
+		}, extraSchemaSQL...),
 		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
 		},
@@ -73,9 +79,11 @@ func startStreamingExportForDriftCheck(t *testing.T, databaseName string) *LiveM
 	testutils.FatalIfError(t, lm.SetupContainers(context.Background()), "failed to setup containers")
 	testutils.FatalIfError(t, lm.SetupSchema(), "failed to setup schema")
 	// The check follows capture, so pin it on rather than rely on its default.
-	testutils.FatalIfError(t, lm.StartExportData(true, map[string]string{
-		"--disable-schema-snapshot-capture": "false",
-	}), "failed to start export data")
+	exportArgs := map[string]string{"--disable-schema-snapshot-capture": "false"}
+	for k, v := range extraExportArgs {
+		exportArgs[k] = v
+	}
+	testutils.FatalIfError(t, lm.StartExportData(true, exportArgs), "failed to start export data")
 
 	// Set right after the exporter sees the switch to streaming, before it next
 	// checks whether Debezium is still running.
@@ -228,6 +236,24 @@ func TestLiveCutoverToTargetPreCheckPassesWithoutDrift(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &report))
 	assert.Equal(t, 0, report.Summary.ChangeCount)
 	assert.True(t, report.Summary.LiveCompared, "the pre-check must compare against a live read")
+}
+
+// TestLiveCutoverToTargetPreCheckIgnoresTablesOutsideTheExport pins the check's
+// scope: export data runs with --table-list test_schema.orders, so a column added
+// to test_schema.audit_log, in the same schema but never exported, is not drift
+// for cutover.
+func TestLiveCutoverToTargetPreCheckIgnoresTablesOutsideTheExport(t *testing.T) {
+	t.Parallel()
+	lm := startStreamingExportForDriftCheckWith(t, "cutover_scope",
+		[]string{`CREATE TABLE test_schema.audit_log (id SERIAL PRIMARY KEY, msg TEXT);`},
+		map[string]string{"--table-list": "test_schema.orders"})
+
+	testutils.FatalIfError(t, lm.ExecuteOnSource(`ALTER TABLE test_schema.audit_log ADD COLUMN note TEXT;`), "failed to add a column")
+
+	out, ok := runCutoverToTarget(lm, nil)
+	require.True(t, ok, "drift outside the exported tables must not stop cutover: %s", out)
+	assert.Contains(t, out, "No schema drift found on the source. Report:")
+	assert.True(t, cutoverToTargetRequested(t, lm))
 }
 
 // TestLiveCutoverToTargetPreCheckBlocksOnDrift pins the pre-check's failure

@@ -263,6 +263,7 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 	var paths []string
 	report, paths, err = checkSchemaDrift(driftCheckInput{
 		Schemas:  source.GetSchemaListUnquoted(),
+		Filters:  driftScopeFilters{tableList: strings.Join(msr.TableListExportedFromSource, ",")},
 		LiveRead: true,
 		Formats:  driftValidOutputFormats,
 		Invoker:  driftInvokerCutoverToTarget,
