@@ -5,7 +5,7 @@
 | **Status** | Draft |
 | **Author** | Shivansh Gahlot |
 | **Tracking** | [\#3617](https://github.com/yugabyte/yb-voyager/issues/3617) · [DB-21962](https://yugabyte.atlassian.net/browse/DB-21962) |
-| **Implementation** | [\#3811](https://github.com/yugabyte/yb-voyager/pull/3811) → [\#3812](https://github.com/yugabyte/yb-voyager/pull/3812) → [\#3813](https://github.com/yugabyte/yb-voyager/pull/3813) → [\#3814](https://github.com/yugabyte/yb-voyager/pull/3814) → [\#3815](https://github.com/yugabyte/yb-voyager/pull/3815) → [\#3817](https://github.com/yugabyte/yb-voyager/pull/3817) |
+| **Implementation** | [\#3811](https://github.com/yugabyte/yb-voyager/pull/3811) → [\#3812](https://github.com/yugabyte/yb-voyager/pull/3812) → [\#3813](https://github.com/yugabyte/yb-voyager/pull/3813) → [\#3814](https://github.com/yugabyte/yb-voyager/pull/3814) → [\#3817](https://github.com/yugabyte/yb-voyager/pull/3817) → [\#3827](https://github.com/yugabyte/yb-voyager/pull/3827) → [\#3873](https://github.com/yugabyte/yb-voyager/pull/3873) → [\#3877](https://github.com/yugabyte/yb-voyager/pull/3877) → [\#3878](https://github.com/yugabyte/yb-voyager/pull/3878) |
 | **Contractual** | §3 public surface, §4 data model, §5 rules, §6 flow matrix. Everything else is advisory. |
 
 ## 1\. Context
@@ -449,6 +449,37 @@ No schema drift found on the source. Report: <export-dir>/reports/drift_analysis
 
 With drift it prints the summary of §5.1 instead. If the check fails, it prints `Could not check the source schema for drift: <reason>`.
 
+### 5.8 Pre-check before cutover to target
+
+`initiate cutover to target` checks for drift just before its confirmation prompt, so the user reads the result before answering. The check includes the live read: the exporter is still running, so the live read is the only view of drift since the last periodic capture.
+
+The check covers only the tables the migration exports: the stored export table list (`TableListExportedFromSource`), passed as its table list, so each partitioned root brings in all its partitions, including leaves added mid-migration. DDL on other tables in the migrated schemas does not count, since those tables are not on the target. Known gap: the list holds a table's name at export time, so after a rename only the rename itself is reported, not later changes under the new name.
+
+```
+yb-voyager initiate cutover to target --export-dir <dir> --prepare-for-fall-back <yes|no> \
+    [--source-db-password <p>] [--skip-pre-checks schema_drift]
+```
+
+| Flag | Config key | Purpose |
+| :---- | :---- | :---- |
+| `--source-db-password` | `source.db-password`, or env `SOURCE_DB_PASSWORD` | Source password for the pre-check. Prompted for when unset. Host, port, user, database, schemas and SSL come from the migration status record. |
+| `--skip-pre-checks <list>` | `initiate-cutover-to-target.skip-pre-checks` | Comma-separated cutover pre-checks to skip. Today the only name is `schema_drift`. An unknown name is an error. |
+
+One list flag, not one boolean per check, because more cutover pre-checks are planned.
+
+| Situation | Behaviour |
+| :---- | :---- |
+| `--skip-pre-checks` includes `schema_drift`, or the export dir holds no captures | skipped, with one line |
+| every stored capture failed (only placeholders) | skipped, with a warning: there is nothing to compare against, and the export data log says why the captures failed |
+| a non-PostgreSQL source | skipped, logged only: the check can never run there, so the console stays as it was |
+| cutover to target already requested | skipped silently; the existing "already initiated" message follows |
+| no drift | one line, then the prompt |
+| drift found, at a terminal | the summary of §5.1, then "Have you applied these changes to the target?". `y` goes on to the cutover prompt; anything else stops cutover with exit 1 and names `--skip-pre-checks schema_drift` |
+| drift found under `--yes`, or with no terminal on stdin (`echo y \|`, a here-string, Ansible `stdin:`) | the summary, then cutover fails with exit 1 before the MSR update: nobody can confirm, and a piped answer would confirm a summary nobody read. The message does not name `--yes`, which is hidden. A pseudo-terminal (`expect`, Ansible's `expect` module) looks like a person and gets the prompt |
+| the check cannot run: no password, an unreachable source, a failed live read | cutover fails with exit 1 and names `--skip-pre-checks schema_drift`; a connect or password failure also points at the source connection and `--source-db-password` |
+
+Any change counts, whatever its severity. A pre-check that cannot run fails cutover, because silently passing would read as "no drift". The password prompt follows the "Checking the source schema for drift..." line, which says why cutover asks for it. Without a terminal the prompt cannot read, so a script must pass `--source-db-password` or set `SOURCE_DB_PASSWORD`, and the failure says so. The connect and the live read are each bounded by the 10-second capture budget, so a wedged source cannot hold cutover. The check runs in the `Run` of `cutoverToTargetCmd`, before `InitiateCutover`, so cutover to source and to source-replica are unaffected.
+
 ## 6\. Migration-flow matrix
 
 Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
@@ -456,11 +487,11 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Flow | Captures | detect-drift | Notes |
 | :---- | :---- | :---- | :---- |
 | Offline | export schema, export data start / periodic / exit(complete) | covered |  |
-| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | The cutover footer (\#3815) nudges the user to run it before confirming. |
+| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | Cutover to target runs the pre-check of §5.8 before its prompt. |
 | Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
 | Live with fall-forward | same as fall-back | same |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered |  |
-| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
+| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. Cutover to target's pre-check (§5.8) also runs per iteration, against that iteration's metaDB: DDL applied before the iteration's first capture is not reported. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
 | Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | Oracle and MySQL are non-goals (§1). |
 
 ## 7\. Failure modes
@@ -477,6 +508,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | One stored snapshot, and the live read makes it a pair | warning; report covers that single interval | Not an error: one stored capture plus the live read is a real interval. Zero stored snapshots gets no warning, because it can never form an interval and always lands on the row below. |
 | No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
 | `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
+| The cutover pre-check cannot run (§5.8) | cutover fails, exit 1, and names `--skip-pre-checks schema_drift` | A pre-check that silently passes reads as "no drift" just before the user commits to the target. |
 | The check on export failure fails (§5.7) | one line, export exit code unchanged | The export's own error is the failure. The check is best effort, like capture. |
 | The HTML renderer meets a state it cannot display (§3.5) | error, exit 1 | Rendering past it drops or misprints a finding in a report that still looks complete. |
 | Report file already exists | overwritten with a notice | Reports are regenerated, not versioned. |

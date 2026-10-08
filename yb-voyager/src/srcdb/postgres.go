@@ -367,12 +367,16 @@ func (pg *PostgreSQL) getConnectionUri() string {
 		return source.Uri
 	}
 	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+	query := generateSSLQueryStringIfNotExists(source)
+	if source.ConnectTimeout > 0 {
+		query = strings.TrimPrefix(query+"&connect_timeout="+strconv.Itoa(int(source.ConnectTimeout.Seconds())), "&")
+	}
 	sourceUrl := &url.URL{
 		Scheme:   "postgresql",
 		User:     url.UserPassword(source.User, source.Password),
 		Host:     hostAndPort,
 		Path:     source.DBName,
-		RawQuery: generateSSLQueryStringIfNotExists(source),
+		RawQuery: query,
 	}
 
 	source.Uri = sourceUrl.String()

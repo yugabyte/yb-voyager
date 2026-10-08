@@ -46,6 +46,12 @@ const exportDataDriftReport = "drift_analysis_report_export_data.json"
 // source exporter has recorded that Debezium is streaming changes. Parallel
 // tests share the source container, so each passes its own database.
 func startStreamingExportForDriftCheck(t *testing.T, databaseName string) *LiveMigrationTest {
+	return startStreamingExportForDriftCheckWith(t, databaseName, nil, nil)
+}
+
+// startStreamingExportForDriftCheckWith also runs extraSchemaSQL after the base
+// schema and passes extraExportArgs to export data.
+func startStreamingExportForDriftCheckWith(t *testing.T, databaseName string, extraSchemaSQL []string, extraExportArgs map[string]string) *LiveMigrationTest {
 	lm := NewLiveMigrationTest(t, &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
@@ -53,10 +59,10 @@ func startStreamingExportForDriftCheck(t *testing.T, databaseName string) *LiveM
 			DatabaseName: databaseName,
 		},
 		SchemaNames: []string{"test_schema"},
-		SchemaSQL: []string{
+		SchemaSQL: append([]string{
 			`CREATE SCHEMA IF NOT EXISTS test_schema;
 			CREATE TABLE test_schema.orders (id SERIAL PRIMARY KEY, amount NUMERIC);`,
-		},
+		}, extraSchemaSQL...),
 		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
 		},
@@ -72,10 +78,7 @@ func startStreamingExportForDriftCheck(t *testing.T, databaseName string) *LiveM
 
 	testutils.FatalIfError(t, lm.SetupContainers(context.Background()), "failed to setup containers")
 	testutils.FatalIfError(t, lm.SetupSchema(), "failed to setup schema")
-	// The check follows capture, so pin it on rather than rely on its default.
-	testutils.FatalIfError(t, lm.StartExportData(true, map[string]string{
-		"--disable-schema-snapshot-capture": "false",
-	}), "failed to start export data")
+	testutils.FatalIfError(t, lm.StartExportData(true, extraExportArgs), "failed to start export data")
 
 	// Set right after the exporter sees the switch to streaming, before it next
 	// checks whether Debezium is still running.
@@ -187,4 +190,115 @@ func TestLiveExportDataSkipsSchemaDriftCheckWhenDebeziumIsTerminated(t *testing.
 	require.NoError(t, err)
 	assert.Contains(t, string(logBytes), "exit status 143", "Debezium must have exited with Java's SIGTERM code")
 	assertNoDriftCheck(t, lm)
+}
+
+const cutoverCannotConfirmDrift = "Cutover not started: the source schema changed during this migration (1 change, listed above), and this run cannot ask for confirmation."
+
+// runCutoverToTarget runs cutover with --yes and no fall-back, and returns its
+// output and whether it succeeded.
+func runCutoverToTarget(lm *LiveMigrationTest, extraArgs map[string]string) (string, bool) {
+	err := lm.InitiateCutoverToTarget(false, extraArgs)
+	return lm.GetCutoverToTargetCommandStdout() + lm.GetCutoverToTargetCommandStderr(), err == nil
+}
+
+func cutoverToTargetRequested(t *testing.T, lm *LiveMigrationTest) bool {
+	requested := false
+	require.NoError(t, lm.WithMetaDB(0, func(m *metadb.MetaDB) error {
+		msr, err := m.GetMigrationStatusRecord()
+		if err != nil {
+			return err
+		}
+		requested = msr.CutoverToTargetRequested
+		return nil
+	}))
+	return requested
+}
+
+// TestLiveCutoverToTargetPreCheckPassesWithoutDrift pins that an unchanged
+// source lets cutover proceed after one "no drift" line.
+func TestLiveCutoverToTargetPreCheckPassesWithoutDrift(t *testing.T) {
+	t.Parallel()
+	lm := startStreamingExportForDriftCheck(t, "cutover_no_drift")
+
+	out, ok := runCutoverToTarget(lm, nil)
+	require.True(t, ok, "cutover must succeed without drift: %s", out)
+	assert.Contains(t, out, "No schema drift found on the source. Report:")
+	assert.True(t, cutoverToTargetRequested(t, lm))
+
+	raw, err := os.ReadFile(filepath.Join(lm.GetCurrentExportDir(), "reports", "drift_analysis_report_cutover_to_target.json"))
+	require.NoError(t, err)
+	var report schemadrift.Report
+	require.NoError(t, json.Unmarshal(raw, &report))
+	assert.Equal(t, 0, report.Summary.ChangeCount)
+	assert.True(t, report.Summary.LiveCompared, "the pre-check must compare against a live read")
+}
+
+// TestLiveCutoverToTargetPreCheckIgnoresTablesOutsideTheExport pins the check's
+// scope: export data runs with --table-list test_schema.orders, so a column added
+// to test_schema.audit_log, in the same schema but never exported, is not drift
+// for cutover.
+func TestLiveCutoverToTargetPreCheckIgnoresTablesOutsideTheExport(t *testing.T) {
+	t.Parallel()
+	lm := startStreamingExportForDriftCheckWith(t, "cutover_scope",
+		[]string{`CREATE TABLE test_schema.audit_log (id SERIAL PRIMARY KEY, msg TEXT);`},
+		map[string]string{"--table-list": "test_schema.orders"})
+
+	testutils.FatalIfError(t, lm.ExecuteOnSource(`ALTER TABLE test_schema.audit_log ADD COLUMN note TEXT;`), "failed to add a column")
+
+	out, ok := runCutoverToTarget(lm, nil)
+	require.True(t, ok, "drift outside the exported tables must not stop cutover: %s", out)
+	assert.Contains(t, out, "No schema drift found on the source. Report:")
+	assert.True(t, cutoverToTargetRequested(t, lm))
+}
+
+// TestLiveCutoverToTargetPreCheckBlocksOnDrift pins the pre-check's failure
+// paths in the order a user meets them: a check that cannot connect fails
+// cutover, drift found under --yes fails it, so does a "y" piped in without
+// --yes, --skip-pre-checks lets it through, and a re-run once cutover is
+// requested does not check again. The column is added after streaming starts,
+// so only the live read sees it.
+func TestLiveCutoverToTargetPreCheckBlocksOnDrift(t *testing.T) {
+	t.Parallel()
+	lm := startStreamingExportForDriftCheck(t, "cutover_drift")
+
+	out, ok := runCutoverToTarget(lm, map[string]string{"--source-db-password": "not-the-password"})
+	require.False(t, ok, "a check that cannot connect must fail cutover: %s", out)
+	assert.Contains(t, out, "Could not check the source schema for drift:")
+	assert.Contains(t, out, "--skip-pre-checks schema_drift")
+	assert.False(t, cutoverToTargetRequested(t, lm))
+
+	testutils.FatalIfError(t, lm.ExecuteOnSource(`ALTER TABLE test_schema.orders ADD COLUMN note TEXT;`), "failed to add a column")
+
+	out, ok = runCutoverToTarget(lm, nil)
+	require.False(t, ok, "drift under --yes must fail cutover: %s", out)
+	assert.Contains(t, out, "Changes detected  : 1")
+	assert.Contains(t, out, cutoverCannotConfirmDrift)
+	assert.False(t, cutoverToTargetRequested(t, lm))
+
+	require.Error(t, lm.InitiateCutoverToTargetPipingYes(false, nil), "a piped yes must not confirm drift")
+	out = lm.GetCutoverToTargetCommandStdout() + lm.GetCutoverToTargetCommandStderr()
+	assert.Contains(t, out, "Changes detected  : 1")
+	assert.Contains(t, out, cutoverCannotConfirmDrift)
+	assert.False(t, cutoverToTargetRequested(t, lm))
+
+	raw, err := os.ReadFile(filepath.Join(lm.GetCurrentExportDir(), "reports", "drift_analysis_report_cutover_to_target.json"))
+	require.NoError(t, err)
+	var report schemadrift.Report
+	require.NoError(t, json.Unmarshal(raw, &report))
+	assert.True(t, report.Summary.LiveCompared)
+	require.Len(t, report.Drifts, 1)
+	assert.Equal(t, schemadiff.ColumnAdded, report.Drifts[0].Type)
+	assert.Equal(t, "note", report.Drifts[0].SubObject)
+
+	out, ok = runCutoverToTarget(lm, map[string]string{"--skip-pre-checks": "schema_drift"})
+	require.True(t, ok, "--skip-pre-checks must let cutover through: %s", out)
+	assert.Contains(t, out, "Skipping the schema drift check (--skip-pre-checks includes schema_drift).")
+	assert.True(t, cutoverToTargetRequested(t, lm))
+
+	// Once cutover is requested, a re-run must not check again, even with the drift
+	// still on the source and no skip flag.
+	out, ok = runCutoverToTarget(lm, nil)
+	require.True(t, ok, "a re-run after cutover was requested must not re-check drift: %s", out)
+	assert.NotContains(t, out, "Checking the source schema for drift")
+	assert.Contains(t, out, "cutover to target already initiated, wait for it to complete")
 }

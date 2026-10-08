@@ -22,20 +22,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
 	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,11 +48,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // ─── complementDriftTableRefs ────────────────────────────────────────────────
@@ -986,6 +994,177 @@ func TestDebeziumReachedStreaming(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, debeziumReachedStreaming(tt.observed, tt.readStatus))
+		})
+	}
+}
+
+func TestParseCutoverPreChecksToSkip(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    []string
+		wantErr string
+	}{
+		{name: "unset skips nothing", raw: "", want: []string{}},
+		{name: "schema_drift", raw: "schema_drift", want: []string{"schema_drift"}},
+		{name: "spaces and empty entries are trimmed", raw: " schema_drift , ", want: []string{"schema_drift"}},
+		{name: "an unknown name is an error", raw: "schema_drift,disk_space", wantErr: "unknown --skip-pre-checks value(s) [disk_space]; supported: schema_drift"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseCutoverPreChecksToSkip(tt.raw)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, got)
+		})
+	}
+}
+
+// captureConsole returns what fn printed to stdout, plain or coloured.
+func captureConsole(t *testing.T, fn func()) string {
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	savedStdout, savedColor := os.Stdout, color.Output
+	os.Stdout, color.Output = w, w
+	fn()
+	os.Stdout, color.Output = savedStdout, savedColor
+	require.NoError(t, w.Close())
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(out)
+}
+
+func TestCheckSchemaDriftBeforeCutoverSkipsAndEarlyFailures(t *testing.T) {
+	savedMetaDB, savedUUID, savedSend, savedSQLType, savedAnon := metaDB, migrationUUID, callhome.SendDiagnostics, sqlname.SourceDBType, anonymizer
+	t.Cleanup(func() {
+		metaDB, migrationUUID, callhome.SendDiagnostics, sqlname.SourceDBType, anonymizer = savedMetaDB, savedUUID, savedSend, savedSQLType, savedAnon
+	})
+	callhome.SendDiagnostics = false
+	migrationUUID = uuid.New()
+	t.Setenv("SOURCE_DB_PASSWORD", "")
+
+	pgSource := &srcdb.Source{DBType: constants.POSTGRESQL, Host: "localhost", Port: 5432, DBName: "db", User: "u", SSLMode: "prefer"}
+	header := func(placeholder bool) schemasnapshot.SnapshotHeader {
+		return schemasnapshot.SnapshotHeader{Label: schemasnapshot.LabelExportSchema, CapturedAt: time.Date(2026, 10, 6, 10, 0, 0, 0, time.UTC), Schemas: []string{"public"}, IsPlaceholder: placeholder}
+	}
+	freshMetaDB := func(t *testing.T, seed func(*metadb.MetaDB)) {
+		metaDB = initMetaDB(t.TempDir())
+		if seed != nil {
+			seed(metaDB)
+		}
+	}
+	newCmd := func() *cobra.Command {
+		c := &cobra.Command{}
+		c.Flags().String("source-db-password", "", "")
+		return c
+	}
+
+	t.Run("a non-PostgreSQL source is skipped without a console line", func(t *testing.T) {
+		freshMetaDB(t, nil)
+		var err error
+		out := captureConsole(t, func() {
+			err = checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{SourceDBConf: &srcdb.Source{DBType: constants.ORACLE}}, nil)
+		})
+		require.NoError(t, err)
+		assert.Empty(t, out)
+	})
+
+	t.Run("no source configuration fails with the skip hint", func(t *testing.T) {
+		freshMetaDB(t, nil)
+		err := checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{}, nil)
+		require.EqualError(t, err, "Could not check the source schema for drift: the migration status record has no source database configuration.\nFix the cause, or "+cutoverDriftSkipHint+".")
+	})
+
+	t.Run("an export dir with no captures is skipped with one line", func(t *testing.T) {
+		freshMetaDB(t, nil)
+		var err error
+		out := captureConsole(t, func() {
+			err = checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{SourceDBConf: pgSource}, nil)
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "Skipping the schema drift check: this export directory holds no schema snapshots.\n", out)
+	})
+
+	t.Run("an export dir whose captures all failed is skipped with a warning", func(t *testing.T) {
+		freshMetaDB(t, func(m *metadb.MetaDB) {
+			_, err := schemasnapshot.SavePlaceholder(context.Background(), m, header(true))
+			require.NoError(t, err)
+		})
+		var err error
+		out := captureConsole(t, func() {
+			err = checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{SourceDBConf: pgSource}, nil)
+		})
+		require.NoError(t, err)
+		assert.Contains(t, out, "Skipping the schema drift check: every schema snapshot captured during this migration failed, so there is nothing to compare against. See the export data log for why.")
+	})
+
+	t.Run("no terminal and no password fails at the password read", func(t *testing.T) {
+		freshMetaDB(t, func(m *metadb.MetaDB) {
+			_, err := schemasnapshot.SaveSnapshot(context.Background(), m, &schemasnapshot.SchemaSnapshot{
+				Header:  header(false),
+				Content: &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: constants.POSTGRESQL},
+			})
+			require.NoError(t, err)
+		})
+		savedSource := source
+		t.Cleanup(func() { source = savedSource })
+		var err error
+		captureConsole(t, func() {
+			err = checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{SourceDBConf: pgSource}, nil)
+		})
+		// go test's stdin is not a terminal, so the password read fails.
+		require.Error(t, err)
+		assert.True(t, strings.HasPrefix(err.Error(), "Could not check the source schema for drift: read password: "), err.Error())
+		assert.True(t, strings.HasSuffix(err.Error(), "\nPass --source-db-password or set SOURCE_DB_PASSWORD, or "+cutoverDriftSkipHint+"."), err.Error())
+	})
+}
+
+func TestConfirmCutoverOverDrift(t *testing.T) {
+	const cannotPrompt = "Cutover not started: the source schema changed during this migration (3 changes, listed above), and this run cannot ask for confirmation.\n" +
+		"Apply the changes to the target, then re-run interactively to confirm, or pass --skip-pre-checks schema_drift to cut over without this check."
+	const answeredNo = "Cutover not started. To cut over without the drift check, pass --skip-pre-checks schema_drift."
+	const prompt = "Have you applied these changes to the target? [Y/N]: "
+
+	tests := []struct {
+		name        string
+		changeCount int
+		canPrompt   bool
+		stdin       string
+		wantErr     string
+		wantConsole string
+	}{
+		{name: "no terminal or auto-confirm: stops without asking", changeCount: 3, canPrompt: false, wantErr: cannotPrompt},
+		{name: "answered no: stops and names the skip flag", changeCount: 3, canPrompt: true, stdin: "n\n", wantErr: answeredNo,
+			wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n" + prompt},
+		{name: "answered yes: goes on to the cutover prompt", changeCount: 3, canPrompt: true, stdin: "y\n",
+			wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n" + prompt},
+		{name: "one change is singular", changeCount: 1, canPrompt: true, stdin: "y\n",
+			wantConsole: "\nThe source schema changed during this migration (1 change, listed above).\n" + prompt},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// utils.AskPrompt reads the answer from os.Stdin.
+			r, w, err := os.Pipe()
+			require.NoError(t, err)
+			_, err = w.WriteString(tt.stdin)
+			require.NoError(t, err)
+			require.NoError(t, w.Close())
+			savedStdin := os.Stdin
+			os.Stdin = r
+			t.Cleanup(func() { os.Stdin = savedStdin })
+
+			out := captureConsole(t, func() {
+				err = confirmCutoverOverDrift(tt.changeCount, tt.canPrompt)
+			})
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, tt.wantErr)
+			}
+			assert.Equal(t, tt.wantConsole, out)
 		})
 	}
 }

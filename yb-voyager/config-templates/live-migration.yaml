@@ -561,6 +561,12 @@ initiate-cutover-to-target:
   ### [DO NOT CHANGE]
   prepare-for-fall-back: false
 
+  ### Comma-separated cutover pre-checks to skip. Supported: schema_drift.
+  ### schema_drift compares the source schema against the snapshots taken during the migration,
+  ### including a live read of the source. It connects with source.db-password from the source section.
+  ### Default - none skipped
+  # skip-pre-checks: schema_drift
+
 
 # ---------------------------------------------------------
 # Finalize Schema Post Data Import Configuration
