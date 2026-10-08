@@ -468,13 +468,12 @@ One list flag, not one boolean per check, because more cutover pre-checks are pl
 | Situation | Behaviour |
 | :---- | :---- |
 | `--skip-pre-checks` includes `schema_drift`, or the export dir holds no captures | skipped, with one line |
-| every stored capture failed (only placeholders) | skipped, with a warning that names the export data log |
+| every stored capture failed (only placeholders) | skipped, with a warning: there is nothing to compare against, and the export data log says why the captures failed |
 | a non-PostgreSQL source | skipped, logged only: the check can never run there, so the console stays as it was |
 | cutover to target already requested | skipped silently; the existing "already initiated" message follows |
 | no drift | one line, then the prompt |
-| drift found | the summary of §5.1 and a warning to apply the same changes on the target, then the prompt |
-| drift found under `--yes` | cutover fails with exit 1 before the MSR update, since nobody reads a summary under `--yes` |
-| drift found with no terminal on stdin (`echo y \|`, a here-string, Ansible `stdin:`) | cutover fails the same way: a piped answer would confirm a summary nobody read. A pseudo-terminal (`expect`, Ansible's `expect` module) looks like a person and is not caught |
+| drift found, at a terminal | the summary of §5.1, then "Have you applied these changes to the target?". `y` goes on to the cutover prompt; anything else stops cutover with exit 1 and names `--skip-pre-checks schema_drift` |
+| drift found under `--yes`, or with no terminal on stdin (`echo y \|`, a here-string, Ansible `stdin:`) | the summary, then cutover fails with exit 1 before the MSR update: nobody can confirm, and a piped answer would confirm a summary nobody read. The message does not name `--yes`, which is hidden. A pseudo-terminal (`expect`, Ansible's `expect` module) looks like a person and gets the prompt |
 | the check cannot run: no password, an unreachable source, a failed live read | cutover fails with exit 1 and names `--skip-pre-checks schema_drift`; a connect or password failure also points at the source connection and `--source-db-password` |
 
 Any change counts, whatever its severity. A pre-check that cannot run fails cutover, because silently passing would read as "no drift". The password prompt follows the "Checking the source schema for drift..." line, which says why cutover asks for it. Without a terminal the prompt cannot read, so a script must pass `--source-db-password` or set `SOURCE_DB_PASSWORD`, and the failure says so. The connect and the live read are each bounded by the 10-second capture budget, so a wedged source cannot hold cutover. The check runs in the `Run` of `cutoverToTargetCmd`, before `InitiateCutover`, so cutover to source and to source-replica are unaffected.
