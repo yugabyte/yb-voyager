@@ -43,6 +43,14 @@ type Report struct {
 	CapturePoints []CapturePoint `json:"capture_points"`
 }
 
+// HasLiveRead reports whether the timeline ends at a live read of the source.
+// LiveCompared is not the same question: a live read can be on the timeline and
+// still be excluded from the comparison.
+func (r Report) HasLiveRead() bool {
+	n := len(r.CapturePoints)
+	return n > 0 && r.CapturePoints[n-1].Label == schemasnapshot.LabelSourceLive
+}
+
 // Source identifies the source database the report was generated for.
 type Source struct {
 	DatabaseType    string `json:"database_type"`

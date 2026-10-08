@@ -87,6 +87,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
+      - name: Restore Debezium build Maven
+        id: debezium-maven
+        uses: ./.github/actions/cache-debezium-maven
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -114,6 +118,12 @@ jobs:
           psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+      - name: Save Debezium build Maven
+        if: success() && steps.debezium-maven.outputs.cache-hit != 'true'
+        uses: ./.github/actions/cache-debezium-maven
+        with:
+          mode: save
 
       # Save only from the default branch (or a PR labelled `cache-maven`).
       # This gate is load-bearing: ~/.m2 is ~1.3 GiB against a 10 GiB repo budget,

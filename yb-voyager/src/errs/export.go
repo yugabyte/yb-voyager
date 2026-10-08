@@ -150,3 +150,17 @@ func NewUnknownTableErr(typeOfList string, unknownTables []string, validTableNam
 		validTableNames: validTableNames,
 	}
 }
+
+// DebeziumStreamingError is a Debezium failure after its status file recorded
+// streaming. PostgreSQL records that at startup, before Debezium connects, so a
+// startup failure counts too; only an interrupt does not.
+type DebeziumStreamingError struct {
+	cause error
+}
+
+func (e DebeziumStreamingError) Error() string { return e.cause.Error() }
+func (e DebeziumStreamingError) Unwrap() error { return e.cause }
+
+func NewDebeziumStreamingError(cause error) DebeziumStreamingError {
+	return DebeziumStreamingError{cause: cause}
+}

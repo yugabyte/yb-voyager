@@ -1,0 +1,39 @@
+{
+  "collected_at": "2026-10-05 08:59:10.077496",
+  "migration_phase": "schema-detect-drift",
+  "migration_type": "",
+  "migration_uuid": "13acbb46-1735-4188-9ba0-a7cd54574a68",
+  "phase_payload": {
+    "change_count": 0,
+    "compared_interval_count": 3,
+    "control_plane_type": "",
+    "error": "",
+    "invoked_by": "detect-drift",
+    "live_compared": true,
+    "object_types": [
+      "COLUMN",
+      "TABLE"
+    ],
+    "payload_version": 1.0,
+    "stored_capture_count": 3,
+    "table_count": 29
+  },
+  "phase_start_time": "2026-10-05 08:59:10.023752",
+  "source_db_details": {
+    "db_id": 16384,
+    "db_name": "db_80f09b735e608f36",
+    "db_system_identifier": 7693105614214692908,
+    "db_type": "postgresql",
+    "db_version": "17.11 (Debian 17.11-1.pgdg13+2)",
+    "host": "",
+    "payload_version": 1.3,
+    "schema_names": [
+      "schema_d7108fd530c9b1c2"
+    ],
+    "total_db_size_bytes": 1622016
+  },
+  "status": "COMPLETE",
+  "target_db_details": "",
+  "time_taken_sec": 1,
+  "yb_voyager_version": "main"
+}

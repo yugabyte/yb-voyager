@@ -228,8 +228,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	handleCutoverAlreadyProcessedForExportData()
 
-	success := exportData()
-	if success {
+	err = exportData()
+	if err == nil {
 		sendPayloadAsPerExporterRole(COMPLETE, nil)
 
 		setDataIsExported()
@@ -241,6 +241,9 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
+		if errors.As(err, new(errs.DebeziumStreamingError)) {
+			checkSchemaDriftOnExportFailure()
+		}
 		sendPayloadAsPerExporterRole(ERROR, nil)
 		atexit.Exit(1)
 	}
@@ -689,7 +692,7 @@ func captureSourceGeneratedStoredColumns(finalTableList []sqlname.NameTuple) err
 	return nil
 }
 
-func exportData() (ok bool) {
+func exportData() (failure error) {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %w", err)
@@ -856,7 +859,7 @@ func exportData() (ok bool) {
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
 	// successReason distinguishes the two clean endings; the cutover branch below
-	// upgrades it. Only read when exportData returns true.
+	// upgrades it. Only read when exportData returns nil.
 	successReason := schemasnapshot.ReasonComplete
 
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
@@ -886,7 +889,7 @@ func exportData() (ok bool) {
 		// registerExportDataExitSnapshotHook above covers them.
 		defer func() {
 			stopPeriodic() // no periodic tick during the exit capture
-			if ok {
+			if failure == nil {
 				captureExportDataExitSnapshot(ctx, successReason)
 				return
 			}
@@ -907,7 +910,7 @@ func exportData() (ok bool) {
 		err = startDebeziumAsPerExportTypeIfRequired(ctx, cancel, finalTableList, tablesColumnList, leafPartitions, partitionsToRootTableMap)
 		if err != nil {
 			log.Errorf("Failed to start debezium: %v", err)
-			return false
+			return err
 		}
 		utils.PrintAndLogfInfo("Processing cutover initiate request...\n")
 		if changeStreamingIsEnabled(exportType) {
@@ -962,7 +965,7 @@ func exportData() (ok bool) {
 		}
 		// The else branch (useDebezium && !changeStreamingIsEnabled) is a snapshot-only
 		// export via debezium: no cutover was processed, so successReason stays complete.
-		return true
+		return nil
 	} else {
 		exportPhase = dbzm.MODE_SNAPSHOT
 		err = storeTableListInMSR(finalTableList)
@@ -972,9 +975,9 @@ func exportData() (ok bool) {
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
-			return false
+			return err
 		}
-		return true
+		return nil
 	}
 }
 
