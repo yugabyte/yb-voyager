@@ -2818,12 +2818,12 @@ func TestGetSupportedVersions(t *testing.T) {
 func TestBuildExperimentalMaturityAnnotation(t *testing.T) {
 	// TP, with flags.
 	assert.Equal(t,
-		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version — %s, and is not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
+		fmt.Sprintf("This feature is available as Tech Preview (TP) in the target version — %s, and not enabled by default. Enable with the flag(s): yb_enable_foo=true, yb_bar=64.", constants.TP_MATURITY_CAVEAT),
 		buildExperimentalMaturityAnnotation(constants.MATURITY_TP, []string{"yb_enable_foo=true", "yb_bar=64"}))
 
 	// EA, no flags -> no "Enable with" sentence.
 	assert.Equal(t,
-		fmt.Sprintf("This feature is available as Early Access (EA) in the target version — %s, and is not enabled by default.", constants.EA_MATURITY_CAVEAT),
+		fmt.Sprintf("This feature is available as Early Access (EA) in the target version — %s.", constants.EA_MATURITY_CAVEAT),
 		buildExperimentalMaturityAnnotation(constants.MATURITY_EA, nil))
 
 	// Non-experimental maturities produce no annotation.

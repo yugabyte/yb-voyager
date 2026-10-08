@@ -526,10 +526,12 @@ func buildExperimentalMaturityAnnotation(maturity string, enablingFlags []string
 	if tierName == "" {
 		return ""
 	}
-	annotation := fmt.Sprintf("This feature is available as %s in the target version — %s, and is not enabled by default.",
+	annotation := fmt.Sprintf("This feature is available as %s in the target version — %s",
 		tierName, caveat)
 	if len(enablingFlags) > 0 {
-		annotation += fmt.Sprintf(" Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
+		annotation += fmt.Sprintf(", and not enabled by default. Enable with the flag(s): %s.", strings.Join(enablingFlags, ", "))
+	} else {
+		annotation += "."
 	}
 	return annotation
 }
