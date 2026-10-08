@@ -1,0 +1,61 @@
+name: Cache Debezium build Maven
+description: >-
+  Caches the pinned Maven that installer_scripts/install-yb-voyager uses for the
+  local Debezium build, so each job doesn't download it from archive.apache.org.
+  Run with mode `restore` after actions/checkout and before the installer, and
+  with mode `save` right after the installer.
+
+inputs:
+  mode:
+    description: "`restore` or `save`."
+    default: restore
+
+outputs:
+  cache-hit:
+    description: Whether `restore` found an exact match.
+    value: ${{ steps.restore.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve pinned Maven from the installer
+      id: maven
+      shell: bash
+      run: |
+        eval "$(grep -E '^DEBEZIUM_BUILD_MAVEN_(VERSION|HOME)=' installer_scripts/install-yb-voyager)"
+        if [ -z "${DEBEZIUM_BUILD_MAVEN_VERSION}" ] || [ -z "${DEBEZIUM_BUILD_MAVEN_HOME}" ]; then
+          echo "::error::DEBEZIUM_BUILD_MAVEN_VERSION or DEBEZIUM_BUILD_MAVEN_HOME not found in installer_scripts/install-yb-voyager"
+          exit 1
+        fi
+        echo "path=${DEBEZIUM_BUILD_MAVEN_HOME}" >> "$GITHUB_OUTPUT"
+        echo "key=${{ runner.os }}-debezium-maven-${DEBEZIUM_BUILD_MAVEN_VERSION}" >> "$GITHUB_OUTPUT"
+        if [ "${{ inputs.mode }}" = "restore" ]; then
+          # The cache is restored as the runner user, but the parent dir is root-owned.
+          parent=$(dirname "${DEBEZIUM_BUILD_MAVEN_HOME}")
+          sudo mkdir -p "${parent}"
+          sudo chown "$(id -u):$(id -g)" "${parent}"
+        elif [ -x "${DEBEZIUM_BUILD_MAVEN_HOME}/bin/mvn" ]; then
+          echo "installed=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Restore Debezium build Maven
+      id: restore
+      if: inputs.mode == 'restore'
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.maven.outputs.path }}
+        key: ${{ steps.maven.outputs.key }}
+
+    # Same save policy as the ~/.m2 cache: save only from the default branch (or a
+    # PR labelled `cache-maven`), so PRs share main's entry instead of each adding
+    # their own. The caller gates this on success() and a restore miss.
+    - name: Save Debezium build Maven
+      if: >-
+        inputs.mode == 'save' &&
+        steps.maven.outputs.installed == 'true' &&
+        (github.ref == 'refs/heads/main' ||
+        contains(github.event.pull_request.labels.*.name, 'cache-maven'))
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.maven.outputs.path }}
+        key: ${{ steps.maven.outputs.key }}

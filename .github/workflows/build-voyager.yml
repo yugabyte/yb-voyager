@@ -47,6 +47,11 @@ jobs:
             CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o yb-voyager-darwin-arm64
           fi
 
+      - name: Restore Debezium build Maven
+        id: debezium-maven
+        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        uses: ./.github/actions/cache-debezium-maven
+
       - name: Build Debezium
         run: |
           if [ ${{ matrix.os }} == "ubuntu-22.04" ]; then
@@ -54,6 +59,12 @@ jobs:
             yes | ./install-yb-voyager --install-from-local-source
             cat /tmp/install-yb-voyager.log
           fi
+
+      - name: Save Debezium build Maven
+        if: ${{ success() && matrix.os == 'ubuntu-22.04' && steps.debezium-maven.outputs.cache-hit != 'true' }}
+        uses: ./.github/actions/cache-debezium-maven
+        with:
+          mode: save
 
       - name: Archive the files
         run: |
