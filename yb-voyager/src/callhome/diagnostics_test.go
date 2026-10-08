@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -364,6 +365,23 @@ func TestCallhomeStructs(t *testing.T) {
 				ControlPlaneType     string `json:"control_plane_type"`
 			}{},
 		},
+		{
+			name:       "Validate SchemaDriftPhasePayload Struct Definition",
+			actualType: reflect.TypeOf(SchemaDriftPhasePayload{}),
+			expectedType: struct {
+				PayloadVersion        string         `json:"payload_version"`
+				ChangeCount           int            `json:"change_count"`
+				ComparedIntervalCount int            `json:"compared_interval_count"`
+				StoredCaptureCount    int            `json:"stored_capture_count"`
+				LiveCompared          bool           `json:"live_compared"`
+				DriftsByType          map[string]int `json:"drifts_by_type,omitempty"`
+				DriftsBySeverity      map[string]int `json:"drifts_by_severity,omitempty"`
+				TableCount            int            `json:"table_count"`
+				ObjectTypes           []string       `json:"object_types,omitempty"`
+				Error                 string         `json:"error"`
+				ControlPlaneType      string         `json:"control_plane_type"`
+			}{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -428,4 +446,15 @@ func TestAddStackTrace_JoinedErrorsTraversal(t *testing.T) {
 	got, ok := context["stack_trace"]
 	require.True(t, ok, "expected stack_trace in context")
 	assert.Equal(t, string(rightErr.Stack()), got, "expected deepest stack from joined error tree")
+}
+
+func TestSanitizeErrorMsgForSchemaDriftError(t *testing.T) {
+	cause := fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`)
+	sde := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, cause)
+
+	assert.Equal(t, `invalid table name pattern "proddb.sales.customer_pii": syntax error`, sde.Error())
+	assert.Equal(t, `{"msg":"schema drift","step":"resolve_scope"}`, SanitizeErrorMsg(sde, nil))
+
+	wrapped := fmt.Errorf("table %q: %w", "sales.customer_pii", sde)
+	assert.Equal(t, `{"msg":"schema drift","step":"resolve_scope"}`, SanitizeErrorMsg(wrapped, nil))
 }

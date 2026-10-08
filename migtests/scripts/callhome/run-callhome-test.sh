@@ -176,6 +176,12 @@ main() {
     expected_file="${TEST_DIR}/expected_callhome_payloads/export_data_callhome.json"
     compare_callhome_json_reports "${expected_file}" "export-data"
 
+    step "Detect schema drift"
+    detect_drift --send-diagnostics=true
+    step "Compare actual and expected schema-detect-drift callhome data"
+    expected_file="${TEST_DIR}/expected_callhome_payloads/schema_detect_drift_callhome.json"
+    compare_callhome_json_reports "${expected_file}" "schema-detect-drift"
+
     step "Run Import Data"
     import_data --send-diagnostics=true
     step "Compare actual and expected import-data callhome data"

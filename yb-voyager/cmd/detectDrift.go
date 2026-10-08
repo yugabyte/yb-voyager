@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -30,6 +31,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
@@ -103,6 +106,9 @@ summary.change_count in the JSON report); 1 = error (bad flags, unreachable sour
 unsupported source type, etc.).`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if err := retrieveMigrationUUID(); err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		resolveDetectDriftFlagDefaults()
 		validateDetectDriftFlags()
 		// Resolve the source password from the --source-db-password flag, the
@@ -254,7 +260,7 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 	if len(invalid) > 0 {
 		return nil, goerrors.Errorf("unknown object type(s) %v; supported types: TABLE, COLUMN", invalid)
 	}
-	return out, nil
+	return lo.Uniq(out), nil
 }
 
 // ─── Scope resolution ────────────────────────────────────────────────────────
@@ -519,20 +525,19 @@ func detectDrift() error {
 	sqlname.SourceDBType = source.DBType
 
 	if err := source.DB().Connect(); err != nil {
-		return fmt.Errorf("failed to connect to source database: %w", err)
+		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("failed to connect to source database: %w", err))
 	}
 	defer source.DB().Disconnect()
 
-	source.FetchSourceInfo()
-
 	allSchemas, err := source.DB().GetAllSchemaNamesIdentifiers()
 	if err != nil {
-		return fmt.Errorf("failed to fetch schema names from source: %w", err)
+		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCHEMAS, fmt.Errorf("failed to fetch schema names from source: %w", err))
 	}
 	source.Schemas, err = namereg.SchemaNameMatcher(source.DBType, allSchemas, source.SchemaConfig)
 	if err != nil {
-		return err
+		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCHEMAS, err)
 	}
+	source.FetchSourceInfo()
 	// Raw (unquoted) names: compared against catalog values, never interpolated into
 	// SQL. The quoted form matches nothing -- see srcdb.Source.GetSchemaListUnquoted.
 	schemas := source.GetSchemaListUnquoted()
@@ -543,7 +548,7 @@ func detectDrift() error {
 	// from the live catalog still appears.
 	headers, err := schemasnapshot.ListSnapshots(metaDB)
 	if err != nil {
-		return fmt.Errorf("failed to list schema snapshots: %w", err)
+		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_LOAD_SNAPSHOTS, fmt.Errorf("failed to list schema snapshots: %w", err))
 	}
 	// Only the one-snapshot case gets a warning. With none at all the run cannot
 	// form an interval however the live read goes, so it always ends at
@@ -565,7 +570,7 @@ func detectDrift() error {
 			case lerr == nil:
 				content = c
 			case errors.Is(lerr, schemasnapshot.ErrSnapshotVersionUnsupported):
-				return fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr)
+				return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_LOAD_SNAPSHOTS, fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr))
 			case errors.Is(lerr, schemasnapshot.ErrPlaceholderSnapshot), errors.Is(lerr, schemasnapshot.ErrSnapshotNotFound):
 				utils.PrintAndLogfWarning("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			default:
@@ -579,12 +584,12 @@ func detectDrift() error {
 	// to the candidate universe.
 	live, err := captureLiveSnapshotForDrift(schemas)
 	if err != nil {
-		return err
+		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, err)
 	}
 
 	scope, err := resolveDriftScope(snapshots, live, schemas)
 	if err != nil {
-		return err
+		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, err)
 	}
 	snapshots = append(snapshots, *live)
 
@@ -600,21 +605,29 @@ func detectDrift() error {
 		Scope:     scope,
 	})
 	if err != nil {
-		return fmt.Errorf("build the drift report: %w", err)
+		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_BUILD_REPORT, fmt.Errorf("build the drift report: %w", err))
 	}
 
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
 	// examined.
 	if report.Summary.ComparedIntervalCount == 0 {
-		return nothingComparedError(report)
+		nothingCompared := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, nothingComparedError(report))
+		// Sent from here rather than left to the atexit handler, which has no report
+		// to pass: how many captures existed and why none were usable is the whole
+		// signal on this path.
+		packAndSendSchemaDriftPayload(ERROR, nothingCompared, &report)
+		return nothingCompared
 	}
 
 	writtenPaths, err := writeDriftReports(report, driftReportFormats(driftOutputFormat))
 	if err != nil {
+		err = errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_WRITE_REPORTS, err)
+		packAndSendSchemaDriftPayload(ERROR, err, &report)
 		return err
 	}
 
 	printDriftSummary(report, writtenPaths)
+	packAndSendSchemaDriftPayload(COMPLETE, nil, &report)
 
 	return nil
 }
@@ -674,6 +687,72 @@ func nothingComparedError(r schemadrift.Report) error {
 			"If the schemas named there are not the ones you expected, check --source-db-schema",
 			usable, len(r.CapturePoints), strings.Join(reasons, "; "))
 	}
+}
+
+// ─── Telemetry ───────────────────────────────────────────────────────────────
+
+// Untagged errors come from flag validation, the password read and the root
+// pre-run. Their text can carry --table-list patterns, so tag them too.
+func sanitizeDriftError(err error) string {
+	if err == nil {
+		return ""
+	}
+	if !errors.As(err, new(errs.SchemaDriftError)) {
+		err = errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, err)
+	}
+	return callhome.SanitizeErrorMsg(err, anonymizer)
+}
+
+// report is nil when the run failed before one was built, which is itself worth
+// recording: it is the population that could not use the feature at all.
+func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schemadrift.Report) {
+	if !shouldSendCallhome() {
+		return
+	}
+	// checkExportDirInitialised exits before initMetaDB when no migration has
+	// started, and initMetaDB is what sets up the anonymizer.
+	if metaDB == nil {
+		return
+	}
+
+	payload := createCallhomePayload(migrationUUID)
+	payload.MigrationPhase = SCHEMA_DETECT_DRIFT_PHASE
+	payload.Status = status
+	// MigrationType stays unset, as it does for the other read-only phases. Do not
+	// reach for checkStreamingMode here: it reads an unset ExportTypeFromSource as
+	// offline, and detect-drift runs before `export data` sets it and after a
+	// start-clean clears it.
+	payload.SourceDBDetails = callhome.MarshalledJsonString(anonymizeSourceDBDetails(&source))
+	payload.PhasePayload = callhome.MarshalledJsonString(buildSchemaDriftPayload(errorMsg, report))
+
+	if err := callhome.SendPayload(&payload); err == nil && (status == COMPLETE || status == ERROR) {
+		callHomeErrorOrCompletePayloadSent = true
+	}
+}
+
+func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhome.SchemaDriftPhasePayload {
+	driftPayload := callhome.SchemaDriftPhasePayload{
+		PayloadVersion:   callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION,
+		Error:            sanitizeDriftError(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
+	}
+	if report == nil {
+		return driftPayload
+	}
+
+	driftPayload.ChangeCount = report.Summary.ChangeCount
+	driftPayload.ComparedIntervalCount = report.Summary.ComparedIntervalCount
+	driftPayload.StoredCaptureCount = report.Summary.StoredCaptureCount
+	driftPayload.LiveCompared = report.Summary.LiveCompared
+	driftPayload.TableCount = len(report.Comparing.Tables)
+	driftPayload.ObjectTypes = slices.Sorted(slices.Values(report.Comparing.ObjectTypes))
+	driftPayload.DriftsByType = lo.CountValuesBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+		return string(d.Type)
+	})
+	driftPayload.DriftsBySeverity = lo.CountValuesBy(report.Drifts, func(d schemadrift.DriftEntry) string {
+		return string(d.Severity)
+	})
+	return driftPayload
 }
 
 // ─── Output: report files and terminal summary ───────────────────────────────

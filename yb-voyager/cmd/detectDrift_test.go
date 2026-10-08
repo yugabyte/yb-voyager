@@ -18,18 +18,31 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	goerrors "github.com/go-errors/errors"
+	"github.com/google/uuid"
+	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // ─── complementDriftTableRefs ────────────────────────────────────────────────
@@ -189,6 +202,11 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 			name: "mixed case with surrounding whitespace is tolerated",
 			raw:  " Table , coLUMN ",
 			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+		},
+		{
+			name: "a type named twice is kept once",
+			raw:  "TABLE,table",
+			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
 		},
 		{
 			name:    "unknown type errors",
@@ -557,4 +575,248 @@ func TestNothingComparedError(t *testing.T) {
 			assert.NotContains(t, err.Error(), tt.absent)
 		})
 	}
+}
+
+// ─── buildSchemaDriftPayload ─────────────────────────────────────────────────
+
+func TestBuildSchemaDriftPayload(t *testing.T) {
+	report := schemadrift.Report{
+		Comparing: schemadrift.Comparing{
+			Schemas:     []string{"public", "sales"},
+			Tables:      []string{"public.orders", "sales.items", `sales."Customers"`},
+			ObjectTypes: []string{"TABLE", "COLUMN"},
+		},
+		Summary: schemadrift.Summary{
+			ChangeCount:           3,
+			ComparedIntervalCount: 2,
+			StoredCaptureCount:    4,
+			LiveCompared:          true,
+		},
+		Drifts: []schemadrift.DriftEntry{
+			{Diff: schemadrift.Diff{Type: schemadiff.ColumnAdded}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityAdvisory}},
+			{Diff: schemadrift.Diff{Type: schemadiff.TableDropped}, DriftInfo: schemadrift.DriftInfo{Severity: schemadrift.SeverityBreaksUnrecoverable}},
+		},
+	}
+
+	t.Run("populated report", func(t *testing.T) {
+		got := buildSchemaDriftPayload(nil, &report)
+
+		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
+		assert.Equal(t, 3, got.ChangeCount)
+		assert.Equal(t, 2, got.ComparedIntervalCount)
+		assert.Equal(t, 4, got.StoredCaptureCount)
+		assert.True(t, got.LiveCompared)
+		assert.Equal(t, 3, got.TableCount)
+		assert.Equal(t, []string{"COLUMN", "TABLE"}, got.ObjectTypes)
+		assert.Equal(t, map[string]int{
+			string(schemadiff.ColumnAdded):  1,
+			string(schemadiff.TableDropped): 1,
+		}, got.DriftsByType)
+		assert.Equal(t, map[string]int{
+			string(schemadrift.SeverityAdvisory):            1,
+			string(schemadrift.SeverityBreaksUnrecoverable): 1,
+		}, got.DriftsBySeverity)
+		assert.Empty(t, got.Error)
+	})
+
+	// The run failed before a report existed. Everything report-derived must stay
+	// zero rather than be invented, and the histograms must drop out of the JSON.
+	t.Run("nil report", func(t *testing.T) {
+		got := buildSchemaDriftPayload(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, fmt.Errorf("source is unreachable")), nil)
+
+		assert.Equal(t, callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION, got.PayloadVersion)
+		assert.Zero(t, got.ChangeCount)
+		assert.Zero(t, got.ComparedIntervalCount)
+		assert.Zero(t, got.StoredCaptureCount)
+		assert.False(t, got.LiveCompared)
+		assert.Zero(t, got.TableCount)
+		assert.Nil(t, got.ObjectTypes)
+		assert.Nil(t, got.DriftsByType)
+		assert.Nil(t, got.DriftsBySeverity)
+		assert.Equal(t, `{"msg":"schema drift","step":"capture_live_schema"}`, got.Error)
+	})
+
+	t.Run("a report with no drift sends no histograms", func(t *testing.T) {
+		clean := report
+		clean.Drifts = nil
+		raw, err := json.Marshal(buildSchemaDriftPayload(nil, &clean))
+		require.NoError(t, err)
+
+		var fields map[string]any
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		assert.NotContains(t, fields, "drifts_by_type")
+		assert.NotContains(t, fields, "drifts_by_severity")
+	})
+}
+
+func TestSanitizeDriftError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "no error", err: nil, want: ""},
+		{
+			name: "a table pattern before the first colon",
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`)),
+			want: `{"msg":"schema drift","step":"resolve_scope"}`,
+		},
+		{
+			name: "a table list with no colon at all",
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, fmt.Errorf(`--exclude-table-list "sales.\"Customer_PII\"" excludes every table in the comparison; nothing left to compare`)),
+			want: `{"msg":"schema drift","step":"resolve_scope"}`,
+		},
+		{
+			name: "an export-dir path",
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_WRITE_REPORTS, fmt.Errorf(`failed to write json drift report to "/home/alice/acme-prod/reports/drift_analysis_report.json": no space left on device`)),
+			want: `{"msg":"schema drift","step":"write_reports"}`,
+		},
+		{
+			name: "schema names in the nothing-compared reasons",
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, fmt.Errorf("no two comparable schema snapshots: captured only public, sales, so it cannot answer for hr")),
+			want: `{"msg":"schema drift","step":"nothing_compared"}`,
+		},
+		{
+			name: "an untagged error from flag validation",
+			err:  fmt.Errorf(`schema detect-drift currently supports PostgreSQL sources only (got --source-db-type="acme_prod")`),
+			want: `{"msg":"schema drift","step":"setup"}`,
+		},
+		{
+			name: "the SQLSTATE survives",
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("failed to connect to source database: %w", &pgconnv5.PgError{Code: "28P01", Message: `password authentication failed for user "alice"`})),
+			want: `{"msg":"schema drift","pg_error_code":"28P01","step":"connect_to_source"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, sanitizeDriftError(tt.err))
+		})
+	}
+
+	// The exit handler receives the run's error re-wrapped by utils.ErrExit, which
+	// adds a go-errors stack, so only msg, step and the stack trace may be present.
+	t.Run("the step survives utils.ErrExit's wrapping", func(t *testing.T) {
+		tagged := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, fmt.Errorf(`invalid table name pattern "proddb.sales.customer_pii": syntax error`))
+		got := sanitizeDriftError(goerrors.Errorf("%w", tagged))
+
+		var fields map[string]string
+		require.NoError(t, json.Unmarshal([]byte(got), &fields))
+		assert.Equal(t, "schema drift", fields["msg"])
+		assert.Equal(t, "resolve_scope", fields["step"])
+		assert.ElementsMatch(t, []string{"msg", "step", "stack_trace"}, lo.Keys(fields))
+		assert.NotContains(t, got, "customer_pii")
+	})
+}
+
+// checkExportDirInitialised exits before initMetaDB when no migration has started,
+// so the exit handler reaches the drift sender with metaDB unset.
+func TestPackAndSendSchemaDriftPayloadWithoutMetaDB(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+	}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", serverURL.Hostname())
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", serverURL.Port())
+
+	origSend, origStart, origMetaDB, origUUID := callhome.SendDiagnostics, startTime, metaDB, migrationUUID
+	origHost, origPort := callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT
+	t.Cleanup(func() {
+		callhome.SendDiagnostics, startTime, metaDB, migrationUUID = origSend, origStart, origMetaDB, origUUID
+		callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT = origHost, origPort
+	})
+	callhome.SendDiagnostics = true
+	startTime = time.Now()
+	migrationUUID = uuid.New()
+
+	// Proves the redirect works, so a zero below means nothing was sent.
+	require.NoError(t, callhome.SendPayload(&callhome.Payload{}))
+	require.Equal(t, int32(1), requests.Load())
+
+	metaDB = nil
+	packAndSendSchemaDriftPayload(ERROR, fmt.Errorf("Migration has not started yet"), nil)
+	assert.Equal(t, int32(1), requests.Load(), "no payload may be sent without metaDB")
+}
+
+// captureCallhomePayloads points callhome at a local server with metaDB open and
+// returns the payloads it receives. It restores every global it sets.
+func captureCallhomePayloads(t *testing.T) func() []callhome.Payload {
+	var mu sync.Mutex
+	var payloads []callhome.Payload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var p callhome.Payload
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			t.Errorf("decode callhome request: %v", err)
+		}
+		mu.Lock()
+		payloads = append(payloads, p)
+		mu.Unlock()
+	}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", serverURL.Hostname())
+	t.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", serverURL.Port())
+
+	origSend, origStart, origMetaDB, origUUID := callhome.SendDiagnostics, startTime, metaDB, migrationUUID
+	origHost, origPort := callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT
+	origAnonymizer, origSent := anonymizer, callHomeErrorOrCompletePayloadSent
+	origCommand, origExitErr := currentCommand, utils.ErrExitErr
+	t.Cleanup(func() {
+		callhome.SendDiagnostics, startTime, metaDB, migrationUUID = origSend, origStart, origMetaDB, origUUID
+		callhome.CALL_HOME_SERVICE_HOST, callhome.CALL_HOME_SERVICE_PORT = origHost, origPort
+		anonymizer, callHomeErrorOrCompletePayloadSent = origAnonymizer, origSent
+		currentCommand, utils.ErrExitErr = origCommand, origExitErr
+	})
+	callhome.SendDiagnostics = true
+	startTime = time.Now()
+	callHomeErrorOrCompletePayloadSent = false
+	currentCommand = detectDriftCmd.CommandPath()
+	metaDB = initMetaDB(t.TempDir())
+
+	return func() []callhome.Payload {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]callhome.Payload(nil), payloads...)
+	}
+}
+
+func TestSchemaDriftErrorWithReportSentOnce(t *testing.T) {
+	received := captureCallhomePayloads(t)
+	migrationUUID = uuid.New()
+
+	report := schemadrift.Report{}
+	report.Summary.StoredCaptureCount = 1
+	failure := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, fmt.Errorf("captured only sales"))
+	packAndSendSchemaDriftPayload(ERROR, failure, &report)
+	utils.ErrExitErr = failure
+	PackAndSendCallhomePayloadOnExit()
+
+	got := received()
+	require.Len(t, got, 1, "the exit handler must not send a second ERROR row")
+	assert.Equal(t, ERROR, got[0].Status)
+	var phase callhome.SchemaDriftPhasePayload
+	require.NoError(t, json.Unmarshal([]byte(got[0].PhasePayload), &phase))
+	assert.Equal(t, 1, phase.StoredCaptureCount)
+	var errFields map[string]string
+	require.NoError(t, json.Unmarshal([]byte(phase.Error), &errFields))
+	assert.Equal(t, "schema drift", errFields["msg"])
+	assert.Equal(t, "nothing_compared", errFields["step"])
+	assert.NotContains(t, phase.Error, "sales")
+}
+
+// The root pre-run can exit after initMetaDB and before PreRun reads the UUID.
+func TestSchemaDriftErrorSentWithoutMigrationUUID(t *testing.T) {
+	received := captureCallhomePayloads(t)
+	migrationUUID = uuid.Nil
+
+	utils.ErrExitErr = fmt.Errorf("export directory was created by an incompatible voyager version")
+	PackAndSendCallhomePayloadOnExit()
+
+	got := received()
+	require.Len(t, got, 1)
+	assert.Equal(t, ERROR, got[0].Status)
+	assert.Equal(t, uuid.Nil, got[0].MigrationUUID)
 }
