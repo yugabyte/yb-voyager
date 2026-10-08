@@ -60,6 +60,7 @@ type LiveMigrationTest struct {
 	importToSourceCmd      *testutils.VoyagerCommandRunner
 	sourceReplicaImportCmd *testutils.VoyagerCommandRunner
 	archiveChangesCmd      *testutils.VoyagerCommandRunner
+	cutoverToTargetCmd     *testutils.VoyagerCommandRunner
 	metaDB                 *metadb.MetaDB
 	ctx                    context.Context
 	t                      *testing.T
@@ -658,17 +659,23 @@ func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 
 // InitiateCutover initiates cutover to target
 func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string) error {
-	_, err := lm.InitiateCutoverToTargetWithOutput(prepareForFallback, extraArgs)
-	return err
+	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, nil)
 }
 
-// InitiateCutoverToTargetWithOutput also returns the command's combined stdout and stderr.
-func (lm *LiveMigrationTest) InitiateCutoverToTargetWithOutput(prepareForFallback bool, extraArgs map[string]string) (string, error) {
+// InitiateCutoverToTargetAnswering runs cutover without --yes and pipes answer into
+// its stdin, so no terminal is attached.
+func (lm *LiveMigrationTest) InitiateCutoverToTargetAnswering(prepareForFallback bool, extraArgs map[string]string, answer string) error {
+	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, &answer)
+}
+
+func (lm *LiveMigrationTest) initiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string, answer *string) error {
 	lm.t.Logf("Initiating cutover to target")
 	args := []string{
 		"--export-dir", lm.exportDir,
-		"--yes",
 		"--prepare-for-fall-back", fmt.Sprintf("%t", prepareForFallback),
+	}
+	if answer == nil {
+		args = append(args, "--yes")
 	}
 
 	// Add extra args
@@ -677,16 +684,32 @@ func (lm *LiveMigrationTest) InitiateCutoverToTargetWithOutput(prepareForFallbac
 	}
 
 	// The schema drift pre-check connects to the source.
-	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithEnv(
+	lm.cutoverToTargetCmd = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithEnv(
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", lm.sourceContainer.GetConfig().Password),
 	).WithT(lm.t)
-	err := cutoverCmd.Run()
-	output := cutoverCmd.Stdout() + cutoverCmd.Stderr()
+	if answer != nil {
+		lm.cutoverToTargetCmd.WithStdin(strings.NewReader(*answer))
+	}
+	err := lm.cutoverToTargetCmd.Run()
 	if err != nil {
-		return output, goerrors.Errorf("failed to initiate cutover: %w", err)
+		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
 	lm.t.Logf("Cutover initiated to target")
-	return output, nil
+	return nil
+}
+
+func (lm *LiveMigrationTest) GetCutoverToTargetCommandStdout() string {
+	if lm.cutoverToTargetCmd == nil {
+		return ""
+	}
+	return lm.cutoverToTargetCmd.Stdout()
+}
+
+func (lm *LiveMigrationTest) GetCutoverToTargetCommandStderr() string {
+	if lm.cutoverToTargetCmd == nil {
+		return ""
+	}
+	return lm.cutoverToTargetCmd.Stderr()
 }
 
 func (lm *LiveMigrationTest) StartArchiveChanges(withArchive bool) error {
