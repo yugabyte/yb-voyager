@@ -474,9 +474,10 @@ One list flag, not one boolean per check, because more cutover pre-checks are pl
 | no drift | one line, then the prompt |
 | drift found | the summary of §5.1 and a warning to apply the same changes on the target, then the prompt |
 | drift found under `--yes` | cutover fails with exit 1 before the MSR update, since nobody reads a summary under `--yes` |
+| drift found with no terminal on stdin (`echo y \|`, a here-string, Ansible `stdin:`) | cutover fails the same way: a piped answer would confirm a summary nobody read. A pseudo-terminal (`expect`, Ansible's `expect` module) looks like a person and is not caught |
 | the check cannot run: no password, an unreachable source, a failed live read | cutover fails with exit 1 and names `--skip-pre-checks schema_drift`; a connect or password failure also points at the source connection and `--source-db-password` |
 
-Any change counts, whatever its severity. A pre-check that cannot run fails cutover, because silently passing would read as "no drift". Without a terminal, the password prompt cannot run, so a script must pass `--source-db-password` or set `SOURCE_DB_PASSWORD`; the check says so before trying to prompt. With a terminal, one line before the prompt says why the password is needed. The connect and the live read are each bounded by the 10-second capture budget, so a wedged source cannot hold cutover. The check runs in the `Run` of `cutoverToTargetCmd`, before `InitiateCutover`, so cutover to source and to source-replica are unaffected.
+Any change counts, whatever its severity. A pre-check that cannot run fails cutover, because silently passing would read as "no drift". The password prompt follows the "Checking the source schema for drift..." line, which says why cutover asks for it. Without a terminal the prompt cannot read, so a script must pass `--source-db-password` or set `SOURCE_DB_PASSWORD`, and the failure says so. The connect and the live read are each bounded by the 10-second capture budget, so a wedged source cannot hold cutover. The check runs in the `Run` of `cutoverToTargetCmd`, before `InitiateCutover`, so cutover to source and to source-replica are unaffected.
 
 ## 6\. Migration-flow matrix
 
