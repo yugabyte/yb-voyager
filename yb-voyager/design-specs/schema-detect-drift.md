@@ -423,12 +423,12 @@ The in-process check in `export data` runs without a live read: the exit capture
 
 ### 5.7 Check on export failure
 
-The source exporter checks for drift in one case: Debezium failed after it switched to streaming changes. That is the one export failure drift can cause, for example an added column the connector cannot handle. The check runs right after "Export of data failed!", through `checkSchemaDrift` (§3.7), and never changes the exit code.
+The source exporter checks for drift in one case: Debezium failed after its status file recorded streaming. Drift can only break the export there, for example with an added column the connector cannot handle. The check runs right after "Export of data failed!", through `checkSchemaDrift` (§3.7), and never changes the exit code.
 
 | How the export ends | Check |
 | :---- | :---- |
-| Debezium fails while streaming | yes |
-| Debezium fails during its snapshot, or before | no |
+| Debezium fails after its status file records streaming | yes. For PostgreSQL that is from startup: `pg_dump` takes the snapshot, so Debezium runs with `snapshot.mode=never` and records streaming before it connects. A startup failure Voyager does not catch first, such as a dropped publication, is checked too and reports no drift. |
+| Debezium fails before it records streaming | no. For PostgreSQL that is never the case. A missing replication slot falls under the `ErrExit` row: Voyager's own check exits before Debezium starts. |
 | `pg_dump` fails | no: it holds `ACCESS SHARE` locks, so DDL waits and an added column is simply dumped |
 | Any other error, or an `ErrExit` | no |
 | Ctrl-C, SIGTERM, an end-migration stop | no |
