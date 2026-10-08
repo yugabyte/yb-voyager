@@ -738,3 +738,8 @@ func (ora *Oracle) GetSchemasMissingUsagePermissions() ([]string, error) {
 func (ora *Oracle) GetTablesHavingUniqueAndPKDeferrableConstraint(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
 	return nil, nil
 }
+
+// Oracle does not support table inheritance.
+func (ora *Oracle) GetTablesInvolvedInInheritance(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, error) {
+	return nil, nil
+}

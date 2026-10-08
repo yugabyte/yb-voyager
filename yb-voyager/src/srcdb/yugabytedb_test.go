@@ -739,6 +739,10 @@ func TestYugabyteGetColumnsWithSupportedTypes_AllScenarios(t *testing.T) {
 	})
 }
 
+func TestYugabyteGetTablesInvolvedInInheritance(t *testing.T) {
+	assertTablesInvolvedInInheritance(t, testYugabyteDBSource.TestContainer.ExecuteSqls, testYugabyteDBSource.DB(), constants.YUGABYTEDB)
+}
+
 // Neither YB CDC connector can stream xml, xid, xid8, or cid, so live export from YB
 // (fall-back/fall-forward, or YB as source) must drop those columns. cidr guards that
 // matching is exact, and the quoted column guards case-sensitive names.

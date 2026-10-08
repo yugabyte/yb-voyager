@@ -63,6 +63,7 @@ var MigrationCaveatsIssues = []string{
 	FOREIGN_TABLE,
 	POLICY_WITH_ROLES,
 	SAVEPOINT_USAGE,
+	INHERITANCE_MIGRATION_CAVEAT,
 }
 
 var UnsupportedDatatypesInLiveMigrationIssues = []string{

@@ -385,6 +385,98 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 	testutils.AssertEqualStringSlices(t, expectedTables, actualTables)
 }
 
+// assertTablesInvolvedInInheritance covers INHERITS hierarchies against a PG-compatible
+// source. Every table on either side of an INHERITS relationship is reported, even when the
+// other side is not in the requested list. Partitions also live in pg_inherits and must not be
+// reported.
+func assertTablesInvolvedInInheritance(t *testing.T, execSqls func(...string), db SourceDB, dbType string) {
+	execSqls(
+		`CREATE SCHEMA inh_schema;`,
+		`CREATE SCHEMA "InhSchemaCase";`,
+		// three-level hierarchy
+		`CREATE TABLE inh_schema.parent_t (id INT, name TEXT);`,
+		`CREATE TABLE inh_schema.child_t (extra TEXT) INHERITS (inh_schema.parent_t);`,
+		`CREATE TABLE inh_schema.grandchild_t (more TEXT) INHERITS (inh_schema.child_t);`,
+		// multiple inheritance
+		`CREATE TABLE inh_schema.parent_a (a INT);`,
+		`CREATE TABLE inh_schema.parent_b (b INT);`,
+		`CREATE TABLE inh_schema.multi_child (c INT) INHERITS (inh_schema.parent_a, inh_schema.parent_b);`,
+		// case-sensitive names, with the child in a different schema from its parent
+		`CREATE TABLE "InhSchemaCase"."Parent" (id INT);`,
+		`CREATE TABLE inh_schema."CaseChild" (note TEXT) INHERITS ("InhSchemaCase"."Parent");`,
+		// declarative partitioning and a plain table: not inheritance
+		`CREATE TABLE inh_schema.part_root (id INT, region TEXT) PARTITION BY LIST (region);`,
+		`CREATE TABLE inh_schema.part_leaf PARTITION OF inh_schema.part_root FOR VALUES IN ('r1');`,
+		`CREATE TABLE inh_schema.plain_t (id INT PRIMARY KEY);`,
+	)
+	defer execSqls(`DROP SCHEMA inh_schema CASCADE;`, `DROP SCHEMA "InhSchemaCase" CASCADE;`)
+
+	tuple := func(qualified string, schema string) sqlname.NameTuple {
+		return testutils.CreateNameTupleWithSourceName(qualified, schema, dbType)
+	}
+	parent := tuple("inh_schema.parent_t", "inh_schema")
+	child := tuple("inh_schema.child_t", "inh_schema")
+	grandchild := tuple("inh_schema.grandchild_t", "inh_schema")
+	parentA := tuple("inh_schema.parent_a", "inh_schema")
+	parentB := tuple("inh_schema.parent_b", "inh_schema")
+	multiChild := tuple("inh_schema.multi_child", "inh_schema")
+	caseParent := tuple(`"InhSchemaCase"."Parent"`, "InhSchemaCase")
+	caseChild := tuple(`inh_schema."CaseChild"`, "inh_schema")
+	partRoot := tuple("inh_schema.part_root", "inh_schema")
+	partLeaf := tuple("inh_schema.part_leaf", "inh_schema")
+	plain := tuple("inh_schema.plain_t", "inh_schema")
+
+	catalogNames := func(tables []sqlname.NameTuple) []string {
+		return lo.Map(tables, func(t sqlname.NameTuple, _ int) string { return t.AsQualifiedCatalogName() })
+	}
+
+	testCases := []struct {
+		name      string
+		tableList []sqlname.NameTuple
+		expected  []sqlname.NameTuple
+	}{
+		{
+			name:      "every table on either side of INHERITS is reported",
+			tableList: []sqlname.NameTuple{parent, child, grandchild, parentA, parentB, multiChild, caseParent, caseChild, partRoot, partLeaf, plain},
+			expected:  []sqlname.NameTuple{parent, child, grandchild, parentA, parentB, multiChild, caseParent, caseChild},
+		},
+		{
+			name:      "child is reported when its parent is excluded",
+			tableList: []sqlname.NameTuple{child, plain},
+			expected:  []sqlname.NameTuple{child},
+		},
+		{
+			name:      "parent is reported when its children are excluded",
+			tableList: []sqlname.NameTuple{caseParent},
+			expected:  []sqlname.NameTuple{caseParent},
+		},
+		{
+			name:      "partitions and plain tables are not reported",
+			tableList: []sqlname.NameTuple{partRoot, partLeaf, plain},
+			expected:  nil,
+		},
+		{
+			name:      "empty table list",
+			tableList: nil,
+			expected:  nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := db.GetTablesInvolvedInInheritance(tc.tableList)
+			assert.NilError(t, err)
+			testutils.AssertEqualStringSlices(t, catalogNames(tc.expected), catalogNames(actual))
+		})
+	}
+}
+
+func TestPostgresGetTablesInvolvedInInheritance(t *testing.T) {
+	sqlname.SourceDBType = "postgresql"
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+	assertTablesInvolvedInInheritance(t, testPostgresSource.TestContainer.ExecuteSqls, testPostgresSource.DB(), "postgresql")
+}
+
 func TestPostgresGetTablesHavingUniqueAndPKDeferrableConstraint(t *testing.T) {
 	testPostgresSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
