@@ -1098,7 +1098,7 @@ func TestCheckSchemaDriftBeforeCutoverSkipsAndEarlyFailures(t *testing.T) {
 			err = checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{SourceDBConf: pgSource}, nil)
 		})
 		require.NoError(t, err)
-		assert.Contains(t, out, "Skipping the schema drift check: all 1 schema snapshot captures in this export directory failed; see the export data log.")
+		assert.Contains(t, out, "Skipping the schema drift check: every schema snapshot captured during this migration failed, so there is nothing to compare against. See the export data log for why.")
 	})
 
 	t.Run("no terminal and no password fails at the password read", func(t *testing.T) {
@@ -1120,4 +1120,48 @@ func TestCheckSchemaDriftBeforeCutoverSkipsAndEarlyFailures(t *testing.T) {
 		assert.True(t, strings.HasPrefix(err.Error(), "Could not check the source schema for drift: read password: "), err.Error())
 		assert.True(t, strings.HasSuffix(err.Error(), "\nPass --source-db-password or set SOURCE_DB_PASSWORD, or "+cutoverDriftSkipHint+"."), err.Error())
 	})
+}
+
+func TestConfirmCutoverOverDrift(t *testing.T) {
+	const cannotPrompt = "Cutover not started: the source schema changed during this migration (3 changes, listed above), and this run cannot ask for confirmation.\n" +
+		"Apply the changes to the target, then re-run interactively to confirm, or pass --skip-pre-checks schema_drift to cut over without this check."
+	const answeredNo = "Cutover not started. To cut over without the drift check, pass --skip-pre-checks schema_drift."
+	const question = "Have you applied these changes to the target"
+
+	tests := []struct {
+		name        string
+		changeCount int
+		canPrompt   bool
+		answer      bool
+		wantErr     string
+		wantAsked   []string
+		wantConsole string
+	}{
+		{name: "no terminal or auto-confirm: stops without asking", changeCount: 3, canPrompt: false, wantErr: cannotPrompt},
+		{name: "answered no: stops and names the skip flag", changeCount: 3, canPrompt: true, answer: false, wantErr: answeredNo,
+			wantAsked: []string{question}, wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n"},
+		{name: "answered yes: goes on to the cutover prompt", changeCount: 3, canPrompt: true, answer: true,
+			wantAsked: []string{question}, wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n"},
+		{name: "one change is singular", changeCount: 1, canPrompt: true, answer: true,
+			wantAsked: []string{question}, wantConsole: "\nThe source schema changed during this migration (1 change, listed above).\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var asked []string
+			var err error
+			out := captureConsole(t, func() {
+				err = confirmCutoverOverDrift(tt.changeCount, tt.canPrompt, func(q string) bool {
+					asked = append(asked, q)
+					return tt.answer
+				})
+			})
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, tt.wantErr)
+			}
+			assert.Equal(t, tt.wantAsked, asked)
+			assert.Equal(t, tt.wantConsole, out)
+		})
+	}
 }

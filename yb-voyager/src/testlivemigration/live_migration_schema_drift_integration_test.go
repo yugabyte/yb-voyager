@@ -189,6 +189,8 @@ func TestLiveExportDataSkipsSchemaDriftCheckWhenDebeziumIsTerminated(t *testing.
 	assertNoDriftCheck(t, lm)
 }
 
+const cutoverCannotConfirmDrift = "Cutover not started: the source schema changed during this migration (1 change, listed above), and this run cannot ask for confirmation."
+
 // runCutoverToTarget runs cutover with --yes and no fall-back, and returns its
 // output and whether it succeeded.
 func runCutoverToTarget(lm *LiveMigrationTest, extraArgs map[string]string) (string, bool) {
@@ -249,13 +251,13 @@ func TestLiveCutoverToTargetPreCheckBlocksOnDrift(t *testing.T) {
 	out, ok = runCutoverToTarget(lm, nil)
 	require.False(t, ok, "drift under --yes must fail cutover: %s", out)
 	assert.Contains(t, out, "Changes detected  : 1")
-	assert.Contains(t, out, "Cutover was not initiated because --yes skips the confirmation.")
+	assert.Contains(t, out, cutoverCannotConfirmDrift)
 	assert.False(t, cutoverToTargetRequested(t, lm))
 
 	require.Error(t, lm.InitiateCutoverToTargetAnswering(false, nil, "y\n"), "a piped yes must not confirm drift")
 	out = lm.GetCutoverToTargetCommandStdout() + lm.GetCutoverToTargetCommandStderr()
 	assert.Contains(t, out, "Changes detected  : 1")
-	assert.Contains(t, out, "Cutover was not initiated because there is no terminal to confirm it.")
+	assert.Contains(t, out, cutoverCannotConfirmDrift)
 	assert.False(t, cutoverToTargetRequested(t, lm))
 
 	raw, err := os.ReadFile(filepath.Join(lm.GetCurrentExportDir(), "reports", "drift_analysis_report_cutover_to_target.json"))

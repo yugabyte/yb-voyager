@@ -234,7 +234,7 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 		return nil
 	}
 	if !lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder }) {
-		utils.PrintAndLogfWarning("Skipping the schema drift check: all %d schema snapshot captures in this export directory failed; see the export data log.\n", len(headers))
+		utils.PrintAndLogfWarning("Skipping the schema drift check: every schema snapshot captured during this migration failed, so there is nothing to compare against. See the export data log for why.\n")
 		return nil
 	}
 	var report *schemadrift.Report
@@ -281,17 +281,25 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 	if report.Summary.ChangeCount == 0 {
 		return nil
 	}
-	if utils.DoNotPrompt {
-		return goerrors.Errorf("The source schema changed during this migration. Cutover was not initiated because --yes skips the confirmation.\n" +
-			"Review the report, then re-run without --yes, or pass --skip-pre-checks " + cutoverPreCheckSchemaDrift + ".")
+	// A piped answer (echo y |, an Ansible stdin:) would confirm a summary nobody
+	// read, as --yes would.
+	canPrompt := !utils.DoNotPrompt && term.IsTerminal(int(os.Stdin.Fd()))
+	return confirmCutoverOverDrift(report.Summary.ChangeCount, canPrompt, func(q string) bool { return utils.AskPrompt(q) })
+}
+
+// confirmCutoverOverDrift returns nil only when a person at a terminal says the
+// target has the source's schema changes.
+func confirmCutoverOverDrift(changeCount int, canPrompt bool, ask func(question string) bool) error {
+	changes := fmt.Sprintf("%d %s, listed above", changeCount, lo.Ternary(changeCount == 1, "change", "changes"))
+	if !canPrompt {
+		return goerrors.Errorf("Cutover not started: the source schema changed during this migration (%s), and this run cannot ask for confirmation.\n"+
+			"Apply the changes to the target, then re-run interactively to confirm, or pass --skip-pre-checks %s to cut over without this check.",
+			changes, cutoverPreCheckSchemaDrift)
 	}
-	// A piped answer (echo y |, an Ansible stdin:) would confirm without anyone
-	// reading the summary, as --yes would.
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return goerrors.Errorf("The source schema changed during this migration. Cutover was not initiated because there is no terminal to confirm it.\n" +
-			"Review the report, then re-run from a terminal, or pass --skip-pre-checks " + cutoverPreCheckSchemaDrift + ".")
+	utils.PrintAndLogf("\nThe source schema changed during this migration (%s).\n", changes)
+	if !ask("Have you applied these changes to the target") {
+		return goerrors.Errorf("Cutover not started. To cut over without the drift check, pass --skip-pre-checks %s.", cutoverPreCheckSchemaDrift)
 	}
-	utils.PrintAndLogfWarning("\nThe source schema changed during this migration. Make sure the target has the same changes before cutting over.\n")
 	return nil
 }
 
