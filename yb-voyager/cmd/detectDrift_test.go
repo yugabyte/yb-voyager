@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -40,6 +41,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
@@ -922,4 +924,68 @@ func TestCheckSchemaDriftWithoutLiveRead(t *testing.T) {
 	assert.Equal(t, schemadiff.TableAdded, report.Drifts[0].Type)
 	assert.Equal(t, "products", report.Drifts[0].Object.Name)
 	assert.Equal(t, []string{filepath.Join(exportDir, "reports", "drift_analysis_report_export_data.json")}, paths)
+}
+
+// Only a Debezium failure while streaming may trigger the drift check on export
+// failure: drift can't fail the snapshot, and an interrupt is not a failure.
+func TestDebeziumFailure(t *testing.T) {
+	exitWith := func(code int) error {
+		err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", code)).Run()
+		require.Error(t, err)
+		return err
+	}
+	killedBySignal := func() error {
+		err := exec.Command("sh", "-c", "kill -9 $$").Run()
+		require.Error(t, err)
+		return err
+	}
+	tests := []struct {
+		name             string
+		err              error
+		reachedStreaming bool
+		wantStreaming    bool
+	}{
+		// What the live test and the OOM killer produce: ExitCode() is -1.
+		{name: "killed by SIGKILL while streaming", err: killedBySignal(), reachedStreaming: true, wantStreaming: true},
+		{name: "SIGINT during the snapshot", err: exitWith(130), reachedStreaming: false, wantStreaming: false},
+		{name: "fails while streaming", err: exitWith(1), reachedStreaming: true, wantStreaming: true},
+		{name: "fails during the snapshot", err: exitWith(1), reachedStreaming: false, wantStreaming: false},
+		{name: "SIGINT while streaming", err: exitWith(130), reachedStreaming: true, wantStreaming: false},
+		{name: "SIGTERM while streaming", err: exitWith(143), reachedStreaming: true, wantStreaming: false},
+		{name: "a non-exit error while streaming", err: fmt.Errorf("pipe closed"), reachedStreaming: true, wantStreaming: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := debeziumFailure(tt.err, tt.reachedStreaming)
+
+			assert.Equal(t, "debezium failed with error: "+tt.err.Error(), got.Error())
+			assert.ErrorIs(t, got, tt.err)
+			// Wrapped the way startDebeziumAsPerExportTypeIfRequired wraps it.
+			wrapped := fmt.Errorf("failed to export data using debezium: %w", got)
+			assert.Equal(t, tt.wantStreaming, errors.As(wrapped, new(errs.DebeziumStreamingError)))
+		})
+	}
+}
+
+func TestDebeziumReachedStreaming(t *testing.T) {
+	status := func(mode string) func() (*dbzm.ExportStatus, error) {
+		return func() (*dbzm.ExportStatus, error) { return &dbzm.ExportStatus{Mode: mode}, nil }
+	}
+	tests := []struct {
+		name       string
+		observed   bool
+		readStatus func() (*dbzm.ExportStatus, error)
+		want       bool
+	}{
+		{name: "the poll loop saw the switch", observed: true, readStatus: status(dbzm.MODE_SNAPSHOT), want: true},
+		{name: "died after the switch, before the next poll", observed: false, readStatus: status(dbzm.MODE_STREAMING), want: true},
+		{name: "died during the snapshot", observed: false, readStatus: status(dbzm.MODE_SNAPSHOT), want: false},
+		{name: "no status file yet", observed: false, readStatus: func() (*dbzm.ExportStatus, error) { return nil, nil }, want: false},
+		{name: "status file unreadable", observed: false, readStatus: func() (*dbzm.ExportStatus, error) { return nil, fmt.Errorf("bad json") }, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, debeziumReachedStreaming(tt.observed, tt.readStatus))
+		})
+	}
 }

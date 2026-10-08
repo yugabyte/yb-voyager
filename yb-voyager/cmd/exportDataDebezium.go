@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -36,6 +37,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metrics"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -398,6 +400,33 @@ func isCutoverInitiatedAndCutoverDetected(exporterRole string) (bool, error) {
 	return false, nil
 }
 
+// Java exits with these on SIGINT and SIGTERM, and run.sh execs Java. Ctrl-C
+// reaches Debezium too, since it is in Voyager's process group.
+var debeziumInterruptExitCodes = []int{130, 143}
+
+// The poll loop sleeps between reads, so Debezium can switch to streaming and die
+// before the loop sees the switch. Its status file still records it.
+func debeziumReachedStreaming(observed bool, readStatus func() (*dbzm.ExportStatus, error)) bool {
+	if observed {
+		return true
+	}
+	status, err := readStatus()
+	if err != nil {
+		log.Warnf("read the debezium export status after it failed: %v", err)
+		return false
+	}
+	return status != nil && status.SnapshotExportIsComplete()
+}
+
+func debeziumFailure(err error, reachedStreaming bool) error {
+	failure := fmt.Errorf("debezium failed with error: %w", err)
+	var exitErr *exec.ExitError
+	if !reachedStreaming || (errors.As(err, &exitErr) && lo.Contains(debeziumInterruptExitCodes, exitErr.ExitCode())) {
+		return failure
+	}
+	return errs.NewDebeziumStreamingError(failure)
+}
+
 func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -449,7 +478,7 @@ func debeziumExportData(config *dbzm.Config, tableNameToApproxRowCountMap map[st
 		time.Sleep(time.Millisecond * 500)
 	}
 	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed with error: %w", err)
+		return debeziumFailure(err, debeziumReachedStreaming(snapshotComplete, debezium.GetExportStatus))
 	}
 	// handle case where debezium finished before snapshot completion
 	// was handled in above loop

@@ -567,11 +567,46 @@ func detectDrift() error {
 	return nil
 }
 
+// checkSchemaDriftOnExportFailure reports drift after Debezium failed while
+// streaming. Best effort: it never changes the export's exit code.
+func checkSchemaDriftOnExportFailure() {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE || source.DBType != POSTGRESQL || ProcessShutdownRequested.Load() {
+		return
+	}
+	if enabled, _ := sourceCapture().Enabled(); !enabled {
+		return
+	}
+
+	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
+	// No live read: exportData has disconnected, and its exit capture stored the end
+	// state moments earlier.
+	report, paths, err := checkSchemaDrift(driftCheckInput{
+		Schemas: source.GetSchemaListUnquoted(),
+		Formats: driftValidOutputFormats,
+		Invoker: driftInvokerExportData,
+	})
+	if err != nil {
+		utils.PrintAndLogfWarning("Could not check the source schema for drift: %v\n", err)
+		packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerExportData)
+		return
+	}
+	htmlReport, hasHTML := lo.Find(paths, func(p string) bool { return strings.HasSuffix(p, ".html") })
+	if report.Summary.ChangeCount == 0 && hasHTML {
+		utils.PrintAndLogfSuccess("No schema drift found on the source. Report: %s\n", htmlReport)
+	} else {
+		printDriftSummary(*report, paths)
+	}
+	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerExportData)
+}
+
 // driftInvoker is who ran the check. It names the report files and is sent as
 // invoked_by.
 type driftInvoker string
 
-const driftInvokerDetectDrift driftInvoker = "detect-drift"
+const (
+	driftInvokerDetectDrift driftInvoker = "detect-drift"
+	driftInvokerExportData  driftInvoker = "export-data"
+)
 
 func driftReportBaseName(invoker driftInvoker) string {
 	if invoker == driftInvokerDetectDrift {
