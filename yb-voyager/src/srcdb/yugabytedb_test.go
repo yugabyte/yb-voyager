@@ -753,6 +753,11 @@ func TestYugabyteGetColumnsWithSupportedTypes_TransactionIDAndXMLTypes(t *testin
 			cmd_cid CID,
 			net CIDR
 		);`,
+		`CREATE TABLE txn_types.refcursor_table (
+			id INT PRIMARY KEY,
+			"CurName" REFCURSOR,
+			note TEXT
+		);`,
 	)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA txn_types CASCADE;`)
 
@@ -762,6 +767,7 @@ func TestYugabyteGetColumnsWithSupportedTypes_TransactionIDAndXMLTypes(t *testin
 
 	tableList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("txn_types.txn_ids_table", "txn_types", constants.YUGABYTEDB),
+		testutils.CreateNameTupleWithSourceName("txn_types.refcursor_table", "txn_types", constants.YUGABYTEDB),
 	}
 
 	for _, isGrpc := range []bool{false, true} {
@@ -777,6 +783,14 @@ func TestYugabyteGetColumnsWithSupportedTypes_TransactionIDAndXMLTypes(t *testin
 			unsupported, exists := unsupportedCols.Get(tableList[0])
 			assert.Equal(t, true, exists, "Expected txn_types.txn_ids_table in unsupported map")
 			testutils.AssertEqualStringSlices(t, []string{"doc", "txn_xid", "TxnXid8", "cmd_cid"}, unsupported)
+
+			supported, exists = supportedCols.Get(tableList[1])
+			assert.Equal(t, true, exists, "Expected txn_types.refcursor_table in supported map")
+			testutils.AssertEqualStringSlices(t, []string{"id", "note"}, supported)
+
+			unsupported, exists = unsupportedCols.Get(tableList[1])
+			assert.Equal(t, true, exists, "Expected txn_types.refcursor_table in unsupported map")
+			testutils.AssertEqualStringSlices(t, []string{"CurName"}, unsupported)
 		})
 	}
 }

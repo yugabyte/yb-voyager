@@ -109,12 +109,18 @@ func TestPostgresGetColumnsWithSupportedTypes_TransactionIDTypes(t *testing.T) {
 			cmd_cid CID,
 			net CIDR
 		);`,
+		`CREATE TABLE test_schema.refcursor_table (
+			id INT PRIMARY KEY,
+			"CurName" REFCURSOR,
+			note TEXT
+		);`,
 	)
 	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	sqlname.SourceDBType = "postgresql"
 	tableList := []sqlname.NameTuple{
 		testutils.CreateNameTupleWithSourceName("test_schema.txn_ids_table", "test_schema", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("test_schema.refcursor_table", "test_schema", testPostgresSource.DBType),
 	}
 
 	_ = testPostgresSource.DB().Connect()
@@ -132,6 +138,14 @@ func TestPostgresGetColumnsWithSupportedTypes_TransactionIDTypes(t *testing.T) {
 		unsupported, exists := unsupportedCols.Get(tableList[0])
 		assert.Equal(t, true, exists, "Expected test_schema.txn_ids_table in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"txn_xid", "TxnXid8", "cmd_cid"}, unsupported)
+
+		supported, exists = supportedCols.Get(tableList[1])
+		assert.Equal(t, true, exists, "Expected test_schema.refcursor_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id", "note"}, supported)
+
+		unsupported, exists = unsupportedCols.Get(tableList[1])
+		assert.Equal(t, true, exists, "Expected test_schema.refcursor_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"CurName"}, unsupported)
 	})
 
 	t.Run("offline migration", func(t *testing.T) {
@@ -139,6 +153,9 @@ func TestPostgresGetColumnsWithSupportedTypes_TransactionIDTypes(t *testing.T) {
 		assert.NilError(t, err)
 
 		_, exists := unsupportedCols.Get(tableList[0])
+		assert.Equal(t, false, exists, "Expected no unsupported columns for offline migration")
+
+		_, exists = unsupportedCols.Get(tableList[1])
 		assert.Equal(t, false, exists, "Expected no unsupported columns for offline migration")
 	})
 }
