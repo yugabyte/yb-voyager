@@ -141,6 +141,9 @@ var cutoverToTargetCmd = &cobra.Command{
 		if msr == nil {
 			utils.ErrExit("migration status record not found")
 		}
+		if err := retrieveMigrationUUID(); err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		// yb-amp supports plain live migration only. Fall-back / fall-forward
 		// require streaming changes *out of* the target via YugabyteDB CDC, which
 		// a yb-amp compute does not provide. Fail fast with a clear message.
@@ -234,10 +237,6 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 		utils.PrintAndLogfWarning("Skipping the schema drift check: all %d schema snapshot captures in this export directory failed; see the export data log.\n", len(headers))
 		return nil
 	}
-	if err := retrieveMigrationUUID(); err != nil {
-		return fmt.Errorf("Could not check the source schema for drift: failed to get the migration UUID: %w\nFix the cause, or %s.", err, cutoverDriftSkipHint)
-	}
-
 	var report *schemadrift.Report
 	const connectHint = "Check the source connection and --source-db-password, or "
 	fail := func(err error, hint string) error {
@@ -250,19 +249,11 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 	source = *msr.SourceDBConf
 	// sqlname's quoting helpers read this global; nothing else in cutover sets it.
 	sqlname.SourceDBType = source.DBType
-	if !cmd.Flags().Changed("source-db-password") && os.Getenv("SOURCE_DB_PASSWORD") == "" {
-		if !term.IsTerminal(int(os.Stdin.Fd())) {
-			return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE,
-				goerrors.Errorf("it connects to the source, and there is no terminal to prompt for the password")),
-				"Pass --source-db-password or set SOURCE_DB_PASSWORD, or ")
-		}
-		utils.PrintAndLogf("The schema drift pre-check connects to the source.\n")
-	}
-	if source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD"); err != nil {
-		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, err), connectHint)
-	}
-
 	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
+	if source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD"); err != nil {
+		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, err),
+			"Pass --source-db-password or set SOURCE_DB_PASSWORD, or ")
+	}
 	source.ConnectTimeout = schemasnapshot.CaptureTimeout
 	if err := source.DB().Connect(); err != nil {
 		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("connect to source: %w", err)), connectHint)
@@ -293,6 +284,12 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 	if utils.DoNotPrompt {
 		return goerrors.Errorf("The source schema changed during this migration. Cutover was not initiated because --yes skips the confirmation.\n" +
 			"Review the report, then re-run without --yes, or pass --skip-pre-checks " + cutoverPreCheckSchemaDrift + ".")
+	}
+	// A piped answer (echo y |, an Ansible stdin:) would confirm without anyone
+	// reading the summary, as --yes would.
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return goerrors.Errorf("The source schema changed during this migration. Cutover was not initiated because there is no terminal to confirm it.\n" +
+			"Review the report, then re-run from a terminal, or pass --skip-pre-checks " + cutoverPreCheckSchemaDrift + ".")
 	}
 	utils.PrintAndLogfWarning("\nThe source schema changed during this migration. Make sure the target has the same changes before cutting over.\n")
 	return nil

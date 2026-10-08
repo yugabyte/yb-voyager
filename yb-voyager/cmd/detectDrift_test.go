@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -54,6 +55,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 // ─── complementDriftTableRefs ────────────────────────────────────────────────
@@ -1036,8 +1038,10 @@ func captureConsole(t *testing.T, fn func()) string {
 }
 
 func TestCheckSchemaDriftBeforeCutoverSkipsAndEarlyFailures(t *testing.T) {
-	savedMetaDB, savedUUID, savedSend := metaDB, migrationUUID, callhome.SendDiagnostics
-	t.Cleanup(func() { metaDB, migrationUUID, callhome.SendDiagnostics = savedMetaDB, savedUUID, savedSend })
+	savedMetaDB, savedUUID, savedSend, savedSQLType, savedAnon := metaDB, migrationUUID, callhome.SendDiagnostics, sqlname.SourceDBType, anonymizer
+	t.Cleanup(func() {
+		metaDB, migrationUUID, callhome.SendDiagnostics, sqlname.SourceDBType, anonymizer = savedMetaDB, savedUUID, savedSend, savedSQLType, savedAnon
+	})
 	callhome.SendDiagnostics = false
 	migrationUUID = uuid.New()
 	t.Setenv("SOURCE_DB_PASSWORD", "")
@@ -1097,7 +1101,7 @@ func TestCheckSchemaDriftBeforeCutoverSkipsAndEarlyFailures(t *testing.T) {
 		assert.Contains(t, out, "Skipping the schema drift check: all 1 schema snapshot captures in this export directory failed; see the export data log.")
 	})
 
-	t.Run("no terminal and no password fails before prompting", func(t *testing.T) {
+	t.Run("no terminal and no password fails at the password read", func(t *testing.T) {
 		freshMetaDB(t, func(m *metadb.MetaDB) {
 			_, err := schemasnapshot.SaveSnapshot(context.Background(), m, &schemasnapshot.SchemaSnapshot{
 				Header:  header(false),
@@ -1107,8 +1111,13 @@ func TestCheckSchemaDriftBeforeCutoverSkipsAndEarlyFailures(t *testing.T) {
 		})
 		savedSource := source
 		t.Cleanup(func() { source = savedSource })
-		err := checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{SourceDBConf: pgSource}, nil)
-		require.EqualError(t, err, "Could not check the source schema for drift: it connects to the source, and there is no terminal to prompt for the password\n"+
-			"Pass --source-db-password or set SOURCE_DB_PASSWORD, or "+cutoverDriftSkipHint+".")
+		var err error
+		captureConsole(t, func() {
+			err = checkSchemaDriftBeforeCutover(newCmd(), &metadb.MigrationStatusRecord{SourceDBConf: pgSource}, nil)
+		})
+		// go test's stdin is not a terminal, so the password read fails.
+		require.Error(t, err)
+		assert.True(t, strings.HasPrefix(err.Error(), "Could not check the source schema for drift: read password: "), err.Error())
+		assert.True(t, strings.HasSuffix(err.Error(), "\nPass --source-db-password or set SOURCE_DB_PASSWORD, or "+cutoverDriftSkipHint+"."), err.Error())
 	})
 }
