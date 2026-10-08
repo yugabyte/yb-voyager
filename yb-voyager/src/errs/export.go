@@ -151,8 +151,9 @@ func NewUnknownTableErr(typeOfList string, unknownTables []string, validTableNam
 	}
 }
 
-// DebeziumStreamingError is a Debezium failure after it switched to streaming
-// changes: the one export failure that schema drift can cause.
+// DebeziumStreamingError is a Debezium failure after its status file recorded
+// streaming. PostgreSQL records that at startup, before Debezium connects, so a
+// startup failure counts too; only an interrupt does not.
 type DebeziumStreamingError struct {
 	cause error
 }
