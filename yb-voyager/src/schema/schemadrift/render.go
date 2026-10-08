@@ -82,7 +82,8 @@ type reportView struct {
 
 	TimelineRows []timelineEntry
 
-	Snapshots []snapshotRow
+	Snapshots   []snapshotRow
+	HasLiveRead bool
 }
 
 // scopeRow is one row of the banner's "Comparing" dropdown body (e.g. the
@@ -162,7 +163,8 @@ func newReportView(r Report) (reportView, error) {
 
 		TimelineRows: timeline,
 
-		Snapshots: snapshotRows(r.CapturePoints),
+		Snapshots:   snapshotRows(r.CapturePoints),
+		HasLiveRead: r.HasLiveRead(),
 	}, nil
 }
 

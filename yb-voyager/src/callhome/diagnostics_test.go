@@ -370,6 +370,7 @@ func TestCallhomeStructs(t *testing.T) {
 			actualType: reflect.TypeOf(SchemaDriftPhasePayload{}),
 			expectedType: struct {
 				PayloadVersion        string         `json:"payload_version"`
+				InvokedBy             string         `json:"invoked_by"`
 				ChangeCount           int            `json:"change_count"`
 				ComparedIntervalCount int            `json:"compared_interval_count"`
 				StoredCaptureCount    int            `json:"stored_capture_count"`

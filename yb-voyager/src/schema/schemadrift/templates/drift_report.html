@@ -232,8 +232,8 @@
   <!-- ===================== FOOTER ===================== -->
   <footer>
     <h3>Snapshots used</h3>
-    <p class="note">The captures this report was built from. The changes come from diffing consecutive captures, plus a final compare
-       against the live source. These names are internal — the body shows only windows and phases.</p>
+    <p class="note">The captures this report was built from. The changes come from diffing consecutive captures{{if .HasLiveRead}}, plus a final compare
+       against the live source{{end}}. These names are internal — the body shows only windows and phases.</p>
     <table class="derive">
       <tr><th></th><th>Capture label</th><th>Captured (UTC)</th><th>Note</th></tr>
       {{range .Snapshots}}

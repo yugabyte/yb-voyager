@@ -178,8 +178,32 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
-| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.0: the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table or column names — identifiers do not go into this payload. Governed by `--send-diagnostics` as everywhere else. |
+| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.0: the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table or column names — identifiers do not go into this payload. `invoked_by` is `detect-drift` for the command, and `export-data` or `cutover-to-target` for the in-process check (§3.7). Governed by `--send-diagnostics` as everywhere else. |
 | Telemetry on failure | A run that fails before it builds a report still reports, as `ERROR` with the counts left zero: that is the population which could not use the feature at all. `error` carries `msg: "schema drift"` and the step that failed (`setup`, `connect_to_source`, `resolve_schemas`, `load_snapshots`, `capture_live_schema`, `resolve_scope`, `build_report`, `nothing_compared`, `write_reports`), never the error text, which can carry table names, patterns and paths. It follows `errs.ImportBatchError`: the run tags each failure with an `errs.SchemaDriftError` step, and callhome adds the `step` key. Callhome sets `msg` itself instead of keeping the text before the first `:`, so the console shows the cause unchanged and no wrapper can push a name into `msg`. The stack trace and any SQLSTATE still go with it. A failure before the export dir's metaDB is opened sends nothing, because the anonymizer is not set up yet. A failure after that, including one in the root pre-run, reports like any other phase, with a nil migration UUID if the UUID was never read. |
+
+### 3.7 In-process check
+
+```go
+func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
+
+type driftCheckInput struct {
+	Schemas  []string          // unquoted, already resolved
+	Filters  driftScopeFilters // zero value: every table, every object type
+	LiveRead bool
+	Formats  []string
+	Invoker  driftInvoker
+}
+```
+
+`schema detect-drift` and the in-process callers in `export data` and `initiate cutover to target` share this function. It runs from the snapshot load through the report write. The caller owns the source connection, and `checkSchemaDrift` never connects or disconnects. It takes no lock: a standalone run at the same moment only reads metaDB and writes its own files. The returned report is nil when the run failed before one was built.
+
+| Invoker | Report files under `reports/` | Notes (snapshot load, report overwrite) |
+| :---- | :---- | :---- |
+| `schema detect-drift` | `drift_analysis_report.html`, `.json` | console |
+| `export data` | `drift_analysis_report_export_data.html`, `.json` | log |
+| `initiate cutover to target` | `drift_analysis_report_cutover_to_target.html`, `.json` | log |
+
+Each writer overwrites only its own files, so a failure or a cutover never overwrites the report the user is reading. Every caller names its invoker; an unset one is an error, so a caller cannot fall into the command's files, console output or callhome guard by omission.
 
 ## 4\. Data model
 
@@ -370,13 +394,13 @@ Every entry in the map carries a non-empty Impact and Action. Backticks in the t
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.driftTableUniverse`, `namereg.NewInMemorySourceNameRegistry`, export data's `cmd.extractTableListFromString`, `cmd.expandDriftPartitions`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** the live catalog, every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.driftTableUniverse`, `namereg.NewInMemorySourceNameRegistry`, export data's `cmd.extractTableListFromString`, `cmd.expandDriftPartitions`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
-The set of tables a pattern can match is the union of three sources: the live catalog, every loadable stored snapshot, and the live read. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing to read the live catalog is an error (exit 1).
+The set of tables a pattern can match is the union of every loadable stored snapshot and the live read. The live read already holds every table in the catalog, so the catalog is not listed separately. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing the live read is an error (exit 1).
 
 Names resolve the way export data resolves them. The universe is loaded into an in-memory name registry, which turns it into `NameTuple`s. The flags then go through export data's `extractTableListFromString`, so the glob matching and the unknown-table error are export's own. The registry is never written: the migration's `name_registry.json` lists only the tables present at export data's first run, so it cannot name a table created since.
 
-A partitioned table matched by either list brings every partition beneath it, at every level, as in export data. A partition matched on its own brings only itself. The hierarchy comes from `PartitionChildren` in the snapshots and the live read, not from the live catalog, so a partition dropped since is still expanded and its drop is still reported.
+A partitioned table matched by either list brings every partition beneath it, at every level, as in export data. A partition matched on its own brings only itself. The hierarchy comes from `PartitionChildren` in the snapshots and the live read, so a partition dropped since is still expanded and its drop is still reported.
 
 | Flag | Resolution |
 | :---- | :---- |
@@ -394,6 +418,8 @@ All four list flags are normalised before use: a value that is empty once trimme
 **Where:** `cmd.captureLiveSnapshotForDrift(schemas) (*schemasnapshot.SchemaSnapshot, error)`, after history is loaded and before the universe is built. **In:** the open source connection and the resolved schema list. **Out:** the last snapshot, labelled `source_live`, so the report always ends at now.
 
 The command captures the current source schema in memory under `LabelSourceLive` and appends it as the last input. It is captured with exactly `--source-db-schema`, so it always covers the request; history may cover more, and the extra schemas' findings are filtered rather than the comparison declined. If the live capture fails, the run fails with exit 1 and writes no report. The live read is the only comparison that covers drift since the last stored snapshot, so a report without it can show no drift while the source has drifted.
+
+The in-process check in `export data` runs without a live read: the exit capture stored the end state moments earlier. Such a report ends at the last stored capture. Its `live_compared` is false, and the terminal summary and the HTML footer leave out the live read.
 
 ## 6\. Migration-flow matrix
 
@@ -444,7 +470,7 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Live capture failure | error, exit 1 | warn and report history alone | Connecting and listing the source's tables both precede the capture, so a source that is down already fails the run. What is left is a capture that failed on a reachable source, and a report missing the newest interval reads as "no drift". |
 | Report formats | `--output-format` takes one value; unset writes both | a comma-separated list | Matches `analyze-schema`. With both as the default, a list only lets a user spell out the default. |
 | Where the report lives | files under `reports/` | metaDB | It is output, not state. No upgrade concern, and users can share it. |
-| Table universe | union of live catalog, history, live read | live catalog only | A dropped table is the case the report exists for. |
+| Table universe | union of history and live read | live catalog only | A dropped table is the case the report exists for. |
 | Table-name resolution | in-memory name registry over the universe, then export data's matcher | the migration's `name_registry.json`; a matcher of its own | The stored registry cannot name a table created after export data's first run. A matcher of its own could drift from what the same flag means in export. |
 | Partitioned table in a table list | expands to every partition beneath it | matches only that table | The flag means the same as in export data. Matching only the parent would drop drift on its partitions, and a dropped finding reads as no drift. |
 | HTML | embedded template, view model built in Go, no JavaScript | client-side rendering of the JSON | Opens anywhere, including air-gapped hosts. Grouping logic stays testable in Go. |

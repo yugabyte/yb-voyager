@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -367,5 +368,32 @@ func testSchemaSnapshotCaptureStartPeriodic(t *testing.T, db *sql.DB, meta schem
 		// persist a new (distinct-name) snapshot; a stable count proves it stopped.
 		time.Sleep(1300 * time.Millisecond)
 		assert.Equal(t, stopped, countPeriodic(), "ticker must stop after context cancel")
+	})
+
+	t.Run("a failed tick leaves a placeholder", func(t *testing.T) {
+		ownMDB := newIntegrationTestMetaDB(t)
+		noDB := newSchemaSnapshotCapture(nil, meta, ownMDB, schemaName)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		noDB.StartPeriodic(ctx, 50*time.Millisecond)
+
+		// Assert on the headers read inside the poll, so nothing reads metaDB after
+		// cancel() while the goroutine may still be writing.
+		var headers []schemasnapshot.SnapshotHeader
+		require.Eventually(t, func() bool {
+			hs, err := schemasnapshot.ListSnapshots(ownMDB)
+			if err != nil {
+				return false
+			}
+			headers = hs
+			return lo.SomeBy(hs, func(h schemasnapshot.SnapshotHeader) bool {
+				return h.Label == schemasnapshot.LabelExportDataFromSourcePeriodic
+			})
+		}, 5*time.Second, 100*time.Millisecond, "a periodic tick without a database handle must record a placeholder")
+		cancel()
+		for _, h := range headers {
+			assert.True(t, h.IsPlaceholder, "header %q must be a placeholder", h.Name())
+		}
 	})
 }

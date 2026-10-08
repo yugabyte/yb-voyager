@@ -29,6 +29,7 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -266,14 +267,12 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 // ─── Scope resolution ────────────────────────────────────────────────────────
 
 // driftTableUniverse builds the --table-list / --exclude-table-list matching
-// universe, deduped per schema, in the order live catalog -> snapshots -> live
-// capture.
+// universe, deduped per schema, in the order snapshots -> live capture.
 //
-// It is the union rather than the live catalog alone because a table dropped from
+// It is the union rather than the live capture alone because a table dropped from
 // the source is gone from the catalog but must still be nameable, to see its own
 // drop reported. Only the stored snapshots still know about it.
-func driftTableUniverse(listTables func(schema string) ([]string, error), schemas []string,
-	snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) (map[string][]string, error) {
+func driftTableUniverse(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) map[string][]string {
 	seen := make(map[string]map[string]bool)
 	universe := make(map[string][]string)
 	add := func(schema, name string) {
@@ -287,15 +286,6 @@ func driftTableUniverse(listTables func(schema string) ([]string, error), schema
 		universe[schema] = append(universe[schema], name)
 	}
 
-	for _, schema := range schemas {
-		names, err := listTables(schema)
-		if err != nil {
-			return nil, fmt.Errorf("list the tables in schema %q: %w", schema, err)
-		}
-		for _, name := range names {
-			add(schema, name)
-		}
-	}
 	for _, c := range snapshotContents {
 		if c == nil {
 			continue // placeholder / failed-to-load snapshot; nothing to contribute.
@@ -310,7 +300,7 @@ func driftTableUniverse(listTables func(schema string) ([]string, error), schema
 		}
 	}
 
-	return universe, nil
+	return universe
 }
 
 // driftObjectRefs takes the unquoted source-side names, which is how schemadiff.Scope
@@ -433,24 +423,35 @@ func complementDriftObjectTypes(exclude []schemadiff.ObjectType) []schemadiff.Ob
 	return out
 }
 
-// resolveDriftScope turns the flags into the single positive allow-list per
+// driftScopeFilters is the filtering a check applies. Its zero value compares
+// every table and every object type.
+type driftScopeFilters struct {
+	tableList          string
+	excludeTableList   string
+	objectTypes        []schemadiff.ObjectType
+	excludeObjectTypes []schemadiff.ObjectType
+}
+
+// resolveDriftScope turns the filters into the single positive allow-list per
 // dimension that schemadiff.Scope takes. validateDetectDriftFlags has already
 // rejected passing both flags of a pair, so each dimension is either the
 // resolved include patterns, the complement of the resolved exclude patterns, or
 // -- when neither flag was passed -- the whole universe, spelled out rather than
 // left empty, because Scope keeps nothing for an empty dimension.
-func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasnapshot.SchemaSnapshot, schemas []string) (schemadiff.Scope, error) {
+func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasnapshot.SchemaSnapshot, schemas []string,
+	filters driftScopeFilters) (schemadiff.Scope, error) {
 	snapshotContents := make([]*schemasnapshot.SnapshotContent, 0, len(snapshots))
 	for _, si := range snapshots {
 		snapshotContents = append(snapshotContents, si.Content)
 	}
+	var liveContent *schemasnapshot.SnapshotContent
+	if live != nil {
+		liveContent = live.Content
+	}
 
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	universe, err := driftTableUniverse(source.DB().GetAllTableNamesRaw, schemas, snapshotContents, live.Content)
-	if err != nil {
-		return schemadiff.Scope{}, err
-	}
+	universe := driftTableUniverse(snapshotContents, liveContent)
 	reg, err := namereg.NewInMemorySourceNameRegistry(source.DBType, schemas, universe)
 	if err != nil {
 		return schemadiff.Scope{}, err
@@ -465,24 +466,24 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	sort.Slice(allTuples, func(i, j int) bool { return allTuples[i].ForKey() < allTuples[j].ForKey() })
 	allRefs := driftObjectRefs(allTuples)
 	hasDefaultSchema := reg.DefaultSourceDBSchemaName != ""
-	partitionChildren := driftPartitionChildren(snapshotContents, live.Content)
+	partitionChildren := driftPartitionChildren(snapshotContents, liveContent)
 
 	var includeTables []schemasnapshot.ObjectRef
 	switch {
-	case driftTableList != "":
-		if err := requireDriftTableListQualified(driftTableList, "table-list", hasDefaultSchema); err != nil {
+	case filters.tableList != "":
+		if err := requireDriftTableListQualified(filters.tableList, "table-list", hasDefaultSchema); err != nil {
 			return schemadiff.Scope{}, err
 		}
-		includeTuples, err := extractTableListFromString(allTuples, driftTableList, "include")
+		includeTuples, err := extractTableListFromString(allTuples, filters.tableList, "include")
 		if err != nil {
 			return schemadiff.Scope{}, err
 		}
 		includeTables = expandDriftPartitions(driftObjectRefs(includeTuples), partitionChildren)
-	case driftExcludeTableList != "":
-		if err := requireDriftTableListQualified(driftExcludeTableList, "exclude-table-list", hasDefaultSchema); err != nil {
+	case filters.excludeTableList != "":
+		if err := requireDriftTableListQualified(filters.excludeTableList, "exclude-table-list", hasDefaultSchema); err != nil {
 			return schemadiff.Scope{}, err
 		}
-		excludeTuples, err := extractTableListFromString(allTuples, driftExcludeTableList, "exclude")
+		excludeTuples, err := extractTableListFromString(allTuples, filters.excludeTableList, "exclude")
 		if err != nil {
 			return schemadiff.Scope{}, err
 		}
@@ -490,25 +491,24 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 		includeTables = complementDriftTableRefs(allRefs, excludeTables)
 		if len(includeTables) == 0 {
 			return schemadiff.Scope{}, goerrors.Errorf(
-				"--exclude-table-list %q excludes every table in the comparison; nothing left to compare", driftExcludeTableList)
+				"--exclude-table-list %q excludes every table in the comparison; nothing left to compare", filters.excludeTableList)
 		}
 	}
 
-	objectTypes := driftParsedFlags.objectTypes
-	if driftExcludeObjectTypeList != "" {
-		objectTypes = complementDriftObjectTypes(driftParsedFlags.excludeObjectTypes)
+	objectTypes := filters.objectTypes
+	if len(filters.excludeObjectTypes) > 0 {
+		objectTypes = complementDriftObjectTypes(filters.excludeObjectTypes)
 		if len(objectTypes) == 0 {
-			supported := lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) })
 			return schemadiff.Scope{}, goerrors.Errorf(
-				"--exclude-object-type-list %q excludes every supported object type (%s); nothing left to compare",
-				driftExcludeObjectTypeList, strings.Join(supported, ", "))
+				"--exclude-object-type-list excludes every supported object type (%s); nothing left to compare",
+				strings.Join(lo.Map(allDriftObjectTypes, func(t schemadiff.ObjectType, _ int) string { return string(t) }), ", "))
 		}
 	}
 
-	if driftTableList == "" && driftExcludeTableList == "" {
+	if filters.tableList == "" && filters.excludeTableList == "" {
 		includeTables = allRefs
 	}
-	if driftObjectTypeList == "" && driftExcludeObjectTypeList == "" {
+	if len(filters.objectTypes) == 0 && len(filters.excludeObjectTypes) == 0 {
 		objectTypes = allDriftObjectTypes
 	}
 	return schemadiff.Scope{Schemas: schemas, Tables: includeTables, ObjectTypes: objectTypes}, nil
@@ -540,7 +540,68 @@ func detectDrift() error {
 	source.FetchSourceInfo()
 	// Raw (unquoted) names: compared against catalog values, never interpolated into
 	// SQL. The quoted form matches nothing -- see srcdb.Source.GetSchemaListUnquoted.
-	schemas := source.GetSchemaListUnquoted()
+	report, writtenPaths, err := checkSchemaDrift(driftCheckInput{
+		Schemas: source.GetSchemaListUnquoted(),
+		Filters: driftScopeFilters{
+			tableList:          driftTableList,
+			excludeTableList:   driftExcludeTableList,
+			objectTypes:        driftParsedFlags.objectTypes,
+			excludeObjectTypes: driftParsedFlags.excludeObjectTypes,
+		},
+		LiveRead: true,
+		Formats:  driftReportFormats(driftOutputFormat),
+		Invoker:  driftInvokerDetectDrift,
+	})
+	if err != nil {
+		// Sent from here rather than left to the atexit handler, which has no report
+		// to pass: how many captures existed and why none were usable is the whole
+		// signal on this path.
+		if report != nil {
+			packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerDetectDrift)
+		}
+		return err
+	}
+
+	printDriftSummary(*report, writtenPaths)
+	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerDetectDrift)
+	return nil
+}
+
+// driftInvoker is who ran the check. It names the report files and is sent as
+// invoked_by.
+type driftInvoker string
+
+const driftInvokerDetectDrift driftInvoker = "detect-drift"
+
+func driftReportBaseName(invoker driftInvoker) string {
+	if invoker == driftInvokerDetectDrift {
+		return DRIFT_REPORT_FILE_NAME
+	}
+	return DRIFT_REPORT_FILE_NAME + "_" + strings.ReplaceAll(string(invoker), "-", "_")
+}
+
+type driftCheckInput struct {
+	// Unquoted schema names, already resolved.
+	Schemas  []string
+	Filters  driftScopeFilters
+	LiveRead bool
+	Formats  []string
+	Invoker  driftInvoker
+}
+
+// checkSchemaDrift builds and writes a drift report over the stored snapshots.
+// The caller owns the source connection. The report is nil when the check failed
+// before building one.
+func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error) {
+	if in.Invoker == "" {
+		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, goerrors.Errorf("checkSchemaDrift: invoker not set"))
+	}
+	// An in-process check runs inside another command's output, so its notes go to
+	// the log only.
+	note, info := utils.PrintAndLogfWarning, utils.PrintAndLogf
+	if in.Invoker != driftInvokerDetectDrift {
+		note, info = log.Warnf, log.Infof
+	}
 
 	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
 	// Must precede Scope resolution: the candidate table universe is built from
@@ -548,14 +609,14 @@ func detectDrift() error {
 	// from the live catalog still appears.
 	headers, err := schemasnapshot.ListSnapshots(metaDB)
 	if err != nil {
-		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_LOAD_SNAPSHOTS, fmt.Errorf("failed to list schema snapshots: %w", err))
+		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_LOAD_SNAPSHOTS, fmt.Errorf("failed to list schema snapshots: %w", err))
 	}
 	// Only the one-snapshot case gets a warning. With none at all the run cannot
 	// form an interval however the live read goes, so it always ends at
 	// nothingComparedError, which says so accurately; warning first that a report
 	// is coming would contradict it.
 	if len(headers) == 1 {
-		utils.PrintAndLogfWarning("Note: only one historical schema snapshot found; drift can only be reported for the " +
+		note("Note: only one historical schema snapshot found; drift can only be reported for the " +
 			"single interval between it and the live read (if available).\n")
 	}
 
@@ -563,18 +624,18 @@ func detectDrift() error {
 	for _, h := range headers {
 		var content *schemasnapshot.SnapshotContent
 		if h.IsPlaceholder {
-			utils.PrintAndLogfWarning("Note: snapshot %q is a placeholder (its capture failed at the time); skipping it in the diff chain.\n", h.Name())
+			note("Note: snapshot %q is a placeholder (its capture failed at the time); skipping it in the diff chain.\n", h.Name())
 		} else {
 			c, lerr := schemasnapshot.LoadSnapshotByName(metaDB, h.Name())
 			switch {
 			case lerr == nil:
 				content = c
 			case errors.Is(lerr, schemasnapshot.ErrSnapshotVersionUnsupported):
-				return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_LOAD_SNAPSHOTS, fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr))
+				return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_LOAD_SNAPSHOTS, fmt.Errorf("cannot read snapshot %q: %w", h.Name(), lerr))
 			case errors.Is(lerr, schemasnapshot.ErrPlaceholderSnapshot), errors.Is(lerr, schemasnapshot.ErrSnapshotNotFound):
-				utils.PrintAndLogfWarning("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
+				note("Note: could not load snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			default:
-				utils.PrintAndLogfWarning("Note: error loading snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
+				note("Note: error loading snapshot %q (%v); skipping it in the diff chain.\n", h.Name(), lerr)
 			}
 		}
 		snapshots = append(snapshots, schemasnapshot.SchemaSnapshot{Header: h, Content: content})
@@ -582,16 +643,21 @@ func detectDrift() error {
 
 	// Must also precede Scope resolution: the live capture contributes its tables
 	// to the candidate universe.
-	live, err := captureLiveSnapshotForDrift(schemas)
-	if err != nil {
-		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, err)
+	var live *schemasnapshot.SchemaSnapshot
+	if in.LiveRead {
+		live, err = captureLiveSnapshotForDrift(in.Schemas)
+		if err != nil {
+			return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CAPTURE_LIVE_SCHEMA, err)
+		}
 	}
 
-	scope, err := resolveDriftScope(snapshots, live, schemas)
+	scope, err := resolveDriftScope(snapshots, live, in.Schemas, in.Filters)
 	if err != nil {
-		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, err)
+		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_RESOLVE_SCOPE, err)
 	}
-	snapshots = append(snapshots, *live)
+	if live != nil {
+		snapshots = append(snapshots, *live)
+	}
 
 	report, err := schemadrift.BuildReport(schemadrift.DetectionConfig{
 		Source: schemadrift.Source{
@@ -605,31 +671,20 @@ func detectDrift() error {
 		Scope:     scope,
 	})
 	if err != nil {
-		return errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_BUILD_REPORT, fmt.Errorf("build the drift report: %w", err))
+		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_BUILD_REPORT, fmt.Errorf("build the drift report: %w", err))
 	}
 
 	// An empty report reads as "no drift", so refuse to emit one when nothing was
 	// examined.
 	if report.Summary.ComparedIntervalCount == 0 {
-		nothingCompared := errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, nothingComparedError(report))
-		// Sent from here rather than left to the atexit handler, which has no report
-		// to pass: how many captures existed and why none were usable is the whole
-		// signal on this path.
-		packAndSendSchemaDriftPayload(ERROR, nothingCompared, &report)
-		return nothingCompared
+		return &report, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_NOTHING_COMPARED, nothingComparedError(report))
 	}
 
-	writtenPaths, err := writeDriftReports(report, driftReportFormats(driftOutputFormat))
+	writtenPaths, err := writeDriftReports(report, in.Formats, driftReportBaseName(in.Invoker), info)
 	if err != nil {
-		err = errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_WRITE_REPORTS, err)
-		packAndSendSchemaDriftPayload(ERROR, err, &report)
-		return err
+		return &report, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_WRITE_REPORTS, err)
 	}
-
-	printDriftSummary(report, writtenPaths)
-	packAndSendSchemaDriftPayload(COMPLETE, nil, &report)
-
-	return nil
+	return &report, writtenPaths, nil
 }
 
 // captureLiveSnapshotForDrift captures the source schema in memory for comparison
@@ -705,7 +760,7 @@ func sanitizeDriftError(err error) string {
 
 // report is nil when the run failed before one was built, which is itself worth
 // recording: it is the population that could not use the feature at all.
-func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schemadrift.Report) {
+func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schemadrift.Report, invoker driftInvoker) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -723,16 +778,20 @@ func packAndSendSchemaDriftPayload(status string, errorMsg error, report *schema
 	// offline, and detect-drift runs before `export data` sets it and after a
 	// start-clean clears it.
 	payload.SourceDBDetails = callhome.MarshalledJsonString(anonymizeSourceDBDetails(&source))
-	payload.PhasePayload = callhome.MarshalledJsonString(buildSchemaDriftPayload(errorMsg, report))
+	payload.PhasePayload = callhome.MarshalledJsonString(buildSchemaDriftPayload(errorMsg, report, invoker))
 
-	if err := callhome.SendPayload(&payload); err == nil && (status == COMPLETE || status == ERROR) {
+	err := callhome.SendPayload(&payload)
+	// The guard belongs to the running command. An in-process check that set it
+	// would stop export data from sending its own error payload.
+	if err == nil && invoker == driftInvokerDetectDrift && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
 }
 
-func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhome.SchemaDriftPhasePayload {
+func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report, invoker driftInvoker) callhome.SchemaDriftPhasePayload {
 	driftPayload := callhome.SchemaDriftPhasePayload{
 		PayloadVersion:   callhome.SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION,
+		InvokedBy:        string(invoker),
 		Error:            sanitizeDriftError(errorMsg),
 		ControlPlaneType: getControlPlaneType(),
 	}
@@ -757,10 +816,10 @@ func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report) callhom
 
 // ─── Output: report files and terminal summary ───────────────────────────────
 
-// writeDriftReports renders and writes report to <export-dir>/reports/ in each
-// of formats, creating the reports directory if necessary. Returns the paths
-// written, in the same order as formats.
-func writeDriftReports(report schemadrift.Report, formats []string) ([]string, error) {
+// writeDriftReports renders and writes report to <export-dir>/reports/<baseName>
+// in each of formats, creating the reports directory if necessary. Returns the
+// paths written, in the same order as formats.
+func writeDriftReports(report schemadrift.Report, formats []string, baseName string, info func(string, ...interface{})) ([]string, error) {
 	reportsDir := filepath.Join(exportDir, "reports")
 	if err := os.MkdirAll(reportsDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create reports directory %q: %w", reportsDir, err)
@@ -783,9 +842,9 @@ func writeDriftReports(report schemadrift.Report, formats []string) ([]string, e
 			return nil, fmt.Errorf("failed to render %s drift report: %w", f, err)
 		}
 
-		path := filepath.Join(reportsDir, fmt.Sprintf("%s.%s", DRIFT_REPORT_FILE_NAME, f))
+		path := filepath.Join(reportsDir, fmt.Sprintf("%s.%s", baseName, f))
 		if utils.FileOrFolderExists(path) {
-			utils.PrintAndLogf("\n%s already exists, overwriting it with a new generated report\n", filepath.Base(path))
+			info("\n%s already exists, overwriting it with a new generated report\n", filepath.Base(path))
 		}
 		if err := os.WriteFile(path, data, 0644); err != nil {
 			return nil, fmt.Errorf("failed to write %s drift report to %q: %w", f, path, err)
@@ -810,8 +869,12 @@ func printDriftSummary(report schemadrift.Report, writtenPaths []string) {
 	// requested schemas is bridged, so the count of captures on disk overstates
 	// what was actually examined.
 	printDriftSummaryField("Captures stored", utils.PrintAndLogf, "%d", report.Summary.StoredCaptureCount)
-	printDriftSummaryField("Intervals compared", utils.PrintAndLogf,
-		"%d (live source comparison: %t)", report.Summary.ComparedIntervalCount, report.Summary.LiveCompared)
+	if report.HasLiveRead() {
+		printDriftSummaryField("Intervals compared", utils.PrintAndLogf,
+			"%d (live source comparison: %t)", report.Summary.ComparedIntervalCount, report.Summary.LiveCompared)
+	} else {
+		printDriftSummaryField("Intervals compared", utils.PrintAndLogf, "%d", report.Summary.ComparedIntervalCount)
+	}
 	printDriftSummaryField("Schemas", utils.PrintAndLogf, "%s", driftScopeLine(report.Comparing.Schemas))
 	printDriftSummaryField("Tables", utils.PrintAndLogf, "%s",
 		driftScopeLine(report.Comparing.Tables))
