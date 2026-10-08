@@ -1126,41 +1126,44 @@ func TestConfirmCutoverOverDrift(t *testing.T) {
 	const cannotPrompt = "Cutover not started: the source schema changed during this migration (3 changes, listed above), and this run cannot ask for confirmation.\n" +
 		"Apply the changes to the target, then re-run interactively to confirm, or pass --skip-pre-checks schema_drift to cut over without this check."
 	const answeredNo = "Cutover not started. To cut over without the drift check, pass --skip-pre-checks schema_drift."
-	const question = "Have you applied these changes to the target"
+	const prompt = "Have you applied these changes to the target? [Y/N]: "
 
 	tests := []struct {
 		name        string
 		changeCount int
 		canPrompt   bool
-		answer      bool
+		stdin       string
 		wantErr     string
-		wantAsked   []string
 		wantConsole string
 	}{
 		{name: "no terminal or auto-confirm: stops without asking", changeCount: 3, canPrompt: false, wantErr: cannotPrompt},
-		{name: "answered no: stops and names the skip flag", changeCount: 3, canPrompt: true, answer: false, wantErr: answeredNo,
-			wantAsked: []string{question}, wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n"},
-		{name: "answered yes: goes on to the cutover prompt", changeCount: 3, canPrompt: true, answer: true,
-			wantAsked: []string{question}, wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n"},
-		{name: "one change is singular", changeCount: 1, canPrompt: true, answer: true,
-			wantAsked: []string{question}, wantConsole: "\nThe source schema changed during this migration (1 change, listed above).\n"},
+		{name: "answered no: stops and names the skip flag", changeCount: 3, canPrompt: true, stdin: "n\n", wantErr: answeredNo,
+			wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n" + prompt},
+		{name: "answered yes: goes on to the cutover prompt", changeCount: 3, canPrompt: true, stdin: "y\n",
+			wantConsole: "\nThe source schema changed during this migration (3 changes, listed above).\n" + prompt},
+		{name: "one change is singular", changeCount: 1, canPrompt: true, stdin: "y\n",
+			wantConsole: "\nThe source schema changed during this migration (1 change, listed above).\n" + prompt},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var asked []string
-			var err error
+			// utils.AskPrompt reads the answer from os.Stdin.
+			r, w, err := os.Pipe()
+			require.NoError(t, err)
+			_, err = w.WriteString(tt.stdin)
+			require.NoError(t, err)
+			require.NoError(t, w.Close())
+			savedStdin := os.Stdin
+			os.Stdin = r
+			t.Cleanup(func() { os.Stdin = savedStdin })
+
 			out := captureConsole(t, func() {
-				err = confirmCutoverOverDrift(tt.changeCount, tt.canPrompt, func(q string) bool {
-					asked = append(asked, q)
-					return tt.answer
-				})
+				err = confirmCutoverOverDrift(tt.changeCount, tt.canPrompt)
 			})
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 			} else {
 				require.EqualError(t, err, tt.wantErr)
 			}
-			assert.Equal(t, tt.wantAsked, asked)
 			assert.Equal(t, tt.wantConsole, out)
 		})
 	}

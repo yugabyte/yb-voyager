@@ -262,7 +262,9 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 
 	var paths []string
 	report, paths, err = checkSchemaDrift(driftCheckInput{
-		Schemas:  source.GetSchemaListUnquoted(),
+		Schemas: source.GetSchemaListUnquoted(),
+		// TODO: the stored names go through --table-list pattern matching, where an unquoted
+		// name also matches a case-variant table (orders vs "Orders"). Look them up exactly.
 		Filters:  driftScopeFilters{tableList: strings.Join(msr.TableListExportedFromSource, ",")},
 		LiveRead: true,
 		Formats:  driftValidOutputFormats,
@@ -285,23 +287,23 @@ func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStat
 	// A piped answer (echo y |, an Ansible stdin:) would confirm a summary nobody
 	// read, as --yes would.
 	canPrompt := !utils.DoNotPrompt && term.IsTerminal(int(os.Stdin.Fd()))
-	return confirmCutoverOverDrift(report.Summary.ChangeCount, canPrompt, func(q string) bool { return utils.AskPrompt(q) })
+	return confirmCutoverOverDrift(report.Summary.ChangeCount, canPrompt)
 }
 
 // confirmCutoverOverDrift returns nil only when a person at a terminal says the
 // target has the source's schema changes.
-func confirmCutoverOverDrift(changeCount int, canPrompt bool, ask func(question string) bool) error {
+func confirmCutoverOverDrift(changeCount int, canPrompt bool) error {
 	changes := fmt.Sprintf("%d %s, listed above", changeCount, lo.Ternary(changeCount == 1, "change", "changes"))
-	if !canPrompt {
-		return goerrors.Errorf("Cutover not started: the source schema changed during this migration (%s), and this run cannot ask for confirmation.\n"+
-			"Apply the changes to the target, then re-run interactively to confirm, or pass --skip-pre-checks %s to cut over without this check.",
-			changes, cutoverPreCheckSchemaDrift)
+	if canPrompt {
+		utils.PrintAndLogf("\nThe source schema changed during this migration (%s).\n", changes)
+		if !utils.AskPrompt("Have you applied these changes to the target") {
+			return goerrors.Errorf("Cutover not started. To cut over without the drift check, pass --skip-pre-checks %s.", cutoverPreCheckSchemaDrift)
+		}
+		return nil
 	}
-	utils.PrintAndLogf("\nThe source schema changed during this migration (%s).\n", changes)
-	if !ask("Have you applied these changes to the target") {
-		return goerrors.Errorf("Cutover not started. To cut over without the drift check, pass --skip-pre-checks %s.", cutoverPreCheckSchemaDrift)
-	}
-	return nil
+	return goerrors.Errorf("Cutover not started: the source schema changed during this migration (%s), and this run cannot ask for confirmation.\n"+
+		"Apply the changes to the target, then re-run interactively to confirm, or pass --skip-pre-checks %s to cut over without this check.",
+		changes, cutoverPreCheckSchemaDrift)
 }
 
 func init() {

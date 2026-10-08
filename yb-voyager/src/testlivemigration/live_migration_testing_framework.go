@@ -659,22 +659,22 @@ func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 
 // InitiateCutover initiates cutover to target
 func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string) error {
-	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, nil)
+	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, false)
 }
 
-// InitiateCutoverToTargetAnswering runs cutover without --yes and pipes answer into
-// its stdin, so no terminal is attached.
-func (lm *LiveMigrationTest) InitiateCutoverToTargetAnswering(prepareForFallback bool, extraArgs map[string]string, answer string) error {
-	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, &answer)
+// InitiateCutoverToTargetPipingYes runs cutover without --yes and pipes "y" to every
+// prompt, so no terminal is attached.
+func (lm *LiveMigrationTest) InitiateCutoverToTargetPipingYes(prepareForFallback bool, extraArgs map[string]string) error {
+	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, true)
 }
 
-func (lm *LiveMigrationTest) initiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string, answer *string) error {
+func (lm *LiveMigrationTest) initiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string, pipeYes bool) error {
 	lm.t.Logf("Initiating cutover to target")
 	args := []string{
 		"--export-dir", lm.exportDir,
 		"--prepare-for-fall-back", fmt.Sprintf("%t", prepareForFallback),
 	}
-	if answer == nil {
+	if !pipeYes {
 		args = append(args, "--yes")
 	}
 
@@ -687,8 +687,8 @@ func (lm *LiveMigrationTest) initiateCutoverToTarget(prepareForFallback bool, ex
 	lm.cutoverToTargetCmd = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithEnv(
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", lm.sourceContainer.GetConfig().Password),
 	).WithT(lm.t)
-	if answer != nil {
-		lm.cutoverToTargetCmd.WithStdin(strings.NewReader(*answer))
+	if pipeYes {
+		lm.cutoverToTargetCmd.WithStdin(strings.NewReader(strings.Repeat("y\n", 5)))
 	}
 	err := lm.cutoverToTargetCmd.Run()
 	if err != nil {

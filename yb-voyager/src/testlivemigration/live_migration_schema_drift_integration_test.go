@@ -78,12 +78,7 @@ func startStreamingExportForDriftCheckWith(t *testing.T, databaseName string, ex
 
 	testutils.FatalIfError(t, lm.SetupContainers(context.Background()), "failed to setup containers")
 	testutils.FatalIfError(t, lm.SetupSchema(), "failed to setup schema")
-	// The check follows capture, so pin it on rather than rely on its default.
-	exportArgs := map[string]string{"--disable-schema-snapshot-capture": "false"}
-	for k, v := range extraExportArgs {
-		exportArgs[k] = v
-	}
-	testutils.FatalIfError(t, lm.StartExportData(true, exportArgs), "failed to start export data")
+	testutils.FatalIfError(t, lm.StartExportData(true, extraExportArgs), "failed to start export data")
 
 	// Set right after the exporter sees the switch to streaming, before it next
 	// checks whether Debezium is still running.
@@ -280,7 +275,7 @@ func TestLiveCutoverToTargetPreCheckBlocksOnDrift(t *testing.T) {
 	assert.Contains(t, out, cutoverCannotConfirmDrift)
 	assert.False(t, cutoverToTargetRequested(t, lm))
 
-	require.Error(t, lm.InitiateCutoverToTargetAnswering(false, nil, "y\n"), "a piped yes must not confirm drift")
+	require.Error(t, lm.InitiateCutoverToTargetPipingYes(false, nil), "a piped yes must not confirm drift")
 	out = lm.GetCutoverToTargetCommandStdout() + lm.GetCutoverToTargetCommandStderr()
 	assert.Contains(t, out, "Changes detected  : 1")
 	assert.Contains(t, out, cutoverCannotConfirmDrift)
