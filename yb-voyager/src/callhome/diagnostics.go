@@ -502,6 +502,42 @@ type ArchiveChangesPhasePayload struct {
 	ControlPlaneType           string `json:"control_plane_type"`
 }
 
+// =============================== Schema Drift ===============================
+
+/*
+Version History
+1.0: Initial version
+*/
+var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.0"
+
+// SchemaDriftPhasePayload reports what a `schema detect-drift` run examined and
+// found. Counts and histograms only: schema, table and column names are
+// identifiers and never leave the user's machine through this payload. The
+// anonymized schema names travel in the envelope's SourceDBDetails instead.
+type SchemaDriftPhasePayload struct {
+	PayloadVersion string `json:"payload_version"`
+	// "detect-drift" for `schema detect-drift`; the command that ran the check in
+	// process otherwise, e.g. "export-data".
+	InvokedBy string `json:"invoked_by"`
+
+	ChangeCount int `json:"change_count"`
+	// Separates a clean run from one that examined nothing; ChangeCount alone
+	// reads as "no drift" for both.
+	ComparedIntervalCount int  `json:"compared_interval_count"`
+	StoredCaptureCount    int  `json:"stored_capture_count"`
+	LiveCompared          bool `json:"live_compared"`
+
+	// Keyed by DiffType and by Severity respectively.
+	DriftsByType     map[string]int `json:"drifts_by_type,omitempty"`
+	DriftsBySeverity map[string]int `json:"drifts_by_severity,omitempty"`
+
+	TableCount  int      `json:"table_count"`
+	ObjectTypes []string `json:"object_types,omitempty"`
+
+	Error            string `json:"error"`
+	ControlPlaneType string `json:"control_plane_type"`
+}
+
 func MarshalledJsonString[T any](value T) string {
 	bytes, err := json.Marshal(value)
 	if err != nil {
@@ -608,6 +644,7 @@ func addSpecificNonSensitiveContextForError(err error, anonymizer *anon.VoyagerA
 	}
 
 	addImportBatchErrorContext(err, context)
+	addSchemaDriftErrorContext(err, context)
 	addPostgreSQLErrorContext(err, context)
 	addExecuteDDLErrorContext(err, anonymizer, context)
 	addStackTrace(err, context)
@@ -658,6 +695,15 @@ func addImportBatchErrorContext(err error, context map[string]string) {
 	if errors.As(err, &ibe) {
 		context["step"] = ibe.Step()
 		context["flow"] = ibe.Flow()
+	}
+}
+
+func addSchemaDriftErrorContext(err error, context map[string]string) {
+	var sde errs.SchemaDriftError
+	if errors.As(err, &sde) {
+		// The cause's text, and anything wrapping it, can name tables and paths.
+		context["msg"] = "schema drift"
+		context["step"] = sde.Step()
 	}
 }
 

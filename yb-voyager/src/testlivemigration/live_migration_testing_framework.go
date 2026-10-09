@@ -60,6 +60,7 @@ type LiveMigrationTest struct {
 	importToSourceCmd      *testutils.VoyagerCommandRunner
 	sourceReplicaImportCmd *testutils.VoyagerCommandRunner
 	archiveChangesCmd      *testutils.VoyagerCommandRunner
+	cutoverToTargetCmd     *testutils.VoyagerCommandRunner
 	metaDB                 *metadb.MetaDB
 	ctx                    context.Context
 	t                      *testing.T
@@ -658,11 +659,23 @@ func (lm *LiveMigrationTest) ResumeExportData(async bool) error {
 
 // InitiateCutover initiates cutover to target
 func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string) error {
+	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, false)
+}
+
+// InitiateCutoverToTargetPipingYes runs cutover without --yes and pipes "y" to every
+// prompt, so no terminal is attached.
+func (lm *LiveMigrationTest) InitiateCutoverToTargetPipingYes(prepareForFallback bool, extraArgs map[string]string) error {
+	return lm.initiateCutoverToTarget(prepareForFallback, extraArgs, true)
+}
+
+func (lm *LiveMigrationTest) initiateCutoverToTarget(prepareForFallback bool, extraArgs map[string]string, pipeYes bool) error {
 	lm.t.Logf("Initiating cutover to target")
 	args := []string{
 		"--export-dir", lm.exportDir,
-		"--yes",
 		"--prepare-for-fall-back", fmt.Sprintf("%t", prepareForFallback),
+	}
+	if !pipeYes {
+		args = append(args, "--yes")
 	}
 
 	// Add extra args
@@ -670,13 +683,33 @@ func (lm *LiveMigrationTest) InitiateCutoverToTarget(prepareForFallback bool, ex
 		args = append(args, key, value)
 	}
 
-	cutoverCmd := testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithT(lm.t)
-	err := cutoverCmd.Run()
+	// The schema drift pre-check connects to the source.
+	lm.cutoverToTargetCmd = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", args, nil, false).WithEnv(
+		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", lm.sourceContainer.GetConfig().Password),
+	).WithT(lm.t)
+	if pipeYes {
+		lm.cutoverToTargetCmd.WithStdin(strings.NewReader(strings.Repeat("y\n", 5)))
+	}
+	err := lm.cutoverToTargetCmd.Run()
 	if err != nil {
 		return goerrors.Errorf("failed to initiate cutover: %w", err)
 	}
 	lm.t.Logf("Cutover initiated to target")
 	return nil
+}
+
+func (lm *LiveMigrationTest) GetCutoverToTargetCommandStdout() string {
+	if lm.cutoverToTargetCmd == nil {
+		return ""
+	}
+	return lm.cutoverToTargetCmd.Stdout()
+}
+
+func (lm *LiveMigrationTest) GetCutoverToTargetCommandStderr() string {
+	if lm.cutoverToTargetCmd == nil {
+		return ""
+	}
+	return lm.cutoverToTargetCmd.Stderr()
 }
 
 func (lm *LiveMigrationTest) StartArchiveChanges(withArchive bool) error {

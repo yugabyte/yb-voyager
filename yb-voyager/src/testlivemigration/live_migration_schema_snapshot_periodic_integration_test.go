@@ -86,8 +86,8 @@ func TestLiveExportDataCapturesPeriodicSchemaSnapshot(t *testing.T) {
 	err = lm.SetupSchema()
 	testutils.FatalIfError(t, err, "failed to setup schema")
 
-	// interval=1 (minute, the floor) and capture explicitly enabled — it defaults
-	// off until detect-drift ships, so it must be turned on for this test.
+	// interval=1 (minute, the floor), and capture enabled explicitly so the test
+	// does not depend on its default.
 	err = lm.StartExportData(true, map[string]string{
 		"--schema-snapshot-capture-interval": "1",
 		"--disable-schema-snapshot-capture":  "false",

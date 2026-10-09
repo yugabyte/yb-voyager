@@ -74,7 +74,7 @@
                 "ObjectType": "INDEX",
                 "TotalCount": 7,
                 "InvalidCount": 3,
-				"ObjectNames": "grect2ind2 ON am_examples.fast_emp4000, idx_1 ON composite_type_examples.ordinary_table, hidx ON extension_example.testhstore, gin_idx ON idx_ex.films, title_idx_lower ON idx_ex.films, title_idx_nulls_low ON idx_ex.films, title_idx_u2 ON idx_ex.films",
+                "ObjectNames": "grect2ind2 ON am_examples.fast_emp4000, idx_1 ON composite_type_examples.ordinary_table, hidx ON extension_example.testhstore, gin_idx ON idx_ex.films, title_idx_lower ON idx_ex.films, title_idx_nulls_low ON idx_ex.films, title_idx_u2 ON idx_ex.films",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
             {
@@ -105,7 +105,7 @@
                 "ObjectType": "TRIGGER",
                 "TotalCount": 5,
                 "InvalidCount": 0,
-				"ObjectNames": "check_balance_update ON trigger_test.accounts, check_update ON trigger_test.accounts, check_update_when_difft_balance ON trigger_test.accounts, log_update ON trigger_test.accounts, view_insert ON trigger_test.accounts_view"
+                "ObjectNames": "check_balance_update ON trigger_test.accounts, check_update ON trigger_test.accounts, check_update_when_difft_balance ON trigger_test.accounts, log_update ON trigger_test.accounts, view_insert ON trigger_test.accounts_view"
             },
             {
                 "ObjectType": "MVIEW",
@@ -129,7 +129,7 @@
                 "ObjectType": "POLICY",
                 "TotalCount": 69,
                 "InvalidCount": 13,
-				"ObjectNames": "d1 ON regress_rls_schema.dependent, p ON regress_rls_schema.t, p ON regress_rls_schema.tbl1, p0 ON regress_rls_schema.x1, p1 ON regress_rls_schema.b1, p1 ON regress_rls_schema.dob_t1, p1 ON regress_rls_schema.dob_t2, p1 ON regress_rls_schema.document, p1 ON regress_rls_schema.r1, p1 ON regress_rls_schema.r1_2, p1 ON regress_rls_schema.r1_3, p1 ON regress_rls_schema.r2, p1 ON regress_rls_schema.r2_3, p1 ON regress_rls_schema.r2_4, p1 ON regress_rls_schema.r2_5, p1 ON regress_rls_schema.rls_tbl, p1 ON regress_rls_schema.rls_tbl_3, p1 ON regress_rls_schema.s1, p1 ON regress_rls_schema.t1, p1 ON regress_rls_schema.t1_2, p1 ON regress_rls_schema.t1_3, p1 ON regress_rls_schema.x1, p1 ON regress_rls_schema.y1, p1 ON regress_rls_schema.y2, p1 ON regress_rls_schema.z1, p1_2 ON regress_rls_schema.dob_t1, p1_2 ON regress_rls_schema.s1, p1_2 ON regress_rls_schema.t1_3, p1_2 ON regress_rls_schema.y1, p1_3 ON regress_rls_schema.dob_t1, p1_3 ON regress_rls_schema.document, p1_4 ON regress_rls_schema.dob_t1, p1_4 ON regress_rls_schema.document, p1r ON regress_rls_schema.document, p2 ON regress_rls_schema.r2, p2 ON regress_rls_schema.s2, p2 ON regress_rls_schema.t1_2, p2 ON regress_rls_schema.t2, p2 ON regress_rls_schema.t2_3, p2 ON regress_rls_schema.x1, p2 ON regress_rls_schema.y1, p2 ON regress_rls_schema.y2, p2 ON regress_rls_schema.z1, p2_2 ON regress_rls_schema.s2, p2_3 ON regress_rls_schema.document, p2_4 ON regress_rls_schema.document, p2r ON regress_rls_schema.document, p3 ON regress_rls_schema.r2, p3 ON regress_rls_schema.s1, p3 ON regress_rls_schema.x1, p3 ON regress_rls_schema.y2, p3 ON regress_rls_schema.z1, p3_2 ON regress_rls_schema.z1, p3_3 ON regress_rls_schema.document, p3_4 ON regress_rls_schema.document, p3_with_all ON regress_rls_schema.document, p3_with_default ON regress_rls_schema.document, p4 ON regress_rls_schema.r2, p4 ON regress_rls_schema.x1, p4_4 ON regress_rls_schema.document, pp1 ON regress_rls_schema.part_document, pp1r ON regress_rls_schema.part_document, r1 ON regress_rls_schema.rec1, r1_2 ON regress_rls_schema.rec1, r1_3 ON regress_rls_schema.rec1, r1_4 ON regress_rls_schema.rec1, r2 ON regress_rls_schema.rec2, r2_2 ON regress_rls_schema.rec2, r2_3 ON regress_rls_schema.rec2"
+                "ObjectNames": "d1 ON regress_rls_schema.dependent, p ON regress_rls_schema.t, p ON regress_rls_schema.tbl1, p0 ON regress_rls_schema.x1, p1 ON regress_rls_schema.b1, p1 ON regress_rls_schema.dob_t1, p1 ON regress_rls_schema.dob_t2, p1 ON regress_rls_schema.document, p1 ON regress_rls_schema.r1, p1 ON regress_rls_schema.r1_2, p1 ON regress_rls_schema.r1_3, p1 ON regress_rls_schema.r2, p1 ON regress_rls_schema.r2_3, p1 ON regress_rls_schema.r2_4, p1 ON regress_rls_schema.r2_5, p1 ON regress_rls_schema.rls_tbl, p1 ON regress_rls_schema.rls_tbl_3, p1 ON regress_rls_schema.s1, p1 ON regress_rls_schema.t1, p1 ON regress_rls_schema.t1_2, p1 ON regress_rls_schema.t1_3, p1 ON regress_rls_schema.x1, p1 ON regress_rls_schema.y1, p1 ON regress_rls_schema.y2, p1 ON regress_rls_schema.z1, p1_2 ON regress_rls_schema.dob_t1, p1_2 ON regress_rls_schema.s1, p1_2 ON regress_rls_schema.t1_3, p1_2 ON regress_rls_schema.y1, p1_3 ON regress_rls_schema.dob_t1, p1_3 ON regress_rls_schema.document, p1_4 ON regress_rls_schema.dob_t1, p1_4 ON regress_rls_schema.document, p1r ON regress_rls_schema.document, p2 ON regress_rls_schema.r2, p2 ON regress_rls_schema.s2, p2 ON regress_rls_schema.t1_2, p2 ON regress_rls_schema.t2, p2 ON regress_rls_schema.t2_3, p2 ON regress_rls_schema.x1, p2 ON regress_rls_schema.y1, p2 ON regress_rls_schema.y2, p2 ON regress_rls_schema.z1, p2_2 ON regress_rls_schema.s2, p2_3 ON regress_rls_schema.document, p2_4 ON regress_rls_schema.document, p2r ON regress_rls_schema.document, p3 ON regress_rls_schema.r2, p3 ON regress_rls_schema.s1, p3 ON regress_rls_schema.x1, p3 ON regress_rls_schema.y2, p3 ON regress_rls_schema.z1, p3_2 ON regress_rls_schema.z1, p3_3 ON regress_rls_schema.document, p3_4 ON regress_rls_schema.document, p3_with_all ON regress_rls_schema.document, p3_with_default ON regress_rls_schema.document, p4 ON regress_rls_schema.r2, p4 ON regress_rls_schema.x1, p4_4 ON regress_rls_schema.document, pp1 ON regress_rls_schema.part_document, pp1r ON regress_rls_schema.part_document, r1 ON regress_rls_schema.rec1, r1_2 ON regress_rls_schema.rec1, r1_3 ON regress_rls_schema.rec1, r1_4 ON regress_rls_schema.rec1, r2 ON regress_rls_schema.rec2, r2_2 ON regress_rls_schema.rec2, r2_3 ON regress_rls_schema.rec2"
             },
             {
                 "ObjectType": "OPERATOR",
@@ -141,72 +141,52 @@
     },
     "Issues": [
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "composite_type_examples.inherited_table",
-            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
+            "Reason": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
             "SqlStatement": "CREATE TABLE composite_type_examples.inherited_table () INHERITS (composite_type_examples.ordinary_table) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "enum_example.bugs_clone",
-            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
+            "Reason": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
             "SqlStatement": "CREATE TABLE enum_example.bugs_clone () INHERITS (enum_example.bugs) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "regress_rls_schema.t2",
-            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
+            "Reason": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
             "SqlStatement": "CREATE TABLE regress_rls_schema.t2 (c double precision) INHERITS (regress_rls_schema.t1) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "regress_rls_schema.t3_3",
-            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
+            "Reason": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
             "SqlStatement": "CREATE TABLE regress_rls_schema.t3_3 (id int NOT NULL, c text, b text, a int, CONSTRAINT t3_3_pkey PRIMARY KEY (id)) INHERITS (regress_rls_schema.t1_3) WITH (colocation=false);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",

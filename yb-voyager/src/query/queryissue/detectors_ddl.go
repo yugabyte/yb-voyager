@@ -117,6 +117,11 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 			table.GetObjectName(),
 			"",
 		))
+		issues = append(issues, NewInheritanceMigrationCaveatIssue(
+			obj.GetObjectType(),
+			table.GetObjectName(),
+			"",
+		))
 	}
 
 	if len(table.Constraints) > 0 {

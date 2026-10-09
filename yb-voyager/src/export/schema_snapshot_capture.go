@@ -112,7 +112,8 @@ func (c SchemaSnapshotCapture) Capture(ctx context.Context, label, reason string
 // both the snapshot and streaming phases. The goroutine stops when ctx is cancelled, so
 // there is no separate stop function.
 //
-// Best-effort: a no-op when capture is not enabled or interval <= 0.
+// Best-effort: a no-op when capture is not enabled or interval <= 0. A failed tick
+// leaves a placeholder, so the failure is on the drift timeline.
 func (c SchemaSnapshotCapture) StartPeriodic(ctx context.Context, interval time.Duration) {
 	if enabled, _ := c.Enabled(); !enabled {
 		return
@@ -131,7 +132,7 @@ func (c SchemaSnapshotCapture) StartPeriodic(ctx context.Context, interval time.
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := c.Capture(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", false); err != nil {
+				if err := c.Capture(ctx, schemasnapshot.LabelExportDataFromSourcePeriodic, "", true); err != nil {
 					log.Warnf("periodic schema-snapshot capture failed, migration unaffected: %v", err)
 				}
 			}

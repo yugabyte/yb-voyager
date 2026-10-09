@@ -201,7 +201,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"prepare-for-fall-back", "use-yb-grpc-connector",
+	"prepare-for-fall-back", "use-yb-grpc-connector", "skip-pre-checks",
 )
 
 var allowedInitCutoverToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](

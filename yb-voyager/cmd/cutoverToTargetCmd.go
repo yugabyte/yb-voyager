@@ -18,22 +18,34 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var prepareForFallBack utils.BoolStr
 var useYBgRPCConnector utils.BoolStr
+var skipCutoverPreChecks string
+
+const cutoverPreCheckSchemaDrift = "schema_drift"
+
+var cutoverToTargetPreChecks = []string{cutoverPreCheckSchemaDrift}
 
 // validateYBVersionForLogicalConnector checks if the YugabyteDB version is greater than minSupportedLogicalConnectorVersion¯
 // Logical connector is only supported in YugabyteDB versions greater than minSupportedLogicalConnectorVersion
@@ -114,7 +126,10 @@ var cutoverToTargetCmd = &cobra.Command{
 	Long:  `Initiate cutover to target DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
+		preChecksToSkip, err := parseCutoverPreChecksToSkip(skipCutoverPreChecks)
+		if err != nil {
+			utils.ErrExit("%w", err)
+		}
 		metaDB, err = metadb.NewMetaDB(exportDir)
 		if err != nil {
 			utils.ErrExit("Failed to initialize meta db: %w", err)
@@ -125,6 +140,9 @@ var cutoverToTargetCmd = &cobra.Command{
 		}
 		if msr == nil {
 			utils.ErrExit("migration status record not found")
+		}
+		if err := retrieveMigrationUUID(); err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		// yb-amp supports plain live migration only. Fall-back / fall-forward
 		// require streaming changes *out of* the target via YugabyteDB CDC, which
@@ -170,11 +188,122 @@ var cutoverToTargetCmd = &cobra.Command{
 		} else {
 			log.Infof("Migration workflow opted is normal live migration.")
 		}
+		if !msr.CutoverToTargetRequested {
+			if err := checkSchemaDriftBeforeCutover(cmd, msr, preChecksToSkip); err != nil {
+				utils.ErrExit("%w", err)
+			}
+		}
 		err = InitiateCutover("target", bool(prepareForFallBack), bool(useYBgRPCConnector))
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %w", err)
 		}
 	},
+}
+
+func parseCutoverPreChecksToSkip(raw string) ([]string, error) {
+	names := utils.CsvStringToSlice(raw)
+	if unknown := lo.Without(names, cutoverToTargetPreChecks...); len(unknown) > 0 {
+		return nil, goerrors.Errorf("unknown --skip-pre-checks value(s) %v; supported: %s",
+			unknown, strings.Join(cutoverToTargetPreChecks, ", "))
+	}
+	return names, nil
+}
+
+const cutoverDriftSkipHint = "pass --skip-pre-checks " + cutoverPreCheckSchemaDrift + " to cut over without the check"
+
+// checkSchemaDriftBeforeCutover runs the drift pre-check, so the user reads the
+// result before confirming. An error means cutover must not be initiated.
+func checkSchemaDriftBeforeCutover(cmd *cobra.Command, msr *metadb.MigrationStatusRecord, preChecksToSkip []string) error {
+	if lo.Contains(preChecksToSkip, cutoverPreCheckSchemaDrift) {
+		utils.PrintAndLogf("Skipping the schema drift check (--skip-pre-checks includes %s).\n", cutoverPreCheckSchemaDrift)
+		return nil
+	}
+	if msr.SourceDBConf == nil {
+		return goerrors.Errorf("Could not check the source schema for drift: the migration status record has no source database configuration.\nFix the cause, or %s.", cutoverDriftSkipHint)
+	}
+	if msr.SourceDBConf.DBType != POSTGRESQL {
+		log.Infof("skipping the schema drift pre-check: it supports only PostgreSQL sources, and this source is %s", msr.SourceDBConf.DBType)
+		return nil
+	}
+	headers, err := schemasnapshot.ListSnapshots(metaDB)
+	if err != nil {
+		return fmt.Errorf("Could not check the source schema for drift: failed to list schema snapshots: %w\nFix the cause, or %s.", err, cutoverDriftSkipHint)
+	}
+	if len(headers) == 0 {
+		utils.PrintAndLogf("Skipping the schema drift check: this export directory holds no schema snapshots.\n")
+		return nil
+	}
+	if !lo.SomeBy(headers, func(h schemasnapshot.SnapshotHeader) bool { return !h.IsPlaceholder }) {
+		utils.PrintAndLogfWarning("Skipping the schema drift check: every schema snapshot captured during this migration failed, so there is nothing to compare against. See the export data log for why.\n")
+		return nil
+	}
+	var report *schemadrift.Report
+	const connectHint = "Check the source connection and --source-db-password, or "
+	fail := func(err error, hint string) error {
+		packAndSendSchemaDriftPayload(ERROR, err, report, driftInvokerCutoverToTarget)
+		return fmt.Errorf("Could not check the source schema for drift: %w\n%s%s.", err, hint, cutoverDriftSkipHint)
+	}
+
+	// checkSchemaDrift, its live read and the callhome payload read the package-level
+	// source; cutover sets up no source of its own.
+	source = *msr.SourceDBConf
+	// sqlname's quoting helpers read this global; nothing else in cutover sets it.
+	sqlname.SourceDBType = source.DBType
+	utils.PrintAndLogf("\nChecking the source schema for drift...\n")
+	if source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD"); err != nil {
+		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, err),
+			"Pass --source-db-password or set SOURCE_DB_PASSWORD, or ")
+	}
+	source.ConnectTimeout = schemasnapshot.CaptureTimeout
+	if err := source.DB().Connect(); err != nil {
+		return fail(errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("connect to source: %w", err)), connectHint)
+	}
+	defer source.DB().Disconnect()
+
+	var paths []string
+	report, paths, err = checkSchemaDrift(driftCheckInput{
+		Schemas: source.GetSchemaListUnquoted(),
+		// TODO: the stored names go through --table-list pattern matching, where an unquoted
+		// name also matches a case-variant table (orders vs "Orders"). Look them up exactly.
+		Filters:  driftScopeFilters{tableList: strings.Join(msr.TableListExportedFromSource, ",")},
+		LiveRead: true,
+		Formats:  driftValidOutputFormats,
+		Invoker:  driftInvokerCutoverToTarget,
+	})
+	if err != nil {
+		return fail(err, "Fix the cause, or ")
+	}
+	packAndSendSchemaDriftPayload(COMPLETE, nil, report, driftInvokerCutoverToTarget)
+
+	htmlReport, hasHTML := lo.Find(paths, func(p string) bool { return strings.HasSuffix(p, ".html") })
+	if report.Summary.ChangeCount == 0 && hasHTML {
+		utils.PrintAndLogfSuccess("No schema drift found on the source. Report: %s\n", htmlReport)
+		return nil
+	}
+	printDriftSummary(*report, paths)
+	if report.Summary.ChangeCount == 0 {
+		return nil
+	}
+	// A piped answer (echo y |, an Ansible stdin:) would confirm a summary nobody
+	// read, as --yes would.
+	canPrompt := !utils.DoNotPrompt && term.IsTerminal(int(os.Stdin.Fd()))
+	return confirmCutoverOverDrift(report.Summary.ChangeCount, canPrompt)
+}
+
+// confirmCutoverOverDrift returns nil only when a person at a terminal says the
+// target has the source's schema changes.
+func confirmCutoverOverDrift(changeCount int, canPrompt bool) error {
+	changes := fmt.Sprintf("%d %s, listed above", changeCount, lo.Ternary(changeCount == 1, "change", "changes"))
+	if canPrompt {
+		utils.PrintAndLogf("\nThe source schema changed during this migration (%s).\n", changes)
+		if !utils.AskPrompt("Have you applied these changes to the target") {
+			return goerrors.Errorf("Cutover not started. To cut over without the drift check, pass --skip-pre-checks %s.", cutoverPreCheckSchemaDrift)
+		}
+		return nil
+	}
+	return goerrors.Errorf("Cutover not started: the source schema changed during this migration (%s), and this run cannot ask for confirmation.\n"+
+		"Apply the changes to the target, then re-run interactively to confirm, or pass --skip-pre-checks %s to cut over without this check.",
+		changes, cutoverPreCheckSchemaDrift)
 }
 
 func init() {
@@ -188,6 +317,11 @@ func init() {
 Logical Connector(GA): It does not require access to internal ports. It is recommended for all deployments unless the version is less than 2024.1.1.
 gRPC Connector: Requires direct access to the cluster's internal ports—specifically, TServer (9100) and Master (7100). This connector is suitable for deployments where these ports are accessible.
 If set to true, workflow will use the gRPC connector. Otherwise, the logical connector (supported in YugabyteDB versions 2024.1.1+) is used.`)
+	cutoverToTargetCmd.Flags().String("source-db-password", "",
+		"source password for the schema drift pre-check. Host, port, user, database and schemas come from the migration. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+	cutoverToTargetCmd.Flags().StringVar(&skipCutoverPreChecks, "skip-pre-checks", "",
+		"comma-separated cutover pre-checks to skip. Supported: "+strings.Join(cutoverToTargetPreChecks, ", ")+". "+
+			"schema_drift compares the source schema against the snapshots taken during the migration, including a live read of the source.")
 	cutoverToCmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
 }

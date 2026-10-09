@@ -80,6 +80,7 @@ const (
 	ASSESS_MIGRATION_BULK_PHASE      = "assess-migration-bulk"
 	IMPORT_DATA_FILE_PHASE           = "import-data-file"
 	ARCHIVE_CHANGES_PHASE            = "archive-changes"
+	SCHEMA_DETECT_DRIFT_PHASE        = "schema-detect-drift"
 	//...more phases
 	OFFLINE        = "offline"
 	LIVE_MIGRATION = "live-migration"
@@ -238,6 +239,7 @@ const (
 	ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE                           = "Alter partitioned tables to add Primary Key"
 	FOREIGN_TABLE_CAVEAT_FEATURE                                    = "Foreign tables"
 	POLICIES_CAVEAT_FEATURE                                         = "Policies"
+	INHERITANCE_CAVEAT_FEATURE                                      = "Table inheritance"
 	UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE                       = "Unsupported Data Types for Live Migration"
 	UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE            = "Unsupported Data Types for Live Migration with Fall-forward/Fallback"
 	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."

@@ -3670,6 +3670,7 @@ export-dir: %s
 initiate-cutover-to-target:
   prepare-for-fall-back: true
   use-yb-grpc-connector: false
+  skip-pre-checks: schema_drift
 `, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	t.Cleanup(func() { os.RemoveAll(configDir) })
@@ -3693,6 +3694,7 @@ func TestIntitateCutoverToTargetConfigBinding_ConfigFileBinding(t *testing.T) {
 	// Assertions on initiate cutover to target config
 	assert.Equal(t, utils.BoolStr(true), prepareForFallBack, "Prepare for fall back should match the config")
 	assert.Equal(t, utils.BoolStr(false), useYBgRPCConnector, "Use YB GRPC connector should match the config")
+	assert.Equal(t, "schema_drift", skipCutoverPreChecks, "Skip pre-checks should match the config")
 }
 
 func TestInitiateCutoverToTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
@@ -3708,11 +3710,13 @@ func TestInitiateCutoverToTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--config-file", ctx.configFile,
 		"--prepare-for-fall-back", "false",
 		"--use-yb-grpc-connector", "true",
+		"--skip-pre-checks", "",
 	})
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 	// Assertions on global flags
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "", skipCutoverPreChecks, "Skip pre-checks should be overridden by CLI")
 	// Assertions on initiate cutover to target config
 	assert.Equal(t, utils.BoolStr(false), prepareForFallBack, "Prepare for fall back should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(true), useYBgRPCConnector, "Use YB GRPC connector should be overridden by CLI")

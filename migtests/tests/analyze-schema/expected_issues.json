@@ -549,20 +549,15 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "table_1",
-            "Reason": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
+            "Reason": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
             "SqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
             "Suggestion": "",
-            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/3874",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",

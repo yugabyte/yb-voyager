@@ -1,7 +1,7 @@
 {
     "VoyagerVersion": "IGNORED",
-    "MigrationComplexity": "HIGH",
-    "MigrationComplexityExplanation": "Found 0 Level 2 issue(s) and 6 Level 3 issue(s), resulting in HIGH migration complexity",
+    "MigrationComplexity": "MEDIUM",
+    "MigrationComplexityExplanation": "Found 22 Level 1 issue(s), 0 Level 2 issue(s) and 0 Level 3 issue(s), resulting in MEDIUM migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_sakila",
@@ -130,22 +130,17 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_01",
             "SqlStatement": "CREATE TABLE public.payment_p2007_01 (\n    CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date >= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-02-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
             "Category": "performance_optimizations",
@@ -173,94 +168,69 @@
             }
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_02",
             "SqlStatement": "CREATE TABLE public.payment_p2007_02 (\n    CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date >= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-03-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_03",
             "SqlStatement": "CREATE TABLE public.payment_p2007_03 (\n    CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date >= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-04-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_04",
             "SqlStatement": "CREATE TABLE public.payment_p2007_04 (\n    CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date >= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-05-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_05",
             "SqlStatement": "CREATE TABLE public.payment_p2007_05 (\n    CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date >= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-06-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "unsupported_features",
-            "CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-            "Type": "INHERITANCE",
-            "Name": "Table Inheritance",
-            "Description": "Table inheritance is not yet supported in YugabyteDB. This feature is available as Tech Preview (TP) in the target version — subject to change and not covered by SLA, and is not enabled by default. Enable with the flag(s): ysql_enable_inheritance.",
-            "Impact": "LEVEL_3",
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "INHERITANCE_MIGRATION_CAVEAT",
+            "Name": "Data migration of inherited tables",
+            "Description": "Tables using inheritance are not supported for data migration via voyager in both offline and live migration flows.",
+            "Impact": "LEVEL_1",
             "ObjectType": "TABLE",
             "ObjectName": "public.payment_p2007_06",
             "SqlStatement": "CREATE TABLE public.payment_p2007_06 (\n    CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date >= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date < '2007-07-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null,
-            "MinimumVersionsFixedInTP": {
-                "2025.1": "2025.1.0.0",
-                "2025.2": "2025.2.0.0",
-                "2026.1": "2026.1.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
             "Category": "performance_optimizations",
