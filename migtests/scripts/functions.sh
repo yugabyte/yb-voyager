@@ -1450,6 +1450,7 @@ cutover_to_target() {
 
     args="
         --export-dir ${EXPORT_DIR}
+        --source-db-password ${SOURCE_DB_PASSWORD}
         --yes
     "
 
