@@ -484,6 +484,8 @@ def export_schema(cfg: Dict[str, Any], env: Dict[str, str]) -> None:
 def initiate_cutover(cfg: Dict[str, Any], env: Dict[str, str], direction: str) -> None:
     voyager_flags = _get_voyager_flags(cfg, f"cutover_to_{direction}")
     base = {"export-dir": cfg["export_dir"],}
+    if direction == "target":
+        base["source-db-password"] = cfg["source"]["password"]
     merged = _merge_flags(base, voyager_flags)
     cmd = ["yb-voyager", "initiate", "cutover", "to", direction, "--yes"] + to_kv_flags(merged)
     run_checked(cmd, env, description=f"cutover_to_{direction}")
