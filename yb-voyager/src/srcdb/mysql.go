@@ -296,8 +296,9 @@ func (ms *MySQL) FetchDBID() error {
 }
 
 // go-sql-driver/mysql does not expose the TLS connection, so only the hostname fallback applies.
-func (ms *MySQL) GetServerCertificate() (*x509.Certificate, error) {
-	return nil, nil
+func (ms *MySQL) FetchDomainName() error {
+	ms.source.SourceDomain = extractSourceDomain(nil, ms.source.Host)
+	return nil
 }
 
 func (ms *MySQL) FetchSchemaOids() error {

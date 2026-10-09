@@ -761,8 +761,13 @@ func registeredDomain(name string) string {
 	return ""
 }
 
-func (pg *PostgreSQL) GetServerCertificate() (*x509.Certificate, error) {
-	return getPgxServerCertificate(pg.db)
+func (pg *PostgreSQL) FetchDomainName() error {
+	cert, err := getPgxServerCertificate(pg.db)
+	if err != nil {
+		return fmt.Errorf("get source server TLS certificate: %w", err)
+	}
+	pg.source.SourceDomain = extractSourceDomain(cert, pg.source.Host)
+	return nil
 }
 
 func (pg *PostgreSQL) FetchSchemaOids() error {

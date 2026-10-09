@@ -17,7 +17,6 @@ package srcdb
 
 import (
 	"context"
-	"crypto/x509"
 	"database/sql"
 	"fmt"
 
@@ -35,9 +34,9 @@ type SourceDB interface {
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
 	FetchDBID() error
-	// GetServerCertificate returns the TLS certificate the source server presented on the
-	// current connection, or nil if the connection is not TLS or the driver cannot expose it.
-	GetServerCertificate() (*x509.Certificate, error)
+	// FetchDomainName sets source.SourceDomain (callhome only) to the registered domain from the
+	// TLS certificate the server presented, else from the configured host.
+	FetchDomainName() error
 	FetchSchemaOids() error
 	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 	GetAllTableNames() []*sqlname.SourceName

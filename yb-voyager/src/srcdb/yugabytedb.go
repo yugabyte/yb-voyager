@@ -17,7 +17,6 @@ package srcdb
 
 import (
 	"context"
-	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"net/url"
@@ -464,8 +463,13 @@ func (yb *YugabyteDB) FetchDBID() error {
 	return nil
 }
 
-func (yb *YugabyteDB) GetServerCertificate() (*x509.Certificate, error) {
-	return getPgxServerCertificate(yb.db)
+func (yb *YugabyteDB) FetchDomainName() error {
+	cert, err := getPgxServerCertificate(yb.db)
+	if err != nil {
+		return fmt.Errorf("get source server TLS certificate: %w", err)
+	}
+	yb.source.SourceDomain = extractSourceDomain(cert, yb.source.Host)
+	return nil
 }
 
 func (yb *YugabyteDB) FetchSchemaOids() error {

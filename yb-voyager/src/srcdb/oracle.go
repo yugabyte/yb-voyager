@@ -17,7 +17,6 @@ package srcdb
 
 import (
 	"context"
-	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -359,8 +358,9 @@ func (ora *Oracle) FetchDBID() error {
 }
 
 // godror connects through OCI, so the TLS connection is not visible from Go and only the hostname fallback applies.
-func (ora *Oracle) GetServerCertificate() (*x509.Certificate, error) {
-	return nil, nil
+func (ora *Oracle) FetchDomainName() error {
+	ora.source.SourceDomain = extractSourceDomain(nil, ora.source.Host)
+	return nil
 }
 
 func (ora *Oracle) FetchSchemaOids() error {
