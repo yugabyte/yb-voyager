@@ -208,6 +208,16 @@ stages:
     condition: remaining_events_eq_0
     timeout_sec: 1800
 
+  - name: stop_export_resumptions
+    action: voyager_stop_resumptions
+    command: export_data
+    timeout_sec: 60
+
+  - name: stop_import_resumptions
+    action: voyager_stop_resumptions
+    command: import_data
+    timeout_sec: 60
+
   # Confirm the conflict-detection cache actually fired on the forward (PG->YB)
   # import, not just that row_count/row_hash matched.
   - name: validate_conflicts_detected
