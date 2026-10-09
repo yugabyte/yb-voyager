@@ -42,6 +42,8 @@ class Context:
         self.stop_event = threading.Event()
         self.process_lock = threading.Lock()
         self.active_resumers: Dict[str, "Resumer"] = {}
+        # roles cut over to whose sequences still need the post-cutover check
+        self.pending_sequence_checks: set[str] = set()
         self.loop_iteration: int = 0
         self.conflict_generators: Dict[str, "ConflictGenerator"] = {}
         self.export_dir_base: str = os.path.abspath(cfg.get("export_dir") or "")
@@ -1368,6 +1370,20 @@ def create_cutover_table(ctx, target: str = "source") -> None:
     user_override = admin_cfg["user"]
     password_override = admin_cfg.get("password")
     run_psql(ctx, target, "-c", sql, user_override=user_override, password_override=password_override)
+
+
+def verify_sequence_restored(ctx, role: str) -> None:
+    """Insert into cutover_table letting the SERIAL default supply the id.
+
+    Every other sequence-backed table is populated by the event generator with
+    random ids and retry-on-conflict, which hides a sequence that was restored
+    behind the data. cutover_table is only ever written by these honest inserts,
+    so its ids stay dense and a stale sequence collides immediately.
+
+    Must run after the row count/hash validations: it adds a row on one side only.
+    """
+    sql = "INSERT INTO public.cutover_table(status) VALUES (\'verify sequence restored after cutover\');"
+    run_psql(ctx, role, "-c", sql)
 
 
 def reset_database_for_role(role: str, ctx) -> None:
