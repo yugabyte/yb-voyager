@@ -17,6 +17,7 @@ package srcdb
 
 import (
 	"context"
+	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"net/url"
@@ -461,6 +462,10 @@ func (yb *YugabyteDB) FetchDBID() error {
 	}
 	yb.source.DBID = oid
 	return nil
+}
+
+func (yb *YugabyteDB) GetServerCertificate() (*x509.Certificate, error) {
+	return getPgxServerCertificate(yb.db)
 }
 
 func (yb *YugabyteDB) FetchSchemaOids() error {

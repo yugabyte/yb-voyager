@@ -47,6 +47,7 @@ require (
 	github.com/vbauerster/mpb/v8 v8.4.0
 	gocloud.dev v0.29.0
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
+	golang.org/x/net v0.26.0
 	golang.org/x/term v0.31.0
 	google.golang.org/api v0.169.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -180,7 +181,6 @@ require (
 	github.com/subosito/gotenv v1.4.1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sync v0.13.0
 	golang.org/x/sys v0.32.0 // indirect

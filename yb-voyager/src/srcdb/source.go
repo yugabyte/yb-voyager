@@ -66,6 +66,7 @@ type Source struct {
 	DBID                      int64                `json:"db_id,omitempty"` // Source-specific numeric id for call-home; see FetchDBID()
 	SchemaOids                []int64              `json:"schema_oids"`     //Schema oids
 	SourceDeployment          string               `json:"source_deployment_type,omitempty"`
+	SourceDomain              string               `json:"source_domain,omitempty"`
 	StrExportObjectTypeList   string               `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList  string               `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks       utils.BoolStr        `json:"run_guardrails_checks"`
@@ -102,6 +103,7 @@ func (s *Source) FetchSourceInfo() {
 	// Get PostgreSQL system identifier.
 	s.FetchPGDBSystemIdentifier()
 	s.FetchPGDeploymentType()
+	s.FetchSourceDomain()
 	err = s.DB().FetchDBID()
 	if err != nil {
 		log.Errorf("error getting database id: %v", err) // can just log as this is used for call-home only
@@ -188,6 +190,17 @@ func (s *Source) FetchPGDeploymentType() {
 		log.Infof("callhome: failed to detect PostgreSQL deployment type: %v", err)
 		return
 	}
+}
+
+// FetchSourceDomain populates SourceDomain for callhome. It reads the domain from the
+// source's TLS certificate when available, else from the configured host. Failures are
+// only logged: this is a best-effort, callhome-only fact and must not block the migration.
+func (s *Source) FetchSourceDomain() {
+	cert, err := s.DB().GetServerCertificate()
+	if err != nil {
+		log.Infof("callhome: failed to get source server TLS certificate: %v", err)
+	}
+	s.SourceDomain = extractSourceDomain(cert, s.Host)
 }
 
 func (s *Source) IsOracleCDBSetup() bool {
