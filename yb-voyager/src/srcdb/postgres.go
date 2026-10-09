@@ -901,7 +901,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	pg_catalog.pg_namespace AS nsp_child ON child.relnamespace = nsp_child.oid
 	WHERE
 	child.relname = '%s'
-	AND nsp_child.nspname = '%s';`, table.CurrentName.Unqualified.Unquoted, table.CurrentName.SchemaName.Unquoted)
+	AND nsp_child.nspname = '%s' AND child.relispartition;`, table.CurrentName.Unqualified.Unquoted, table.CurrentName.SchemaName.Unquoted)
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
@@ -1006,7 +1006,7 @@ FROM pg_inherits
     JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
     JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
     JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
-WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
+WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' AND child.relispartition`, tname, sname)
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
