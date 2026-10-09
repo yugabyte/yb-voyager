@@ -2472,3 +2472,26 @@ func TestVariableScaleDecimalConversion(t *testing.T) {
 		})
 	}
 }
+
+// formatTimeOfDay runs once per streamed time value.
+func BenchmarkFormatTimeOfDay(b *testing.B) {
+	cases := []struct {
+		name           string
+		micros         int64
+		fractionDigits int
+	}{
+		{"Time whole second", 43200000000, 3},
+		{"Time with millis", 43200123000, 3},
+		{"MicroTime", 43200123456, 6},
+	}
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				if _, err := formatTimeOfDay(c.micros, c.fractionDigits); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}

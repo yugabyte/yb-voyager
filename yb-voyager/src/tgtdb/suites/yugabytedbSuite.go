@@ -63,19 +63,38 @@ func formatTimeOfDay(micros int64, fractionDigits int) (string, error) {
 		return "", goerrors.Errorf("time-of-day offset %d µs is outside [0, 24:00:00]", micros)
 	}
 	secs := micros / microsPerSecond
-	clock := fmt.Sprintf("%02d:%02d:%02d", secs/3600, (secs/60)%60, secs%60)
 	frac := micros % microsPerSecond
+
+	var b strings.Builder
+	b.Grow(len("24:00:00.000000"))
+	writeZeroPadded(&b, secs/3600, 2)
+	b.WriteByte(':')
+	writeZeroPadded(&b, (secs/60)%60, 2)
+	b.WriteByte(':')
+	writeZeroPadded(&b, secs%60, 2)
 	switch fractionDigits {
 	case 0:
-		return clock, nil
 	case 3:
-		if frac == 0 {
-			return clock, nil
+		if frac != 0 {
+			b.WriteByte('.')
+			writeZeroPadded(&b, frac/1000, 3)
 		}
-		return fmt.Sprintf("%s.%03d", clock, frac/1000), nil
 	default:
-		return fmt.Sprintf("%s.%06d", clock, frac), nil
+		b.WriteByte('.')
+		writeZeroPadded(&b, frac, 6)
 	}
+	return b.String(), nil
+}
+
+// writeZeroPadded writes the low `width` decimal digits of a non-negative n,
+// left-padded with zeros. width must be at most 6.
+func writeZeroPadded(b *strings.Builder, n int64, width int) {
+	var digits [6]byte
+	for i := width - 1; i >= 0; i-- {
+		digits[i] = byte('0' + n%10)
+		n /= 10
+	}
+	b.Write(digits[:width])
 }
 
 var YBValueConverterSuite = map[string]ConverterFn{

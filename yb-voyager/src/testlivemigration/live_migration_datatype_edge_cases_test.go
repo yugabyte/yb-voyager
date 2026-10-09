@@ -2413,7 +2413,7 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 
 			`UPDATE test_schema.datetime_edge_cases
 			SET time_midnight = '24:00:00'
-			WHERE id = 1;`,			
+			WHERE id = 1;`,
 
 			`DELETE FROM test_schema.datetime_edge_cases WHERE id = 3;`,
 
@@ -3858,8 +3858,8 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			Deletes: 1, // 1 DELETE operation: delete BYTES row 3
 		},
 		`"test_schema"."datetime_edge_cases"`: {
-			Inserts: 3, // 2 INSERT operations: DATETIME with various dates/times + 1 with NULLs
-			Updates: 5, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Inserts: 3, // 3 INSERT operations: DATETIME with various dates/times + 1 with NULLs
+			Updates: 5, // 5 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
@@ -3976,8 +3976,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`"test_schema"."datetime_edge_cases"`: {
-			Inserts: 3, // 1 basic + 1 with NULLs
-			Updates: 5, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Inserts: 3, // 1 basic + 1 with NULLs + 1 with time 24:00:00
+			Updates: 5, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 7 (24:00:00→'00:00:00')
 			Deletes: 1,
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
@@ -4024,7 +4024,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.InitiateCutoverToTarget(true, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
 
-	err = lm.WaitForCutoverComplete(0,90)
+	err = lm.WaitForCutoverComplete(0, 90)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
 	err = lm.ExecuteTargetDelta()
@@ -4059,8 +4059,8 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Deletes: 1,
 		},
 		`"test_schema"."datetime_edge_cases"`: {
-			Inserts: 3, // 1 basic + 1 with NULLs
-			Updates: 5, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
+			Inserts: 3, // 1 basic + 1 with NULLs + 1 with time 24:00:00
+			Updates: 5, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL) + 1 row 7 (24:00:00→'00:00:00')
 			Deletes: 1,
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
@@ -4102,7 +4102,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.InitiateCutoverToSource(nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
 
-	err = lm.WaitForCutoverSourceComplete(0,150)
+	err = lm.WaitForCutoverSourceComplete(0, 150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
