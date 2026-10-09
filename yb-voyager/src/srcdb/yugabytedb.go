@@ -463,6 +463,15 @@ func (yb *YugabyteDB) FetchDBID() error {
 	return nil
 }
 
+func (yb *YugabyteDB) FetchDomainName() error {
+	cert, err := getPgxServerCertificate(yb.db)
+	if err != nil {
+		return fmt.Errorf("get source server TLS certificate: %w", err)
+	}
+	yb.source.SourceDomain = extractSourceDomain(cert, yb.source.Host)
+	return nil
+}
+
 func (yb *YugabyteDB) FetchSchemaOids() error {
 	var oids []int64
 	schemaList := sqlname.JoinIdentifiersUnquoted(yb.source.Schemas, "','")
