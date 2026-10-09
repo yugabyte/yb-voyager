@@ -51,6 +51,52 @@ func quoteValueIfRequiredWithEscaping(value string, formatIfRequired bool, _ *sc
 	}
 }
 
+const (
+	microsPerSecond = int64(1_000_000)
+	microsPerDay    = 24 * 60 * 60 * microsPerSecond
+)
+
+// Debezium encodes time-of-day as an offset since midnight, not a Unix timestamp:
+// PostgreSQL's 24:00:00 arrives as exactly one day and must not wrap to 00:00:00.
+func formatTimeOfDay(micros int64, fractionDigits int) (string, error) {
+	if micros < 0 || micros > microsPerDay {
+		return "", goerrors.Errorf("time-of-day offset %d µs is outside [0, 24:00:00]", micros)
+	}
+	secs := micros / microsPerSecond
+	frac := micros % microsPerSecond
+
+	var b strings.Builder
+	b.Grow(len("24:00:00.000000"))
+	writeZeroPadded(&b, secs/3600, 2)
+	b.WriteByte(':')
+	writeZeroPadded(&b, (secs/60)%60, 2)
+	b.WriteByte(':')
+	writeZeroPadded(&b, secs%60, 2)
+	switch fractionDigits {
+	case 0:
+	case 3:
+		if frac != 0 {
+			b.WriteByte('.')
+			writeZeroPadded(&b, frac/1000, 3)
+		}
+	default:
+		b.WriteByte('.')
+		writeZeroPadded(&b, frac, 6)
+	}
+	return b.String(), nil
+}
+
+// writeZeroPadded writes the low `width` decimal digits of a non-negative n,
+// left-padded with zeros. width must be at most 6.
+func writeZeroPadded(b *strings.Builder, n int64, width int) {
+	var digits [6]byte
+	for i := width - 1; i >= 0; i-- {
+		digits[i] = byte('0' + n%10)
+		n /= 10
+	}
+	b.Write(digits[:width])
+}
+
 var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.data.Json":     quoteValueIfRequiredWithEscaping,
 	"io.debezium.data.Enum":     quoteValueIfRequiredWithEscaping,
@@ -101,8 +147,10 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %w", err)
 		}
-		epochSecs := epochMilliSecs / 1000
-		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
+		timeValue, err := formatTimeOfDay(epochMilliSecs*1000, 3)
+		if err != nil {
+			return columnValue, err
+		}
 		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
@@ -110,10 +158,10 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch microseconds: %w", err)
 		}
-		epochSeconds := epochMicroSecs / 1000000
-		epochNanos := (epochMicroSecs % 1000000) * 1000
-		MICRO_TIME_FORMAT := "15:04:05.000000"
-		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
+		timeValue, err := formatTimeOfDay(epochMicroSecs, 6)
+		if err != nil {
+			return columnValue, err
+		}
 		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
