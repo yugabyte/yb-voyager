@@ -480,6 +480,8 @@ One list flag, not one boolean per check, because more cutover pre-checks are pl
 
 Any change counts, whatever its severity. A pre-check that cannot run fails cutover, because silently passing would read as "no drift". The password prompt follows the "Checking the source schema for drift..." line, which says why cutover asks for it. Without a terminal the prompt cannot read, so a script must pass `--source-db-password` or set `SOURCE_DB_PASSWORD`, and the failure says so. The connect and the live read are each bounded by the 10-second capture budget, so a wedged source cannot hold cutover. The check runs in the `Run` of `cutoverToTargetCmd`, before `InitiateCutover`, so cutover to source and to source-replica are unaffected.
 
+The SSL certificate and key paths in the migration status record are host paths. In the Docker install, cutover passes no SSL flags of its own, so `docker/yb-voyager-docker` must mount the paths that earlier commands recorded in `metainfo/docker-metadata-*`, as it already does for `end migration`. Without that, the check cannot read the CA file and fails cutover for every SSL source.
+
 ## 6\. Migration-flow matrix
 
 Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
