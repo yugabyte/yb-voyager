@@ -102,7 +102,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %w", err)
 		}
 		// PG's 24:00:00 arrives as exactly one day; time.Unix would wrap it to 00:00:00.
-		timeValue := "24:00:00"
+		timeValue := "24:00:00.000"
 		if epochMilliSecs != 24*time.Hour.Milliseconds() {
 			timeValue = time.UnixMilli(epochMilliSecs).UTC().Format("15:04:05.999")
 		}
@@ -113,7 +113,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch microseconds: %w", err)
 		}
-		timeValue := "24:00:00"
+		timeValue := "24:00:00.000000"
 		if epochMicroSecs != 24*time.Hour.Microseconds() {
 			timeValue = time.UnixMicro(epochMicroSecs).UTC().Format("15:04:05.000000")
 		}

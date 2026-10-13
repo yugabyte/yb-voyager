@@ -2104,10 +2104,10 @@ func TestTimeConversion(t *testing.T) {
 		{"noon", "43200000", true, "'12:00:00'"},
 		{"last whole second", "86399000", true, "'23:59:59'"},
 		{"last millisecond", "86399999", true, "'23:59:59.999'"},
-		{"24:00:00 does not wrap to midnight", "86400000", true, "'24:00:00'"},
+		{"24:00:00 does not wrap to midnight", "86400000", true, "'24:00:00.000'"},
 		{"milliseconds are kept", "43200123", true, "'12:00:00.123'"},
 		{"milliseconds keep leading zeros", "1005", true, "'00:00:01.005'"},
-		{"unquoted when formatting is not required", "86400000", false, "24:00:00"},
+		{"unquoted when formatting is not required", "86400000", false, "24:00:00.000"},
 		{"time past 24:00:00", "86400001", true, "'00:00:00.001'"},
 		{"time negative", "-1", true, "'23:59:59.999'"},
 	}
