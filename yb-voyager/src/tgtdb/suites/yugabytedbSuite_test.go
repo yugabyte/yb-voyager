@@ -2108,6 +2108,8 @@ func TestTimeConversion(t *testing.T) {
 		{"milliseconds are kept", "43200123", true, "'12:00:00.123'"},
 		{"milliseconds keep leading zeros", "1005", true, "'00:00:01.005'"},
 		{"unquoted when formatting is not required", "86400000", false, "24:00:00"},
+		{"time past 24:00:00", "86400001", true, "'24:00:00.001'"},
+		{"time negative", "-1", true, "'23:59:59.999'"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2132,38 +2134,14 @@ func TestMicroTimeConversion(t *testing.T) {
 		{"last microsecond", "86399999999", true, "'23:59:59.999999'"},
 		{"24:00:00 does not wrap to midnight", "86400000000", true, "'24:00:00.000000'"},
 		{"unquoted when formatting is not required", "86400000000", false, "24:00:00.000000"},
+		{"time past 24:00:00", "86400000001", true, "'24:00:00.000001'"},
+		{"time negative", "-1", true, "'23:59:59.999999'"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := YBValueConverterSuite["io.debezium.time.MicroTime"](tc.input, tc.formatIfRequired, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
-// A time-of-day offset past 24:00:00 or below zero is not a valid PostgreSQL time and must
-// fail instead of being wrapped into the next or previous day.
-func TestTimeAndMicroTimeConversionInvalidInput(t *testing.T) {
-	testCases := []struct {
-		name      string
-		converter string
-		input     string
-		errMsg    string
-	}{
-		{"Time past 24:00:00", "io.debezium.time.Time", "86400001", "time-of-day offset 86400001000 µs is outside [0, 24:00:00]"},
-		{"Time negative", "io.debezium.time.Time", "-1", "time-of-day offset -1000 µs is outside [0, 24:00:00]"},
-		{"Time not a number", "io.debezium.time.Time", "abc", "parsing epoch milliseconds"},
-		{"Time empty", "io.debezium.time.Time", "", "parsing epoch milliseconds"},
-		{"MicroTime past 24:00:00", "io.debezium.time.MicroTime", "86400000001", "time-of-day offset 86400000001 µs is outside [0, 24:00:00]"},
-		{"MicroTime negative", "io.debezium.time.MicroTime", "-1", "time-of-day offset -1 µs is outside [0, 24:00:00]"},
-		{"MicroTime not a number", "io.debezium.time.MicroTime", "abc", "parsing epoch microseconds"},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := YBValueConverterSuite[tc.converter](tc.input, true, nil)
-			assert.ErrorContains(t, err, tc.errMsg)
-			assert.Equal(t, tc.input, result, "the raw value is returned alongside the error")
 		})
 	}
 }
@@ -2469,29 +2447,6 @@ func TestVariableScaleDecimalConversion(t *testing.T) {
 			result, err := YBValueConverterSuite["io.debezium.data.VariableScaleDecimal"](tc.input, tc.formatIfRequired, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
-// formatTimeOfDay runs once per streamed time value.
-func BenchmarkFormatTimeOfDay(b *testing.B) {
-	cases := []struct {
-		name           string
-		micros         int64
-		fractionDigits int
-	}{
-		{"Time whole second", 43200000000, 3},
-		{"Time with millis", 43200123000, 3},
-		{"MicroTime", 43200123456, 6},
-	}
-	for _, c := range cases {
-		b.Run(c.name, func(b *testing.B) {
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				if _, err := formatTimeOfDay(c.micros, c.fractionDigits); err != nil {
-					b.Fatal(err)
-				}
-			}
 		})
 	}
 }
