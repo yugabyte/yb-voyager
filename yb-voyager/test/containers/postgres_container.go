@@ -2,8 +2,12 @@ package testcontainers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -12,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
+	tcexec "github.com/testcontainers/testcontainers-go/exec"
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -360,4 +365,134 @@ func (pg *PostgresContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
 		}
 	}
+}
+
+const (
+	pgTLSStagingDir = "/tmp/tls"
+	// Outside PGDATA so the files are not part of the data directory.
+	pgTLSServingDir         = "/var/lib/postgresql"
+	pgTLSCertSwapTimeout    = 30 * time.Second
+	pgTLSCertSwapPollPeriod = 200 * time.Millisecond
+)
+
+// EnableTLS turns on TLS with the given PEM certificate and key, and returns once the server
+// presents that certificate. Calling it again swaps the certificate. Undo with DisableTLS.
+func (pg *PostgresContainer) EnableTLS(ctx context.Context, certPEM []byte, keyPEM []byte) error {
+	if pg == nil || pg.container == nil {
+		return fmt.Errorf("postgres container is not started")
+	}
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		return fmt.Errorf("decode server certificate PEM")
+	}
+	wantCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("parse server certificate: %w", err)
+	}
+
+	err = pg.container.CopyToContainer(ctx, certPEM, pgTLSStagingDir+"/server.crt", 0o644)
+	if err != nil {
+		return fmt.Errorf("copy server certificate into postgres container: %w", err)
+	}
+	err = pg.container.CopyToContainer(ctx, keyPEM, pgTLSStagingDir+"/server.key", 0o600)
+	if err != nil {
+		return fmt.Errorf("copy server key into postgres container: %w", err)
+	}
+	// Postgres refuses a key file that is not owned by its OS user or is group/world readable,
+	// and copied files are root-owned.
+	installCmd := fmt.Sprintf(
+		"install -o postgres -g postgres -m 644 %[1]s/server.crt %[2]s/server.crt && "+
+			"install -o postgres -g postgres -m 600 %[1]s/server.key %[2]s/server.key",
+		pgTLSStagingDir, pgTLSServingDir)
+	exitCode, output, err := pg.container.Exec(ctx, []string{"sh", "-c", installCmd}, tcexec.Multiplexed())
+	if err != nil {
+		return fmt.Errorf("install server certificate in postgres container: %w", err)
+	}
+	if exitCode != 0 {
+		out, _ := io.ReadAll(output)
+		return fmt.Errorf("install server certificate in postgres container: exit code %d: %s", exitCode, out)
+	}
+
+	err = pg.executeSqlsWithDefaultDB(ctx,
+		fmt.Sprintf("ALTER SYSTEM SET ssl_cert_file = '%s/server.crt'", pgTLSServingDir),
+		fmt.Sprintf("ALTER SYSTEM SET ssl_key_file = '%s/server.key'", pgTLSServingDir),
+		"ALTER SYSTEM SET ssl = on",
+		"SELECT pg_reload_conf()",
+	)
+	if err != nil {
+		return fmt.Errorf("enable ssl in postgres container: %w", err)
+	}
+	return pg.waitForServedCertificate(ctx, wantCert)
+}
+
+// DisableTLS reverts EnableTLS, returning the server to the image's default (ssl=off).
+func (pg *PostgresContainer) DisableTLS(ctx context.Context) error {
+	if pg == nil || pg.container == nil {
+		return fmt.Errorf("postgres container is not started")
+	}
+	err := pg.executeSqlsWithDefaultDB(ctx,
+		"ALTER SYSTEM RESET ssl",
+		"ALTER SYSTEM RESET ssl_cert_file",
+		"ALTER SYSTEM RESET ssl_key_file",
+		"SELECT pg_reload_conf()",
+	)
+	if err != nil {
+		return fmt.Errorf("disable ssl in postgres container: %w", err)
+	}
+	return nil
+}
+
+func (pg *PostgresContainer) executeSqlsWithDefaultDB(ctx context.Context, sqls ...string) error {
+	conn, err := pg.getConnWithDefaultDB()
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+	for _, sqlStmt := range sqls {
+		_, err := conn.Exec(ctx, sqlStmt)
+		if err != nil {
+			return fmt.Errorf("execute sql %q: %w", sqlStmt, err)
+		}
+	}
+	return nil
+}
+
+// pg_reload_conf() only signals the postmaster, so a connection opened right after it can
+// still be served the previous certificate.
+func (pg *PostgresContainer) waitForServedCertificate(ctx context.Context, wantCert *x509.Certificate) error {
+	host, port, err := pg.GetHostPort()
+	if err != nil {
+		return err
+	}
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/postgres?sslmode=require", pg.User, pg.Password, host, port)
+
+	deadline := time.Now().Add(pgTLSCertSwapTimeout)
+	for {
+		servedCert, err := fetchServedCertificate(ctx, connStr)
+		if err == nil && servedCert.Equal(wantCert) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("postgres did not present certificate CN=%q within %s (last error: %v)",
+				wantCert.Subject.CommonName, pgTLSCertSwapTimeout, err)
+		}
+		time.Sleep(pgTLSCertSwapPollPeriod)
+	}
+}
+
+func fetchServedCertificate(ctx context.Context, connStr string) (*x509.Certificate, error) {
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		return nil, fmt.Errorf("connect with sslmode=require: %w", err)
+	}
+	defer conn.Close(ctx)
+	tlsConn, ok := conn.PgConn().Conn().(*tls.Conn)
+	if !ok {
+		return nil, fmt.Errorf("connection is not using TLS")
+	}
+	peerCerts := tlsConn.ConnectionState().PeerCertificates
+	if len(peerCerts) == 0 {
+		return nil, fmt.Errorf("server presented no certificate")
+	}
+	return peerCerts[0], nil
 }
