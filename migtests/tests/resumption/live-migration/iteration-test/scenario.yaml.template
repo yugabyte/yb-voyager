@@ -45,7 +45,13 @@ generator_source:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: [cutover_table, cust_active, cust_arr_small, cust_arr_large, cust_part11, cust_part12, cust_part21, cust_part22, cust_other]
+      exclude_table_list: [cutover_table,
+        cust_active, cust_arr_small, cust_arr_large, cust_part11, cust_part12, cust_part21, cust_part22, cust_other,
+        london, sydney, boston, sales_region_default,
+        sales_2019_q4, sales_2020_q1, sales_2020_q2, sales_default,
+        test_partitions_sequences_l, test_partitions_sequences_s, test_partitions_sequences_b, test_partitions_sequences_default,
+        emp_0, emp_1, emp_2,
+        range_columns_partition_test_p0, range_columns_partition_test_p1]
       num_iterations: -1
       wait_after_operations: 1000
       wait_duration_seconds: 1
@@ -59,7 +65,7 @@ generator_source:
       insert_max_retries: 5
       update_max_retries: 1
       # Pin region/sale_date/status to valid partition values so generated rows route
-      # across the real partitions (DEFAULT partitions in partitioned-init.sql catch any strays).
+      # across the real partitions (DEFAULT partitions in partitioned-extras.sql catch any strays).
       column_overrides:
         sales_region:
           region:
@@ -97,7 +103,13 @@ generator_target:
     generator:
       schema_name: public
       manual_table_list: []
-      exclude_table_list: [cutover_table, cust_active, cust_arr_small, cust_arr_large, cust_part11, cust_part12, cust_part21, cust_part22, cust_other]
+      exclude_table_list: [cutover_table,
+        cust_active, cust_arr_small, cust_arr_large, cust_part11, cust_part12, cust_part21, cust_part22, cust_other,
+        london, sydney, boston, sales_region_default,
+        sales_2019_q4, sales_2020_q1, sales_2020_q2, sales_default,
+        test_partitions_sequences_l, test_partitions_sequences_s, test_partitions_sequences_b, test_partitions_sequences_default,
+        emp_0, emp_1, emp_2,
+        range_columns_partition_test_p0, range_columns_partition_test_p1]
       num_iterations: -1
       wait_after_operations: 5000
       wait_duration_seconds: 1
@@ -111,7 +123,7 @@ generator_target:
       insert_max_retries: 5
       update_max_retries: 1
       # Pin region/sale_date/status to valid partition values so generated rows route
-      # across the real partitions (DEFAULT partitions in partitioned-init.sql catch any strays).
+      # across the real partitions (DEFAULT partitions in partitioned-extras.sql catch any strays).
       column_overrides:
         sales_region:
           region:
