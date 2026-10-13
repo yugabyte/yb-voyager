@@ -685,7 +685,7 @@ func getPgxServerCertificate(db *sql.DB) (*x509.Certificate, error) {
 	err = conn.Raw(func(driverConn any) error {
 		stdlibConn, ok := driverConn.(*stdlib.Conn)
 		if !ok {
-			return fmt.Errorf("unexpected driver connection type %T", driverConn)
+			return goerrors.Errorf("unexpected driver connection type %T", driverConn)
 		}
 		tlsConn, ok := stdlibConn.Conn().PgConn().Conn().(*tls.Conn)
 		if !ok {
