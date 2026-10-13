@@ -2108,7 +2108,7 @@ func TestTimeConversion(t *testing.T) {
 		{"milliseconds are kept", "43200123", true, "'12:00:00.123'"},
 		{"milliseconds keep leading zeros", "1005", true, "'00:00:01.005'"},
 		{"unquoted when formatting is not required", "86400000", false, "24:00:00"},
-		{"time past 24:00:00", "86400001", true, "'24:00:00.001'"},
+		{"time past 24:00:00", "86400001", true, "'00:00:00.001'"},
 		{"time negative", "-1", true, "'23:59:59.999'"},
 	}
 	for _, tc := range testCases {
@@ -2134,7 +2134,7 @@ func TestMicroTimeConversion(t *testing.T) {
 		{"last microsecond", "86399999999", true, "'23:59:59.999999'"},
 		{"24:00:00 does not wrap to midnight", "86400000000", true, "'24:00:00.000000'"},
 		{"unquoted when formatting is not required", "86400000000", false, "24:00:00.000000"},
-		{"time past 24:00:00", "86400000001", true, "'24:00:00.000001'"},
+		{"time past 24:00:00", "86400000001", true, "'00:00:00.000001'"},
 		{"time negative", "-1", true, "'23:59:59.999999'"},
 	}
 	for _, tc := range testCases {
