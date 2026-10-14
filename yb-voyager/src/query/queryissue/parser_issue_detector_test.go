@@ -3138,3 +3138,146 @@ func TestTransactionIDDatatypesAreLiveMigrationIssues(t *testing.T) {
 		assert.Contains(t, UnsupportedDatatypesInLiveMigrationIssues, issueType)
 	}
 }
+
+// A column declared with a domain is checked against the unsupported datatype lists using the
+// type beneath its domains, so it is reported the same way as a column of that type: through
+// stacked domains, a domain over an array, an array of a domain, a domain over a composite
+// (live migration with fall-forward/fall-back), and an unqualified domain reference resolved in
+// the table's schema. A domain over a supported type is not reported.
+func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
+	domainDDLs := []string{
+		`CREATE TYPE public.address AS (street text, city text);`,
+		`CREATE DOMAIN public.xid8_dom AS xid8;`,
+		`CREATE DOMAIN public.lsn_dom AS pg_lsn;`,
+		`CREATE DOMAIN public."LsnDomNested" AS public.lsn_dom NOT NULL;`,
+		`CREATE DOMAIN public.cid_dom AS cid;`,
+		`CREATE DOMAIN public.xid8_arr_dom AS xid8[];`,
+		`CREATE DOMAIN public.address_dom AS public.address;`,
+		`CREATE DOMAIN public.email_dom AS text CHECK (VALUE LIKE '%@%');`,
+	}
+	newDetector := func(t *testing.T) *ParserIssueDetector {
+		detector := NewParserIssueDetector()
+		for _, ddl := range domainDDLs {
+			assert.NoError(t, detector.ParseAndProcessDDL(ddl))
+		}
+		return detector
+	}
+
+	testCases := []struct {
+		name     string
+		stmt     string
+		expected func(stmt string) []QueryIssue
+	}{
+		{
+			name: "domain over xid8",
+			stmt: `CREATE TABLE public.dom_xid8 (id int PRIMARY KEY, txn public.xid8_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewXID8DatatypeIssue("TABLE", "public.dom_xid8", stmt, "xid8", "txn")}
+			},
+		},
+		{
+			name: "case-sensitive domain stacked on a domain over pg_lsn",
+			stmt: `CREATE TABLE public.dom_lsn (id int PRIMARY KEY, "LsnCol" public."LsnDomNested");`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewPgLsnDatatypeIssue("TABLE", "public.dom_lsn", stmt, "pg_lsn", "LsnCol")}
+			},
+		},
+		{
+			name: "domain over cid reports the live-migration issue",
+			stmt: `CREATE TABLE public.dom_cid (id int PRIMARY KEY, cmd public.cid_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewCIDLiveMigrationDatatypeIssue("TABLE", "public.dom_cid", stmt, "cid", "cmd")}
+			},
+		},
+		{
+			name: "domain over an array and an array of a domain",
+			stmt: `CREATE TABLE public.dom_arrays (id int PRIMARY KEY, a public.xid8_arr_dom, b public.xid8_dom[]);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewXID8DatatypeIssue("TABLE", "public.dom_arrays", stmt, "xid8", "a"),
+					NewXID8DatatypeIssue("TABLE", "public.dom_arrays", stmt, "xid8", "b"),
+				}
+			},
+		},
+		{
+			name: "unqualified domain reference resolves in the table's schema",
+			stmt: `CREATE TABLE public.dom_unqualified (id int PRIMARY KEY, txn xid8_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewXID8DatatypeIssue("TABLE", "public.dom_unqualified", stmt, "xid8", "txn")}
+			},
+		},
+		{
+			name: "domain over a composite type is a live fall-forward/fall-back issue",
+			stmt: `CREATE TABLE public.dom_composite (id int PRIMARY KEY, addr public.address_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewUserDefinedDatatypeIssue("TABLE", "public.dom_composite", stmt, "public.address", "addr")}
+			},
+		},
+		{
+			name: "domain over a supported type is not reported",
+			stmt: `CREATE TABLE public.dom_supported (id int PRIMARY KEY, email public.email_dom, emails public.email_dom[]);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{}
+			},
+		},
+		{
+			name: "foreign table with a domain over xid8",
+			stmt: `CREATE FOREIGN TABLE public.dom_foreign (id int, txn public.xid8_dom) SERVER remote_server OPTIONS (table_name 'remote');`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewForeignTableIssue("FOREIGN TABLE", "public.dom_foreign", stmt, "remote_server"),
+					NewXID8DatatypeIssue("FOREIGN TABLE", "public.dom_foreign", stmt, "xid8", "txn"),
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := newDetector(t).GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			assert.NoError(t, err)
+			expected := tc.expected(tc.stmt)
+			assert.True(t, cmp.Equal(expected, issues), "issues mismatch (-expected +actual):\n%s", cmp.Diff(expected, issues))
+		})
+	}
+}
+
+// ResolveDomainBaseType is also used by assessment, whose catalog query reports a single-level
+// domain without its schema, a stacked domain qualified, and an array of a domain with "[]".
+func TestResolveDomainBaseType(t *testing.T) {
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{
+		`CREATE DOMAIN public.xid8_dom AS xid8;`,
+		`CREATE DOMAIN public.xid8_dom_nested AS public.xid8_dom;`,
+		`CREATE DOMAIN sales.amount_dom AS numeric;`,
+		`CREATE DOMAIN public.shared_dom AS xid8;`,
+		`CREATE DOMAIN sales.shared_dom AS text;`,
+	} {
+		assert.NoError(t, detector.ParseAndProcessDDL(ddl))
+	}
+
+	testCases := []struct {
+		name          string
+		typeName      string
+		defaultSchema string
+		expectedBase  string
+		expectedFound bool
+	}{
+		{"qualified domain", "public.xid8_dom", "", "xid8", true},
+		{"stacked domain", "public.xid8_dom_nested", "", "xid8", true},
+		{"array of a domain", "public.xid8_dom[]", "", "xid8[]", true},
+		{"unqualified, resolved in the default schema", "xid8_dom", "public", "xid8", true},
+		{"unqualified, unique across schemas", "amount_dom", "public", "pg_catalog.numeric", true},
+		{"unqualified and ambiguous, default schema decides", "shared_dom", "sales", "text", true},
+		{"unqualified and ambiguous without a match in the default schema", "shared_dom", "other", "", false},
+		{"not a domain", "xid8", "public", "", false},
+		{"built-in qualified type", "pg_catalog.int4", "public", "", false},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			base, found := detector.ResolveDomainBaseType(tc.typeName, tc.defaultSchema)
+			assert.Equal(t, tc.expectedFound, found)
+			assert.Equal(t, tc.expectedBase, base)
+		})
+	}
+}

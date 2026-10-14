@@ -56,7 +56,9 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 			ParserIssueDetector: *p,
 		}, nil
 	case *queryparser.ForeignTable:
-		return &ForeignTableIssueDetector{}, nil
+		return &ForeignTableIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
 	case *queryparser.View:
 		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
@@ -199,21 +201,22 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	liveUnsupportedDatatypes := srcdb.PostgresUnsupportedDataTypesForDbzm
 	liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	for _, col := range table.Columns {
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(unsupportedDatatypes, col.TypeName)
-		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, col.TypeName)
+		colTypeName, colFullTypeName := d.resolveColumnType(col, table.SchemaName)
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(unsupportedDatatypes, colTypeName)
+		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, colTypeName)
 
-		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, col.TypeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(d.compositeTypes, col.GetFullTypeName())
+		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, colTypeName)
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(d.compositeTypes, colFullTypeName)
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
 
 		if isUnsupportedDatatype {
-			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+			issues = append(issues, ReportUnsupportedDatatypes(colTypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		}
 		if isUnsupportedDatatypeInLive {
-			issues = append(issues, ReportUnsupportedDatatypesInLive(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+			issues = append(issues, ReportUnsupportedDatatypesInLive(colTypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
-			reportTypeName := col.GetFullTypeName()
+			reportTypeName := colFullTypeName
 			if isUDTDatatype {
 				issues = append(issues, NewUserDefinedDatatypeIssue(
 					obj.GetObjectType(),
@@ -223,7 +226,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					col.ColumnName,
 				))
 			} else {
-				issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+				issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(colTypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 			}
 		}
 
@@ -780,7 +783,9 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName string, columnName 
 
 //ForeignTableIssueDetector handles detection Foreign table issues
 
-type ForeignTableIssueDetector struct{}
+type ForeignTableIssueDetector struct {
+	ParserIssueDetector
+}
 
 func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
@@ -797,9 +802,10 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	))
 
 	for _, col := range foreignTable.Columns {
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
+		colTypeName, _ := f.resolveColumnType(col, foreignTable.SchemaName)
+		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, colTypeName)
 		if isUnsupportedDatatype {
-			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
+			issues = append(issues, ReportUnsupportedDatatypes(colTypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
 		}
 	}
 
