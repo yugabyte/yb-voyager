@@ -719,23 +719,20 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 	}
 	inClause := strings.Join(tableTuples, ", ")
 
-	query := fmt.Sprintf(`
+	// For a column involving a domain the type is taken from beneath its domains and arrays, so
+	// an unsupported range or composite reached through a domain is reported under that type's
+	// name, which is what the column's DomainBaseTypes entry carries.
+	query := fmt.Sprintf(columnBaseTypeCTE+`
 		SELECT DISTINCT
 			type_n.nspname || '.' || t.typname AS qualified_type_name
 		FROM
-			pg_attribute AS a
+			column_base_type AS bt
 		JOIN
-			pg_type AS t ON t.oid = a.atttypid
+			pg_type AS t ON t.oid = CASE WHEN bt.has_domain THEN bt.base_type_oid ELSE bt.declared_type_oid END
 		JOIN
 			pg_namespace AS type_n ON type_n.oid = t.typnamespace
-		JOIN
-			pg_class AS c ON c.oid = a.attrelid
-		JOIN
-			pg_namespace AS table_n ON table_n.oid = c.relnamespace
 		WHERE
-			(table_n.nspname, c.relname) IN (%s)
-			AND a.attnum > 0
-			AND %s
+			%s
 		ORDER BY qualified_type_name;
 	`, inClause, typesNotSupportedClause)
 
@@ -766,7 +763,54 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.
 type tableColumnInfo struct {
 	Columns   []string
 	DataTypes []string
+	// DomainBaseTypes[i] is the type underneath every domain and array level of Columns[i],
+	// named the same way as DataTypes, when its type involves a domain (a domain, a domain
+	// over an array, or an array of a domain); "" otherwise.
+	DomainBaseTypes []string
 }
+
+// isColumnTypeUnsupported matches the declared type and, for a column involving a domain, the
+// type beneath its domains and arrays, so such a column is filtered like that type itself.
+func isColumnTypeUnsupported(unsupportedDatatypes []string, dataType string, domainBaseType string) bool {
+	if utils.ContainsAnyStringFromSlice(unsupportedDatatypes, dataType) {
+		return true
+	}
+	return domainBaseType != "" && utils.ContainsAnyStringFromSlice(unsupportedDatatypes, domainBaseType)
+}
+
+// columnBaseTypeCTE resolves every column of the tables in the IN list (format verb %s, as
+// (schema, table) tuples) to the type beneath any chain of domains and arrays. Domains can
+// be built on other domains or on arrays, and arrays can hold domains, so a single hop is not
+// enough. has_domain records whether a domain appeared anywhere in the chain; callers use the
+// resolved type only then, so plain arrays keep their existing handling.
+const columnBaseTypeCTE = `
+	WITH RECURSIVE column_type_chain AS (
+		SELECT a.attrelid, a.attnum, a.atttypid AS declared_type_oid, a.atttypid AS type_oid,
+			(t.typtype = 'd') AS has_domain, 0 AS depth
+		FROM pg_attribute AS a
+		JOIN pg_type AS t ON t.oid = a.atttypid
+		JOIN pg_class AS c ON c.oid = a.attrelid
+		JOIN pg_namespace AS n ON n.oid = c.relnamespace
+		WHERE (n.nspname, c.relname) IN (%s)
+			AND a.attnum > 0
+			AND NOT a.attisdropped
+		UNION ALL
+		SELECT chain.attrelid, chain.attnum, chain.declared_type_oid, next_t.oid,
+			chain.has_domain OR next_t.typtype = 'd', chain.depth + 1
+		FROM column_type_chain AS chain
+		JOIN pg_type AS t ON t.oid = chain.type_oid
+		-- a domain steps to the type it is defined on, an array to its element type
+		JOIN pg_type AS next_t ON next_t.oid = CASE
+				WHEN t.typtype = 'd' THEN t.typbasetype
+				WHEN t.typcategory = 'A' AND t.typelem <> 0 THEN t.typelem
+			END
+	),
+	column_base_type AS (
+		SELECT DISTINCT ON (attrelid, attnum) attrelid, attnum, declared_type_oid,
+			type_oid AS base_type_oid, has_domain
+		FROM column_type_chain
+		ORDER BY attrelid, attnum, depth DESC
+	)`
 
 func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -792,6 +836,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		columnInfo := allTablesColumnsInfo[tableName]
 		columns := columnInfo.Columns
 		dataTypes := columnInfo.DataTypes
+		domainBaseTypes := columnInfo.DomainBaseTypes
 
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
@@ -799,7 +844,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 			//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 			// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 			//of these types there are other columns available for these information so we just do string match of types with our list
-			if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
+			if isColumnTypeUnsupported(unsupportedDatatypesList, dataTypes[i], domainBaseTypes[i]) {
 				unsupportedColumnNames = append(unsupportedColumnNames, column)
 			} else {
 				supportedColumnNames = append(supportedColumnNames, column)
@@ -838,7 +883,7 @@ func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqln
 		tableLookup[lookupKey] = table
 	}
 	inClause := strings.Join(tableTuples, ", ")
-	query := fmt.Sprintf(`
+	query := fmt.Sprintf(columnBaseTypeCTE+`
 		SELECT
 			n.nspname AS table_schema,
 			c.relname AS table_name,
@@ -848,18 +893,26 @@ func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqln
 			CASE
 				WHEN (t.typtype = 'c' OR t.typtype = 'r') THEN type_n.nspname || '.' || t.typname
 				ELSE t.typname
-			END AS data_type
+			END AS data_type,
+			CASE
+				WHEN NOT bt.has_domain THEN ''
+				WHEN (base_t.typtype = 'c' OR base_t.typtype = 'r') THEN base_n.nspname || '.' || base_t.typname
+				ELSE base_t.typname
+			END AS domain_base_type
 		FROM pg_attribute AS a
 		JOIN pg_type AS t ON t.oid = a.atttypid
 		JOIN pg_namespace AS type_n ON type_n.oid = t.typnamespace
 		JOIN pg_class AS c ON c.oid = a.attrelid
 		JOIN pg_namespace AS n ON n.oid = c.relnamespace
+		JOIN column_base_type AS bt ON bt.attrelid = a.attrelid AND bt.attnum = a.attnum
+		JOIN pg_type AS base_t ON base_t.oid = bt.base_type_oid
+		JOIN pg_namespace AS base_n ON base_n.oid = base_t.typnamespace
 		WHERE (n.nspname, c.relname) IN (%s)
 			AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid')
 			AND a.attnum > 0
 			AND NOT a.attisdropped
 		ORDER BY n.nspname, c.relname, a.attnum; -- attnum ensures columns appear in table definition order and keeps Columns[] and DataTypes[] arrays aligned deterministically
-	`, inClause)
+	`, inClause, inClause)
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying table columns: %w", err)
@@ -872,8 +925,8 @@ func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqln
 	}()
 
 	for rows.Next() {
-		var schema, table, column, dataType string
-		if err := rows.Scan(&schema, &table, &column, &dataType); err != nil {
+		var schema, table, column, dataType, domainBaseType string
+		if err := rows.Scan(&schema, &table, &column, &dataType, &domainBaseType); err != nil {
 			return nil, fmt.Errorf("error scanning column info: %w", err)
 		}
 
@@ -888,6 +941,7 @@ func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqln
 		info := result[matchingTable]
 		info.Columns = append(info.Columns, column)
 		info.DataTypes = append(info.DataTypes, dataType)
+		info.DomainBaseTypes = append(info.DomainBaseTypes, domainBaseType)
 		result[matchingTable] = info
 	}
 

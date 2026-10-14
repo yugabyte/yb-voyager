@@ -96,6 +96,72 @@ func TestPostgresGetColumnsWithSupportedTypes_TimetzExcluded(t *testing.T) {
 	testutils.AssertEqualStringSlices(t, []string{"reminder_at"}, unsupported)
 }
 
+// A column whose type involves a domain must be dropped from live export when the type
+// underneath its domains and arrays is unsupported: stacked domains, a domain over a
+// user-defined range, a domain over an array, and an array of a domain. Domain columns over
+// supported types, including arrays of them, must still be exported.
+func TestPostgresGetColumnsWithSupportedTypes_DomainOverUnsupportedType(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE DOMAIN test_schema.xid8_dom AS XID8;`,
+		`CREATE DOMAIN test_schema.lsn_dom AS PG_LSN;`,
+		`CREATE DOMAIN test_schema.lsn_dom_nested AS test_schema.lsn_dom NOT NULL;`,
+		`CREATE TYPE test_schema.float_range AS RANGE (subtype = float8);`,
+		`CREATE DOMAIN test_schema.float_range_dom AS test_schema.float_range;`,
+		`CREATE DOMAIN test_schema.email_dom AS TEXT CHECK (VALUE LIKE '%@%');`,
+		`CREATE DOMAIN test_schema.xid8_arr_dom AS XID8[];`,
+		`CREATE TABLE test_schema.domain_table (
+			id INT PRIMARY KEY,
+			"TxnId" test_schema.xid8_dom,
+			lsn_col test_schema.lsn_dom_nested,
+			range_col test_schema.float_range_dom,
+			email test_schema.email_dom,
+			"TxnIdArr" test_schema.xid8_arr_dom,
+			txn_id_list test_schema.xid8_dom[],
+			emails test_schema.email_dom[]
+		);`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("test_schema.domain_table", "test_schema", testPostgresSource.DBType),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+
+	t.Run("domain base types", func(t *testing.T) {
+		allColumnsInfo, err := getAllTableColumnsInfo(tableList, pgDB.db)
+		assert.NilError(t, err)
+		info := allColumnsInfo[tableList[0]]
+		testutils.AssertEqualStringSlices(t, []string{"id", "TxnId", "lsn_col", "range_col", "email", "TxnIdArr", "txn_id_list", "emails"}, info.Columns)
+		testutils.AssertEqualStringSlices(t, []string{"int4", "xid8_dom", "lsn_dom_nested", "float_range_dom", "email_dom", "xid8_arr_dom", "_xid8_dom", "_email_dom"}, info.DataTypes)
+		testutils.AssertEqualStringSlices(t, []string{"", "xid8", "pg_lsn", "test_schema.float_range", "text", "xid8", "xid8", "text"}, info.DomainBaseTypes)
+	})
+
+	t.Run("live migration", func(t *testing.T) {
+		supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
+		assert.NilError(t, err)
+
+		supported, exists := supportedCols.Get(tableList[0])
+		assert.Equal(t, true, exists, "Expected test_schema.domain_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id", "email", "emails"}, supported)
+
+		unsupported, exists := unsupportedCols.Get(tableList[0])
+		assert.Equal(t, true, exists, "Expected test_schema.domain_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"TxnId", "lsn_col", "range_col", "TxnIdArr", "txn_id_list"}, unsupported)
+	})
+
+	t.Run("offline migration", func(t *testing.T) {
+		_, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, false, false)
+		assert.NilError(t, err)
+		_, exists := unsupportedCols.Get(tableList[0])
+		assert.Equal(t, false, exists, "Offline export must not drop any column")
+	})
+}
+
 // Debezium cannot stream xid, xid8, or cid, so live export must drop those columns.
 // Offline export goes through pg_dump and drops nothing. cidr guards that matching is
 // exact, and the quoted column guards case-sensitive names.
