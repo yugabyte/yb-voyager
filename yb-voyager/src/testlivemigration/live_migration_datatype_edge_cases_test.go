@@ -1164,8 +1164,8 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				time_noon
 			) VALUES
 			(
-				NULL,                                   -- will be set to non-NULL then back to NULL
-				NULL,                                   -- will be set to non-NULL then back to NULL
+				NULL,
+				NULL,
 				'2024-01-01',
 				'2024-01-01 00:00:00',
 				'2000-01-01 00:00:00',
@@ -3859,7 +3859,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		},
 		`"test_schema"."datetime_edge_cases"`: {
 			Inserts: 3, // 3 INSERT operations: DATETIME with various dates/times + 1 with NULLs
-			Updates: 5, // 5 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
+			Updates: 5, // 5 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 7 (00:00:00→'24:00:00')
 			Deletes: 1, // 1 DELETE operation: delete DATETIME row 3
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
@@ -3977,7 +3977,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`"test_schema"."datetime_edge_cases"`: {
 			Inserts: 3, // 1 basic + 1 with NULLs + 1 with time 24:00:00
-			Updates: 5, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 7 (24:00:00→'00:00:00')
+			Updates: 5, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value) + 1 row 7 (00:00:00→'24:00:00')
 			Deletes: 1,
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {
@@ -4060,7 +4060,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		},
 		`"test_schema"."datetime_edge_cases"`: {
 			Inserts: 3, // 1 basic + 1 with NULLs + 1 with time 24:00:00
-			Updates: 5, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL) + 1 row 7 (24:00:00→'00:00:00')
+			Updates: 5, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL) + 1 row 7 ('24:00:00'→'00:00:00')
 			Deletes: 1,
 		},
 		`"test_schema"."uuid_ltree_edge_cases"`: {

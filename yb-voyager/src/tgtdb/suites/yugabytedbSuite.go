@@ -101,7 +101,12 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %w", err)
 		}
-		// PG's 24:00:00 arrives as exactly one day; time.Unix would wrap it to 00:00:00.
+		// A PG time is within [00:00:00, 24:00:00]; time.UnixMilli would wrap anything outside
+		// it into another day, so fail instead.
+		if epochMilliSecs < 0 || epochMilliSecs > 24*time.Hour.Milliseconds() {
+			return columnValue, goerrors.Errorf("time-of-day offset %d ms is outside [00:00:00, 24:00:00]", epochMilliSecs)
+		}
+		// PG's 24:00:00 arrives as exactly one day; time.UnixMilli would wrap it to 00:00:00.
 		timeValue := "24:00:00.000"
 		if epochMilliSecs != 24*time.Hour.Milliseconds() {
 			timeValue = time.UnixMilli(epochMilliSecs).UTC().Format("15:04:05.999")
@@ -112,6 +117,9 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch microseconds: %w", err)
+		}
+		if epochMicroSecs < 0 || epochMicroSecs > 24*time.Hour.Microseconds() {
+			return columnValue, goerrors.Errorf("time-of-day offset %d µs is outside [00:00:00, 24:00:00]", epochMicroSecs)
 		}
 		timeValue := "24:00:00.000000"
 		if epochMicroSecs != 24*time.Hour.Microseconds() {
