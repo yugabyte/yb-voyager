@@ -1141,6 +1141,50 @@ func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
 func (c *CreateType) GetObjectType() string { return TYPE_OBJECT_TYPE }
 
+//===========================DOMAIN PROCESSOR===================
+
+type DomainProcessor struct{}
+
+func NewDomainProcessor() *DomainProcessor {
+	return &DomainProcessor{}
+}
+
+func (domainProcessor *DomainProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	domainNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateDomainStmt)
+	if !ok {
+		return nil, goerrors.Errorf("not CREATE DOMAIN statement")
+	}
+	domainSchemaName, domainName := getSchemaAndObjectName(domainNode.CreateDomainStmt.GetDomainname())
+	baseType := domainNode.CreateDomainStmt.GetTypeName()
+	baseTypeSchemaName, baseTypeName := getSchemaAndObjectName(baseType.GetNames())
+	return &CreateDomain{
+		DomainName:      domainName,
+		SchemaName:      domainSchemaName,
+		BaseTypeName:    baseTypeName,
+		BaseTypeSchema:  baseTypeSchemaName,
+		IsBaseTypeArray: isArrayType(baseType),
+	}, nil
+}
+
+type CreateDomain struct {
+	DomainName      string
+	SchemaName      string
+	BaseTypeName    string
+	BaseTypeSchema  string
+	IsBaseTypeArray bool
+}
+
+func (d *CreateDomain) GetObjectName() string {
+	return utils.BuildObjectName(d.SchemaName, d.DomainName)
+}
+func (d *CreateDomain) GetSchemaName() string { return d.SchemaName }
+
+func (d *CreateDomain) GetObjectType() string { return DOMAIN_OBJECT_TYPE }
+
+func (d *CreateDomain) GetFullBaseTypeName() string {
+	return utils.BuildObjectName(d.BaseTypeSchema, d.BaseTypeName)
+}
+
 //===========================VIEW PROCESSOR===================
 
 type ViewProcessor struct{}
@@ -1388,6 +1432,8 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 		return NewTriggerProcessor(), nil
 	case PG_QUERY_COMPOSITE_TYPE_STMT, PG_QUERY_ENUM_TYPE_STMT:
 		return NewTypeProcessor(), nil
+	case PG_QUERY_CREATE_DOMAIN_STMT_NODE:
+		return NewDomainProcessor(), nil
 	case PG_QUERY_FOREIGN_TABLE_STMT:
 		return NewForeignTableProcessor(), nil
 	case PG_QUERY_VIEW_STMT:
