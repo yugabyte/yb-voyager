@@ -800,23 +800,20 @@ func (pg *PostgreSQL) getAllUserDefinedRangeTypes(tableList []sqlname.NameTuple)
 	}
 	inClause := strings.Join(tableTuples, ", ")
 
-	query := fmt.Sprintf(`
+	// For a column involving a domain the type is taken from beneath its domains and arrays, so
+	// a range type reached through a domain is reported under the range type's name, which is
+	// what the column's DomainBaseTypes entry carries.
+	query := fmt.Sprintf(columnBaseTypeCTE+`
 		SELECT DISTINCT
 			type_n.nspname || '.' || t.typname AS qualified_type_name
 		FROM
-			pg_attribute AS a
+			column_base_type AS bt
 		JOIN
-			pg_type AS t ON t.oid = a.atttypid
+			pg_type AS t ON t.oid = CASE WHEN bt.has_domain THEN bt.base_type_oid ELSE bt.declared_type_oid END
 		JOIN
 			pg_namespace AS type_n ON type_n.oid = t.typnamespace
-		JOIN
-			pg_class AS c ON c.oid = a.attrelid
-		JOIN
-			pg_namespace AS table_n ON table_n.oid = c.relnamespace
 		WHERE
-			(table_n.nspname, c.relname) IN (%s)
-			AND a.attnum > 0
-			AND t.typtype = 'r'
+			t.typtype = 'r'
 		ORDER BY qualified_type_name;
 	`, inClause)
 
@@ -860,6 +857,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 		allTableColumnsInfo := allTablesColumnsInfo[tableName]
 		columns := allTableColumnsInfo.Columns
 		dataTypes := allTableColumnsInfo.DataTypes
+		domainBaseTypes := allTableColumnsInfo.DomainBaseTypes
 		var unsupportedColumnNames []string
 		var supportedColumnNames []string
 		for i, column := range columns {
@@ -867,7 +865,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 				// Use ContainsAnyStringFromSlice for string matching here because catalog table only contain base type names without modifiers. For example:
 				// - For VARCHAR(255), only "VARCHAR" is reported (no length/precision/scale in data_type column) in data_type column of the catalog table
 				// - For public.geometry(Point,4326), only "geometry" is reported in typename column of the catalog table
-				if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
+				if isColumnTypeUnsupported(unsupportedDatatypesList, dataTypes[i], domainBaseTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)

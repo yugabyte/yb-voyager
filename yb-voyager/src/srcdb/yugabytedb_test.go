@@ -799,6 +799,73 @@ func TestYugabyteGetColumnsWithSupportedTypes_TransactionIDAndXMLTypes(t *testin
 	}
 }
 
+// A column whose type involves a domain must be dropped when the type underneath its domains
+// and arrays is unsupported: stacked domains, a domain over an array, and an array of a
+// domain. A domain over a composite type, and an array of it, is unsupported only with the
+// gRPC connector, which exercises the user-defined type lookup through the domain.
+func TestYugabyteGetColumnsWithSupportedTypes_DomainOverUnsupportedType(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA dom_types;`,
+		`CREATE DOMAIN dom_types.lsn_dom AS PG_LSN;`,
+		`CREATE DOMAIN dom_types.lsn_dom_nested AS dom_types.lsn_dom;`,
+		`CREATE DOMAIN dom_types.snapshot_dom AS TXID_SNAPSHOT;`,
+		`CREATE TYPE dom_types.address AS (street TEXT, city TEXT);`,
+		`CREATE DOMAIN dom_types.address_dom AS dom_types.address;`,
+		`CREATE DOMAIN dom_types.email_dom AS TEXT CHECK (VALUE LIKE '%@%');`,
+		`CREATE DOMAIN dom_types.lsn_arr_dom AS PG_LSN[];`,
+		`CREATE TABLE dom_types.domain_table (
+			id INT PRIMARY KEY,
+			"LsnCol" dom_types.lsn_dom_nested,
+			snap dom_types.snapshot_dom,
+			addr dom_types.address_dom,
+			email dom_types.email_dom,
+			"LsnArr" dom_types.lsn_arr_dom,
+			lsn_list dom_types.lsn_dom[],
+			addr_list dom_types.address_dom[],
+			emails dom_types.email_dom[]
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA dom_types CASCADE;`)
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	originalIsGrpc := ybDB.source.IsYBGrpcConnector
+	defer func() { ybDB.source.IsYBGrpcConnector = originalIsGrpc }()
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("dom_types.domain_table", "dom_types", constants.YUGABYTEDB),
+	}
+
+	allColumnsInfo, err := getAllTableColumnsInfo(tableList, ybDB.db)
+	assert.NilError(t, err)
+	info := allColumnsInfo[tableList[0]]
+	testutils.AssertEqualStringSlices(t, []string{"id", "LsnCol", "snap", "addr", "email", "LsnArr", "lsn_list", "addr_list", "emails"}, info.Columns)
+	testutils.AssertEqualStringSlices(t, []string{"", "pg_lsn", "txid_snapshot", "dom_types.address", "text", "pg_lsn", "pg_lsn", "dom_types.address", "text"}, info.DomainBaseTypes)
+
+	testCases := []struct {
+		isGrpc              bool
+		expectedSupported   []string
+		expectedUnsupported []string
+	}{
+		{false, []string{"id", "addr", "email", "addr_list", "emails"}, []string{"LsnCol", "snap", "LsnArr", "lsn_list"}},
+		{true, []string{"id", "email", "emails"}, []string{"LsnCol", "snap", "addr", "LsnArr", "lsn_list", "addr_list"}},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("grpc=%t", tc.isGrpc), func(t *testing.T) {
+			ybDB.source.IsYBGrpcConnector = tc.isGrpc
+			supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
+			assert.NilError(t, err)
+
+			supported, exists := supportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected dom_types.domain_table in supported map")
+			testutils.AssertEqualStringSlices(t, tc.expectedSupported, supported)
+
+			unsupported, exists := unsupportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected dom_types.domain_table in unsupported map")
+			testutils.AssertEqualStringSlices(t, tc.expectedUnsupported, unsupported)
+		})
+	}
+}
+
 func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 	// In YugabyteDB, the default replica identity for new tables is already CHANGE ('c'),
 	// unlike PostgreSQL which defaults to DEFAULT ('d'). To test a table without CHANGE
