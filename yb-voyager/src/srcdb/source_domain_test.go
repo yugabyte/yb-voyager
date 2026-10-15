@@ -25,84 +25,56 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRegisteredDomain(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"self-managed FQDN", "pg-prod-01.db.abc.com", "abc.com"},
-		{"multi-label public suffix", "db1.abc.co.uk", "abc.co.uk"},
-		{"wildcard SAN", "*.abc.com", "abc.com"},
-		{"upper case and trailing dot", "DB.abc.COM.", "abc.com"},
-		{"registered domain itself", "abc.com", "abc.com"},
-		{"aws rds collapses to provider", "mydb.abc123xyz.us-east-1.rds.amazonaws.com", "amazonaws.com"},
-		{"aws aurora wildcard collapses to provider", "*.cluster-abc123xyz.us-east-1.rds.amazonaws.com", "amazonaws.com"},
-		{"azure flexible server collapses to provider", "myserver.postgres.database.azure.com", "azure.com"},
-		{"gcp cloud sql", "1-abc.us-central1.sql.goog", "sql.goog"},
-		{"localhost", "localhost", ""},
-		{"single label", "postgres", ""},
-		{"ipv4", "10.0.0.12", ""},
-		{"ipv6", "::1", ""},
-		{"non-ICANN internal tld", "db.corp.internal", ""},
-		{"mdns local", "db.local", ""},
-		{"bare public suffix", "co.uk", ""},
-		{"empty", "", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, registeredDomain(tt.input))
-		})
-	}
-}
-
-func TestExtractSourceDomain(t *testing.T) {
+func TestExtractTLSCertDomain(t *testing.T) {
 	tests := []struct {
 		name           string
 		cert           *x509.Certificate
-		host           string
 		expectedDomain string
 	}{
 		{
-			name:           "SAN preferred over host",
+			name:           "SAN",
 			cert:           &x509.Certificate{DNSNames: []string{"pg.abc.com"}},
-			host:           "pg.other.com",
+			expectedDomain: "abc.com",
+		},
+		{
+			name:           "SAN preferred over CN",
+			cert:           &x509.Certificate{DNSNames: []string{"pg.abc.com"}, Subject: pkix.Name{CommonName: "pg.other.com"}},
 			expectedDomain: "abc.com",
 		},
 		{
 			name:           "skips unusable SANs",
 			cert:           &x509.Certificate{DNSNames: []string{"localhost", "postgres", "pg.abc.com"}},
-			host:           "10.0.0.1",
 			expectedDomain: "abc.com",
 		},
 		{
-			name:           "common name used when no SANs",
+			name:           "CN used when no SANs",
 			cert:           &x509.Certificate{Subject: pkix.Name{CommonName: "pg.abc.com"}},
-			host:           "10.0.0.1",
 			expectedDomain: "abc.com",
 		},
 		{
-			name:           "unusable cert falls back to host",
+			name:           "CN used when no SAN is usable",
+			cert:           &x509.Certificate{DNSNames: []string{"localhost"}, Subject: pkix.Name{CommonName: "pg.abc.com"}},
+			expectedDomain: "abc.com",
+		},
+		{
+			name:           "managed service collapses to provider",
+			cert:           &x509.Certificate{DNSNames: []string{"mydb.abc123xyz.us-east-1.rds.amazonaws.com"}},
+			expectedDomain: "amazonaws.com",
+		},
+		{
+			name:           "no usable name",
 			cert:           &x509.Certificate{DNSNames: []string{"localhost"}, Subject: pkix.Name{CommonName: "postgres"}},
-			host:           "pg.abc.com",
-			expectedDomain: "abc.com",
+			expectedDomain: "",
 		},
 		{
-			name:           "no cert falls back to host",
+			name:           "no certificate",
 			cert:           nil,
-			host:           "pg.abc.com",
-			expectedDomain: "abc.com",
-		},
-		{
-			name:           "nothing usable",
-			cert:           nil,
-			host:           "127.0.0.1",
 			expectedDomain: "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedDomain, extractSourceDomain(tt.cert, tt.host))
+			assert.Equal(t, tt.expectedDomain, extractTLSCertDomain(tt.cert))
 		})
 	}
 }

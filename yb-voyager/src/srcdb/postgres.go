@@ -702,12 +702,11 @@ func getPgxServerCertificate(db *sql.DB) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-// extractSourceDomain returns the registered domain of the source server, used in
-// callhome to identify the organisation running the migration. The TLS certificate
-// is preferred because it carries the server's real DNS identity even when the user
-// connected via an IP address. The SANs are tried first, then the Subject CN (older or
-// self-signed certs often carry the name only there). If no certificate name yields a
-// usable domain, the user-supplied host is used as a fallback.
+// extractTLSCertDomain returns the registered domain named by the server's TLS certificate,
+// used in callhome to identify the organisation running the migration. The SANs are tried
+// first, then the Subject CN (older or self-signed certs often carry the name only there).
+// The certificate is usually unverified (default sslmode=prefer), so this is reported next
+// to the host's domain rather than replacing it.
 func extractTLSCertDomain(cert *x509.Certificate) string {
 	if cert != nil {
 		names := append([]string{}, cert.DNSNames...)

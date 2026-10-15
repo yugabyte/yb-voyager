@@ -38,10 +38,6 @@ import (
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
-// *.localtest.me is public DNS resolving to localhost: a real FQDN for the docker host
-// without editing /etc/hosts. Cases using it are skipped when it does not resolve.
-const tlsTestLoopbackFQDN = "pg.localtest.me"
-
 type tlsTestCertSpec struct {
 	commonName string
 	dnsNames   []string
@@ -50,12 +46,11 @@ type tlsTestCertSpec struct {
 
 type tlsTestCheck struct {
 	name           string
-	useFQDN        bool
 	sslMode        string
 	expectedDomain string
 }
 
-func TestFetchDomainNameFromTLSCertificate(t *testing.T) {
+func TestFetchTLSCertDomainName(t *testing.T) {
 	ctx := context.Background()
 	pgContainer, ok := testPostgresSource.TestContainer.(*testcontainers.PostgresContainer)
 	require.True(t, ok, "unexpected postgres test container type %T", testPostgresSource.TestContainer)
@@ -69,8 +64,6 @@ func TestFetchDomainNameFromTLSCertificate(t *testing.T) {
 	ca := newTLSTestCA(t)
 	caFile := filepath.Join(t.TempDir(), "ca.crt")
 	require.NoError(t, os.WriteFile(caFile, ca.certPEM, 0o600))
-	host, port := testPostgresSource.Host, testPostgresSource.Port
-	fqdnUsable := isLoopbackFQDNUsable(host)
 
 	tests := []struct {
 		name   string
@@ -84,9 +77,7 @@ func TestFetchDomainNameFromTLSCertificate(t *testing.T) {
 				{name: "require", sslMode: "require", expectedDomain: "acme.com"},
 				{name: "prefer negotiates TLS", sslMode: "prefer", expectedDomain: "acme.com"},
 				{name: "verify-full is unaffected", sslMode: "verify-full", expectedDomain: "acme.com"},
-				{name: "certificate preferred over host", useFQDN: true, sslMode: "require", expectedDomain: "acme.com"},
-				{name: "no TLS and loopback host gives nothing", sslMode: "disable", expectedDomain: ""},
-				{name: "no TLS falls back to host", useFQDN: true, sslMode: "disable", expectedDomain: "localtest.me"},
+				{name: "no TLS gives nothing", sslMode: "disable", expectedDomain: ""},
 			},
 		},
 		{
@@ -115,12 +106,9 @@ func TestFetchDomainNameFromTLSCertificate(t *testing.T) {
 			checks: []tlsTestCheck{{name: "require", sslMode: "require", expectedDomain: "initech.com"}},
 		},
 		{
-			name: "certificate without a usable name",
-			cert: tlsTestCertSpec{commonName: "localhost", dnsNames: []string{"localhost", "postgres"}, withIPSAN: true},
-			checks: []tlsTestCheck{
-				{name: "loopback host gives nothing", sslMode: "require", expectedDomain: ""},
-				{name: "falls back to host", useFQDN: true, sslMode: "require", expectedDomain: "localtest.me"},
-			},
+			name:   "certificate without a usable name",
+			cert:   tlsTestCertSpec{commonName: "localhost", dnsNames: []string{"localhost", "postgres"}, withIPSAN: true},
+			checks: []tlsTestCheck{{name: "require", sslMode: "require", expectedDomain: ""}},
 		},
 	}
 
@@ -131,17 +119,10 @@ func TestFetchDomainNameFromTLSCertificate(t *testing.T) {
 
 			for _, check := range tt.checks {
 				t.Run(check.name, func(t *testing.T) {
-					connectHost := host
-					if check.useFQDN {
-						if !fqdnUsable {
-							t.Skipf("%s does not resolve to the docker host %q", tlsTestLoopbackFQDN, host)
-						}
-						connectHost = tlsTestLoopbackFQDN
-					}
 					source := &Source{
 						DBType:   testPostgresSource.DBType,
-						Host:     connectHost,
-						Port:     port,
+						Host:     testPostgresSource.Host,
+						Port:     testPostgresSource.Port,
 						User:     testPostgresSource.User,
 						Password: testPostgresSource.Password,
 						DBName:   testPostgresSource.DBName,
@@ -153,29 +134,12 @@ func TestFetchDomainNameFromTLSCertificate(t *testing.T) {
 					require.NoError(t, source.DB().Connect())
 					defer source.DB().Disconnect()
 
-					require.NoError(t, source.DB().FetchDomainName())
-					assert.Equal(t, check.expectedDomain, source.SourceDomain)
+					require.NoError(t, source.DB().FetchTLSCertDomainName())
+					assert.Equal(t, check.expectedDomain, source.TLSCertDomain)
 				})
 			}
 		})
 	}
-}
-
-func isLoopbackFQDNUsable(dockerHost string) bool {
-	if dockerHost != "localhost" && dockerHost != "127.0.0.1" {
-		return false
-	}
-	addrs, err := net.LookupHost(tlsTestLoopbackFQDN)
-	if err != nil {
-		return false
-	}
-	for _, addr := range addrs {
-		ip := net.ParseIP(addr)
-		if ip != nil && ip.IsLoopback() {
-			return true
-		}
-	}
-	return false
 }
 
 type tlsTestCA struct {

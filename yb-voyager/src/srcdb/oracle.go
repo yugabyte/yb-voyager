@@ -357,7 +357,7 @@ func (ora *Oracle) FetchDBID() error {
 	return nil
 }
 
-// godror connects through OCI, so the TLS connection is not visible from Go and only the hostname fallback applies.
+// godror connects through OCI, so the TLS connection is not visible from Go and callhome has only the host domain for Oracle.
 func (ora *Oracle) FetchTLSCertDomainName() error {
 	return nil
 }
