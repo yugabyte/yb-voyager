@@ -101,8 +101,16 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch milliseconds: %w", err)
 		}
-		epochSecs := epochMilliSecs / 1000
-		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
+		// A PG time is within [00:00:00, 24:00:00]; time.UnixMilli would wrap anything outside
+		// it into another day, so fail instead.
+		if epochMilliSecs < 0 || epochMilliSecs > 24*time.Hour.Milliseconds() {
+			return columnValue, goerrors.Errorf("time-of-day offset %d ms is outside [00:00:00, 24:00:00]", epochMilliSecs)
+		}
+		// PG's 24:00:00 arrives as exactly one day; time.UnixMilli would wrap it to 00:00:00.
+		timeValue := "24:00:00.000"
+		if epochMilliSecs != 24*time.Hour.Milliseconds() {
+			timeValue = time.UnixMilli(epochMilliSecs).UTC().Format("15:04:05.999")
+		}
 		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
@@ -110,10 +118,13 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if err != nil {
 			return columnValue, goerrors.Errorf("parsing epoch microseconds: %w", err)
 		}
-		epochSeconds := epochMicroSecs / 1000000
-		epochNanos := (epochMicroSecs % 1000000) * 1000
-		MICRO_TIME_FORMAT := "15:04:05.000000"
-		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
+		if epochMicroSecs < 0 || epochMicroSecs > 24*time.Hour.Microseconds() {
+			return columnValue, goerrors.Errorf("time-of-day offset %d µs is outside [00:00:00, 24:00:00]", epochMicroSecs)
+		}
+		timeValue := "24:00:00.000000"
+		if epochMicroSecs != 24*time.Hour.Microseconds() {
+			timeValue = time.UnixMicro(epochMicroSecs).UTC().Format("15:04:05.000000")
+		}
 		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
