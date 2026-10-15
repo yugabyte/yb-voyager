@@ -3,12 +3,14 @@
 import os
 import sys
 import glob
+import json
 import argparse
 import random
 import subprocess
 import time
 from typing import Any, Dict, Callable
 import helpers as H
+import yba
 
 # -------------------------
 # Action registry
@@ -567,6 +569,181 @@ def grant_source_permissions_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.grant_postgres_live_migration_permissions(ctx, is_live_migration_fall_back=fallback)
 
 
+@action("yba_cluster_event")
+def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Start a YBA task against the target universe and return without waiting.
+
+    Stage keys:
+      - event: upgrade | restart | finalize
+      - version: build string for upgrade/finalize; ${VAR} references are expanded
+      - enabled: default true; false records a skip and starts nothing
+      - sleep_between_servers_sec: YBA pause after each master/tserver restart (default 180)
+    """
+    event = stage["event"]
+    ctx.yba_task = None
+    if not bool(stage.get("enabled", True)):
+        H.log_yba_event(ctx, f"{event}: disabled by scenario, skipping", event=f"{event}_skipped")
+        return
+
+    client = yba.YBAClient.from_env()
+    sleep_sec = int(stage.get("sleep_between_servers_sec", 180))
+    version = os.path.expandvars(stage.get("version", ""))
+
+    if event == "upgrade":
+        precheck = client.software_upgrade_precheck(version)
+        H.log_yba_event(
+            ctx,
+            f"upgrade: precheck for {version}: {json.dumps(precheck)}",
+            event="upgrade_precheck",
+            version=version,
+            precheck=precheck,
+        )
+        task_uuid = client.start_upgrade(version, sleep_sec)
+    elif event == "restart":
+        task_uuid = client.start_restart(sleep_sec)
+    elif event == "finalize":
+        state = client.software_upgrade_state(client.universe())
+        if state == yba.UPGRADE_STATE_READY:
+            H.log_yba_event(ctx, f"finalize: not required, softwareUpgradeState={state}", event="finalize_not_required")
+            return
+        if state != yba.UPGRADE_STATE_PRE_FINALIZE:
+            raise RuntimeError(f"finalize: universe softwareUpgradeState is {state}, expected {yba.UPGRADE_STATE_PRE_FINALIZE}")
+        task_uuid = client.start_finalize()
+    else:
+        raise ValueError(f"unknown yba event: {event}")
+
+    ctx.yba_task = {"event": event, "uuid": task_uuid, "version": version or None, "started_ts": H._ts()}
+    H.log_yba_event(
+        ctx,
+        f"{event}: started YBA task {task_uuid} on universe {client.universe_uuid}"
+        + (f" to {version}" if version else ""),
+        event=f"{event}_started",
+        task_uuid=task_uuid,
+        version=version or None,
+    )
+
+
+@action("yba_wait_task")
+def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Block until the task started by the previous yba_cluster_event finishes.
+
+    A task that ends in failure raises with its failed subtasks; a stage that started
+    no task (disabled, or finalize not required) is a no-op.
+    """
+    task = ctx.yba_task
+    if not task:
+        H.log_yba_event(ctx, "wait: no task was started, nothing to wait for", event="wait_skipped")
+        return
+    timeout_sec = int(stage.get("timeout_sec", 0))
+    interval_sec = int(stage.get("poll_interval_sec", 30))
+    client = yba.YBAClient.from_env()
+    started = time.time()
+    deadline = started + timeout_sec if timeout_sec else None
+    last_percent = None
+    while True:
+        info = client.task(task["uuid"])
+        status = info.get("status")
+        percent = info.get("percent")
+        if percent != last_percent:
+            H.log(f"[yba] {task['event']} task {task['uuid']}: {status} {percent}%")
+            last_percent = percent
+        if status == yba.TASK_STATUS_SUCCESS:
+            break
+        if status in yba.TASK_STATUS_TERMINAL_FAILURE:
+            failed = client.failed_subtasks(task["uuid"])
+            H.log_yba_event(
+                ctx,
+                f"{task['event']} task {task['uuid']} ended with {status}; failed subtasks: {json.dumps(failed)[:4000]}",
+                event=f"{task['event']}_failed",
+                task_uuid=task["uuid"],
+                status=status,
+                failed_subtasks=failed,
+            )
+            raise RuntimeError(f"YBA {task['event']} task {task['uuid']} ended with {status}")
+        if deadline and time.time() > deadline:
+            raise TimeoutError(f"YBA {task['event']} task {task['uuid']} still {status} after {timeout_sec}s")
+        time.sleep(interval_sec)
+
+    duration = int(time.time() - started)
+    task["finished_ts"] = H._ts()
+    task["duration_sec"] = duration
+    H.log_yba_event(
+        ctx,
+        f"{task['event']} task {task['uuid']}: Success after {duration // 60}m{duration % 60:02d}s, failed subtasks: 0",
+        event=f"{task['event']}_succeeded",
+        task_uuid=task["uuid"],
+        duration_sec=duration,
+    )
+
+
+@action("yba_check_version")
+def yba_check_version_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Assert the universe runs the expected build: YBA record plus `select version()` per tserver.
+
+    Stage keys:
+      - expected: build string, ${VAR} references are expanded
+      - require_all_nodes: default false; a node that cannot be reached is logged and
+        skipped until the agent's reachability to every node is confirmed
+    """
+    expected = os.path.expandvars(stage["expected"])
+    yba.version_key(expected)
+    require_all_nodes = bool(stage.get("require_all_nodes", False))
+
+    client = yba.YBAClient.from_env()
+    universe = client.universe()
+    universe_version = client.universe_version(universe)
+    upgrade_state = client.software_upgrade_state(universe)
+    hosts = client.tserver_private_ips(universe)
+    node_results = H.yb_node_server_versions(ctx.cfg, hosts)
+
+    expected_number = yba.version_number(expected)
+    lines = [f"yba_check_version: expected={expected} (nodes report the version number only)"]
+    mismatches: list[str] = []
+    unreachable: list[str] = []
+    node_versions: Dict[str, Any] = {}
+    for rec in node_results:
+        host = rec["host"]
+        if rec["error"] is not None:
+            unreachable.append(host)
+            node_versions[host] = None
+            lines.append(f"  node {host:<16} select version() -> UNREACHABLE ({rec['error']})")
+            continue
+        actual = yba.parse_server_version_number(rec["output"])
+        node_versions[host] = actual
+        verdict = "OK" if actual == expected_number else "MISMATCH"
+        if verdict == "MISMATCH":
+            mismatches.append(f"{host}={actual}")
+        lines.append(f"  node {host:<16} select version() -> {actual}  {verdict}")
+    universe_verdict = "OK" if universe_version == expected else "MISMATCH"
+    if universe_verdict == "MISMATCH":
+        mismatches.append(f"yba={universe_version}")
+    lines.append(f"  yba universe ybSoftwareVersion -> {universe_version}  {universe_verdict}")
+    lines.append(f"  yba universe softwareUpgradeState -> {upgrade_state}")
+    task = ctx.yba_task
+    if task and task.get("duration_sec") is not None:
+        lines.append(
+            f"  last task {task['event']} {task['uuid']}: Success, "
+            f"{task['duration_sec'] // 60}m{task['duration_sec'] % 60:02d}s"
+        )
+
+    outcome = "FAILED" if mismatches or (require_all_nodes and unreachable) else "OK"
+    H.log_yba_event(
+        ctx,
+        "\n".join(lines) + f"\n  result: {outcome}",
+        event="check_version",
+        expected=expected,
+        universe_version=universe_version,
+        software_upgrade_state=upgrade_state,
+        node_versions=node_versions,
+        unreachable=unreachable,
+        result=outcome,
+    )
+    if mismatches:
+        raise RuntimeError(f"yba_check_version: expected {expected}, got {', '.join(mismatches)}")
+    if require_all_nodes and unreachable:
+        raise RuntimeError(f"yba_check_version: nodes unreachable: {', '.join(unreachable)}")
+
+
 # -------------------------
 # Runner
 # -------------------------
@@ -647,6 +824,7 @@ def main() -> None:
                 had_failure = True
                 raise
     finally:
+        H.log(f"RUN {'FAILED' if had_failure else 'COMPLETE'}: {cfg['name']}")
         # Always capture artifacts/logs at the end regardless of success or failure
         H.scan_logs_for_errors(cfg["export_dir"], cfg["artifacts_dir"])
         H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"])
