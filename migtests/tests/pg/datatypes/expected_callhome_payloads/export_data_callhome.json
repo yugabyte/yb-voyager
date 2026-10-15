@@ -23,6 +23,7 @@
     "db_version": "17.6 (Ubuntu 17.6-2.pgdg22.04+1)",
     "host": "",
     "payload_version": 1.4,
+    "tls_cert_domain": "mysite.com",
     "schema_names": [
       "schema_d7108fd530c9b1c2"
     ],

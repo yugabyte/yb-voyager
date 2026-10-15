@@ -27,6 +27,7 @@
     "db_version": "17.11 (Debian 17.11-1.pgdg13+2)",
     "host": "",
     "payload_version": 1.4,
+    "tls_cert_domain": "mysite.com",
     "schema_names": [
       "schema_d7108fd530c9b1c2"
     ],
