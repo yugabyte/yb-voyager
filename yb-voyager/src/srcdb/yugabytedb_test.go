@@ -866,6 +866,77 @@ func TestYugabyteGetColumnsWithSupportedTypes_DomainOverUnsupportedType(t *testi
 	}
 }
 
+// Domains are resolved by the schema they live in, not the schema of the table using them.
+// The table lives in dom_schema_a and its columns use domains from the case-sensitive schema
+// "DomSchemaB", including a "DomSchemaB" domain stacked on a dom_schema_a domain and one built
+// on a dom_schema_a composite type, which only the gRPC connector cannot stream. code_dom
+// exists in both schemas with different base types, so each column must resolve to the
+// domain it names: only the "DomSchemaB" one is unsupported.
+func TestYugabyteGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA dom_schema_a;`,
+		`CREATE SCHEMA "DomSchemaB";`,
+		`CREATE DOMAIN dom_schema_a.lsn_dom AS PG_LSN;`,
+		`CREATE TYPE dom_schema_a.address AS (street TEXT, city TEXT);`,
+		`CREATE DOMAIN dom_schema_a.code_dom AS TEXT;`,
+		`CREATE DOMAIN "DomSchemaB".snapshot_dom AS TXID_SNAPSHOT;`,
+		`CREATE DOMAIN "DomSchemaB".lsn_dom_on_a AS dom_schema_a.lsn_dom;`,
+		`CREATE DOMAIN "DomSchemaB".address_dom_on_a AS dom_schema_a.address;`,
+		`CREATE DOMAIN "DomSchemaB".code_dom AS PG_LSN;`,
+		`CREATE TABLE dom_schema_a.cross_schema_table (
+			id INT PRIMARY KEY,
+			snap "DomSchemaB".snapshot_dom,
+			"LsnCol" "DomSchemaB".lsn_dom_on_a,
+			addr "DomSchemaB".address_dom_on_a,
+			snap_list "DomSchemaB".snapshot_dom[],
+			local_code dom_schema_a.code_dom,
+			remote_code "DomSchemaB".code_dom
+		);`,
+	)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA dom_schema_a CASCADE;`,
+		`DROP SCHEMA "DomSchemaB" CASCADE;`,
+	)
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	originalIsGrpc := ybDB.source.IsYBGrpcConnector
+	defer func() { ybDB.source.IsYBGrpcConnector = originalIsGrpc }()
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("dom_schema_a.cross_schema_table", "dom_schema_a", constants.YUGABYTEDB),
+	}
+
+	allColumnsInfo, err := getAllTableColumnsInfo(tableList, ybDB.db)
+	assert.NilError(t, err)
+	info := allColumnsInfo[tableList[0]]
+	testutils.AssertEqualStringSlices(t, []string{"id", "snap", "LsnCol", "addr", "snap_list", "local_code", "remote_code"}, info.Columns)
+	testutils.AssertEqualStringSlices(t, []string{"", "txid_snapshot", "pg_lsn", "dom_schema_a.address", "txid_snapshot", "text", "pg_lsn"}, info.DomainBaseTypes)
+
+	testCases := []struct {
+		isGrpc              bool
+		expectedSupported   []string
+		expectedUnsupported []string
+	}{
+		{false, []string{"id", "addr", "local_code"}, []string{"snap", "LsnCol", "snap_list", "remote_code"}},
+		{true, []string{"id", "local_code"}, []string{"snap", "LsnCol", "addr", "snap_list", "remote_code"}},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("grpc=%t", tc.isGrpc), func(t *testing.T) {
+			ybDB.source.IsYBGrpcConnector = tc.isGrpc
+			supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
+			assert.NilError(t, err)
+
+			supported, exists := supportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected dom_schema_a.cross_schema_table in supported map")
+			testutils.AssertEqualStringSlices(t, tc.expectedSupported, supported)
+
+			unsupported, exists := unsupportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected dom_schema_a.cross_schema_table in unsupported map")
+			testutils.AssertEqualStringSlices(t, tc.expectedUnsupported, unsupported)
+		})
+	}
+}
+
 func TestYugabyteReplicaIdentityGuardrail(t *testing.T) {
 	// In YugabyteDB, the default replica identity for new tables is already CHANGE ('c'),
 	// unlike PostgreSQL which defaults to DEFAULT ('d'). To test a table without CHANGE
