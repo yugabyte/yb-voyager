@@ -21,6 +21,7 @@ import (
 	"slices"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -135,7 +136,7 @@ func getTablesColumnTypes(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlnam
 		}
 		tableName, ok := tableLookup[fmt.Sprintf("%s.%s", schema, table)]
 		if !ok {
-			return nil, fmt.Errorf("column types returned for table %s.%s which was not requested", schema, table)
+			return nil, goerrors.Errorf("column types returned for table %s.%s which was not requested", schema, table)
 		}
 
 		info := result[tableName]
