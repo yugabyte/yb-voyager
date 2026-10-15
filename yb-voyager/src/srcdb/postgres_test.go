@@ -162,6 +162,68 @@ func TestPostgresGetColumnsWithSupportedTypes_DomainOverUnsupportedType(t *testi
 	})
 }
 
+// Domains are resolved by the schema they live in, not the schema of the table using them.
+// The table lives in dom_schema_a and its columns use domains from the case-sensitive schema
+// "DomSchemaB", including a "DomSchemaB" domain stacked on a dom_schema_a domain and one built
+// on a dom_schema_a range type. code_dom exists in both schemas with different base types, so
+// each column must resolve to the domain it names: only the "DomSchemaB" one is unsupported.
+func TestPostgresGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA dom_schema_a;`,
+		`CREATE SCHEMA "DomSchemaB";`,
+		`CREATE DOMAIN dom_schema_a.lsn_dom AS PG_LSN;`,
+		`CREATE TYPE dom_schema_a.float_range AS RANGE (subtype = float8);`,
+		`CREATE DOMAIN dom_schema_a.code_dom AS TEXT;`,
+		`CREATE DOMAIN "DomSchemaB".xid8_dom AS XID8;`,
+		`CREATE DOMAIN "DomSchemaB".lsn_dom_on_a AS dom_schema_a.lsn_dom;`,
+		`CREATE DOMAIN "DomSchemaB".range_dom_on_a AS dom_schema_a.float_range;`,
+		`CREATE DOMAIN "DomSchemaB".code_dom AS XID8;`,
+		`CREATE TABLE dom_schema_a.cross_schema_table (
+			id INT PRIMARY KEY,
+			txn "DomSchemaB".xid8_dom,
+			"LsnCol" "DomSchemaB".lsn_dom_on_a,
+			range_col "DomSchemaB".range_dom_on_a,
+			txn_list "DomSchemaB".xid8_dom[],
+			local_code dom_schema_a.code_dom,
+			remote_code "DomSchemaB".code_dom
+		);`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(
+		`DROP SCHEMA dom_schema_a CASCADE;`,
+		`DROP SCHEMA "DomSchemaB" CASCADE;`,
+	)
+
+	sqlname.SourceDBType = "postgresql"
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName("dom_schema_a.cross_schema_table", "dom_schema_a", testPostgresSource.DBType),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+
+	t.Run("domain base types", func(t *testing.T) {
+		allColumnsInfo, err := getAllTableColumnsInfo(tableList, pgDB.db)
+		assert.NilError(t, err)
+		info := allColumnsInfo[tableList[0]]
+		testutils.AssertEqualStringSlices(t, []string{"id", "txn", "LsnCol", "range_col", "txn_list", "local_code", "remote_code"}, info.Columns)
+		testutils.AssertEqualStringSlices(t, []string{"", "xid8", "pg_lsn", "dom_schema_a.float_range", "xid8", "text", "xid8"}, info.DomainBaseTypes)
+	})
+
+	t.Run("live migration", func(t *testing.T) {
+		supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
+		assert.NilError(t, err)
+
+		supported, exists := supportedCols.Get(tableList[0])
+		assert.Equal(t, true, exists, "Expected dom_schema_a.cross_schema_table in supported map")
+		testutils.AssertEqualStringSlices(t, []string{"id", "local_code"}, supported)
+
+		unsupported, exists := unsupportedCols.Get(tableList[0])
+		assert.Equal(t, true, exists, "Expected dom_schema_a.cross_schema_table in unsupported map")
+		testutils.AssertEqualStringSlices(t, []string{"txn", "LsnCol", "range_col", "txn_list", "remote_code"}, unsupported)
+	})
+}
+
 // Debezium cannot stream xid, xid8, or cid, so live export must drop those columns.
 // Offline export goes through pg_dump and drops nothing. cidr guards that matching is
 // exact, and the quoted column guards case-sensitive names.
