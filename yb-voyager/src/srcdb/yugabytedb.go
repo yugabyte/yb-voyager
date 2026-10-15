@@ -463,12 +463,12 @@ func (yb *YugabyteDB) FetchDBID() error {
 	return nil
 }
 
-func (yb *YugabyteDB) FetchDomainName() error {
+func (yb *YugabyteDB) FetchTLSCertDomainName() error {
 	cert, err := getPgxServerCertificate(yb.db)
 	if err != nil {
 		return fmt.Errorf("get source server TLS certificate: %w", err)
 	}
-	yb.source.SourceDomain = extractSourceDomain(cert, yb.source.Host)
+	yb.source.TLSCertDomain = extractTLSCertDomain(cert)
 	return nil
 }
 

@@ -22,7 +22,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"os/exec"
 	"path/filepath"
@@ -41,7 +40,6 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
-	"golang.org/x/net/publicsuffix"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -710,63 +708,26 @@ func getPgxServerCertificate(db *sql.DB) (*x509.Certificate, error) {
 // connected via an IP address. The SANs are tried first, then the Subject CN (older or
 // self-signed certs often carry the name only there). If no certificate name yields a
 // usable domain, the user-supplied host is used as a fallback.
-func extractSourceDomain(cert *x509.Certificate, host string) string {
+func extractTLSCertDomain(cert *x509.Certificate) string {
 	if cert != nil {
 		names := append([]string{}, cert.DNSNames...)
 		names = append(names, cert.Subject.CommonName)
 		for _, name := range names {
-			domain := registeredDomain(name)
+			domain := utils.RegisteredDomain(name)
 			if domain != "" {
 				return domain
 			}
 		}
 	}
-	return registeredDomain(host)
-}
-
-// registeredDomain reduces a DNS name to its ICANN registrable domain, i.e. the public
-// suffix plus one label: pg01.db.acme.com -> acme.com, db.acme.co.uk -> acme.co.uk.
-//
-// Only ICANN suffixes are honoured; private suffixes from the public-suffix list
-// (e.g. *.rds.amazonaws.com) are skipped on purpose so that managed-service names
-// collapse to the provider domain (amazonaws.com, azure.com, sql.goog) instead of
-// exposing the customer's instance name.
-//
-// Returns "" for names that cannot identify an organisation: IPs, single-label names
-// (localhost, postgres — common in self-signed certs), non-ICANN TLDs (.local,
-// .internal, .corp) and bare public suffixes (co.uk).
-func registeredDomain(name string) string {
-	// Normalise: case-insensitive, wildcard SANs (*.acme.com) and FQDN trailing dots.
-	name = strings.TrimSuffix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(name)), "*."), ".")
-	if name == "" || net.ParseIP(name) != nil || !strings.Contains(name, ".") {
-		return ""
-	}
-
-	// Walk candidate suffixes from longest to shortest; the first one that is itself an
-	// ICANN public suffix is the longest such suffix. The registrable domain is that
-	// suffix plus the label immediately to its left.
-	labels := strings.Split(name, ".")
-	for i := range labels {
-		candidate := strings.Join(labels[i:], ".")
-		suffix, icann := publicsuffix.PublicSuffix(candidate)
-		if !icann || suffix != candidate {
-			continue
-		}
-		if i == 0 {
-			// The whole name is a public suffix (e.g. co.uk): no organisation label.
-			return ""
-		}
-		return strings.Join(labels[i-1:], ".")
-	}
 	return ""
 }
 
-func (pg *PostgreSQL) FetchDomainName() error {
+func (pg *PostgreSQL) FetchTLSCertDomainName() error {
 	cert, err := getPgxServerCertificate(pg.db)
 	if err != nil {
 		return fmt.Errorf("get source server TLS certificate: %w", err)
 	}
-	pg.source.SourceDomain = extractSourceDomain(cert, pg.source.Host)
+	pg.source.TLSCertDomain = extractTLSCertDomain(cert)
 	return nil
 }
 

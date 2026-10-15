@@ -46,6 +46,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/net/publicsuffix"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -1121,4 +1122,41 @@ func GetFloat64OrZero(data map[string]interface{}, keys ...string) float64 {
 		}
 	}
 	return 0.0
+}
+
+// registeredDomain reduces a DNS name to its ICANN registrable domain, i.e. the public
+// suffix plus one label: pg01.db.acme.com -> acme.com, db.acme.co.uk -> acme.co.uk.
+//
+// Only ICANN suffixes are honoured; private suffixes from the public-suffix list
+// (e.g. *.rds.amazonaws.com) are skipped on purpose so that managed-service names
+// collapse to the provider domain (amazonaws.com, azure.com, sql.goog) instead of
+// exposing the customer's instance name.
+//
+// Returns "" for names that cannot identify an organisation: IPs, single-label names
+// (localhost, postgres — common in self-signed certs), non-ICANN TLDs (.local,
+// .internal, .corp) and bare public suffixes (co.uk).
+func RegisteredDomain(name string) string {
+	// Normalise: case-insensitive, wildcard SANs (*.acme.com) and FQDN trailing dots.
+	name = strings.TrimSuffix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(name)), "*."), ".")
+	if name == "" || net.ParseIP(name) != nil || !strings.Contains(name, ".") {
+		return ""
+	}
+
+	// Walk candidate suffixes from longest to shortest; the first one that is itself an
+	// ICANN public suffix is the longest such suffix. The registrable domain is that
+	// suffix plus the label immediately to its left.
+	labels := strings.Split(name, ".")
+	for i := range labels {
+		candidate := strings.Join(labels[i:], ".")
+		suffix, icann := publicsuffix.PublicSuffix(candidate)
+		if !icann || suffix != candidate {
+			continue
+		}
+		if i == 0 {
+			// The whole name is a public suffix (e.g. co.uk): no organisation label.
+			return ""
+		}
+		return strings.Join(labels[i-1:], ".")
+	}
+	return ""
 }

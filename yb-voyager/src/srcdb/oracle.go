@@ -358,8 +358,7 @@ func (ora *Oracle) FetchDBID() error {
 }
 
 // godror connects through OCI, so the TLS connection is not visible from Go and only the hostname fallback applies.
-func (ora *Oracle) FetchDomainName() error {
-	ora.source.SourceDomain = extractSourceDomain(nil, ora.source.Host)
+func (ora *Oracle) FetchTLSCertDomainName() error {
 	return nil
 }
 

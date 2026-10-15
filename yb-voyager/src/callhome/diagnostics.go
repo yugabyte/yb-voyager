@@ -110,9 +110,10 @@ type SourceDBDetails struct {
 	DBID               int64    `json:"db_id,omitempty"`                // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SourceDeployment   string   `json:"source_deployment_type,omitempty"`
-	SourceDomain       string   `json:"source_domain,omitempty"` // registered domain only (e.g. abc.com, amazonaws.com), never the full hostname
-	SchemaNames        []string `json:"schema_names,omitempty"`  //Anonymized schema names
-	SchemaOids         []int64  `json:"schema_oids,omitempty"`   //Schema oids
+	TLSCertDomain      string   `json:"tls_cert_domain,omitempty"` // registered domain only (e.g. abc.com, amazonaws.com)
+	HostDomain         string   `json:"host_domain,omitempty"`     // registered domain only (e.g. abc.com, amazonaws.com)
+	SchemaNames        []string `json:"schema_names,omitempty"`    //Anonymized schema names
+	SchemaOids         []int64  `json:"schema_oids,omitempty"`     //Schema oids
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
