@@ -132,15 +132,6 @@ func TestPostgresGetColumnsWithSupportedTypes_DomainOverUnsupportedType(t *testi
 	defer testPostgresSource.DB().Disconnect()
 	pgDB := testPostgresSource.DB().(*PostgreSQL)
 
-	t.Run("domain base types", func(t *testing.T) {
-		allColumnsInfo, err := getAllTableColumnsInfo(tableList, pgDB.db)
-		assert.NilError(t, err)
-		info := allColumnsInfo[tableList[0]]
-		testutils.AssertEqualStringSlices(t, []string{"id", "TxnId", "lsn_col", "range_col", "email", "TxnIdArr", "txn_id_list", "emails"}, info.Columns)
-		testutils.AssertEqualStringSlices(t, []string{"int4", "xid8_dom", "lsn_dom_nested", "float_range_dom", "email_dom", "xid8_arr_dom", "_xid8_dom", "_email_dom"}, info.DataTypes)
-		testutils.AssertEqualStringSlices(t, []string{"", "xid8", "pg_lsn", "test_schema.float_range", "text", "xid8", "xid8", "text"}, info.DomainBaseTypes)
-	})
-
 	t.Run("live migration", func(t *testing.T) {
 		supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
 		assert.NilError(t, err)
@@ -202,14 +193,6 @@ func TestPostgresGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
 	defer testPostgresSource.DB().Disconnect()
 	pgDB := testPostgresSource.DB().(*PostgreSQL)
 
-	t.Run("domain base types", func(t *testing.T) {
-		allColumnsInfo, err := getAllTableColumnsInfo(tableList, pgDB.db)
-		assert.NilError(t, err)
-		info := allColumnsInfo[tableList[0]]
-		testutils.AssertEqualStringSlices(t, []string{"id", "txn", "LsnCol", "range_col", "txn_list", "local_code", "remote_code"}, info.Columns)
-		testutils.AssertEqualStringSlices(t, []string{"", "xid8", "pg_lsn", "dom_schema_a.float_range", "xid8", "text", "xid8"}, info.DomainBaseTypes)
-	})
-
 	t.Run("live migration", func(t *testing.T) {
 		supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
 		assert.NilError(t, err)
@@ -222,6 +205,65 @@ func TestPostgresGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
 		assert.Equal(t, true, exists, "Expected dom_schema_a.cross_schema_table in unsupported map")
 		testutils.AssertEqualStringSlices(t, []string{"txn", "LsnCol", "range_col", "txn_list", "remote_code"}, unsupported)
 	})
+}
+
+// Shared by the PG and YB nested-type tests. Each nested_table column is built from types
+// through arrays, composite fields, and domains; the unsupported type sits at a different
+// level in each.
+var nestedTypesSetupSqls = []string{
+	`CREATE SCHEMA "NestSchema";`,
+	`CREATE TYPE "NestSchema".float_range AS RANGE (subtype = float8, multirange_type_name = "NestSchema".float_multirange);`,
+	`CREATE TYPE "NestSchema".status_enum AS ENUM ('active', 'inactive');`,
+	`CREATE TYPE "NestSchema".address AS (street TEXT, zip INT);`,
+	`CREATE TYPE "NestSchema"."Geo" AS (label TEXT, lsn PG_LSN);`,
+	`CREATE TYPE "NestSchema".wrapper AS (name TEXT, inner_geo "NestSchema"."Geo");`,
+	`CREATE TYPE "NestSchema".period AS (label TEXT, span "NestSchema".float_range);`,
+	`CREATE DOMAIN "NestSchema".geo_dom AS "NestSchema"."Geo";`,
+	`CREATE TABLE "NestSchema".nested_table (
+		id INT PRIMARY KEY,
+		addr "NestSchema".address,
+		addr_list "NestSchema".address[],
+		tags TEXT[],
+		status_list "NestSchema".status_enum[],
+		xml_list XML[],
+		"LsnList" PG_LSN[],
+		range_list "NestSchema".float_range[],
+		int_mr INT4MULTIRANGE,
+		geo_col "NestSchema"."Geo",
+		geo_list "NestSchema"."Geo"[],
+		wrapped "NestSchema".wrapper,
+		geo_dom_col "NestSchema".geo_dom,
+		period_col "NestSchema".period
+	);`,
+}
+
+var nestedTypesUnsupportedColumns = []string{"xml_list", "LsnList", "range_list", "int_mr", "geo_col", "geo_list", "wrapped", "geo_dom_col", "period_col"}
+
+func TestPostgresGetColumnsWithSupportedTypes_NestedTypes(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(nestedTypesSetupSqls...)
+	// YugabyteDB cannot create a column of a user-defined multirange type, so only PG covers it
+	testPostgresSource.TestContainer.ExecuteSqls(`ALTER TABLE "NestSchema".nested_table ADD COLUMN custom_mr "NestSchema".float_multirange;`)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA "NestSchema" CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName(`"NestSchema".nested_table`, "NestSchema", testPostgresSource.DBType),
+	}
+
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+
+	supportedCols, unsupportedCols, err := pgDB.GetColumnsWithSupportedTypes(tableList, true, true)
+	assert.NilError(t, err)
+
+	supported, exists := supportedCols.Get(tableList[0])
+	assert.Equal(t, true, exists, "Expected NestSchema.nested_table in supported map")
+	testutils.AssertEqualStringSlices(t, []string{"id", "addr", "addr_list", "tags", "status_list"}, supported)
+
+	unsupported, exists := unsupportedCols.Get(tableList[0])
+	assert.Equal(t, true, exists, "Expected NestSchema.nested_table in unsupported map")
+	testutils.AssertEqualStringSlices(t, append(slices.Clone(nestedTypesUnsupportedColumns), "custom_mr"), unsupported)
 }
 
 // Debezium cannot stream xid, xid8, or cid, so live export must drop those columns.

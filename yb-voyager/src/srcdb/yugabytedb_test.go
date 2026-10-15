@@ -348,7 +348,7 @@ func TestYugabyteFilterEmptyTables(t *testing.T) {
 	testutils.AssertEqualNameTuplesSlice(t, expectedEmptyTables, emptyTables)
 }
 
-func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
+func TestYugabyteGetTablesColumnTypes(t *testing.T) {
 	testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
 
@@ -375,7 +375,7 @@ func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("test_schema.orders", "test_schema", constants.YUGABYTEDB),
 	}
 
-	allColumnsInfo, err := getAllTableColumnsInfo(tableList, ybDB.db)
+	allColumnsInfo, err := getTablesColumnTypes(tableList, ybDB.db)
 	assert.NilError(t, err, "Expected no error fetching table columns")
 	assert.Equal(t, 2, len(allColumnsInfo), "Expected column info for 2 tables")
 
@@ -384,14 +384,14 @@ func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
 	productsInfo, exists := allColumnsInfo[productsTable]
 	assert.Equal(t, true, exists, "Expected products table in results")
 	assert.Equal(t, 5, len(productsInfo.Columns), "Expected 5 columns in products table")
-	assert.Equal(t, 5, len(productsInfo.DataTypes), "Expected 5 data types in products table")
+	assert.Equal(t, 5, len(productsInfo.UnderlyingTypes), "Expected 5 type lists in products table")
 
 	// Verify column order matches table definition (ORDER BY attnum)
 	testutils.AssertEqualStringSlices(t, []string{"id", "name", "price", "in_stock", "created_at"}, productsInfo.Columns)
-	// Verify parallel arrays are aligned (columns[i] matches dataTypes[i])
-	assert.Equal(t, "int4", productsInfo.DataTypes[0], "id should be int4")
-	assert.Equal(t, "varchar", productsInfo.DataTypes[1], "name should be varchar")
-	assert.Equal(t, "numeric", productsInfo.DataTypes[2], "price should be numeric")
+	// Verify parallel arrays are aligned (Columns[i] matches UnderlyingTypes[i])
+	assert.DeepEqual(t, []columnType{{Name: "int4", TypType: "b"}}, productsInfo.UnderlyingTypes[0])
+	assert.DeepEqual(t, []columnType{{Name: "varchar", TypType: "b"}}, productsInfo.UnderlyingTypes[1])
+	assert.DeepEqual(t, []columnType{{Name: "numeric", TypType: "b"}}, productsInfo.UnderlyingTypes[2])
 
 	// Verify orders table
 	ordersTable := tableList[1]
@@ -400,12 +400,12 @@ func TestYugabyteGetAllTableColumnsInfo(t *testing.T) {
 	testutils.AssertEqualStringSlices(t, []string{"order_id", "customer_id", "total"}, ordersInfo.Columns)
 
 	// Test edge case: Empty table list
-	emptyResult, err := getAllTableColumnsInfo([]sqlname.NameTuple{}, ybDB.db)
+	emptyResult, err := getTablesColumnTypes([]sqlname.NameTuple{}, ybDB.db)
 	assert.NilError(t, err, "Expected no error for empty table list")
 	assert.Equal(t, 0, len(emptyResult), "Expected empty result for empty table list")
 }
 
-func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
+func TestYugabyteGetColumnsWithSupportedTypes_UserDefinedTypes(t *testing.T) {
 	testYugabyteDBSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA hr;`,
 		`CREATE SCHEMA inventory;`,
@@ -493,53 +493,43 @@ func TestYugabyteFilterUnsupportedUserDefinedDatatypes(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("inventory.period_table", "inventory", constants.YUGABYTEDB),
 	}
 
-	// Get the underlying YugabyteDB instance to access private method
+	allTables := append(slices.Clone(tableList), tableListWithRanges...)
+
 	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
-	ybDB.source.IsYBGrpcConnector = true
-	actualUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(tableList)
+	originalIsGrpc := ybDB.source.IsYBGrpcConnector
+	defer func() { ybDB.source.IsYBGrpcConnector = originalIsGrpc }()
 
-	// Expected: Only composite types (typtype='c'), NOT enums or domains
-	// hr.status_enum and hr.positive_int should be excluded
-	expectedUDTs := []string{
-		"hr.contact",
-		"inventory.device_specs",
+	rangeColumns := map[string][]string{
+		"hr.active_ts_table":       {"active_ts_range"},
+		"inventory.discount_table": {"discount_range"},
+		"inventory.period_table":   {"period_range"},
 	}
-
-	assert.Equal(t, len(expectedUDTs), len(actualUDTs),
-		"Expected %d UDTs but got %d", len(expectedUDTs), len(actualUDTs))
-	testutils.AssertEqualStringSlices(t, expectedUDTs, actualUDTs)
-
-	actualUDTsWithRanges := ybDB.filterUnsupportedUserDefinedDatatypes(append(tableList, tableListWithRanges...))
-	expectedUDTsWithRanges := []string{
-		"hr.contact",
-		"inventory.device_specs",
-		"inventory.active_ts_range",
-		"public.discount_range",
-		"hr.period_range",
+	testCases := []struct {
+		isGrpc              bool
+		expectedUnsupported map[string][]string
+	}{
+		// enums and domains over supported types stay supported with both connectors
+		{false, rangeColumns},
+		{true, lo.Assign(rangeColumns, map[string][]string{
+			"hr.employees":        {"contact_info"},
+			"hr.employee_devices": {"device_details"},
+		})},
 	}
-	assert.Equal(t, len(expectedUDTsWithRanges), len(actualUDTsWithRanges),
-		"Expected %d UDTs but got %d", len(expectedUDTsWithRanges), len(actualUDTsWithRanges))
-	testutils.AssertEqualStringSlices(t, expectedUDTsWithRanges, actualUDTsWithRanges)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("grpc=%t", tc.isGrpc), func(t *testing.T) {
+			ybDB.source.IsYBGrpcConnector = tc.isGrpc
+			_, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(allTables, true, false)
+			assert.NilError(t, err)
 
-	// Test edge case: Empty table list
-	emptyTableList := []sqlname.NameTuple{}
-	actualEmptyUDTs := ybDB.filterUnsupportedUserDefinedDatatypes(emptyTableList)
-	assert.Equal(t, 0, len(actualEmptyUDTs), "Expected empty list for empty table list")
-
-	ybDB.source.IsYBGrpcConnector = false
-	actualUDTs = ybDB.filterUnsupportedUserDefinedDatatypes(tableList)
-	assert.Equal(t, 0, len(actualUDTs), "Expected empty list for empty table list")
-
-	actualUDTsWithRanges = ybDB.filterUnsupportedUserDefinedDatatypes(append(tableList, tableListWithRanges...))
-	expectedRangesUDTs := []string{
-		"inventory.active_ts_range",
-		"public.discount_range",
-		"hr.period_range",
+			actualUnsupported := make(map[string][]string)
+			err = unsupportedCols.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+				actualUnsupported[table.AsQualifiedCatalogName()] = columns
+				return true, nil
+			})
+			assert.NilError(t, err)
+			assert.DeepEqual(t, tc.expectedUnsupported, actualUnsupported)
+		})
 	}
-	assert.Equal(t, len(expectedRangesUDTs), len(actualUDTsWithRanges),
-		"Expected %d UDTs but got %d", len(expectedRangesUDTs), len(actualUDTsWithRanges))
-	testutils.AssertEqualStringSlices(t, expectedRangesUDTs, actualUDTsWithRanges)
-
 }
 
 // TestYugabyteGetColumnsWithSupportedTypes_AllScenarios tests:
@@ -835,12 +825,6 @@ func TestYugabyteGetColumnsWithSupportedTypes_DomainOverUnsupportedType(t *testi
 		testutils.CreateNameTupleWithSourceName("dom_types.domain_table", "dom_types", constants.YUGABYTEDB),
 	}
 
-	allColumnsInfo, err := getAllTableColumnsInfo(tableList, ybDB.db)
-	assert.NilError(t, err)
-	info := allColumnsInfo[tableList[0]]
-	testutils.AssertEqualStringSlices(t, []string{"id", "LsnCol", "snap", "addr", "email", "LsnArr", "lsn_list", "addr_list", "emails"}, info.Columns)
-	testutils.AssertEqualStringSlices(t, []string{"", "pg_lsn", "txid_snapshot", "dom_types.address", "text", "pg_lsn", "pg_lsn", "dom_types.address", "text"}, info.DomainBaseTypes)
-
 	testCases := []struct {
 		isGrpc              bool
 		expectedSupported   []string
@@ -906,12 +890,6 @@ func TestYugabyteGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
 		testutils.CreateNameTupleWithSourceName("dom_schema_a.cross_schema_table", "dom_schema_a", constants.YUGABYTEDB),
 	}
 
-	allColumnsInfo, err := getAllTableColumnsInfo(tableList, ybDB.db)
-	assert.NilError(t, err)
-	info := allColumnsInfo[tableList[0]]
-	testutils.AssertEqualStringSlices(t, []string{"id", "snap", "LsnCol", "addr", "snap_list", "local_code", "remote_code"}, info.Columns)
-	testutils.AssertEqualStringSlices(t, []string{"", "txid_snapshot", "pg_lsn", "dom_schema_a.address", "txid_snapshot", "text", "pg_lsn"}, info.DomainBaseTypes)
-
 	testCases := []struct {
 		isGrpc              bool
 		expectedSupported   []string
@@ -932,6 +910,44 @@ func TestYugabyteGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
 
 			unsupported, exists := unsupportedCols.Get(tableList[0])
 			assert.Equal(t, true, exists, "Expected dom_schema_a.cross_schema_table in unsupported map")
+			testutils.AssertEqualStringSlices(t, tc.expectedUnsupported, unsupported)
+		})
+	}
+}
+
+// With gRPC every composite is unsupported on its own, so addr and its array are dropped too.
+func TestYugabyteGetColumnsWithSupportedTypes_NestedTypes(t *testing.T) {
+	testYugabyteDBSource.TestContainer.ExecuteSqls(nestedTypesSetupSqls...)
+	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA "NestSchema" CASCADE;`)
+
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	originalIsGrpc := ybDB.source.IsYBGrpcConnector
+	defer func() { ybDB.source.IsYBGrpcConnector = originalIsGrpc }()
+
+	tableList := []sqlname.NameTuple{
+		testutils.CreateNameTupleWithSourceName(`"NestSchema".nested_table`, "NestSchema", constants.YUGABYTEDB),
+	}
+
+	testCases := []struct {
+		isGrpc              bool
+		expectedSupported   []string
+		expectedUnsupported []string
+	}{
+		{false, []string{"id", "addr", "addr_list", "tags", "status_list"}, slices.Clone(nestedTypesUnsupportedColumns)},
+		{true, []string{"id", "tags", "status_list"}, append([]string{"addr", "addr_list"}, nestedTypesUnsupportedColumns...)},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("grpc=%t", tc.isGrpc), func(t *testing.T) {
+			ybDB.source.IsYBGrpcConnector = tc.isGrpc
+			supportedCols, unsupportedCols, err := ybDB.GetColumnsWithSupportedTypes(tableList, true, false)
+			assert.NilError(t, err)
+
+			supported, exists := supportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected NestSchema.nested_table in supported map")
+			testutils.AssertEqualStringSlices(t, tc.expectedSupported, supported)
+
+			unsupported, exists := unsupportedCols.Get(tableList[0])
+			assert.Equal(t, true, exists, "Expected NestSchema.nested_table in unsupported map")
 			testutils.AssertEqualStringSlices(t, tc.expectedUnsupported, unsupported)
 		})
 	}
