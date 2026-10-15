@@ -1124,17 +1124,9 @@ func GetFloat64OrZero(data map[string]interface{}, keys ...string) float64 {
 	return 0.0
 }
 
-// registeredDomain reduces a DNS name to its ICANN registrable domain, i.e. the public
-// suffix plus one label: pg01.db.acme.com -> acme.com, db.acme.co.uk -> acme.co.uk.
-//
-// Only ICANN suffixes are honoured; private suffixes from the public-suffix list
-// (e.g. *.rds.amazonaws.com) are skipped on purpose so that managed-service names
-// collapse to the provider domain (amazonaws.com, azure.com, sql.goog) instead of
-// exposing the customer's instance name.
-//
-// Returns "" for names that cannot identify an organisation: IPs, single-label names
-// (localhost, postgres — common in self-signed certs), non-ICANN TLDs (.local,
-// .internal, .corp) and bare public suffixes (co.uk).
+// RegisteredDomain reduces a DNS name to its ICANN registrable domain (pg01.db.acme.com -> acme.com).
+// Private PSL suffixes are skipped on purpose so managed services collapse to the provider
+// (amazonaws.com) instead of exposing the instance name.
 func RegisteredDomain(name string) string {
 	// Normalise: case-insensitive, wildcard SANs (*.acme.com) and FQDN trailing dots.
 	name = strings.TrimSuffix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(name)), "*."), ".")
