@@ -5,10 +5,12 @@ Connection details come from the environment only (YBA_URL, YBA_API_TOKEN,
 YBA_UNIVERSE_UUID, optional YBA_CA_FILE): the rendered scenario file is archived
 by Jenkins, so the token must never be written into it.
 
-    yba.py resolve-versions [--latest] [--skip-yba-check]
+    yba.py resolve-versions [--skip-yba-check]
 
 prints OLD_VERSION=... and NEW_VERSION=... for the pipeline to export before it
-creates the universe.
+creates the universe: NEW is the latest released build, OLD the newest released
+build of the previous branch whose YSQL migrations NEW also carries, so the pair
+is one YBA will upgrade.
 """
 
 import argparse
@@ -23,20 +25,17 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 RELEASE_SERVICE_URL = "https://release.dev.yugabyte.com"
+RELEASE_NOTES_URL = "https://docs.yugabyte.com/stable/releases/ybdb-releases"
+MIGRATIONS_API_URL = "https://api.github.com/repos/yugabyte/yugabyte-db/contents/src/yb/yql/pgwrapper/ysql_migrations"
 HTTP_TIMEOUT_SEC = 60
 GET_ATTEMPTS = 3
 GET_RETRY_SLEEP_SEC = 5
 
 YB_BUILD_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)-b(\d+)$")
 STABLE_BRANCH_RE = re.compile(r"^\d{4}\.\d+$")
+RELEASE_NOTES_BUILD_RE = re.compile(r"Build:\s*(\d+\.\d+\.\d+\.\d+-b\d+)")
 # Release tarballs report -b0 from `select version()`, so only the version number is usable.
 YB_SERVER_VERSION_RE = re.compile(r"-YB-(\d+\.\d+\.\d+\.\d+)-b\d+")
-
-# The released pair latest-2025.2 -> latest-2026.1 is rejected by YBA's CheckUpgrade until
-# 2026.1.3.0 ships (2025.2.7.0 carries YSQL migration 30566, 2026.1.2.0 does not), so the
-# nightly runs a pinned supported pair; `--latest` switches back to the release-service pick.
-PINNED_OLD_VERSION = "2025.2.6.0-b111"
-PINNED_NEW_VERSION = "2026.1.2.0-b137"
 
 TASK_STATUS_SUCCESS = "Success"
 TASK_STATUS_TERMINAL_FAILURE = {"Failure", "Aborted", "Abort", "Unknown"}
@@ -83,6 +82,28 @@ def stable_branches() -> List[str]:
     if not branches:
         raise RuntimeError(f"no YYYY.N branches in {RELEASE_SERVICE_URL}/version/active/json: {entries}")
     return branches
+
+
+def released_builds_for_branch(branch: str) -> List[str]:
+    """Every GA build of a branch, newest first, from the release notes page."""
+    page = re.sub(r"<[^>]+>", " ", _http_get_text(f"{RELEASE_NOTES_URL}/v{branch}/"))
+    builds = {b for b in RELEASE_NOTES_BUILD_RE.findall(page) if b.startswith(branch + ".")}
+    if not builds:
+        raise RuntimeError(f"no 'Build: <version>-b<n>' entries found on {RELEASE_NOTES_URL}/v{branch}/")
+    return sorted(builds, key=version_key, reverse=True)
+
+
+def ysql_migrations(build: str) -> set:
+    """Migration file names of a build, as YBA's CheckUpgrade compares them (without the V<n>__ prefix)."""
+    url = f"{MIGRATIONS_API_URL}?ref={build}"
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC) as resp:
+        entries = json.loads(resp.read())
+    return {e["name"].split("__", 1)[1] for e in entries if e["name"].startswith("V") and "__" in e["name"]}
 
 
 def released_build(branch: str) -> Optional[str]:
@@ -261,35 +282,37 @@ def _build_on_yba(released: str, on_yba: List[str], report) -> str:
     return same_version[-1]
 
 
-def pinned_versions(yba: Optional[YBAClient], report=print) -> Dict[str, str]:
-    report(f"pinned pair: OLD={PINNED_OLD_VERSION} NEW={PINNED_NEW_VERSION}")
-    if yba is not None:
-        on_yba = set(yba.release_versions())
-        missing = [v for v in (PINNED_OLD_VERSION, PINNED_NEW_VERSION) if v not in on_yba]
-        if missing:
-            raise RuntimeError(f"pinned builds not imported into YBA {yba.base_url}: {missing}")
-        report(f"both builds present on {yba.base_url}")
-    return {
-        "OLD_VERSION": PINNED_OLD_VERSION,
-        "NEW_VERSION": PINNED_NEW_VERSION,
-        "OLD_VERSION_RELEASED": PINNED_OLD_VERSION,
-        "NEW_VERSION_RELEASED": PINNED_NEW_VERSION,
-    }
+def compatible_old_build(new: str, old_branch: str, report=print) -> str:
+    """Newest GA build of old_branch whose YSQL migrations are all present in `new`.
+
+    YBA's CheckUpgrade refuses a target that lacks a migration the source already
+    applied, which happens when a fix is backported to the older branch before the
+    newer branch picks it up, so the newest release is not always upgradable.
+    """
+    new_migrations = ysql_migrations(new)
+    for candidate in released_builds_for_branch(old_branch):
+        missing = sorted(ysql_migrations(candidate) - new_migrations)
+        if not missing:
+            report(f"  {candidate} -> {new}: compatible")
+            return candidate
+        report(f"  {candidate} -> {new}: blocked, migrations missing in {new}: {missing}")
+    raise RuntimeError(f"no released {old_branch} build can upgrade to {new}")
 
 
 def resolve_versions(yba: Optional[YBAClient], report=print) -> Dict[str, str]:
     branches = stable_branches()
     report(f"stable branches from {RELEASE_SERVICE_URL}/version/active/json: {branches}")
-    released: List[str] = []
+    released: List[tuple] = []
     for branch in branches:
         build = released_build(branch)
         report(f"  /version/released/{branch} -> {build}")
         if build:
-            released.append(build)
-    released.sort(key=version_key, reverse=True)
+            released.append((branch, build))
+    released.sort(key=lambda item: version_key(item[1]), reverse=True)
     if len(released) < 2:
-        raise RuntimeError(f"need released builds on two branches, found {released}")
-    new_released, old_released = released[0], released[1]
+        raise RuntimeError(f"need released builds on two branches, found {[b for _, b in released]}")
+    (_, new_released), (old_branch, _) = released[0], released[1]
+    old_released = compatible_old_build(new_released, old_branch, report)
     new, old = new_released, old_released
     if yba is not None:
         on_yba = yba.release_versions()
@@ -309,11 +332,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     resolve = sub.add_parser("resolve-versions", help="print the OLD_VERSION/NEW_VERSION pair for the upgrade tests")
     resolve.add_argument(
-        "--latest",
-        action="store_true",
-        help="pick latest released builds from the release service instead of the pinned pair",
-    )
-    resolve.add_argument(
         "--skip-yba-check",
         action="store_true",
         help="do not confirm the builds exist on the YBA (no YBA_* env needed)",
@@ -322,8 +340,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.command == "resolve-versions":
         yba = None if args.skip_yba_check else YBAClient.from_env(require_universe=False)
-        pick = resolve_versions if args.latest else pinned_versions
-        versions = pick(yba, report=lambda m: print(m, file=sys.stderr))
+        versions = resolve_versions(yba, report=lambda m: print(m, file=sys.stderr))
         for name, value in versions.items():
             print(f"{name}={value}")
         return 0
