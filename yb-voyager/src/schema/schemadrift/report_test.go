@@ -43,7 +43,7 @@ func TestDriftEntryJSONIsFlat(t *testing.T) {
 		},
 		Window:    Window{From: t1(), To: t2()},
 		Phase:     "export data: running",
-		DriftInfo: getDriftInfo(schemadiff.ColumnTypeChanged),
+		DriftInfo: guidanceByDiffType[schemadiff.ColumnTypeChanged].Default,
 	}
 
 	raw, err := json.Marshal(entry)

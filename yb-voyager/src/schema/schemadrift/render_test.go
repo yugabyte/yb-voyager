@@ -63,7 +63,7 @@ func fixtureReport() Report {
 				},
 				Window:    Window{From: from, To: to},
 				Phase:     "export data: running",
-				DriftInfo: getDriftInfo(schemadiff.TableAdded),
+				DriftInfo: guidanceByDiffType[schemadiff.TableAdded].Default,
 			},
 			{
 				Diff: Diff{
@@ -78,7 +78,7 @@ func fixtureReport() Report {
 				},
 				Window:    Window{From: from, To: to},
 				Phase:     "export data: running",
-				DriftInfo: getDriftInfo(schemadiff.ColumnTypeChanged),
+				DriftInfo: guidanceByDiffType[schemadiff.ColumnTypeChanged].Default,
 			},
 		},
 		CapturePoints: []CapturePoint{

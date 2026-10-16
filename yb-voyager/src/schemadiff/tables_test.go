@@ -19,6 +19,8 @@ package schemadiff
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
@@ -308,90 +310,48 @@ func TestDiffTables_TableKindChanged(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: PartitionParent changed — nil→set, set→nil, set→different
+// Test: PartitionParent changed — attached, detached, moved between parents
 // ──────────────────────────────────────────────────────────────────────────────
 
-func TestDiffTables_PartitionParent_NilToSet(t *testing.T) {
-	oldTbl := makeTable("10", "public", "part", schemasnapshot.TableKindOrdinary)
-	// old has no PartitionParent
-	newTbl := oldTbl
-	newTbl.PartitionParent = refPtr("public", "parent_table")
+func TestDiffTables_PartitionParentChanges(t *testing.T) {
+	parentA, parentB := ref("public", "parent_a"), ref("public", "parent_b")
+	part := ref("public", "part")
+	detached := newDifference(TablePartitionDetached, OpChanged, ObjectTypeTable, AttrPartitionParent, part, part, parentA, nil)
+	tests := []struct {
+		name      string
+		oldParent *schemasnapshot.ObjectRef
+		newParent *schemasnapshot.ObjectRef
+		want      []Difference
+	}{
+		{
+			name:      "attached",
+			newParent: &parentA,
+			want:      []Difference{newDifference(TablePartitionAttached, OpChanged, ObjectTypeTable, AttrPartitionParent, part, part, nil, parentA)},
+		},
+		{
+			name:      "detached",
+			oldParent: &parentA,
+			want:      []Difference{detached},
+		},
+		{
+			name:      "moved between parents: one detach, one attach",
+			oldParent: &parentA,
+			newParent: &parentB,
+			want: []Difference{
+				newDifference(TablePartitionAttached, OpChanged, ObjectTypeTable, AttrPartitionParent, part, part, nil, parentB),
+				detached,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oldTbl := makeTable("10", part.Schema, part.Name, schemasnapshot.TableKindOrdinary)
+			oldTbl.PartitionParent = tt.oldParent
+			newTbl := makeTable("10", part.Schema, part.Name, schemasnapshot.TableKindOrdinary)
+			newTbl.PartitionParent = tt.newParent
 
-	a := snapWithTables(oldTbl)
-	b := snapWithTables(newTbl)
-
-	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	d := got[0]
-	if d.Type != TablePartitionParentChanged {
-		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
-	}
-	if d.SideAValue != nil {
-		t.Errorf("expected OldValue=nil, got %v", d.SideAValue)
-	}
-	if d.SideBValue == nil {
-		t.Errorf("expected NewValue non-nil")
-	}
-}
-
-func TestDiffTables_PartitionParent_SetToNil(t *testing.T) {
-	oldTbl := makeTable("11", "public", "part", schemasnapshot.TableKindOrdinary)
-	oldTbl.PartitionParent = refPtr("public", "parent_table")
-	newTbl := makeTable("11", "public", "part", schemasnapshot.TableKindOrdinary)
-	// new has no PartitionParent
-
-	a := snapWithTables(oldTbl)
-	b := snapWithTables(newTbl)
-
-	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	d := got[0]
-	if d.Type != TablePartitionParentChanged {
-		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
-	}
-	if d.SideAValue == nil {
-		t.Errorf("expected OldValue non-nil")
-	}
-	if d.SideBValue != nil {
-		t.Errorf("expected NewValue=nil, got %v", d.SideBValue)
-	}
-}
-
-func TestDiffTables_PartitionParent_SetToDifferent(t *testing.T) {
-	oldTbl := makeTable("12", "public", "part", schemasnapshot.TableKindOrdinary)
-	oldTbl.PartitionParent = refPtr("public", "parent_a")
-	newTbl := makeTable("12", "public", "part", schemasnapshot.TableKindOrdinary)
-	newTbl.PartitionParent = refPtr("public", "parent_b")
-
-	a := snapWithTables(oldTbl)
-	b := snapWithTables(newTbl)
-
-	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	d := got[0]
-	if d.Type != TablePartitionParentChanged {
-		t.Errorf("expected TablePartitionParentChanged, got %v", d.Type)
-	}
-	if d.SideAValue.(schemasnapshot.ObjectRef) != ref("public", "parent_a") {
-		t.Errorf("unexpected OldValue %v", d.SideAValue)
-	}
-	if d.SideBValue.(schemasnapshot.ObjectRef) != ref("public", "parent_b") {
-		t.Errorf("unexpected NewValue %v", d.SideBValue)
+			assert.Equal(t, tt.want, Diff(snapWithTables(oldTbl), snapWithTables(newTbl)))
+		})
 	}
 }
 
@@ -458,53 +418,48 @@ func TestDiffTables_PartitionChildren_OrderInsensitive(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: InheritsFrom changed
+// Test: InheritsFrom and InheritedBy changed — one finding per table added or removed
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiffTables_InheritsFromChanged(t *testing.T) {
-	oldTbl := makeTable("30", "public", "child", schemasnapshot.TableKindOrdinary)
-	oldTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a")}
-	newTbl := makeTable("30", "public", "child", schemasnapshot.TableKindOrdinary)
-	newTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a"), ref("public", "parent_b")}
+	child := ref("public", "child")
+	oldTbl := makeTable("30", child.Schema, child.Name, schemasnapshot.TableKindOrdinary)
+	oldTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "keep"), ref("public", "gone_b"), ref("public", "gone_a")}
+	newTbl := makeTable("30", child.Schema, child.Name, schemasnapshot.TableKindOrdinary)
+	newTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "new_b"), ref("public", "keep"), ref("Sales", "New_A")}
 
-	a := snapWithTables(oldTbl)
-	b := snapWithTables(newTbl)
-
-	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
+	want := []Difference{
+		newDifference(TableInheritAdded, OpChanged, ObjectTypeTable, AttrInherits, child, child, nil, ref("Sales", "New_A")),
+		newDifference(TableInheritAdded, OpChanged, ObjectTypeTable, AttrInherits, child, child, nil, ref("public", "new_b")),
+		newDifference(TableInheritRemoved, OpChanged, ObjectTypeTable, AttrInherits, child, child, ref("public", "gone_a"), nil),
+		newDifference(TableInheritRemoved, OpChanged, ObjectTypeTable, AttrInherits, child, child, ref("public", "gone_b"), nil),
 	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	if got[0].Type != TableInheritsChanged {
-		t.Errorf("expected TableInheritsChanged, got %v", got[0].Type)
-	}
+	assert.Equal(t, want, Diff(snapWithTables(oldTbl), snapWithTables(newTbl)))
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Test: InheritedBy changed
-// ──────────────────────────────────────────────────────────────────────────────
-
 func TestDiffTables_InheritedByChanged(t *testing.T) {
-	oldTbl := makeTable("31", "public", "parent", schemasnapshot.TableKindOrdinary)
-	oldTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "child_a")}
-	newTbl := makeTable("31", "public", "parent", schemasnapshot.TableKindOrdinary)
-	// InheritedBy is now empty
+	parent := ref("public", "parent")
+	oldTbl := makeTable("31", parent.Schema, parent.Name, schemasnapshot.TableKindOrdinary)
+	oldTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "child_a"), ref("public", "child_keep")}
+	newTbl := makeTable("31", parent.Schema, parent.Name, schemasnapshot.TableKindOrdinary)
+	newTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "child_keep"), ref("public", "child_b")}
 
-	a := snapWithTables(oldTbl)
-	b := snapWithTables(newTbl)
+	want := []Difference{
+		newDifference(TableInheritedByAdded, OpChanged, ObjectTypeTable, AttrInheritedBy, parent, parent, nil, ref("public", "child_b")),
+		newDifference(TableInheritedByRemoved, OpChanged, ObjectTypeTable, AttrInheritedBy, parent, parent, ref("public", "child_a"), nil),
+	}
+	assert.Equal(t, want, Diff(snapWithTables(oldTbl), snapWithTables(newTbl)))
+}
 
-	got := Diff(a, b)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 difference, got %d: %v", len(got), got)
-	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
-	if got[0].Type != TableInheritedByChanged {
-		t.Errorf("expected TableInheritedByChanged, got %v", got[0].Type)
-	}
+func TestDiffTables_InheritanceOrderInsensitive(t *testing.T) {
+	oldTbl := makeTable("32", "public", "t", schemasnapshot.TableKindOrdinary)
+	oldTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "p1"), ref("public", "p2")}
+	oldTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "c1"), ref("public", "c2")}
+	newTbl := makeTable("32", "public", "t", schemasnapshot.TableKindOrdinary)
+	newTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "p2"), ref("public", "p1")}
+	newTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "c2"), ref("public", "c1")}
+
+	assert.Empty(t, Diff(snapWithTables(oldTbl), snapWithTables(newTbl)))
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -672,7 +627,7 @@ func TestDiffTables_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(t
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: link-change OldValue/NewValue slices are independent of the input
+// Test: PARTITION_CHILDREN OldValue/NewValue slices are independent of the input
 // snapshots (a consumer mutating a returned []ObjectRef must not reach back
 // into the source snapshot's slice).
 // ──────────────────────────────────────────────────────────────────────────────
@@ -680,60 +635,29 @@ func TestDiffTables_HybridResidue_DropRecreateSameNameDifferentID_NotCollapsed(t
 func TestDiffTables_LinkSlicesAreDefensivelyCopied(t *testing.T) {
 	oldTbl := makeTable("70", "public", "t", schemasnapshot.TableKindPartitioned)
 	oldTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1")}
-	oldTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a")}
-	oldTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "sub_a")}
 
 	newTbl := makeTable("70", "public", "t", schemasnapshot.TableKindPartitioned)
 	newTbl.PartitionChildren = []schemasnapshot.ObjectRef{ref("public", "child1"), ref("public", "child2")}
-	newTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "parent_a"), ref("public", "parent_b")}
-	newTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "sub_a"), ref("public", "sub_b")}
 
 	a := snapWithTables(oldTbl)
 	b := snapWithTables(newTbl)
 
 	got := Diff(a, b)
-	if len(got) != 3 {
-		t.Fatalf("expected 3 link-change findings, got %d: %v", len(got), got)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 link-change finding, got %d: %v", len(got), got)
 	}
-	for _, d := range got {
-		assertAnchoredToObject(t, d)
-	}
+	assertAnchoredToObject(t, got[0])
 
-	// Snapshot the source slices' first elements so we can detect write-through.
 	wantOldA := a.Tables[0].PartitionChildren[0]
 	wantNewB := b.Tables[0].PartitionChildren[0]
-	wantInhA := a.Tables[0].InheritsFrom[0]
-	wantInhB := b.Tables[0].InheritsFrom[0]
-	wantBesA := a.Tables[0].InheritedBy[0]
-	wantBesB := b.Tables[0].InheritedBy[0]
 
-	// Mutate every returned link slice's first element through the any-typed value.
-	for _, d := range got {
-		if s, ok := d.SideAValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
-			s[0] = ref("MUTATED", "MUTATED")
-		}
-		if s, ok := d.SideBValue.([]schemasnapshot.ObjectRef); ok && len(s) > 0 {
-			s[0] = ref("MUTATED", "MUTATED")
-		}
-	}
+	got[0].SideAValue.([]schemasnapshot.ObjectRef)[0] = ref("MUTATED", "MUTATED")
+	got[0].SideBValue.([]schemasnapshot.ObjectRef)[0] = ref("MUTATED", "MUTATED")
 
-	// The source snapshots must be untouched.
 	if a.Tables[0].PartitionChildren[0] != wantOldA {
 		t.Errorf("PartitionChildren OldValue aliased input: source A mutated to %v", a.Tables[0].PartitionChildren[0])
 	}
 	if b.Tables[0].PartitionChildren[0] != wantNewB {
 		t.Errorf("PartitionChildren NewValue aliased input: source B mutated to %v", b.Tables[0].PartitionChildren[0])
-	}
-	if a.Tables[0].InheritsFrom[0] != wantInhA {
-		t.Errorf("InheritsFrom OldValue aliased input: source A mutated to %v", a.Tables[0].InheritsFrom[0])
-	}
-	if b.Tables[0].InheritsFrom[0] != wantInhB {
-		t.Errorf("InheritsFrom NewValue aliased input: source B mutated to %v", b.Tables[0].InheritsFrom[0])
-	}
-	if a.Tables[0].InheritedBy[0] != wantBesA {
-		t.Errorf("InheritedBy OldValue aliased input: source A mutated to %v", a.Tables[0].InheritedBy[0])
-	}
-	if b.Tables[0].InheritedBy[0] != wantBesB {
-		t.Errorf("InheritedBy NewValue aliased input: source B mutated to %v", b.Tables[0].InheritedBy[0])
 	}
 }

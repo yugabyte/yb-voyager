@@ -24,6 +24,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -36,7 +37,21 @@ type DetectionConfig struct {
 	// the caller took one, is the last entry and is labelled LabelSourceLive.
 	Snapshots []schemasnapshot.SchemaSnapshot
 	// The exact sets compared, filtered or not; Comparing is rendered from it.
-	Scope schemadiff.Scope
+	Scope         schemadiff.Scope
+	MigrationInfo MigrationInfo
+}
+
+// MigrationInfo is what the report needs from the migration status record to
+// place each change in a Timing.
+type MigrationInfo struct {
+	// "" before export data records it, and after a start-clean clears it.
+	ExportType         string
+	CutoverRequestedAt time.Time // zero until cutover to target is requested
+}
+
+type situation struct {
+	Timing           Timing
+	FallBackPossible bool
 }
 
 // BuildReport assembles a Report from p, comparing each usable snapshot to the
@@ -89,6 +104,7 @@ func BuildReport(p DetectionConfig) (Report, error) {
 		comparedIntervals++
 		intervalWindow := Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt}
 		phase := phaseFor(capturePoints[prevIdx], capturePoints[i])
+		intervalSituation := situationFor(capturePoints[prevIdx], capturePoints[i], p.MigrationInfo)
 		if next.Header.Label == schemasnapshot.LabelSourceLive {
 			liveCompared = true
 		}
@@ -98,6 +114,10 @@ func BuildReport(p DetectionConfig) (Report, error) {
 			if err != nil {
 				return Report{}, fmt.Errorf("%s finding in the interval %s to %s: %w", d.Type,
 					intervalWindow.From.Format(time.RFC3339), intervalWindow.To.Format(time.RFC3339), err)
+			}
+			info, err := getDriftInfo(d.Type, intervalSituation)
+			if err != nil {
+				return Report{}, err
 			}
 			drifts = append(drifts, DriftEntry{
 				Diff: Diff{
@@ -112,7 +132,7 @@ func BuildReport(p DetectionConfig) (Report, error) {
 				},
 				Window:    intervalWindow,
 				Phase:     phase,
-				DriftInfo: getDriftInfo(d.Type),
+				DriftInfo: info,
 			})
 		}
 		prevIdx = i
@@ -189,6 +209,56 @@ func isExportDataRunningEnd(label string) bool {
 
 func isExportDataRunningStart(label string) bool {
 	return label == schemasnapshot.LabelExportDataFromSourceStart || label == schemasnapshot.LabelExportDataFromSourcePeriodic
+}
+
+// situationFor places the changes of the interval between two captures in a
+// Timing for the guidance lookup. An interval it cannot place gets
+// TimingLiveAfterExportStart.
+func situationFor(prev, next CapturePoint, m MigrationInfo) situation {
+	timing := timingFor(prev, next, m)
+	return situation{
+		Timing:           timing,
+		FallBackPossible: timing != TimingAfterCutover && m.ExportType != utils.SNAPSHOT_ONLY,
+	}
+}
+
+func timingFor(prev, next CapturePoint, m MigrationInfo) Timing {
+	switch {
+	case isAfterCutover(prev, m):
+		return TimingAfterCutover
+	case isBeforeExportData(prev, next, m):
+		return TimingBeforeExportData
+	}
+	switch m.ExportType {
+	case utils.SNAPSHOT_ONLY:
+		return TimingOfflineAfterExportStart
+	case utils.CHANGES_ONLY:
+		return TimingChangesOnlyAfterExportStart
+	default:
+		return TimingLiveAfterExportStart
+	}
+}
+
+// isAfterCutover needs the whole interval after the cutover: an interval that
+// spans the request may hold a change made before it.
+func isAfterCutover(prev CapturePoint, m MigrationInfo) bool {
+	if prev.Label == schemasnapshot.LabelExportDataFromSourceExit && prev.Reason == schemasnapshot.ReasonCutover {
+		return true
+	}
+	return !m.CutoverRequestedAt.IsZero() && !prev.CapturedAt.Before(m.CutoverRequestedAt)
+}
+
+func isBeforeExportData(prev, next CapturePoint, m MigrationInfo) bool {
+	switch {
+	case next.Label == schemasnapshot.LabelExportDataFromSourceStart:
+		return prev.Label == schemasnapshot.LabelExportSchema ||
+			next.Reason == schemasnapshot.ReasonInitial || next.Reason == schemasnapshot.ReasonCleanRestart
+	case next.Label == schemasnapshot.LabelSourceLive:
+		// An empty export type means export data has not run since export schema.
+		return prev.Label == schemasnapshot.LabelExportSchema && m.ExportType == ""
+	default:
+		return false
+	}
 }
 
 // displayIdentity prefers side-B (new) over side-A (old), the convention

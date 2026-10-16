@@ -17,69 +17,206 @@
 package schemadrift
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 )
 
-// TestGetDriftInfo_MappedTypes pins the severity assigned to every mapped change type.
+var allTimings = []Timing{
+	TimingBeforeExportData,
+	TimingOfflineAfterExportStart,
+	TimingLiveAfterExportStart,
+	TimingChangesOnlyAfterExportStart,
+	TimingAfterCutover,
+}
+
+func TestGuidanceCoversEveryDiffType(t *testing.T) {
+	assert.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(guidanceByDiffType),
+		"guidanceByDiffType must have exactly one entry per DiffType the engine emits")
+
+	for diffType, g := range guidanceByDiffType {
+		t.Run(string(diffType), func(t *testing.T) {
+			assertCompleteInfo(t, g.Default)
+			for timing, info := range g.ByTiming {
+				assert.Contains(t, allTimings, timing)
+				assert.NotEqual(t, TimingAfterCutover, timing, "after cutover is the same for every type")
+				assertCompleteInfo(t, info)
+			}
+		})
+	}
+	assertCompleteInfo(t, afterCutoverInfo)
+}
+
+func assertCompleteInfo(t *testing.T, info DriftInfo) {
+	t.Helper()
+	assert.Contains(t, []Severity{SeverityAdvisory, SeverityPotentialImpact, SeverityBreaksRecoverable, SeverityBreaksUnrecoverable}, info.Severity)
+	assert.NotEmpty(t, info.Impact, "every classified change explains its impact")
+	assert.NotEmpty(t, info.Action, "every classified change says what to do")
+}
+
 // Severity answers "what does the migration do", not "how alarming is the DDL":
 // an ADDED column can fail import data (recoverable), a DROPPED column cannot
 // (it only leaves the target with an extra column), and dropping or renaming a
 // captured table makes export data unrestartable.
-func TestGetDriftInfo_MappedTypes(t *testing.T) {
-	cases := map[schemadiff.DiffType]Severity{
-		// export data cannot be restarted afterwards -> restart from scratch.
+func TestGetDriftInfo_DefaultSeverities(t *testing.T) {
+	want := map[schemadiff.DiffType]Severity{
 		schemadiff.TableDropped:       SeverityBreaksUnrecoverable,
 		schemadiff.TableNameChanged:   SeverityBreaksUnrecoverable,
 		schemadiff.TableSchemaChanged: SeverityBreaksUnrecoverable,
 
-		// import data can fail until the DDL is applied on the target.
-		schemadiff.ColumnAdded:              SeverityBreaksRecoverable,
-		schemadiff.ColumnNameChanged:        SeverityBreaksRecoverable,
-		schemadiff.ColumnTypeChanged:        SeverityBreaksRecoverable,
-		schemadiff.ColumnNullabilityChanged: SeverityBreaksRecoverable,
+		schemadiff.ColumnAdded:          SeverityBreaksRecoverable,
+		schemadiff.ColumnNameChanged:    SeverityBreaksRecoverable,
+		schemadiff.ColumnTypeChanged:    SeverityBreaksRecoverable,
+		schemadiff.ColumnNotNullSet:     SeverityBreaksRecoverable,
+		schemadiff.ColumnNotNullDropped: SeverityBreaksRecoverable,
 
-		// Migration unaffected, but source and target diverge.
 		schemadiff.TableAdded:                    SeverityPotentialImpact,
 		schemadiff.ColumnDropped:                 SeverityPotentialImpact,
 		schemadiff.ColumnDefaultChanged:          SeverityPotentialImpact,
 		schemadiff.TableKindChanged:              SeverityPotentialImpact,
-		schemadiff.TablePartitionParentChanged:   SeverityPotentialImpact,
+		schemadiff.TablePartitionAttached:        SeverityPotentialImpact,
+		schemadiff.TablePartitionDetached:        SeverityPotentialImpact,
 		schemadiff.TablePartitionChildrenChanged: SeverityPotentialImpact,
 
-		schemadiff.TableInheritsChanged:    SeverityAdvisory,
-		schemadiff.TableInheritedByChanged: SeverityAdvisory,
+		schemadiff.TableInheritAdded:       SeverityAdvisory,
+		schemadiff.TableInheritRemoved:     SeverityAdvisory,
+		schemadiff.TableInheritedByAdded:   SeverityAdvisory,
+		schemadiff.TableInheritedByRemoved: SeverityAdvisory,
 	}
+	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
-	for diffType, want := range cases {
+	for diffType, wantSeverity := range want {
 		t.Run(string(diffType), func(t *testing.T) {
-			assert.Equal(t, want, getDriftInfo(diffType).Severity)
+			got, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
+			require.NoError(t, err)
+			assert.Equal(t, wantSeverity, got.Severity)
 		})
 	}
 }
 
-func TestGetDriftInfo_UnknownDefaultsToAdvisory(t *testing.T) {
+// A split type takes over its old combined type's text in both directions until
+// per-direction text lands.
+func TestGetDriftInfo_SplitTypesShareTheCombinedText(t *testing.T) {
+	pairs := [][2]schemadiff.DiffType{
+		{schemadiff.ColumnNotNullSet, schemadiff.ColumnNotNullDropped},
+		{schemadiff.TablePartitionAttached, schemadiff.TablePartitionDetached},
+		{schemadiff.TableInheritAdded, schemadiff.TableInheritRemoved},
+		{schemadiff.TableInheritedByAdded, schemadiff.TableInheritedByRemoved},
+	}
+	for _, p := range pairs {
+		t.Run(string(p[0]), func(t *testing.T) {
+			assert.Equal(t, guidanceByDiffType[p[0]], guidanceByDiffType[p[1]])
+		})
+	}
+}
+
+func TestGetDriftInfo_ResolvesByTiming(t *testing.T) {
+	const testType schemadiff.DiffType = "TEST_ONLY_TYPE"
+	defaultInfo := DriftInfo{Severity: SeverityAdvisory, Impact: "default impact.", Action: "default action."}
+	offlineInfo := DriftInfo{Severity: SeverityPotentialImpact, Impact: "offline impact.", Action: "offline action."}
+	liveInfo := DriftInfo{Severity: SeverityBreaksUnrecoverable, Impact: "live impact.", Action: "live action."}
+	guidanceByDiffType[testType] = driftGuidance{
+		Default: defaultInfo,
+		ByTiming: map[Timing]DriftInfo{
+			TimingOfflineAfterExportStart: offlineInfo,
+			TimingLiveAfterExportStart:    liveInfo,
+		},
+		FallBackRisk: "fall-back risk.",
+	}
+	t.Cleanup(func() { delete(guidanceByDiffType, testType) })
+
+	withRisk := func(info DriftInfo) DriftInfo {
+		info.Impact += " fall-back risk."
+		return info
+	}
+	tests := []struct {
+		name string
+		s    situation
+		want DriftInfo
+	}{
+		{"a timing without its own entry gets the default", situation{Timing: TimingBeforeExportData}, defaultInfo},
+		{"a timing with its own entry gets it", situation{Timing: TimingOfflineAfterExportStart}, offlineInfo},
+		{"live", situation{Timing: TimingLiveAfterExportStart}, liveInfo},
+		{"changes-only without its own entry falls back to live", situation{Timing: TimingChangesOnlyAfterExportStart}, liveInfo},
+		{"the fall-back sentence is appended while fall-back is possible", situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true}, withRisk(liveInfo)},
+		{"the fall-back sentence is appended to the default too", situation{Timing: TimingBeforeExportData, FallBackPossible: true}, withRisk(defaultInfo)},
+		{"after cutover is the same advisory for every type", situation{Timing: TimingAfterCutover}, afterCutoverInfo},
+		{"after cutover never carries the fall-back sentence", situation{Timing: TimingAfterCutover, FallBackPossible: true}, afterCutoverInfo},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getDriftInfo(testType, tt.s)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+
+	t.Run("changes-only with its own entry uses it", func(t *testing.T) {
+		changesOnlyInfo := DriftInfo{Severity: SeverityBreaksUnrecoverable, Impact: "changes-only impact.", Action: "changes-only action."}
+		guidanceByDiffType[testType].ByTiming[TimingChangesOnlyAfterExportStart] = changesOnlyInfo
+
+		got, err := getDriftInfo(testType, situation{Timing: TimingChangesOnlyAfterExportStart})
+		require.NoError(t, err)
+		assert.Equal(t, changesOnlyInfo, got)
+	})
+}
+
+func TestGetDriftInfo_UnknownTypeIsAnError(t *testing.T) {
 	for _, unknown := range []schemadiff.DiffType{"", "SOME_FUTURE_DIFF_TYPE"} {
-		got := getDriftInfo(unknown)
-		assert.Equal(t, SeverityAdvisory, got.Severity)
-		assert.Empty(t, got.Impact, "an unmapped type has no note, so the report omits it")
-		assert.Empty(t, got.Action)
+		_, err := getDriftInfo(unknown, situation{Timing: TimingLiveAfterExportStart})
+		require.Error(t, err)
+		assert.Equal(t, fmt.Sprintf("no Impact and Action for change type %q", unknown), err.Error())
 	}
 }
 
-// TestGetDriftInfo_MappedTypesCarryGuidance is why severity and wording share one map:
-// an entry declared with a severity but no note would render a finding the report
-// cannot explain, and nothing else would catch it.
-func TestGetDriftInfo_MappedTypesCarryGuidance(t *testing.T) {
-	for diffType := range infoByDiffType {
-		t.Run(string(diffType), func(t *testing.T) {
-			c := getDriftInfo(diffType)
-			assert.NotEmpty(t, c.Severity)
-			assert.NotEmpty(t, c.Impact, "every classified change explains its impact")
-			assert.NotEmpty(t, c.Action, "every classified change says what to do")
-		})
+// The catalogue lists every message the report can print, so a text change is
+// reviewed as a diff of the file. Regenerate it with:
+//
+//	SCHEMADRIFT_REGEN=1 go test -tags unit -run TestGuidanceCatalogue ./src/schema/schemadrift/
+func TestGuidanceCatalogue(t *testing.T) {
+	path := filepath.Join("testdata", "guidance_catalogue.txt")
+	got := guidanceCatalogue(t)
+	if os.Getenv("SCHEMADRIFT_REGEN") == "1" {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
 	}
+	want, err := os.ReadFile(path)
+	require.NoError(t, err, "regenerate with SCHEMADRIFT_REGEN=1")
+	assert.Equal(t, string(want), got, "guidance changed; regenerate with SCHEMADRIFT_REGEN=1 and review the diff")
+}
+
+// The situations situationFor can produce: before export data, the fall-back
+// sentence depends on whether the flow is offline or not yet known.
+var catalogueSituations = []situation{
+	{Timing: TimingBeforeExportData, FallBackPossible: false},
+	{Timing: TimingBeforeExportData, FallBackPossible: true},
+	{Timing: TimingOfflineAfterExportStart, FallBackPossible: false},
+	{Timing: TimingLiveAfterExportStart, FallBackPossible: true},
+	{Timing: TimingChangesOnlyAfterExportStart, FallBackPossible: true},
+	{Timing: TimingAfterCutover, FallBackPossible: false},
+}
+
+func guidanceCatalogue(t *testing.T) string {
+	var b strings.Builder
+	for i, diffType := range schemadiff.AllDiffTypes() {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "== %s\n", diffType)
+		for _, s := range catalogueSituations {
+			info, err := getDriftInfo(diffType, s)
+			require.NoError(t, err)
+			fmt.Fprintf(&b, "\n-- %s, fall-back possible: %t\n", s.Timing, s.FallBackPossible)
+			fmt.Fprintf(&b, "Severity: %s\nImpact: %s\nAction: %s\n", info.Severity, info.Impact, info.Action)
+		}
+	}
+	return b.String()
 }
