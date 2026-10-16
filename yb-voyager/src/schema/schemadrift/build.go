@@ -44,7 +44,7 @@ type DetectionConfig struct {
 // MigrationInfo is what the report needs from the migration status record to
 // place each change in a Timing.
 type MigrationInfo struct {
-	// "" before export data records it, and after a start-clean clears it.
+	// "" until export data records it.
 	ExportType         string
 	CutoverRequestedAt time.Time // zero until cutover to target is requested
 }
@@ -251,8 +251,7 @@ func isAfterCutover(prev CapturePoint, m MigrationInfo) bool {
 func isBeforeExportData(prev, next CapturePoint, m MigrationInfo) bool {
 	switch {
 	case next.Label == schemasnapshot.LabelExportDataFromSourceStart:
-		return prev.Label == schemasnapshot.LabelExportSchema ||
-			next.Reason == schemasnapshot.ReasonInitial || next.Reason == schemasnapshot.ReasonCleanRestart
+		return next.Reason == schemasnapshot.ReasonInitial || next.Reason == schemasnapshot.ReasonCleanRestart
 	case next.Label == schemasnapshot.LabelSourceLive:
 		// An empty export type means export data has not run since export schema.
 		return prev.Label == schemasnapshot.LabelExportSchema && m.ExportType == ""
