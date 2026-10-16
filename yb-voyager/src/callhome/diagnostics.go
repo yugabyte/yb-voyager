@@ -110,8 +110,8 @@ type SourceDBDetails struct {
 	DBID               int64    `json:"db_id,omitempty"`                // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SourceDeployment   string   `json:"source_deployment_type,omitempty"`
-	TLSCertDomain      string   `json:"tls_cert_domain,omitempty"` // registered domain only (e.g. abc.com, amazonaws.com)
-	HostDomain         string   `json:"host_domain,omitempty"`     // registered domain only (e.g. abc.com, amazonaws.com)
+	TLSCertDomain      string   `json:"tls_cert_domain,omitempty"` // <instance>.*.<registered domain> (e.g. pg01.*.acme.com, mydb.*.amazonaws.com)
+	HostDomain         string   `json:"host_domain,omitempty"`     // <instance>.*.<registered domain> (e.g. pg01.*.acme.com, mydb.*.amazonaws.com)
 	SchemaNames        []string `json:"schema_names,omitempty"`    //Anonymized schema names
 	SchemaOids         []int64  `json:"schema_oids,omitempty"`     //Schema oids
 }

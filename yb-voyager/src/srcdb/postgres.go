@@ -702,23 +702,32 @@ func getPgxServerCertificate(db *sql.DB) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-// extractTLSCertDomain returns the registered domain named by the server's TLS certificate,
-// used in callhome to identify the organisation running the migration. The SANs are tried
-// first, then the Subject CN (older or self-signed certs often carry the name only there).
-// The certificate is usually unverified (default sslmode=prefer), so this is reported next
-// to the host's domain rather than replacing it.
+// extractTLSCertDomain returns the instance-qualified domain (<instance>.*.<domain>) named by the
+// server's TLS certificate, used in callhome to identify the organisation running the migration.
+// The SANs are tried first, then the Subject CN (older or self-signed certs often carry the name
+// only there). A name carrying an instance label wins over one without, since managed-service
+// certs (RDS, Aurora) also list wildcard SANs. The certificate is usually unverified (default
+// sslmode=prefer), so this is reported next to the host's domain rather than replacing it.
 func extractTLSCertDomain(cert *x509.Certificate) string {
-	if cert != nil {
-		names := append([]string{}, cert.DNSNames...)
-		names = append(names, cert.Subject.CommonName)
-		for _, name := range names {
-			domain := utils.RegisteredDomain(name)
-			if domain != "" {
-				return domain
-			}
+	if cert == nil {
+		return ""
+	}
+	names := append([]string{}, cert.DNSNames...)
+	names = append(names, cert.Subject.CommonName)
+	var domainWithoutInstance string
+	for _, name := range names {
+		domain := utils.InstanceQualifiedDomain(name)
+		if domain == "" {
+			continue
+		}
+		if domain != utils.RegisteredDomain(name) {
+			return domain
+		}
+		if domainWithoutInstance == "" {
+			domainWithoutInstance = domain
 		}
 	}
-	return ""
+	return domainWithoutInstance
 }
 
 func (pg *PostgreSQL) FetchTLSCertDomainName() error {
