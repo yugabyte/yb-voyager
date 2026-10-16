@@ -17,6 +17,8 @@
 package schemadrift
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,11 +147,11 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 	d := report.Drifts[0]
 	assert.Equal(t, schemadiff.TableAdded, d.Type)
 	assert.Equal(t, objRef("public", "customers"), d.Object)
-	assert.Equal(t, SeverityPotentialImpact, d.Severity)
 	assert.Equal(t, Window{From: t1(), To: t2()}, d.Window)
 	assert.Equal(t, "export data: pending", d.Phase)
-	assert.Equal(t, getDriftInfo(schemadiff.TableAdded).Impact, d.Impact)
-	assert.Equal(t, getDriftInfo(schemadiff.TableAdded).Action, d.Action)
+	wantInfo, err := getDriftInfo(schemadiff.TableAdded, situation{Timing: TimingBeforeExportData, FallBackPossible: true})
+	require.NoError(t, err)
+	assert.Equal(t, wantInfo, d.DriftInfo)
 }
 
 func TestBuildReport_StampsGeneratedAt(t *testing.T) {
@@ -677,6 +679,144 @@ func TestPhaseFor(t *testing.T) {
 			assert.Equal(t, tc.want, phaseFor(prev, next))
 		})
 	}
+}
+
+type captureKind struct {
+	name          string
+	label, reason string
+}
+
+var (
+	ckExportSchema   = captureKind{"export_schema", schemasnapshot.LabelExportSchema, ""}
+	ckStartInitial   = captureKind{"start(initial)", schemasnapshot.LabelExportDataFromSourceStart, schemasnapshot.ReasonInitial}
+	ckStartResume    = captureKind{"start(resume)", schemasnapshot.LabelExportDataFromSourceStart, schemasnapshot.ReasonResume}
+	ckStartClean     = captureKind{"start(clean_restart)", schemasnapshot.LabelExportDataFromSourceStart, schemasnapshot.ReasonCleanRestart}
+	ckPeriodic       = captureKind{"periodic", schemasnapshot.LabelExportDataFromSourcePeriodic, ""}
+	ckExitCutover    = captureKind{"exit(cutover)", schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonCutover}
+	ckExitComplete   = captureKind{"exit(complete)", schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonComplete}
+	ckExitInterrupt  = captureKind{"exit(interrupt)", schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonInterrupt}
+	ckExitError      = captureKind{"exit(error)", schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError}
+	ckSourceLive     = captureKind{"source_live", schemasnapshot.LabelSourceLive, ""}
+	situationPrevs   = []captureKind{ckExportSchema, ckStartInitial, ckStartResume, ckStartClean, ckPeriodic, ckExitCutover, ckExitComplete, ckExitInterrupt, ckExitError}
+	situationNexts   = []captureKind{ckStartInitial, ckStartResume, ckStartClean, ckPeriodic, ckExitCutover, ckExitComplete, ckExitInterrupt, ckExitError, ckSourceLive}
+	situationExports = []string{"", "snapshot-only", "snapshot-and-changes", "changes-only"}
+)
+
+// TestSituationFor covers every pair of captures, for each export type, with and
+// without a cutover request. Each cell of the grid is the pair's timing, in the
+// order of situationNexts:
+//
+//	B before export data
+//	U before export data only while the export type is unknown, else as A
+//	A after export data started: offline, live or changes-only by export type
+//	C after cutover
+func TestSituationFor(t *testing.T) {
+	grid := map[captureKind]string{
+		//               init res clean per x:cut x:cmp x:int x:err live
+		ckExportSchema:  "B    B   B     A   A     A     A     A     U",
+		ckStartInitial:  "B    A   B     A   A     A     A     A     A",
+		ckStartResume:   "B    A   B     A   A     A     A     A     A",
+		ckStartClean:    "B    A   B     A   A     A     A     A     A",
+		ckPeriodic:      "B    A   B     A   A     A     A     A     A",
+		ckExitCutover:   "C    C   C     C   C     C     C     C     C",
+		ckExitComplete:  "B    A   B     A   A     A     A     A     A",
+		ckExitInterrupt: "B    A   B     A   A     A     A     A     A",
+		ckExitError:     "B    A   B     A   A     A     A     A     A",
+	}
+	afterExportStart := map[string]Timing{
+		"":                     TimingLiveAfterExportStart,
+		"snapshot-only":        TimingOfflineAfterExportStart,
+		"snapshot-and-changes": TimingLiveAfterExportStart,
+		"changes-only":         TimingChangesOnlyAfterExportStart,
+	}
+	prevAt, nextAt := t1(), t3()
+	cutovers := []struct {
+		name        string
+		requestedAt time.Time
+		movesToC    bool
+	}{
+		{"no cutover request", time.Time{}, false},
+		{"cutover requested inside the interval", t2(), false},
+		{"cutover requested when the interval starts", prevAt, true},
+		{"cutover requested before the interval", prevAt.Add(-time.Hour), true},
+	}
+
+	require.Len(t, grid, len(situationPrevs))
+	for _, prev := range situationPrevs {
+		cells := strings.Fields(grid[prev])
+		require.Len(t, cells, len(situationNexts), prev.name)
+		for j, next := range situationNexts {
+			for _, exportType := range situationExports {
+				for _, cutover := range cutovers {
+					name := fmt.Sprintf("%s->%s/%q/%s", prev.name, next.name, exportType, cutover.name)
+					t.Run(name, func(t *testing.T) {
+						var want Timing
+						switch cell := cells[j]; {
+						case cell == "C" || cutover.movesToC:
+							want = TimingAfterCutover
+						case cell == "B", cell == "U" && exportType == "":
+							want = TimingBeforeExportData
+						default:
+							want = afterExportStart[exportType]
+						}
+						got := situationFor(
+							CapturePoint{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
+							CapturePoint{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
+							MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt},
+						)
+						assert.Equal(t, situation{
+							Timing:           want,
+							FallBackPossible: want != TimingAfterCutover && exportType != "snapshot-only",
+						}, got)
+					})
+				}
+			}
+		}
+	}
+}
+
+func TestBuildReport_AfterCutoverIntervalGetsTheAdvisory(t *testing.T) {
+	cutoverAt := t2()
+	exit := fixtureHeader(schemasnapshot.LabelExportDataFromSourceExit, t2(), "public")
+	exit.Reason = schemasnapshot.ReasonCutover
+	p := DetectionConfig{
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourcePeriodic, t1(), "public"), Content: fixtureContent(fixtureTable("1", "public", "orders"))},
+			{Header: exit, Content: fixtureContent(fixtureTable("1", "public", "orders"), fixtureTable("2", "public", "before_cutover"))},
+			{Header: fixtureHeader(schemasnapshot.LabelSourceLive, t3(), "public"), Content: fixtureContent(fixtureTable("1", "public", "orders"), fixtureTable("2", "public", "before_cutover"), fixtureTable("3", "public", "after_cutover"))},
+		},
+		MigrationInfo: MigrationInfo{ExportType: "snapshot-and-changes", CutoverRequestedAt: cutoverAt},
+	}
+
+	report := buildUnfiltered(t, p)
+
+	require.Len(t, report.Drifts, 2)
+	beforeCutover, afterCutover := report.Drifts[0], report.Drifts[1]
+	assert.Equal(t, "before_cutover", beforeCutover.Object.Name)
+	assert.Equal(t, guidanceByDiffType[schemadiff.TableAdded].Default, beforeCutover.DriftInfo)
+	assert.Equal(t, "after_cutover", afterCutover.Object.Name)
+	assert.Equal(t, afterCutoverInfo, afterCutover.DriftInfo)
+}
+
+func TestBuildReport_TypeWithoutGuidanceIsAnError(t *testing.T) {
+	saved := guidanceByDiffType[schemadiff.TableAdded]
+	delete(guidanceByDiffType, schemadiff.TableAdded)
+	t.Cleanup(func() { guidanceByDiffType[schemadiff.TableAdded] = saved })
+
+	_, err := BuildReport(DetectionConfig{
+		Source: Source{DatabaseType: "postgresql"},
+		Snapshots: []schemasnapshot.SchemaSnapshot{
+			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: fixtureContent()},
+			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: fixtureContent(fixtureTable("1", "public", "orders"))},
+		},
+		Scope: schemadiff.Scope{
+			Schemas:     []string{"public"},
+			Tables:      []schemasnapshot.ObjectRef{objRef("public", "orders")},
+			ObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
+		},
+	})
+	require.Error(t, err)
+	assert.Equal(t, `no Impact and Action for change type "TABLE_ADDED"`, err.Error())
 }
 
 // A drop has no side-B identity, so the entry must name the object from side A:

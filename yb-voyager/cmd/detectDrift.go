@@ -34,6 +34,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schema/schemadrift"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
@@ -639,6 +640,14 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 		note, info = log.Warnf, log.Infof
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, fmt.Errorf("read the migration status record: %w", err))
+	}
+	if msr == nil {
+		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, goerrors.Errorf("migration status record not found"))
+	}
+
 	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
 	// Must precede Scope resolution: the candidate table universe is built from
 	// each snapshot's Content, which is the only place a table already dropped
@@ -711,8 +720,9 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 			Database:        source.DBName,
 			DatabaseVersion: source.DBVersion,
 		},
-		Snapshots: snapshots,
-		Scope:     scope,
+		Snapshots:     snapshots,
+		Scope:         scope,
+		MigrationInfo: driftMigrationInfoFrom(msr),
 	})
 	if err != nil {
 		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_BUILD_REPORT, fmt.Errorf("build the drift report: %w", err))
@@ -729,6 +739,13 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 		return &report, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_WRITE_REPORTS, err)
 	}
 	return &report, writtenPaths, nil
+}
+
+func driftMigrationInfoFrom(msr *metadb.MigrationStatusRecord) schemadrift.MigrationInfo {
+	return schemadrift.MigrationInfo{
+		ExportType:         msr.ExportTypeFromSource,
+		CutoverRequestedAt: msr.CutoverTimings.ToTargetRequestedAt,
+	}
 }
 
 // captureLiveSnapshotForDrift captures the source schema in memory for comparison

@@ -934,6 +934,79 @@ func TestCheckSchemaDriftWithoutLiveRead(t *testing.T) {
 	assert.Equal(t, []string{filepath.Join(exportDir, "reports", "drift_analysis_report_export_data.json")}, paths)
 }
 
+func TestDriftMigrationInfoFrom(t *testing.T) {
+	requestedAt := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	msr := &metadb.MigrationStatusRecord{
+		ExportTypeFromSource: SNAPSHOT_AND_CHANGES,
+		CutoverTimings:       metadb.CutoverTimingRecord{ToTargetRequestedAt: requestedAt},
+	}
+	assert.Equal(t, schemadrift.MigrationInfo{ExportType: SNAPSHOT_AND_CHANGES, CutoverRequestedAt: requestedAt}, driftMigrationInfoFrom(msr))
+	assert.Equal(t, schemadrift.MigrationInfo{}, driftMigrationInfoFrom(&metadb.MigrationStatusRecord{}))
+}
+
+func TestCheckSchemaDriftRequiresTheMigrationStatusRecord(t *testing.T) {
+	savedMetaDB := metaDB
+	t.Cleanup(func() { metaDB = savedMetaDB })
+	dir := t.TempDir()
+	require.NoError(t, metadb.CreateAndInitMetaDBIfRequired(dir))
+	var err error
+	metaDB, err = metadb.NewMetaDB(dir)
+	require.NoError(t, err)
+
+	report, paths, err := checkSchemaDrift(driftCheckInput{Schemas: []string{"public"}, Formats: []string{"json"}, Invoker: driftInvokerDetectDrift})
+	var sde errs.SchemaDriftError
+	require.ErrorAs(t, err, &sde)
+	assert.Equal(t, errs.SCHEMA_DRIFT_STEP_SETUP, sde.Step())
+	assert.Equal(t, "migration status record not found", err.Error())
+	assert.Nil(t, report)
+	assert.Nil(t, paths)
+}
+
+// The record's cutover request reaches the report: every interval that starts
+// after it gets the after-cutover advisory.
+func TestCheckSchemaDriftReadsTheMigrationStatusRecord(t *testing.T) {
+	savedMetaDB, savedExportDir, savedSource := metaDB, exportDir, source
+	t.Cleanup(func() { metaDB, exportDir, source = savedMetaDB, savedExportDir, savedSource })
+	exportDir = t.TempDir()
+	metaDB = initMetaDB(exportDir)
+	source.DBType = constants.POSTGRESQL
+
+	start := time.Date(2026, 10, 6, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
+		r.ExportTypeFromSource = SNAPSHOT_AND_CHANGES
+		r.CutoverTimings.ToTargetRequestedAt = start
+	}))
+	table := func(name, id string) schemasnapshot.Table {
+		return schemasnapshot.Table{ObjectRef: schemasnapshot.ObjectRef{Schema: "public", Name: name}, ID: id, Kind: schemasnapshot.TableKindOrdinary}
+	}
+	for i, snap := range []schemasnapshot.SchemaSnapshot{
+		{
+			Header:  schemasnapshot.SnapshotHeader{Label: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: start, Schemas: []string{"public"}},
+			Content: &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: constants.POSTGRESQL, Tables: []schemasnapshot.Table{table("orders", "1")}},
+		},
+		{
+			Header:  schemasnapshot.SnapshotHeader{Label: schemasnapshot.LabelExportDataFromSourceExit, Reason: schemasnapshot.ReasonCutover, CapturedAt: start.Add(time.Hour), Schemas: []string{"public"}},
+			Content: &schemasnapshot.SnapshotContent{Version: 1, DatabaseType: constants.POSTGRESQL, Tables: []schemasnapshot.Table{table("orders", "1"), table("products", "2")}},
+		},
+	} {
+		_, err := schemasnapshot.SaveSnapshot(context.Background(), metaDB, &snap)
+		require.NoError(t, err, "snapshot %d", i)
+	}
+
+	report, _, err := checkSchemaDrift(driftCheckInput{
+		Schemas: []string{"public"},
+		Formats: []string{"json"},
+		Invoker: driftInvoker("export-data"),
+	})
+	require.NoError(t, err)
+	require.Len(t, report.Drifts, 1)
+	assert.Equal(t, schemadrift.DriftInfo{
+		Severity: schemadrift.SeverityAdvisory,
+		Impact:   "This change was made after cutover to target. Data already migrated to the target is not affected. Changes sent back with fall-back are not checked against it.",
+		Action:   "None.",
+	}, report.Drifts[0].DriftInfo)
+}
+
 // Only a Debezium failure while streaming may trigger the drift check on export
 // failure: drift can't fail the snapshot, and an interrupt is not a failure.
 func TestDebeziumFailure(t *testing.T) {

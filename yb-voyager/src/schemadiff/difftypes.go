@@ -27,24 +27,42 @@ const (
 	TableNameChanged              DiffType = "TABLE_NAME_CHANGED"
 	TableSchemaChanged            DiffType = "TABLE_SCHEMA_CHANGED"
 	TableKindChanged              DiffType = "TABLE_KIND_CHANGED"
-	TablePartitionParentChanged   DiffType = "TABLE_PARTITION_PARENT_CHANGED"
+	TablePartitionAttached        DiffType = "TABLE_PARTITION_ATTACHED"
+	TablePartitionDetached        DiffType = "TABLE_PARTITION_DETACHED"
 	TablePartitionChildrenChanged DiffType = "TABLE_PARTITION_CHILDREN_CHANGED"
-	TableInheritsChanged          DiffType = "TABLE_INHERITS_CHANGED"
-	TableInheritedByChanged       DiffType = "TABLE_INHERITED_BY_CHANGED"
+	TableInheritAdded             DiffType = "TABLE_INHERIT_ADDED"
+	TableInheritRemoved           DiffType = "TABLE_INHERIT_REMOVED"
+	TableInheritedByAdded         DiffType = "TABLE_INHERITED_BY_ADDED"
+	TableInheritedByRemoved       DiffType = "TABLE_INHERITED_BY_REMOVED"
 
 	// Column-level findings.
-	ColumnAdded              DiffType = "COLUMN_ADDED"
-	ColumnDropped            DiffType = "COLUMN_DROPPED"
-	ColumnNameChanged        DiffType = "COLUMN_NAME_CHANGED"
-	ColumnTypeChanged        DiffType = "COLUMN_TYPE_CHANGED"
-	ColumnNullabilityChanged DiffType = "COLUMN_NULLABILITY_CHANGED"
-	ColumnDefaultChanged     DiffType = "COLUMN_DEFAULT_CHANGED"
+	ColumnAdded          DiffType = "COLUMN_ADDED"
+	ColumnDropped        DiffType = "COLUMN_DROPPED"
+	ColumnNameChanged    DiffType = "COLUMN_NAME_CHANGED"
+	ColumnTypeChanged    DiffType = "COLUMN_TYPE_CHANGED"
+	ColumnNotNullSet     DiffType = "COLUMN_NOT_NULL_SET"
+	ColumnNotNullDropped DiffType = "COLUMN_NOT_NULL_DROPPED"
+	ColumnDefaultChanged DiffType = "COLUMN_DEFAULT_CHANGED"
 )
+
+// AllDiffTypes returns every DiffType the engine can emit, so consumers keyed by
+// DiffType can be checked for completeness.
+func AllDiffTypes() []DiffType {
+	return []DiffType{
+		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged, TableKindChanged,
+		TablePartitionAttached, TablePartitionDetached, TablePartitionChildrenChanged,
+		TableInheritAdded, TableInheritRemoved, TableInheritedByAdded, TableInheritedByRemoved,
+		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
+		ColumnNotNullSet, ColumnNotNullDropped, ColumnDefaultChanged,
+	}
+}
 
 // Operation is the kind of change a Difference records: an object added or
 // dropped, or one of its attributes changed. It is the decomposed verb of Type
 // (e.g. COLUMN_TYPE_CHANGED → OpChanged), surfaced as a first-class field so
-// consumers can group/filter by verb without parsing Type.
+// consumers can group/filter by verb without parsing Type. Type's suffix is not
+// always the verb: the split attribute types (COLUMN_NOT_NULL_DROPPED,
+// TABLE_PARTITION_ATTACHED, TABLE_INHERIT_ADDED, ...) are OpChanged.
 type Operation string
 
 const (
