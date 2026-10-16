@@ -450,16 +450,25 @@ The change types, by object:
 
 The split partition, inheritance and NOT NULL types keep `Operation` `CHANGED` and their attribute (`PARTITION_PARENT`, `INHERITS`, `INHERITED_BY`, `NULLABILITY`), so they render as before. A partition or inheritance finding carries the one parent or child it is about: the old value for a detach or removal, the new value for an attach or addition, the other side empty. A NOT NULL finding carries the old and new nullability.
 
-Each type's `Default` severity today:
+Severity by change and timing (changes-only has the live severity; after cutover every type is `advisory`). The exact Impact and Action text is in `testdata/guidance_catalogue.txt`, and in the Addendum B design doc (DB-23869).
 
-| Severity | Meaning | DiffTypes |
-| :---- | :---- | :---- |
-| `breaks_migration_unrecoverable` | `export data` keeps running but cannot be restarted; the migration must restart from scratch | `TABLE_DROPPED`, `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED` |
-| `breaks_migration_recoverable` | `import data` can fail until the same DDL is applied on the target, then resumes | `COLUMN_ADDED`, `COLUMN_NAME_CHANGED`, `COLUMN_TYPE_CHANGED`, `COLUMN_NOT_NULL_SET`, `COLUMN_NOT_NULL_DROPPED` |
-| `potential_impact` | the migration is unaffected but source and target now diverge; reconcile before cutover | `TABLE_ADDED`, `COLUMN_DROPPED`, `COLUMN_DEFAULT_CHANGED`, `TABLE_KIND_CHANGED`, `TABLE_PARTITION_ATTACHED`, `TABLE_PARTITION_DETACHED`, `TABLE_PARTITION_CHILDREN_CHANGED` |
-| `advisory` | informational | `TABLE_INHERIT_ADDED`, `TABLE_INHERIT_REMOVED`, `TABLE_INHERITED_BY_ADDED`, `TABLE_INHERITED_BY_REMOVED`; every type after cutover |
+| DiffType | Before export data | Offline, after export data started | Live, after export data started |
+| :---- | :---- | :---- | :---- |
+| `TABLE_DROPPED` | `advisory` | `advisory` | `breaks_migration_unrecoverable` |
+| `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `TABLE_ADDED` | `breaks_migration_recoverable` | `breaks_migration_unrecoverable` | `breaks_migration_unrecoverable` |
+| `COLUMN_ADDED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_recoverable` |
+| `COLUMN_DROPPED`, `COLUMN_TYPE_CHANGED`, `COLUMN_DEFAULT_CHANGED`, `TABLE_KIND_CHANGED` | `potential_impact` | `potential_impact` | `potential_impact` |
+| `COLUMN_NAME_CHANGED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `COLUMN_NOT_NULL_DROPPED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_recoverable` |
+| `COLUMN_NOT_NULL_SET`, `TABLE_PARTITION_CHILDREN_CHANGED`, `TABLE_INHERIT_REMOVED`, `TABLE_INHERITED_BY_REMOVED` | `advisory` | `advisory` | `advisory` |
+| `TABLE_PARTITION_ATTACHED` | `breaks_migration_recoverable` | `potential_impact` | `potential_impact` |
+| `TABLE_PARTITION_DETACHED` | `potential_impact` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `TABLE_INHERIT_ADDED`, `TABLE_INHERITED_BY_ADDED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
 
-The ordering reads backwards from a DDL point of view and that is deliberate. An added column is more severe than a dropped one because incoming rows carry a value the target cannot store, while a dropped column only leaves the target with an extra column. A dropped table is the worst case because the stored table list still expects it, so the next `export data` restart fails.
+Recoverable means the target can be fixed within this migration and `import data` run again. Unrecoverable means `--start-clean`, a new migration, or a separate migration for the affected rows is needed; this includes rows that are silently not migrated. `TABLE_KIND_CHANGED` never fires on PostgreSQL (making a table partitioned is a drop plus an add), so its text is not part of the verified set.
+
+Severity is about what the migration does, not how alarming the DDL is. An added column is more severe than a dropped one because incoming rows carry a value the target cannot store, while a dropped column only leaves the target with an extra column.
 
 Every guidance entry carries a non-empty Severity, Impact and Action for its default and for each timing it lists. Backticks in the text become inline code in HTML and stay literal in JSON.
 

@@ -122,7 +122,7 @@ func TestRenderJSON(t *testing.T) {
 	require.NotEmpty(t, drifts)
 	firstDrift, ok := drifts[0].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, string(SeverityPotentialImpact), firstDrift["severity"])
+	assert.Equal(t, string(SeverityBreaksRecoverable), firstDrift["severity"])
 	assert.Contains(t, firstDrift, "impact")
 	assert.Contains(t, firstDrift, "action")
 	assert.NotContains(t, firstDrift, "DriftInfo")

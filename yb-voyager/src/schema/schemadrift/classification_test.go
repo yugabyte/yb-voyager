@@ -64,47 +64,54 @@ func assertCompleteInfo(t *testing.T, info DriftInfo) {
 
 // Severity answers "what does the migration do", not "how alarming is the DDL":
 // an ADDED column can fail import data (recoverable), a DROPPED column cannot
-// (it only leaves the target with an extra column), and dropping or renaming a
-// captured table makes export data unrestartable.
-func TestGetDriftInfo_DefaultSeverities(t *testing.T) {
-	want := map[schemadiff.DiffType]Severity{
-		schemadiff.TableDropped:       SeverityBreaksUnrecoverable,
-		schemadiff.TableNameChanged:   SeverityBreaksUnrecoverable,
-		schemadiff.TableSchemaChanged: SeverityBreaksUnrecoverable,
-
-		schemadiff.ColumnAdded:          SeverityBreaksRecoverable,
-		schemadiff.ColumnNameChanged:    SeverityBreaksRecoverable,
-		schemadiff.ColumnTypeChanged:    SeverityBreaksRecoverable,
-		schemadiff.ColumnNotNullSet:     SeverityBreaksRecoverable,
-		schemadiff.ColumnNotNullDropped: SeverityBreaksRecoverable,
-
-		schemadiff.TableAdded:                    SeverityPotentialImpact,
-		schemadiff.ColumnDropped:                 SeverityPotentialImpact,
-		schemadiff.ColumnDefaultChanged:          SeverityPotentialImpact,
-		schemadiff.TableKindChanged:              SeverityPotentialImpact,
-		schemadiff.TablePartitionAttached:        SeverityPotentialImpact,
-		schemadiff.TablePartitionDetached:        SeverityPotentialImpact,
-		schemadiff.TablePartitionChildrenChanged: SeverityPotentialImpact,
-
-		schemadiff.TableInheritAdded:       SeverityAdvisory,
-		schemadiff.TableInheritRemoved:     SeverityAdvisory,
-		schemadiff.TableInheritedByAdded:   SeverityAdvisory,
-		schemadiff.TableInheritedByRemoved: SeverityAdvisory,
+// (it only leaves the target with an extra column), and a change after export
+// data started that needs a restart is unrecoverable. Columns: before export
+// data, offline, live, changes-only.
+func TestGetDriftInfo_SeverityByTiming(t *testing.T) {
+	const (
+		adv = SeverityAdvisory
+		pot = SeverityPotentialImpact
+		rec = SeverityBreaksRecoverable
+		unr = SeverityBreaksUnrecoverable
+	)
+	want := map[schemadiff.DiffType][4]Severity{
+		schemadiff.TableDropped:                  {adv, adv, unr, unr},
+		schemadiff.TableNameChanged:              {rec, pot, unr, unr},
+		schemadiff.TableSchemaChanged:            {rec, pot, unr, unr},
+		schemadiff.TableAdded:                    {rec, unr, unr, unr},
+		schemadiff.ColumnAdded:                   {rec, pot, rec, rec},
+		schemadiff.ColumnDropped:                 {pot, pot, pot, pot},
+		schemadiff.ColumnNameChanged:             {rec, pot, unr, unr},
+		schemadiff.ColumnTypeChanged:             {pot, pot, pot, pot},
+		schemadiff.ColumnNotNullDropped:          {rec, pot, rec, rec},
+		schemadiff.ColumnNotNullSet:              {adv, adv, adv, adv},
+		schemadiff.ColumnDefaultChanged:          {pot, pot, pot, pot},
+		schemadiff.TableKindChanged:              {pot, pot, pot, pot},
+		schemadiff.TablePartitionAttached:        {rec, pot, pot, pot},
+		schemadiff.TablePartitionDetached:        {pot, pot, unr, unr},
+		schemadiff.TablePartitionChildrenChanged: {adv, adv, adv, adv},
+		schemadiff.TableInheritAdded:             {rec, pot, unr, unr},
+		schemadiff.TableInheritRemoved:           {adv, adv, adv, adv},
+		schemadiff.TableInheritedByAdded:         {rec, pot, unr, unr},
+		schemadiff.TableInheritedByRemoved:       {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
-	for diffType, wantSeverity := range want {
-		t.Run(string(diffType), func(t *testing.T) {
-			got, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
-			require.NoError(t, err)
-			assert.Equal(t, wantSeverity, got.Severity)
-		})
+	timings := [4]Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart}
+	for diffType, severities := range want {
+		for i, timing := range timings {
+			t.Run(fmt.Sprintf("%s/%s", diffType, timing), func(t *testing.T) {
+				got, err := getDriftInfo(diffType, situation{Timing: timing})
+				require.NoError(t, err)
+				assert.Equal(t, severities[i], got.Severity)
+			})
+		}
 	}
 }
 
-// A split type takes over its old combined type's text in both directions until
-// per-direction text lands.
-func TestGetDriftInfo_SplitTypesShareTheCombinedText(t *testing.T) {
+// Each direction of a split type has its own text: dropping NOT NULL breaks
+// import data, setting it does not.
+func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 	pairs := [][2]schemadiff.DiffType{
 		{schemadiff.ColumnNotNullSet, schemadiff.ColumnNotNullDropped},
 		{schemadiff.TablePartitionAttached, schemadiff.TablePartitionDetached},
@@ -113,8 +120,33 @@ func TestGetDriftInfo_SplitTypesShareTheCombinedText(t *testing.T) {
 	}
 	for _, p := range pairs {
 		t.Run(string(p[0]), func(t *testing.T) {
-			assert.Equal(t, guidanceByDiffType[p[0]], guidanceByDiffType[p[1]])
+			assert.NotEqual(t, guidanceByDiffType[p[0]].Default, guidanceByDiffType[p[1]].Default)
 		})
+	}
+}
+
+func TestGetDriftInfo_FallBackSentenceOnlyOnColumnDropped(t *testing.T) {
+	const sentence = "If you cut over with fall-back, `import data to source` stops at the first insert on this table"
+	for _, diffType := range schemadiff.AllDiffTypes() {
+		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
+		require.NoError(t, err)
+		assert.Equal(t, diffType == schemadiff.ColumnDropped, strings.Contains(info.Impact, sentence), string(diffType))
+	}
+	info, err := getDriftInfo(schemadiff.ColumnDropped, situation{Timing: TimingLiveAfterExportStart})
+	require.NoError(t, err)
+	assert.NotContains(t, info.Impact, "fall-back")
+}
+
+func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {
+	for diffType, g := range guidanceByDiffType {
+		live := g.ByTiming[TimingLiveAfterExportStart]
+		changesOnly, ok := g.ByTiming[TimingChangesOnlyAfterExportStart]
+		assert.Equal(t, strings.Contains(live.Action, "restart the data migration:"), ok, string(diffType))
+		if ok {
+			assert.Contains(t, changesOnly.Action, "start a new migration in a new export directory", string(diffType))
+			assert.NotContains(t, changesOnly.Action, "--start-clean", string(diffType))
+			assert.Equal(t, live.Impact, changesOnly.Impact, string(diffType))
+		}
 	}
 }
 
