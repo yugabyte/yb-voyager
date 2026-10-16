@@ -28,29 +28,36 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
 )
 
-var allTimings = []Timing{
+var requiredTimings = []Timing{
 	TimingBeforeExportData,
 	TimingOfflineAfterExportStart,
 	TimingLiveAfterExportStart,
-	TimingChangesOnlyAfterExportStart,
-	TimingAfterCutover,
 }
 
-func TestGuidanceCoversEveryDiffType(t *testing.T) {
-	assert.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(guidanceByDiffType),
-		"guidanceByDiffType must have exactly one entry per DiffType the engine emits")
+func TestInfoCoversEveryDiffTypeAndTiming(t *testing.T) {
+	assert.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(infoByDiffType),
+		"infoByDiffType must have exactly one entry per DiffType the engine emits")
 
-	for diffType, g := range guidanceByDiffType {
+	for _, diffType := range schemadiff.AllDiffTypes() {
 		t.Run(string(diffType), func(t *testing.T) {
-			assertCompleteInfo(t, g.Default)
-			for timing, info := range g.ByTiming {
-				assert.Contains(t, allTimings, timing)
-				assert.NotEqual(t, TimingAfterCutover, timing, "after cutover is the same for every type")
+			byTiming := infoByDiffType[diffType]
+			for _, timing := range requiredTimings {
+				info, ok := byTiming[timing]
+				require.True(t, ok, "missing timing %s", timing)
+				assertCompleteInfo(t, info)
+			}
+			for timing, info := range byTiming {
+				if timing != TimingChangesOnlyAfterExportStart {
+					assert.Contains(t, requiredTimings, timing, "after cutover is the same for every type, so no type lists it")
+				}
 				assertCompleteInfo(t, info)
 			}
 		})
 	}
-	assertCompleteInfo(t, afterCutoverInfo)
+	for diffType, risk := range fallBackRiskByDiffType {
+		assert.Contains(t, schemadiff.AllDiffTypes(), diffType)
+		assert.NotEmpty(t, risk)
+	}
 }
 
 func assertCompleteInfo(t *testing.T, info DriftInfo) {
@@ -65,7 +72,7 @@ func assertCompleteInfo(t *testing.T, info DriftInfo) {
 // (it only leaves the target with an extra column), and a change after export
 // data started that needs a restart is unrecoverable. Columns: before export
 // data, offline, live, changes-only.
-func TestGetDriftInfo_SeverityByTiming(t *testing.T) {
+func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 	const (
 		adv = SeverityAdvisory
 		pot = SeverityPotentialImpact
@@ -118,7 +125,7 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 	}
 	for _, p := range pairs {
 		t.Run(string(p[0]), func(t *testing.T) {
-			assert.NotEqual(t, guidanceByDiffType[p[0]].Default, guidanceByDiffType[p[1]].Default)
+			assert.NotEqual(t, infoByDiffType[p[0]][TimingBeforeExportData], infoByDiffType[p[1]][TimingBeforeExportData])
 		})
 	}
 }
@@ -136,9 +143,9 @@ func TestGetDriftInfo_FallBackSentenceOnlyOnColumnDropped(t *testing.T) {
 }
 
 func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {
-	for diffType, g := range guidanceByDiffType {
-		live := g.ByTiming[TimingLiveAfterExportStart]
-		changesOnly, ok := g.ByTiming[TimingChangesOnlyAfterExportStart]
+	for diffType, byTiming := range infoByDiffType {
+		live := byTiming[TimingLiveAfterExportStart]
+		changesOnly, ok := byTiming[TimingChangesOnlyAfterExportStart]
 		assert.Equal(t, strings.Contains(live.Action, "restart the data migration:"), ok, string(diffType))
 		if ok {
 			assert.Contains(t, changesOnly.Action, "start a new migration in a new export directory", string(diffType))
@@ -148,38 +155,43 @@ func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {
 	}
 }
 
-func TestGetDriftInfo_ResolvesByTiming(t *testing.T) {
+func TestGetDriftInfo_ResolvesPerTiming(t *testing.T) {
 	const testType schemadiff.DiffType = "TEST_ONLY_TYPE"
-	defaultInfo := DriftInfo{Severity: SeverityAdvisory, Impact: "default impact.", Action: "default action."}
+	beforeInfo := DriftInfo{Severity: SeverityAdvisory, Impact: "before impact.", Action: "before action."}
 	offlineInfo := DriftInfo{Severity: SeverityPotentialImpact, Impact: "offline impact.", Action: "offline action."}
 	liveInfo := DriftInfo{Severity: SeverityBreaksUnrecoverable, Impact: "live impact.", Action: "live action."}
-	guidanceByDiffType[testType] = driftGuidance{
-		Default: defaultInfo,
-		ByTiming: map[Timing]DriftInfo{
-			TimingOfflineAfterExportStart: offlineInfo,
-			TimingLiveAfterExportStart:    liveInfo,
-		},
-		FallBackRisk: "fall-back risk.",
+	infoByDiffType[testType] = map[Timing]DriftInfo{
+		TimingBeforeExportData:        beforeInfo,
+		TimingOfflineAfterExportStart: offlineInfo,
+		TimingLiveAfterExportStart:    liveInfo,
 	}
-	t.Cleanup(func() { delete(guidanceByDiffType, testType) })
+	fallBackRiskByDiffType[testType] = "fall-back risk."
+	t.Cleanup(func() {
+		delete(infoByDiffType, testType)
+		delete(fallBackRiskByDiffType, testType)
+	})
 
 	withRisk := func(info DriftInfo) DriftInfo {
 		info.Impact += " fall-back risk."
 		return info
+	}
+	wantAfterCutover := DriftInfo{
+		Severity: SeverityAdvisory,
+		Impact:   "This change was made after cutover to target. Data already migrated to the target is not affected.",
 	}
 	tests := []struct {
 		name string
 		s    situation
 		want DriftInfo
 	}{
-		{"a timing without its own entry gets the default", situation{Timing: TimingBeforeExportData}, defaultInfo},
-		{"a timing with its own entry gets it", situation{Timing: TimingOfflineAfterExportStart}, offlineInfo},
+		{"before export data", situation{Timing: TimingBeforeExportData}, beforeInfo},
+		{"offline", situation{Timing: TimingOfflineAfterExportStart}, offlineInfo},
 		{"live", situation{Timing: TimingLiveAfterExportStart}, liveInfo},
 		{"changes-only without its own entry falls back to live", situation{Timing: TimingChangesOnlyAfterExportStart}, liveInfo},
 		{"the fall-back sentence is appended while fall-back is possible", situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true}, withRisk(liveInfo)},
-		{"the fall-back sentence is appended to the default too", situation{Timing: TimingBeforeExportData, FallBackPossible: true}, withRisk(defaultInfo)},
-		{"after cutover is the same advisory for every type", situation{Timing: TimingAfterCutover}, afterCutoverInfo},
-		{"after cutover never carries the fall-back sentence", situation{Timing: TimingAfterCutover, FallBackPossible: true}, afterCutoverInfo},
+		{"the fall-back sentence is appended before export data too", situation{Timing: TimingBeforeExportData, FallBackPossible: true}, withRisk(beforeInfo)},
+		{"after cutover is the same advisory for every type, with no action", situation{Timing: TimingAfterCutover}, wantAfterCutover},
+		{"after cutover never carries the fall-back sentence", situation{Timing: TimingAfterCutover, FallBackPossible: true}, wantAfterCutover},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -191,7 +203,7 @@ func TestGetDriftInfo_ResolvesByTiming(t *testing.T) {
 
 	t.Run("changes-only with its own entry uses it", func(t *testing.T) {
 		changesOnlyInfo := DriftInfo{Severity: SeverityBreaksUnrecoverable, Impact: "changes-only impact.", Action: "changes-only action."}
-		guidanceByDiffType[testType].ByTiming[TimingChangesOnlyAfterExportStart] = changesOnlyInfo
+		infoByDiffType[testType][TimingChangesOnlyAfterExportStart] = changesOnlyInfo
 
 		got, err := getDriftInfo(testType, situation{Timing: TimingChangesOnlyAfterExportStart})
 		require.NoError(t, err)
@@ -199,10 +211,26 @@ func TestGetDriftInfo_ResolvesByTiming(t *testing.T) {
 	})
 }
 
-func TestGetDriftInfo_UnknownTypeIsAnError(t *testing.T) {
-	for _, unknown := range []schemadiff.DiffType{"", "SOME_FUTURE_DIFF_TYPE"} {
-		_, err := getDriftInfo(unknown, situation{Timing: TimingLiveAfterExportStart})
+func TestGetDriftInfo_MissingEntryIsAnError(t *testing.T) {
+	const partialType schemadiff.DiffType = "TEST_ONLY_PARTIAL_TYPE"
+	infoByDiffType[partialType] = map[Timing]DriftInfo{
+		TimingBeforeExportData: {Severity: SeverityAdvisory, Impact: "before impact.", Action: "before action."},
+	}
+	t.Cleanup(func() { delete(infoByDiffType, partialType) })
+
+	tests := []struct {
+		diffType schemadiff.DiffType
+		timing   Timing
+	}{
+		{"", TimingLiveAfterExportStart},
+		{"SOME_FUTURE_DIFF_TYPE", TimingLiveAfterExportStart},
+		{"SOME_FUTURE_DIFF_TYPE", TimingChangesOnlyAfterExportStart},
+		{partialType, TimingOfflineAfterExportStart},
+		{partialType, TimingChangesOnlyAfterExportStart},
+	}
+	for _, tt := range tests {
+		_, err := getDriftInfo(tt.diffType, situation{Timing: tt.timing})
 		require.Error(t, err)
-		assert.Equal(t, fmt.Sprintf("no Impact and Action for change type %q", unknown), err.Error())
+		assert.Equal(t, fmt.Sprintf("no Impact and Action for change type %q at timing %q", tt.diffType, tt.timing), err.Error())
 	}
 }

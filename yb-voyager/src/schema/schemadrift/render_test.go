@@ -18,6 +18,7 @@ package schemadrift
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,7 +64,7 @@ func fixtureReport() Report {
 				},
 				Window:    Window{From: from, To: to},
 				Phase:     "export data: running",
-				DriftInfo: guidanceByDiffType[schemadiff.TableAdded].Default,
+				DriftInfo: infoByDiffType[schemadiff.TableAdded][TimingBeforeExportData],
 			},
 			{
 				Diff: Diff{
@@ -78,7 +79,7 @@ func fixtureReport() Report {
 				},
 				Window:    Window{From: from, To: to},
 				Phase:     "export data: running",
-				DriftInfo: guidanceByDiffType[schemadiff.ColumnTypeChanged].Default,
+				DriftInfo: infoByDiffType[schemadiff.ColumnTypeChanged][TimingBeforeExportData],
 			},
 		},
 		CapturePoints: []CapturePoint{
@@ -177,6 +178,27 @@ func TestRenderHTML(t *testing.T) {
 	assert.Contains(t, html, `<span class="s">amount</span>`, "object subject should appear")
 	assert.Contains(t, html, "export data: running", "phase label should appear")
 	assert.Contains(t, html, "does not apply any of these changes", "standing disclaimer banner should appear")
+}
+
+func TestRender_EntryWithoutActionOmitsIt(t *testing.T) {
+	r := fixtureReport()
+	r.Drifts = r.Drifts[:1]
+	r.Drifts[0].DriftInfo = afterCutoverInfo
+
+	html, err := RenderHTML(r)
+	require.NoError(t, err)
+	assert.Contains(t, string(html), `<p class="action-t">`+afterCutoverInfo.Impact+`</p>`)
+	assert.Equal(t, 1, strings.Count(string(html), `<p class="action-t">`), "an empty Action renders no paragraph")
+
+	out, err := RenderJSON(r)
+	require.NoError(t, err)
+	var got struct {
+		Drifts []map[string]any `json:"drifts"`
+	}
+	require.NoError(t, json.Unmarshal(out, &got))
+	require.Len(t, got.Drifts, 1)
+	assert.Equal(t, afterCutoverInfo.Impact, got.Drifts[0]["impact"])
+	assert.NotContains(t, got.Drifts[0], "action")
 }
 
 // TestObjectPathMinQuotesIdentifiers pins that rendered object identities are

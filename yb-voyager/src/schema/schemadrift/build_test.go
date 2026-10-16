@@ -805,15 +805,15 @@ func TestBuildReport_AfterCutoverIntervalGetsTheAdvisory(t *testing.T) {
 	require.Len(t, report.Drifts, 2)
 	beforeCutover, afterCutover := report.Drifts[0], report.Drifts[1]
 	assert.Equal(t, "before_cutover", beforeCutover.Object.Name)
-	assert.Equal(t, guidanceByDiffType[schemadiff.TableAdded].ByTiming[TimingLiveAfterExportStart], beforeCutover.DriftInfo)
+	assert.Equal(t, infoByDiffType[schemadiff.TableAdded][TimingLiveAfterExportStart], beforeCutover.DriftInfo)
 	assert.Equal(t, "after_cutover", afterCutover.Object.Name)
 	assert.Equal(t, afterCutoverInfo, afterCutover.DriftInfo)
 }
 
 func TestBuildReport_TypeWithoutGuidanceIsAnError(t *testing.T) {
-	saved := guidanceByDiffType[schemadiff.TableAdded]
-	delete(guidanceByDiffType, schemadiff.TableAdded)
-	t.Cleanup(func() { guidanceByDiffType[schemadiff.TableAdded] = saved })
+	saved := infoByDiffType[schemadiff.TableAdded]
+	delete(infoByDiffType, schemadiff.TableAdded)
+	t.Cleanup(func() { infoByDiffType[schemadiff.TableAdded] = saved })
 
 	_, err := BuildReport(DetectionConfig{
 		Source: Source{DatabaseType: "postgresql"},
@@ -828,7 +828,7 @@ func TestBuildReport_TypeWithoutGuidanceIsAnError(t *testing.T) {
 		},
 	})
 	require.Error(t, err)
-	assert.Equal(t, `no Impact and Action for change type "TABLE_ADDED"`, err.Error())
+	assert.Equal(t, `no Impact and Action for change type "TABLE_ADDED" at timing "before_export_data"`, err.Error())
 }
 
 // A drop has no side-B identity, so the entry must name the object from side A:

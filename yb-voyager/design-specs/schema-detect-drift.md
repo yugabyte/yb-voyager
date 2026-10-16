@@ -154,13 +154,8 @@ const (
 	TimingAfterCutover                Timing = "after_cutover"
 )
 
-type driftGuidance struct {
-	Default      DriftInfo
-	ByTiming     map[Timing]DriftInfo // only the timings whose text differs from Default
-	FallBackRisk string               // appended to Impact while a cutover with fall-back is still possible
-}
-
-var guidanceByDiffType map[schemadiff.DiffType]driftGuidance
+var infoByDiffType map[schemadiff.DiffType]map[Timing]DriftInfo
+var fallBackRiskByDiffType map[schemadiff.DiffType]string // appended to Impact while a cutover with fall-back is still possible
 var afterCutoverInfo DriftInfo
 
 type situation struct {
@@ -171,15 +166,13 @@ type situation struct {
 func getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)
 ```
 
-Severity and its explanatory note are one value, and every type's values sit in one entry of one map. Parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain.
+Severity and its explanatory note are one value, and each type's values for a timing are one `DriftInfo` in one map. Parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain.
 
-The Impact and Action depend on the change type AND on when the change happened (§5.3), so the lookup is keyed by both. `getDriftInfo` resolves them in this order:
+The Impact and Action depend on the change type AND on when the change happened (§5.3), so `infoByDiffType` is keyed by both. Every type lists `before_export_data`, `offline_after_export_start` and `live_after_export_start` explicitly; `changes_only_after_export_start` is listed only where its text differs from live. Text shared across timings is one named `DriftInfo` referenced from each timing, never copied. `getDriftInfo` applies three rules:
 
-1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type.
-2. A `DiffType` with no entry: an error. A new type must come with its guidance; reporting it as advisory with no note would hide a change the report cannot explain.
-3. The type's `ByTiming` entry for the timing. `TimingChangesOnlyAfterExportStart` with no entry of its own uses the `TimingLiveAfterExportStart` entry.
-4. Otherwise the type's `Default`.
-5. When `situation.FallBackPossible`, the type's `FallBackRisk` sentence, if any, is appended to the Impact.
+1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type: "This change was made after cutover to target. Data already migrated to the target is not affected." It has no Action.
+2. Otherwise the type's entry for the timing. `TimingChangesOnlyAfterExportStart` with no entry of its own uses the `TimingLiveAfterExportStart` entry. No entry is an error naming the type and the timing: a new type must come with its guidance, and reporting it as advisory with no note would hide a change the report cannot explain.
+3. When `situation.FallBackPossible`, the type's sentence in `fallBackRiskByDiffType`, if any, is appended to the Impact.
 
 Each type is one `DiffType`, so the type alone says what happened. Changes whose two directions need different guidance are separate types (`COLUMN_NOT_NULL_SET` / `COLUMN_NOT_NULL_DROPPED`, §5.4), not one type plus a direction read from the old and new values.
 
@@ -433,9 +426,9 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 
 ### 5.4 Severity
 
-**Where:** `schemadrift.getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)`, backed by `guidanceByDiffType` and `afterCutoverInfo`, called once per `Difference` from `BuildReport`. **In:** a `DiffType` and the interval's `situation` (§5.3). **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action` -- or an error for a type with no guidance. **Decides:** what the migration does about a change, and the note that explains it.
+**Where:** `schemadrift.getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)`, backed by `infoByDiffType`, `fallBackRiskByDiffType` and `afterCutoverInfo`, called once per `Difference` from `BuildReport`. **In:** a `DiffType` and the interval's `situation` (§5.3). **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action` -- or an error for a type and timing with no entry. **Decides:** what the migration does about a change, and the note that explains it.
 
-The guidance is a matrix: one entry per change type, with text per timing where the timing changes the advice. The resolution order is in §3.4: after cutover, every type gets the same advisory; changes-only uses the live text when a type has none of its own; an unknown type is an error; and the fall-back sentence is appended while a cutover with fall-back is still possible.
+The guidance is a matrix: one entry per change type and timing. The resolution order is in §3.4: after cutover, every type gets the same advisory; changes-only uses the live text when a type has none of its own; an unknown type is an error; and the fall-back sentence is appended while a cutover with fall-back is still possible.
 
 The change types, by object:
 
@@ -450,7 +443,7 @@ The change types, by object:
 
 The split partition, inheritance and NOT NULL types keep `Operation` `CHANGED` and their attribute (`PARTITION_PARENT`, `INHERITS`, `INHERITED_BY`, `NULLABILITY`), so they render as before. A partition or inheritance finding carries the one parent or child it is about: the old value for a detach or removal, the new value for an attach or addition, the other side empty. A NOT NULL finding carries the old and new nullability.
 
-Severity by change and timing (changes-only has the live severity; after cutover every type is `advisory`). The exact Impact and Action text is in `guidanceByDiffType` in `schemadrift`, and in the Addendum B design doc (DB-23869).
+Severity by change and timing (changes-only has the live severity; after cutover every type is `advisory`). The exact Impact and Action text is in `infoByDiffType` in `schemadrift`, and in the Addendum B design doc (DB-23869).
 
 | DiffType | Before export data | Offline, after export data started | Live, after export data started |
 | :---- | :---- | :---- | :---- |
@@ -470,7 +463,7 @@ Recoverable means the target can be fixed within this migration and `import data
 
 Severity is about what the migration does, not how alarming the DDL is. An added column is more severe than a dropped one because incoming rows carry a value the target cannot store, while a dropped column only leaves the target with an extra column.
 
-Every guidance entry carries a non-empty Severity, Impact and Action for its default and for each timing it lists. Backticks in the text become inline code in HTML and stay literal in JSON.
+Every entry in `infoByDiffType` carries a non-empty Severity, Impact and Action. Backticks in the text become inline code in HTML and stay literal in JSON.
 
 ### 5.5 Table universe and scope resolution
 
