@@ -424,6 +424,8 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 
 `situation.FallBackPossible` is true unless the timing is `after_cutover` or `ExportType` is `snapshot-only`: a live flow, or one whose export type is not recorded yet, can still cut over with fall-back. An interval that spans the cutover request is not `after_cutover`, because the change may have come before it.
 
+Known gap: `export data --start-clean` can change the export type (for example `snapshot-only` to `snapshot-and-changes`), while the snapshots from the earlier run stay in metaDB. `situationFor` applies the current `ExportType` to every interval, so intervals from before the restart get the new run's timing and text. This is accepted because such a restart is rare and only affects history from before it.
+
 ### 5.4 Severity
 
 **Where:** `schemadrift.getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)`, backed by `infoByDiffType`, `fallBackRiskByDiffType` and `afterCutoverInfo`, called once per `Difference` from `BuildReport`. **In:** a `DiffType` and the interval's `situation` (§5.3). **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action` -- or an error for a type and timing with no entry. **Decides:** what the migration does about a change, and the note that explains it.

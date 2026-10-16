@@ -33,13 +33,14 @@ type ObjectIdent interface {
 // Difference describes a single detected schema change between two snapshots,
 // where A is the old (side-A) snapshot and B is the new (side-B) snapshot. It is
 // the unit element of the slice Diff returns. One shape covers added, dropped, and
-// changed findings; which fields are populated depends on Type — see each field.
+// changed findings; which fields are populated depends on Operation — see each field.
 type Difference struct {
-	// Type identifies what changed (e.g. TABLE_ADDED, COLUMN_TYPE_CHANGED). The
-	// trailing verb governs which fields are set: *_ADDED uses ObjectB/SideBValue,
-	// *_DROPPED uses ObjectA/SideAValue, *_CHANGED uses both. Operation, ObjectType,
-	// and Attribute are Type's decomposed facets, provided so consumers can
-	// group/filter without parsing this string.
+	// Type identifies what changed (e.g. TABLE_ADDED, COLUMN_TYPE_CHANGED).
+	// Operation, not the suffix of Type, governs which fields are set: OpAdded uses
+	// ObjectB/SideBValue, OpDropped uses ObjectA/SideAValue, OpChanged uses both
+	// (so TABLE_INHERIT_ADDED and COLUMN_NOT_NULL_DROPPED set both). Operation,
+	// ObjectType, and Attribute are Type's decomposed facets, provided so consumers
+	// can group/filter without parsing this string.
 	Type DiffType
 
 	// Operation is the verb: OpAdded, OpDropped, or OpChanged.
@@ -55,16 +56,16 @@ type Difference struct {
 	Attribute Attribute
 
 	// ObjectA is the side-A (old) identity of the changed object — nil for
-	// *_ADDED, which has no side-A object. For a rename/move ObjectA is the OLD
+	// OpAdded, which has no side-A object. For a rename/move ObjectA is the OLD
 	// identity and ObjectB is the NEW one; they differ.
 	ObjectA ObjectIdent
 
 	// ObjectB is the side-B (new) identity of the changed object — nil for
-	// *_DROPPED, which has no side-B object. For a rename/move ObjectB is the NEW
+	// OpDropped, which has no side-B object. For a rename/move ObjectB is the NEW
 	// identity.
 	ObjectB ObjectIdent
 
-	// SideAValue is the value on side A (nil for *_ADDED). For *_CHANGED it is the
+	// SideAValue is the value on side A (nil for OpAdded). For OpChanged it is the
 	// previous value of the changed attribute; for COLUMN_DROPPED the whole
 	// dropped Column; for TABLE_DROPPED the whole dropped Table (columns plus
 	// kind/partition/inheritance metadata). Its dynamic type depends on Type
@@ -72,7 +73,7 @@ type Difference struct {
 	// schemasnapshot.Column, or schemasnapshot.Table).
 	SideAValue any
 
-	// SideBValue is the value on side B (nil for *_DROPPED). For *_CHANGED it is
+	// SideBValue is the value on side B (nil for OpDropped). For OpChanged it is
 	// the new value of the changed attribute; for COLUMN_ADDED the whole added
 	// Column; for TABLE_ADDED the whole added Table (columns plus
 	// kind/partition/inheritance metadata). Same dynamic-type rules as SideAValue.
@@ -88,7 +89,7 @@ func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 }
 
 // sortDifferences sorts a slice of Difference values in place by a deterministic
-// key: the finding's side-A identity key (side-B for *_ADDED, where ObjectA is
+// key: the finding's side-A identity key (side-B for OpAdded, where ObjectA is
 // nil), then Type. Grouping columns under their table still holds because
 // "public.orders" < "public.orders.email". The sort is stable because one table
 // can carry several findings of the same type (one per parent or child added or

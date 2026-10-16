@@ -96,8 +96,8 @@ const (
 	// ObjectTypeType     ObjectType = "TYPE"
 )
 
-// Attribute names the specific object attribute a *_CHANGED finding is about
-// (e.g. COLUMN_TYPE_CHANGED → AttrType). It is AttrNone for ADDED/DROPPED
+// Attribute names the specific object attribute an OpChanged finding is about
+// (e.g. COLUMN_TYPE_CHANGED → AttrType). It is AttrNone for OpAdded/OpDropped
 // findings, which concern the whole object rather than one attribute.
 type Attribute string
 
@@ -116,9 +116,9 @@ const (
 )
 
 // newDifference builds a Difference. Type is the single-string kind; op, objType,
-// and attr are its decomposed facets (attr is AttrNone for ADDED/DROPPED). objA/objB
-// are the side-A/side-B identities (nil on the absent side: objA nil for *_ADDED,
-// objB nil for *_DROPPED). Identities are value types, so they are copied into the
+// and attr are its decomposed facets (attr is AttrNone for OpAdded/OpDropped). objA/objB
+// are the side-A/side-B identities (nil on the absent side: objA nil for OpAdded,
+// objB nil for OpDropped). Identities are value types, so they are copied into the
 // interface — no aliasing with snapshot storage.
 func newDifference(t DiffType, op Operation, objType ObjectType, attr Attribute, objA, objB ObjectIdent, sideAVal, sideBVal any) Difference {
 	return Difference{

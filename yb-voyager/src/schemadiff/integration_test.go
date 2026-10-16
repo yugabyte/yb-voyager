@@ -360,7 +360,7 @@ func filterLocal(diffs []schemadiff.Difference, pred func(schemadiff.Difference)
 }
 
 // identKey renders a finding's own identity key: side-A's key, falling back to
-// side-B for *_ADDED (where ObjectA is nil), in dbType's dialect. This is the
+// side-B for OpAdded (where ObjectA is nil), in dbType's dialect. This is the
 // direct replacement for the old pre-rendered Difference.Object.Key.
 func identKey(d schemadiff.Difference, dbType string) string {
 	if d.ObjectA != nil {
