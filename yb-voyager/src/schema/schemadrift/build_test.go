@@ -795,7 +795,7 @@ func TestBuildReport_AfterCutoverIntervalGetsTheAdvisory(t *testing.T) {
 	require.Len(t, report.Drifts, 2)
 	beforeCutover, afterCutover := report.Drifts[0], report.Drifts[1]
 	assert.Equal(t, "before_cutover", beforeCutover.Object.Name)
-	assert.Equal(t, guidanceByDiffType[schemadiff.TableAdded].Default, beforeCutover.DriftInfo)
+	assert.Equal(t, guidanceByDiffType[schemadiff.TableAdded].ByTiming[TimingLiveAfterExportStart], beforeCutover.DriftInfo)
 	assert.Equal(t, "after_cutover", afterCutover.Object.Name)
 	assert.Equal(t, afterCutoverInfo, afterCutover.DriftInfo)
 }
