@@ -14,7 +14,14 @@
 
 package schemadiff
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+import (
+	"cmp"
+	"slices"
+
+	"github.com/samber/lo"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+)
 
 // diffTables computes table-level differences between snapshots a and b. Tables
 // are matched by chooseMatchKeys: by stable OID for a same-engine Postgres/
@@ -68,32 +75,44 @@ func compareMatchedTables(dbTypeA, dbTypeB string) func(tA, tB schemasnapshot.Ta
 		}
 
 		if !partitionParentEqual(tA.PartitionParent, tB.PartitionParent) {
-			var ov, nv any
 			if tA.PartitionParent != nil {
-				ov = *tA.PartitionParent
+				diffs = append(diffs, newDifference(TablePartitionDetached, OpChanged, ObjectTypeTable, AttrPartitionParent, tA.ObjectRef, tB.ObjectRef, *tA.PartitionParent, nil))
 			}
 			if tB.PartitionParent != nil {
-				nv = *tB.PartitionParent
+				diffs = append(diffs, newDifference(TablePartitionAttached, OpChanged, ObjectTypeTable, AttrPartitionParent, tA.ObjectRef, tB.ObjectRef, nil, *tB.PartitionParent))
 			}
-			diffs = append(diffs, newDifference(TablePartitionParentChanged, OpChanged, ObjectTypeTable, AttrPartitionParent, tA.ObjectRef, tB.ObjectRef, ov, nv))
 		}
 
 		if !objectRefSetEqual(tA.PartitionChildren, tB.PartitionChildren) {
 			diffs = append(diffs, newDifference(TablePartitionChildrenChanged, OpChanged, ObjectTypeTable, AttrPartitionChildren, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
 		}
 
-		if !objectRefSetEqual(tA.InheritsFrom, tB.InheritsFrom) {
-			diffs = append(diffs, newDifference(TableInheritsChanged, OpChanged, ObjectTypeTable, AttrInherits, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.InheritsFrom), cloneObjectRefs(tB.InheritsFrom)))
-		}
-
-		if !objectRefSetEqual(tA.InheritedBy, tB.InheritedBy) {
-			diffs = append(diffs, newDifference(TableInheritedByChanged, OpChanged, ObjectTypeTable, AttrInheritedBy, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.InheritedBy), cloneObjectRefs(tB.InheritedBy)))
-		}
+		diffs = append(diffs, diffLinkSet(tA, tB, tA.InheritsFrom, tB.InheritsFrom, TableInheritAdded, TableInheritRemoved, AttrInherits)...)
+		diffs = append(diffs, diffLinkSet(tA, tB, tA.InheritedBy, tB.InheritedBy, TableInheritedByAdded, TableInheritedByRemoved, AttrInheritedBy)...)
 
 		diffs = append(diffs, diffColumnsIn(tA.Columns, tB.Columns, dbTypeA, dbTypeB)...)
 
 		return diffs
 	}
+}
+
+func diffLinkSet(tA, tB schemasnapshot.Table, linksA, linksB []schemasnapshot.ObjectRef, addedType, removedType DiffType, attr Attribute) []Difference {
+	removed, added := lo.Difference(linksA, linksB)
+	slices.SortFunc(removed, compareObjectRefs)
+	slices.SortFunc(added, compareObjectRefs)
+
+	var diffs []Difference
+	for _, r := range removed {
+		diffs = append(diffs, newDifference(removedType, OpChanged, ObjectTypeTable, attr, tA.ObjectRef, tB.ObjectRef, r, nil))
+	}
+	for _, r := range added {
+		diffs = append(diffs, newDifference(addedType, OpChanged, ObjectTypeTable, attr, tA.ObjectRef, tB.ObjectRef, nil, r))
+	}
+	return diffs
+}
+
+func compareObjectRefs(a, b schemasnapshot.ObjectRef) int {
+	return cmp.Or(cmp.Compare(a.Schema, b.Schema), cmp.Compare(a.Name, b.Name))
 }
 
 // partitionParentEqual compares two *ObjectRef values for equality.
@@ -130,7 +149,7 @@ func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
 // cloneObjectRefs returns a fresh copy of an []ObjectRef so a Difference never
 // shares backing storage with the input snapshot — a shallow copy fully decouples
 // it since ObjectRef is a value type (nil input stays nil). Without this, a
-// consumer mutating a link finding's OldValue/NewValue slice would write through
+// consumer mutating a TABLE_PARTITION_CHILDREN_CHANGED finding's OldValue/NewValue slice would write through
 // into the source snapshot.
 func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
 	if refs == nil {
