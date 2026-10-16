@@ -1002,8 +1002,7 @@ func TestCheckSchemaDriftReadsTheMigrationStatusRecord(t *testing.T) {
 	require.Len(t, report.Drifts, 1)
 	assert.Equal(t, schemadrift.DriftInfo{
 		Severity: schemadrift.SeverityAdvisory,
-		Impact:   "This change was made after cutover to target. Data already migrated to the target is not affected. Changes sent back with fall-back are not checked against it.",
-		Action:   "None.",
+		Impact:   "This change was made after cutover to target. Data already migrated to the target is not affected.",
 	}, report.Drifts[0].DriftInfo)
 }
 
