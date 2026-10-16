@@ -71,6 +71,8 @@ func TestCallhomeStructs(t *testing.T) {
 				DBID               int64    `json:"db_id,omitempty"`
 				DBName             string   `json:"db_name,omitempty"`
 				SourceDeployment   string   `json:"source_deployment_type,omitempty"`
+				TLSCertDomain      string   `json:"tls_cert_domain,omitempty"`
+				HostDomain         string   `json:"host_domain,omitempty"`
 				SchemaNames        []string `json:"schema_names,omitempty"`
 				SchemaOids         []int64  `json:"schema_oids,omitempty"`
 			}{},

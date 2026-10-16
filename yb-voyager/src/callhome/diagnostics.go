@@ -95,8 +95,9 @@ Version History
 1.1: Added db_id (PostgreSQL/YugabyteDB: pg_database.oid; Oracle: v$database.dbid; MySQL: 0)
 1.2: Added schema_oids field (PostgreSQL/YugabyteDB: pg_namespace.oid)
 1.3: Added source_deployment_type field for source deployment identification(currently only implemented for Aurora and RDS)
+1.4: Added tls_cert_domain (registered domain from the source TLS certificate SAN/CN) and host_domain (registered domain of the source host) for organisation identification
 */
-var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.3"
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.4"
 
 type SourceDBDetails struct {
 	PayloadVersion     string   `json:"payload_version"`
@@ -109,8 +110,10 @@ type SourceDBDetails struct {
 	DBID               int64    `json:"db_id,omitempty"`                // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SourceDeployment   string   `json:"source_deployment_type,omitempty"`
-	SchemaNames        []string `json:"schema_names,omitempty"` //Anonymized schema names
-	SchemaOids         []int64  `json:"schema_oids,omitempty"`  //Schema oids
+	TLSCertDomain      string   `json:"tls_cert_domain,omitempty"` // registered domain only (e.g. abc.com, amazonaws.com)
+	HostDomain         string   `json:"host_domain,omitempty"`     // registered domain only (e.g. abc.com, amazonaws.com)
+	SchemaNames        []string `json:"schema_names,omitempty"`    //Anonymized schema names
+	SchemaOids         []int64  `json:"schema_oids,omitempty"`     //Schema oids
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here

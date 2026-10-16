@@ -17,6 +17,8 @@ package srcdb
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -33,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/mcuadros/go-version"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -658,6 +661,72 @@ func (pg *PostgreSQL) FetchDBID() error {
 		return err
 	}
 	pg.source.DBID = oid
+	return nil
+}
+
+// getPgxServerCertificate returns the leaf certificate the server presented on an
+// already-established pgx connection. It only reads the TLS state the driver negotiated;
+// it does not open a new connection or change how the certificate is verified.
+// Returns (nil, nil) when the connection is not using TLS (sslmode=disable, or the
+// server declined TLS under sslmode=prefer/allow).
+func getPgxServerCertificate(db *sql.DB) (*x509.Certificate, error) {
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("get connection from pool: %w", err)
+	}
+	defer conn.Close()
+
+	var cert *x509.Certificate
+	// database/sql hides the driver connection; Raw exposes it so we can walk down
+	// stdlib.Conn -> pgx.Conn -> pgconn.PgConn -> net.Conn, which is a *tls.Conn
+	// only when TLS was negotiated.
+	err = conn.Raw(func(driverConn any) error {
+		stdlibConn, ok := driverConn.(*stdlib.Conn)
+		if !ok {
+			return goerrors.Errorf("unexpected driver connection type %T", driverConn)
+		}
+		tlsConn, ok := stdlibConn.Conn().PgConn().Conn().(*tls.Conn)
+		if !ok {
+			return nil
+		}
+		// PeerCertificates[0] is the server's own (leaf) certificate; the rest is the CA chain.
+		peerCerts := tlsConn.ConnectionState().PeerCertificates
+		if len(peerCerts) > 0 {
+			cert = peerCerts[0]
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cert, nil
+}
+
+// extractTLSCertDomain returns the registered domain named by the server's TLS certificate,
+// used in callhome to identify the organisation running the migration. The SANs are tried
+// first, then the Subject CN (older or self-signed certs often carry the name only there).
+// The certificate is usually unverified (default sslmode=prefer), so this is reported next
+// to the host's domain rather than replacing it.
+func extractTLSCertDomain(cert *x509.Certificate) string {
+	if cert != nil {
+		names := append([]string{}, cert.DNSNames...)
+		names = append(names, cert.Subject.CommonName)
+		for _, name := range names {
+			domain := utils.RegisteredDomain(name)
+			if domain != "" {
+				return domain
+			}
+		}
+	}
+	return ""
+}
+
+func (pg *PostgreSQL) FetchTLSCertDomainName() error {
+	cert, err := getPgxServerCertificate(pg.db)
+	if err != nil {
+		return fmt.Errorf("get source server TLS certificate: %w", err)
+	}
+	pg.source.TLSCertDomain = extractTLSCertDomain(cert)
 	return nil
 }
 
