@@ -134,10 +134,12 @@ func TestBuildReport_ConsecutivePairsProduceDiffEntries(t *testing.T) {
 		fixtureTable("2", "public", "customers"),
 	)
 
+	start := fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public")
+	start.Reason = schemasnapshot.ReasonInitial
 	p := DetectionConfig{
 		Snapshots: []schemasnapshot.SchemaSnapshot{
 			{Header: fixtureHeader(schemasnapshot.LabelExportSchema, t1(), "public"), Content: t1Content},
-			{Header: fixtureHeader(schemasnapshot.LabelExportDataFromSourceStart, t2(), "public"), Content: t2Content},
+			{Header: start, Content: t2Content},
 		},
 	}
 
