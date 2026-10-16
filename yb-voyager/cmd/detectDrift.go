@@ -640,6 +640,7 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 		note, info = log.Warnf, log.Infof
 	}
 
+	// Read here rather than passed in: initiate cutover writes ToTargetRequestedAt while export data runs.
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, fmt.Errorf("read the migration status record: %w", err))
