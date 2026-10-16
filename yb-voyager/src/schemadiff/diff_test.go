@@ -57,7 +57,7 @@ func refPtr(schema, name string) *schemasnapshot.ObjectRef {
 }
 
 // identKey renders a finding's own identity key: side-A's key, falling back to
-// side-B for *_ADDED (where ObjectA is nil), in dbType's dialect. This is the
+// side-B for OpAdded (where ObjectA is nil), in dbType's dialect. This is the
 // direct replacement for the old pre-rendered Object.Key.
 func identKey(d Difference, dbType string) string {
 	if d.ObjectA != nil {
@@ -243,7 +243,7 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		if d.Attribute != wantAttr {
 			t.Errorf("%s: Attribute=%q, want %q", d.Type, d.Attribute, wantAttr)
 		}
-		// Invariant: Attribute is set iff the finding is a *_CHANGED.
+		// Invariant: Attribute is set iff the finding is OpChanged.
 		if (d.Operation == OpChanged) != (d.Attribute != AttrNone) {
 			t.Errorf("%s: Attribute/Operation mismatch: op=%q attr=%q", d.Type, d.Operation, d.Attribute)
 		}
