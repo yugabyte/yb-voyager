@@ -18,6 +18,7 @@ package schemadiff
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -228,6 +229,9 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 	seen := map[DiffType]bool{}
 	for _, d := range got {
 		seen[d.Type] = true
+		if !slices.Contains(AllDiffTypes(), d.Type) {
+			t.Errorf("emitted type %s is missing from AllDiffTypes", d.Type)
+		}
 
 		wantOp, wantOT, wantAttr := expectedFacets(t, d.Type)
 		if d.Operation != wantOp {

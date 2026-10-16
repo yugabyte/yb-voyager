@@ -421,7 +421,7 @@ func TestDiffTables_PartitionChildren_OrderInsensitive(t *testing.T) {
 // Test: InheritsFrom and InheritedBy changed — one finding per table added or removed
 // ──────────────────────────────────────────────────────────────────────────────
 
-func TestDiffTables_InheritsFromChanged(t *testing.T) {
+func TestDiffTables_InheritAddedAndRemoved(t *testing.T) {
 	child := ref("public", "child")
 	oldTbl := makeTable("30", child.Schema, child.Name, schemasnapshot.TableKindOrdinary)
 	oldTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "keep"), ref("public", "gone_b"), ref("public", "gone_a")}
@@ -437,7 +437,7 @@ func TestDiffTables_InheritsFromChanged(t *testing.T) {
 	assert.Equal(t, want, Diff(snapWithTables(oldTbl), snapWithTables(newTbl)))
 }
 
-func TestDiffTables_InheritedByChanged(t *testing.T) {
+func TestDiffTables_InheritedByAddedAndRemoved(t *testing.T) {
 	parent := ref("public", "parent")
 	oldTbl := makeTable("31", parent.Schema, parent.Name, schemasnapshot.TableKindOrdinary)
 	oldTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "child_a"), ref("public", "child_keep")}

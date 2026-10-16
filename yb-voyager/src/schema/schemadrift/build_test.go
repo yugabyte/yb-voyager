@@ -698,7 +698,7 @@ var (
 	ckExitError      = captureKind{"exit(error)", schemasnapshot.LabelExportDataFromSourceExit, schemasnapshot.ReasonError}
 	ckSourceLive     = captureKind{"source_live", schemasnapshot.LabelSourceLive, ""}
 	situationPrevs   = []captureKind{ckExportSchema, ckStartInitial, ckStartResume, ckStartClean, ckPeriodic, ckExitCutover, ckExitComplete, ckExitInterrupt, ckExitError}
-	situationNexts   = []captureKind{ckStartInitial, ckStartResume, ckStartClean, ckPeriodic, ckExitCutover, ckExitComplete, ckExitInterrupt, ckExitError, ckSourceLive}
+	situationNexts   = []captureKind{ckStartInitial, ckStartResume, ckStartClean, ckPeriodic, ckExitCutover, ckExitComplete, ckExitInterrupt, ckExitError, ckSourceLive, ckExportSchema}
 	situationExports = []string{"", "snapshot-only", "snapshot-and-changes", "changes-only"}
 )
 
@@ -712,16 +712,16 @@ var (
 //	C after cutover
 func TestSituationFor(t *testing.T) {
 	grid := map[captureKind]string{
-		//               init res clean per x:cut x:cmp x:int x:err live
-		ckExportSchema:  "B    B   B     A   A     A     A     A     U",
-		ckStartInitial:  "B    A   B     A   A     A     A     A     A",
-		ckStartResume:   "B    A   B     A   A     A     A     A     A",
-		ckStartClean:    "B    A   B     A   A     A     A     A     A",
-		ckPeriodic:      "B    A   B     A   A     A     A     A     A",
-		ckExitCutover:   "C    C   C     C   C     C     C     C     C",
-		ckExitComplete:  "B    A   B     A   A     A     A     A     A",
-		ckExitInterrupt: "B    A   B     A   A     A     A     A     A",
-		ckExitError:     "B    A   B     A   A     A     A     A     A",
+		//               init res clean per x:cut x:cmp x:int x:err live schema
+		ckExportSchema:  "B    A   B     A   A     A     A     A     U    A",
+		ckStartInitial:  "B    A   B     A   A     A     A     A     A    A",
+		ckStartResume:   "B    A   B     A   A     A     A     A     A    A",
+		ckStartClean:    "B    A   B     A   A     A     A     A     A    A",
+		ckPeriodic:      "B    A   B     A   A     A     A     A     A    A",
+		ckExitCutover:   "C    C   C     C   C     C     C     C     C    C",
+		ckExitComplete:  "B    A   B     A   A     A     A     A     A    A",
+		ckExitInterrupt: "B    A   B     A   A     A     A     A     A    A",
+		ckExitError:     "B    A   B     A   A     A     A     A     A    A",
 	}
 	afterExportStart := map[string]Timing{
 		"":                     TimingLiveAfterExportStart,

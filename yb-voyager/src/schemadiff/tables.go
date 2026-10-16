@@ -96,9 +96,6 @@ func compareMatchedTables(dbTypeA, dbTypeB string) func(tA, tB schemasnapshot.Ta
 	}
 }
 
-// diffLinkSet emits one finding per table in the set difference of a table's
-// links (its parents or its children): removedType carrying the removed table as
-// the old value, addedType carrying the added table as the new value.
 func diffLinkSet(tA, tB schemasnapshot.Table, linksA, linksB []schemasnapshot.ObjectRef, addedType, removedType DiffType, attr Attribute) []Difference {
 	removed, added := lo.Difference(linksA, linksB)
 	slices.SortFunc(removed, compareObjectRefs)

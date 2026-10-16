@@ -112,7 +112,7 @@ type MigrationInfo struct {
 
 The complete input to `BuildReport`. Plain data, no connections or handles, so the assembler is testable with fixtures.
 
-`MigrationInfo` is what the report needs from the migration status record to place each change in a timing (§5.3). `cmd` fills it from `ExportTypeFromSource` and `CutoverTimings.ToTargetRequestedAt` of the record in the metaDB the snapshots come from. `ExportType` is empty before `export data` records it and after a start-clean clears it, so an empty value means "unknown flow", not "offline".
+`MigrationInfo` is what the report needs from the migration status record to place each change in a timing (§5.3). `cmd` fills it from `ExportTypeFromSource` and `CutoverTimings.ToTargetRequestedAt` of the record in the metaDB the snapshots come from. `ExportType` is empty until `export data` records it, so an empty value means "unknown flow", not "offline".
 
 `Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which holds the exact sets compared, so they are not passed separately. The report does not say whether a list flag narrowed those sets: `Scope` cannot carry that, and the listed sets already tell a reader what "no drift" covers.
 
@@ -424,7 +424,7 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 | Timing | When |
 | :---- | :---- |
 | `after_cutover` | the earlier capture is an `export_data_from_source_exit` with reason `cutover`, or it was taken at or after `CutoverRequestedAt` |
-| `before_export_data` | the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`; or the earlier is `export_schema` and the later is an `export_data_from_source_start`; or the earlier is `export_schema`, the later is the live read and `ExportType` is empty, so `export data` has not run |
+| `before_export_data` | the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`, whatever the earlier capture is (a `resume` start means data was already exported, even after an `export schema --start-clean`); or the earlier is `export_schema`, the later is the live read and `ExportType` is empty, so `export data` has not run |
 | `offline_after_export_start` | `ExportType` is `snapshot-only` |
 | `changes_only_after_export_start` | `ExportType` is `changes-only` |
 | `live_after_export_start` | anything else, including an empty or unknown `ExportType`: an interval the rules cannot place gets the live text |

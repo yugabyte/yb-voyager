@@ -56,8 +56,6 @@ const (
 	TimingAfterCutover                Timing = "after_cutover"
 )
 
-// driftGuidance is the Impact and Action for one change type. Default is used for
-// any timing without its own ByTiming entry.
 type driftGuidance struct {
 	Default      DriftInfo
 	ByTiming     map[Timing]DriftInfo
