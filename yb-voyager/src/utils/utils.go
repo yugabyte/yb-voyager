@@ -1126,10 +1126,9 @@ func GetFloat64OrZero(data map[string]interface{}, keys ...string) float64 {
 
 // RegisteredDomain reduces a DNS name to its ICANN registrable domain (pg01.db.acme.com -> acme.com).
 // Private PSL suffixes are skipped on purpose so managed services collapse to the provider
-// (amazonaws.com) instead of exposing the instance name.
+// (amazonaws.com) rather than an account- or region-specific suffix.
 func RegisteredDomain(name string) string {
-	// Normalise: case-insensitive, wildcard SANs (*.acme.com) and FQDN trailing dots.
-	name = strings.TrimSuffix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(name)), "*."), ".")
+	name = strings.TrimPrefix(normalizeDNSName(name), "*.")
 	if name == "" || net.ParseIP(name) != nil || !strings.Contains(name, ".") {
 		return ""
 	}
@@ -1151,4 +1150,27 @@ func RegisteredDomain(name string) string {
 		return strings.Join(labels[i-1:], ".")
 	}
 	return ""
+}
+
+// InstanceQualifiedDomain keeps the first label as the instance name and masks the labels
+// between it and the registered domain: mydb.cxyz.us-east-1.rds.amazonaws.com -> mydb.*.amazonaws.com.
+// Masking keeps out the account id and region, which with the instance name rebuild the endpoint.
+func InstanceQualifiedDomain(name string) string {
+	domain := RegisteredDomain(name)
+	if domain == "" {
+		return ""
+	}
+	name = normalizeDNSName(name)
+	if strings.HasPrefix(name, "*.") || name == domain {
+		return domain
+	}
+	instance, middle, _ := strings.Cut(strings.TrimSuffix(name, "."+domain), ".")
+	if middle == "" {
+		return instance + "." + domain
+	}
+	return instance + ".*." + domain
+}
+
+func normalizeDNSName(name string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".")
 }

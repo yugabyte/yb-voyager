@@ -34,8 +34,8 @@ type SourceDB interface {
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
 	FetchDBID() error
-	// FetchTLSCertDomainName sets source.TLSCertDomain (callhome only) to the registered domain
-	// from the TLS certificate the server presented, or leaves it empty when there is none.
+	// FetchTLSCertDomainName sets source.TLSCertDomain (callhome only) to the instance-qualified
+	// domain from the TLS certificate the server presented, or leaves it empty when there is none.
 	FetchTLSCertDomainName() error
 	FetchSchemaOids() error
 	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
