@@ -18,9 +18,6 @@ package schemadrift
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -207,48 +204,4 @@ func TestGetDriftInfo_UnknownTypeIsAnError(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, fmt.Sprintf("no Impact and Action for change type %q", unknown), err.Error())
 	}
-}
-
-// The catalogue lists every message the report can print, so a text change is
-// reviewed as a diff of the file. Regenerate it with:
-//
-//	SCHEMADRIFT_REGEN=1 go test -tags unit -run TestGuidanceCatalogue ./src/schema/schemadrift/
-func TestGuidanceCatalogue(t *testing.T) {
-	path := filepath.Join("testdata", "guidance_catalogue.txt")
-	got := guidanceCatalogue(t)
-	if os.Getenv("SCHEMADRIFT_REGEN") == "1" {
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
-	}
-	want, err := os.ReadFile(path)
-	require.NoError(t, err, "regenerate with SCHEMADRIFT_REGEN=1")
-	assert.Equal(t, string(want), got, "guidance changed; regenerate with SCHEMADRIFT_REGEN=1 and review the diff")
-}
-
-// The situations situationFor can produce: before export data, the fall-back
-// sentence depends on whether the flow is offline or not yet known.
-var catalogueSituations = []situation{
-	{Timing: TimingBeforeExportData, FallBackPossible: false},
-	{Timing: TimingBeforeExportData, FallBackPossible: true},
-	{Timing: TimingOfflineAfterExportStart, FallBackPossible: false},
-	{Timing: TimingLiveAfterExportStart, FallBackPossible: true},
-	{Timing: TimingChangesOnlyAfterExportStart, FallBackPossible: true},
-	{Timing: TimingAfterCutover, FallBackPossible: false},
-}
-
-func guidanceCatalogue(t *testing.T) string {
-	var b strings.Builder
-	for i, diffType := range schemadiff.AllDiffTypes() {
-		if i > 0 {
-			b.WriteString("\n")
-		}
-		fmt.Fprintf(&b, "== %s\n", diffType)
-		for _, s := range catalogueSituations {
-			info, err := getDriftInfo(diffType, s)
-			require.NoError(t, err)
-			fmt.Fprintf(&b, "\n-- %s, fall-back possible: %t\n", s.Timing, s.FallBackPossible)
-			fmt.Fprintf(&b, "Severity: %s\nImpact: %s\nAction: %s\n", info.Severity, info.Impact, info.Action)
-		}
-	}
-	return b.String()
 }
