@@ -1259,18 +1259,20 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	}
 	// filter columns with unsupported data types using sourceUnsupportedDataTypes
 	for i := 0; i < len(allColumnsDataTypes); i++ {
+		effectiveDatatype := getEffectiveColumnDatatype(allColumnsDataTypes[i])
+
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
-		baseTypeName := allColumnsDataTypes[i].GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
+		baseTypeName := getBaseTypeNameForUnsupportedCheck(allColumnsDataTypes[i]) // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
 
 		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(sourceUnsupportedDatatypes, baseTypeName)
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, baseTypeName)
 
 		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFForFBUnsupportedDatatypes, baseTypeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetCompositeTypes(), allColumnsDataTypes[i].DataType)
-		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
-		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
+		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetCompositeTypes(), effectiveDatatype)
+		isArrayDatatype := strings.HasSuffix(effectiveDatatype, "[]")                                                                       //if type is array
+		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(effectiveDatatype, "[]")) //is ENUM type
 
 		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
 		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
@@ -1303,6 +1305,21 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
 }
 
+// getEffectiveColumnDatatype returns the type that decides whether a column is supported. The
+// catalog reports a domain column by the domain's name, so for one the type beneath its
+// domains, from the domain definitions parsed by analyze-schema, is returned instead.
+func getEffectiveColumnDatatype(colInfo utils.TableColumnsDataTypes) string {
+	if domainBaseType, ok := parserIssueDetector.ResolveDomainBaseType(colInfo.DataType, colInfo.SchemaName); ok {
+		return domainBaseType
+	}
+	return colInfo.DataType
+}
+
+func getBaseTypeNameForUnsupportedCheck(colInfo utils.TableColumnsDataTypes) string {
+	colInfo.DataType = getEffectiveColumnDatatype(colInfo)
+	return colInfo.GetBaseTypeNameFromDatatype()
+}
+
 func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) {
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
@@ -1329,7 +1346,7 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 		case POSTGRESQL:
 			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
 			// for the array types we add the '[]' to the type for distinguish between normal type and array based datatype
-			baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
+			baseTypeName := getBaseTypeNameForUnsupportedCheck(colInfo) // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
 
 			// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
@@ -1527,7 +1544,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
+				baseTypeName := getBaseTypeNameForUnsupportedCheck(colInfo) // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
 
 				// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
@@ -1545,7 +1562,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
+				baseTypeName := getBaseTypeNameForUnsupportedCheck(colInfo) // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
 
 				var queryIssue queryissue.QueryIssue
 
