@@ -226,7 +226,7 @@ func timingFor(prev, next CapturePoint, m MigrationInfo) Timing {
 	switch {
 	case isAfterCutover(prev, m):
 		return TimingAfterCutover
-	case isBeforeExportData(prev, next, m):
+	case isBeforeExportData(next, m):
 		return TimingBeforeExportData
 	}
 	switch m.ExportType {
@@ -248,16 +248,13 @@ func isAfterCutover(prev CapturePoint, m MigrationInfo) bool {
 	return !m.CutoverRequestedAt.IsZero() && !prev.CapturedAt.Before(m.CutoverRequestedAt)
 }
 
-func isBeforeExportData(prev, next CapturePoint, m MigrationInfo) bool {
-	switch {
-	case next.Label == schemasnapshot.LabelExportDataFromSourceStart:
-		return next.Reason == schemasnapshot.ReasonInitial || next.Reason == schemasnapshot.ReasonCleanRestart
-	case next.Label == schemasnapshot.LabelSourceLive:
-		// An empty export type means export data has not run since export schema.
-		return prev.Label == schemasnapshot.LabelExportSchema && m.ExportType == ""
-	default:
-		return false
+func isBeforeExportData(next CapturePoint, m MigrationInfo) bool {
+	// export data saves its export type before its start capture, so "" means it has not run yet.
+	if m.ExportType == "" {
+		return true
 	}
+	return next.Label == schemasnapshot.LabelExportDataFromSourceStart &&
+		(next.Reason == schemasnapshot.ReasonInitial || next.Reason == schemasnapshot.ReasonCleanRestart)
 }
 
 // displayIdentity prefers side-B (new) over side-A (old), the convention

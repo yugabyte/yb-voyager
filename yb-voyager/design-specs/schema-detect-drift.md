@@ -424,12 +424,12 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 | Timing | When |
 | :---- | :---- |
 | `after_cutover` | the earlier capture is an `export_data_from_source_exit` with reason `cutover`, or it was taken at or after `CutoverRequestedAt` |
-| `before_export_data` | the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`, whatever the earlier capture is (a `resume` start means data was already exported, even after an `export schema --start-clean`); or the earlier is `export_schema`, the later is the live read and `ExportType` is empty, so `export data` has not run |
+| `before_export_data` | export data has not recorded an export type yet (`ExportType` is empty: `export data` saves it before its start capture), whatever the captures are; or the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`, whatever the earlier capture is (a `resume` start means data was already exported, even after an `export schema --start-clean`) |
 | `offline_after_export_start` | `ExportType` is `snapshot-only` |
 | `changes_only_after_export_start` | `ExportType` is `changes-only` |
-| `live_after_export_start` | anything else, including an empty or unknown `ExportType`: an interval the rules cannot place gets the live text |
+| `live_after_export_start` | anything else, including an unknown `ExportType`: an interval the rules cannot place gets the live text |
 
-`situation.FallBackPossible` is true unless the timing is `after_cutover` or `ExportType` is `snapshot-only`: a live or unknown flow can still cut over with fall-back. An interval that spans the cutover request is not `after_cutover`, because the change may have come before it.
+`situation.FallBackPossible` is true unless the timing is `after_cutover` or `ExportType` is `snapshot-only`: a live flow, or one whose export type is not recorded yet, can still cut over with fall-back. An interval that spans the cutover request is not `after_cutover`, because the change may have come before it.
 
 ### 5.4 Severity
 
