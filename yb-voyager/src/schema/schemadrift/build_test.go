@@ -705,17 +705,19 @@ var (
 )
 
 // TestSituationFor covers every pair of captures, for each export type, with and
-// without a cutover request. Each cell of the grid is the pair's timing, in the
-// order of situationNexts:
+// without a cutover request. Each cell of the grid is the pair's timing once
+// export data has recorded an export type, in the order of situationNexts:
 //
 //	B before export data
-//	U before export data only while the export type is unknown, else as A
 //	A after export data started: offline, live or changes-only by export type
 //	C after cutover
+//
+// With no export type recorded, every interval is before export data unless it
+// is after cutover.
 func TestSituationFor(t *testing.T) {
 	grid := map[captureKind]string{
 		//               init res clean per x:cut x:cmp x:int x:err live schema
-		ckExportSchema:  "B    A   B     A   A     A     A     A     U    A",
+		ckExportSchema:  "B    A   B     A   A     A     A     A     A    A",
 		ckStartInitial:  "B    A   B     A   A     A     A     A     A    A",
 		ckStartResume:   "B    A   B     A   A     A     A     A     A    A",
 		ckStartClean:    "B    A   B     A   A     A     A     A     A    A",
@@ -726,7 +728,6 @@ func TestSituationFor(t *testing.T) {
 		ckExitError:     "B    A   B     A   A     A     A     A     A    A",
 	}
 	afterExportStart := map[string]Timing{
-		"":                     TimingLiveAfterExportStart,
 		"snapshot-only":        TimingOfflineAfterExportStart,
 		"snapshot-and-changes": TimingLiveAfterExportStart,
 		"changes-only":         TimingChangesOnlyAfterExportStart,
@@ -756,7 +757,7 @@ func TestSituationFor(t *testing.T) {
 						switch cell := cells[j]; {
 						case cell == "C" || cutover.movesToC:
 							want = TimingAfterCutover
-						case cell == "B", cell == "U" && exportType == "":
+						case cell == "B", exportType == "":
 							want = TimingBeforeExportData
 						default:
 							want = afterExportStart[exportType]
@@ -775,6 +776,15 @@ func TestSituationFor(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestSituationFor_ExportSchemaRerunBeforeExportData(t *testing.T) {
+	got := situationFor(
+		CapturePoint{Label: schemasnapshot.LabelExportSchema, CapturedAt: t1()},
+		CapturePoint{Label: schemasnapshot.LabelExportSchema, CapturedAt: t2()},
+		MigrationInfo{},
+	)
+	assert.Equal(t, situation{Timing: TimingBeforeExportData, FallBackPossible: true}, got)
 }
 
 func TestBuildReport_AfterCutoverIntervalGetsTheAdvisory(t *testing.T) {
