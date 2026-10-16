@@ -58,6 +58,9 @@ class Context:
         self.picked_custom_key: Dict[str, Any] | None = None
         # Set by `yba_cluster_event`; consumed by `yba_wait_task` and `yba_check_version`.
         self.yba_task: Dict[str, Any] | None = None
+        # Appended by a Resumer that finds its process already dead; `yba_wait_task`
+        # fails on any entry added while a cluster task ran.
+        self.found_exited_events: list[Dict[str, Any]] = []
 
 
 def apply_effective_export_dir(ctx: Context) -> None:
@@ -1010,6 +1013,10 @@ class Resumer:
                         pid=proc.pid,
                         exit_code=exit_code,
                     )
+                    with self.ctx.process_lock:
+                        self.ctx.found_exited_events.append(
+                            {"ts": _ts(), "command": self.cmd, "pid": proc.pid, "exit_code": exit_code}
+                        )
                 else:
                     kill(proc)
                     self._log(

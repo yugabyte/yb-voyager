@@ -214,18 +214,6 @@ stages:
     action: sleep
     seconds: 300
 
-  # No resumer kills while the universe is upgraded and restarted, so a voyager
-  # process that dies during a cluster event fails the run instead of being revived.
-  - name: pause_fallback_export_resumptions
-    action: voyager_stop_resumptions
-    command: export_from_target
-    timeout_sec: 60
-
-  - name: pause_fallback_import_resumptions
-    action: voyager_stop_resumptions
-    command: import_to_source
-    timeout_sec: 60
-
   - name: check_version_before_upgrade
     action: yba_check_version
     expected: ${OLD_VERSION}
@@ -262,26 +250,6 @@ stages:
   - name: check_version_after_restart
     action: yba_check_version
     expected: ${NEW_VERSION}
-
-  - name: resume_fallback_export_resumptions
-    action: start_resumptions
-    resumption:
-      export_from_target:
-        max_restarts: 100
-        min_interrupt_seconds: 15
-        max_interrupt_seconds: 60
-        min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 30
-
-  - name: resume_fallback_import_resumptions
-    action: start_resumptions
-    resumption:
-      import_to_source:
-        max_restarts: 100
-        min_interrupt_seconds: 15
-        max_interrupt_seconds: 60
-        min_restart_wait_seconds: 5
-        max_restart_wait_seconds: 30
 
   - name: soak_fallback_after_restart
     action: sleep

@@ -625,14 +625,16 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Block until the task started by the previous yba_cluster_event finishes.
 
     A task that ends in failure raises with its failed subtasks, and so does any voyager
-    process that is not under a resumer and exited while the task ran: the migration is
-    expected to ride out the restarts on its own retries. A finalize that was not
-    required started no task and is a no-op.
+    process that exited on its own while the task ran, whether a resumer found it dead
+    or nobody was watching it: the migration is expected to ride out the restarts on its
+    own retries. A finalize that was not required started no task and is a no-op.
     """
     task = ctx.yba_task
     if not task:
         H.log_yba_event(ctx, "wait: no task was started, nothing to wait for", event="wait_skipped")
         return
+    with ctx.process_lock:
+        found_exited_before = len(ctx.found_exited_events)
     timeout_sec = int(stage.get("timeout_sec", 0))
     interval_sec = int(stage.get("poll_interval_sec", 30))
     client = yba.YBAClient.from_env()
@@ -678,6 +680,8 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
             for name, proc in ctx.processes.items()
             if name not in ctx.active_resumers and proc.poll() is not None
         }
+        found_exited = ctx.found_exited_events[found_exited_before:]
+    exited.update({f"{e['command']} pid={e['pid']}": e["exit_code"] for e in found_exited})
     if exited:
         raise RuntimeError(
             f"voyager process(es) exited during the {task['event']} task: "
