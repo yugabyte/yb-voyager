@@ -71,7 +71,10 @@ def generator_start_action(stage: Dict[str, Any], ctx: Any) -> None:
 def generator_stop_action(stage: Dict[str, Any], ctx: Any) -> None:
     key = stage.get("generator_key", "generator")
     timeout = int(stage.get("graceful_timeout_sec", 60))
-    H.stop_generator(ctx.processes.pop(key, None), timeout)
+    proc = ctx.processes.pop(key, None)
+    if proc is not None and proc.poll() is not None and proc.returncode != 0:
+        raise RuntimeError(f"generator {key} exited early with code {proc.returncode}")
+    H.stop_generator(proc, timeout)
 
 
 @action("conflict_generator_start")
@@ -575,16 +578,11 @@ def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
 
     Stage keys:
       - event: upgrade | restart | finalize
-      - version: build string for upgrade/finalize; ${VAR} references are expanded
-      - enabled: default true; false records a skip and starts nothing
+      - version: build string for upgrade; ${VAR} references are expanded
       - sleep_between_servers_sec: YBA pause after each master/tserver restart (default 180)
     """
     event = stage["event"]
     ctx.yba_task = None
-    if not bool(stage.get("enabled", True)):
-        H.log_yba_event(ctx, f"{event}: disabled by scenario, skipping", event=f"{event}_skipped")
-        return
-
     client = yba.YBAClient.from_env()
     sleep_sec = int(stage.get("sleep_between_servers_sec", 180))
     version = os.path.expandvars(stage.get("version", ""))
@@ -612,14 +610,13 @@ def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
     else:
         raise ValueError(f"unknown yba event: {event}")
 
-    ctx.yba_task = {"event": event, "uuid": task_uuid, "version": version or None, "started_ts": H._ts()}
+    ctx.yba_task = {"event": event, "uuid": task_uuid}
     H.log_yba_event(
         ctx,
         f"{event}: started YBA task {task_uuid} on universe {client.universe_uuid}"
         + (f" to {version}" if version else ""),
         event=f"{event}_started",
         task_uuid=task_uuid,
-        version=version or None,
     )
 
 
@@ -627,8 +624,10 @@ def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
 def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
     """Block until the task started by the previous yba_cluster_event finishes.
 
-    A task that ends in failure raises with its failed subtasks; a stage that started
-    no task (disabled, or finalize not required) is a no-op.
+    A task that ends in failure raises with its failed subtasks, and so does any voyager
+    process that is not under a resumer and exited while the task ran: the migration is
+    expected to ride out the restarts on its own retries. A finalize that was not
+    required started no task and is a no-op.
     """
     task = ctx.yba_task
     if not task:
@@ -665,7 +664,6 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
         time.sleep(interval_sec)
 
     duration = int(time.time() - started)
-    task["finished_ts"] = H._ts()
     task["duration_sec"] = duration
     H.log_yba_event(
         ctx,
@@ -674,26 +672,36 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
         task_uuid=task["uuid"],
         duration_sec=duration,
     )
+    with ctx.process_lock:
+        exited = {
+            name: proc.returncode
+            for name, proc in ctx.processes.items()
+            if name not in ctx.active_resumers and proc.poll() is not None
+        }
+    if exited:
+        raise RuntimeError(
+            f"voyager process(es) exited during the {task['event']} task: "
+            + ", ".join(f"{name} (exit code {code})" for name, code in exited.items())
+        )
 
 
 @action("yba_check_version")
 def yba_check_version_action(stage: Dict[str, Any], ctx: Any) -> None:
-    """Assert the universe runs the expected build: YBA record plus `select version()` per tserver.
+    """Assert the universe runs the expected build: YBA record plus `select version()` on every tserver.
 
-    Stage keys:
+    Stage key:
       - expected: build string, ${VAR} references are expanded
-      - require_all_nodes: default false; a node that cannot be reached is logged and
-        skipped until the agent's reachability to every node is confirmed
     """
     expected = os.path.expandvars(stage["expected"])
     yba.version_key(expected)
-    require_all_nodes = bool(stage.get("require_all_nodes", False))
 
     client = yba.YBAClient.from_env()
     universe = client.universe()
     universe_version = client.universe_version(universe)
     upgrade_state = client.software_upgrade_state(universe)
     hosts = client.tserver_private_ips(universe)
+    if not hosts:
+        raise RuntimeError("yba_check_version: the universe record lists no tserver nodes")
     node_results = H.yb_node_server_versions(ctx.cfg, hosts)
 
     expected_number = yba.version_number(expected)
@@ -726,7 +734,7 @@ def yba_check_version_action(stage: Dict[str, Any], ctx: Any) -> None:
             f"{task['duration_sec'] // 60}m{task['duration_sec'] % 60:02d}s"
         )
 
-    outcome = "FAILED" if mismatches or (require_all_nodes and unreachable) else "OK"
+    outcome = "FAILED" if mismatches or unreachable else "OK"
     H.log_yba_event(
         ctx,
         "\n".join(lines) + f"\n  result: {outcome}",
@@ -740,7 +748,7 @@ def yba_check_version_action(stage: Dict[str, Any], ctx: Any) -> None:
     )
     if mismatches:
         raise RuntimeError(f"yba_check_version: expected {expected}, got {', '.join(mismatches)}")
-    if require_all_nodes and unreachable:
+    if unreachable:
         raise RuntimeError(f"yba_check_version: nodes unreachable: {', '.join(unreachable)}")
 
 
@@ -781,6 +789,7 @@ def main() -> None:
 
     ctx = H.Context(cfg=cfg, env=env, test_root=test_root)
     had_failure = False
+    completed = False
 
     stages = cfg["stages"]
     num_iterations = int(cfg.get("num_iterations", 1))
@@ -823,8 +832,9 @@ def main() -> None:
                 H.log_stage_end(stage_name, status=f"FAILED: {e}")
                 had_failure = True
                 raise
+        completed = True
     finally:
-        H.log(f"RUN {'FAILED' if had_failure else 'COMPLETE'}: {cfg['name']}")
+        H.log(f"RUN {'COMPLETE' if completed else 'FAILED' if had_failure else 'INTERRUPTED'}: {cfg['name']}")
         # Always capture artifacts/logs at the end regardless of success or failure
         H.scan_logs_for_errors(cfg["export_dir"], cfg["artifacts_dir"])
         H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"])

@@ -158,7 +158,6 @@ stages:
   - name: finalize_upgrade
     action: yba_cluster_event
     event: finalize
-    version: ${NEW_VERSION}
 
   - name: wait_finalize_task
     action: yba_wait_task
@@ -214,10 +213,10 @@ stages:
     command: import_data
     graceful_timeout_sec: 60
 
-  - name: row_count_validations
+  - name: row_count_validations_after_cutover_to_target
     action: row_count_validations
 
-  - name: row_hash_validations
+  - name: row_hash_validations_after_cutover_to_target
     action: row_hash_validations
 
   - name: start_fallback_exporter_from_target
@@ -293,10 +292,10 @@ stages:
     condition: cutover_to_source_status_completed
     timeout_sec: 900
 
-  - name: row_count_validations
+  - name: row_count_validations_after_cutover_to_source
     action: row_count_validations
 
-  - name: row_hash_validations
+  - name: row_hash_validations_after_cutover_to_source
     action: row_hash_validations
 
   - name: cleanup_source

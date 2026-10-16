@@ -224,7 +224,7 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
             event = _ensure(st, "event", str, sctx)
             if event not in ("upgrade", "restart", "finalize"):
                 raise ValueError(f"Key 'event' in {sctx} must be one of upgrade, restart, finalize")
-            if event in ("upgrade", "finalize"):
+            if event == "upgrade":
                 _ensure(st, "version", str, sctx)
         if action == "yba_check_version":
             _ensure(st, "expected", str, sctx)

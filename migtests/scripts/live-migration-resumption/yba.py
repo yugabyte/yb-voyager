@@ -2,8 +2,8 @@
 """YugabyteDB Anywhere client used by the live-migration resumption orchestrator.
 
 Connection details come from the environment only (YBA_URL, YBA_API_TOKEN,
-YBA_UNIVERSE_UUID): the rendered scenario file is archived by Jenkins, so the
-token must never be written into it.
+YBA_UNIVERSE_UUID, optional YBA_CA_FILE): the rendered scenario file is archived
+by Jenkins, so the token must never be written into it.
 
     yba.py resolve-versions [--latest] [--skip-yba-check]
 
@@ -99,11 +99,13 @@ class YBAClient:
         self._api_token = api_token
         self.universe_uuid = universe_uuid
         self._customer_uuid: Optional[str] = None
-        # The perf-team YBA presents a self-signed certificate and is only reachable
-        # on the internal network, so verification is deliberately off.
-        self._ssl = ssl.create_default_context()
-        self._ssl.check_hostname = False
-        self._ssl.verify_mode = ssl.CERT_NONE
+        # The perf-team YBA presents a self-signed certificate; without YBA_CA_FILE the
+        # connection is unverified on the internal network only.
+        ca_file = os.environ.get("YBA_CA_FILE")
+        self._ssl = ssl.create_default_context(cafile=ca_file)
+        if not ca_file:
+            self._ssl.check_hostname = False
+            self._ssl.verify_mode = ssl.CERT_NONE
 
     @classmethod
     def from_env(cls, require_universe: bool = True) -> "YBAClient":
