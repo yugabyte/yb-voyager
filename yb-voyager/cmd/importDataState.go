@@ -695,6 +695,10 @@ func (s *ImportDataState) GetImportedEventsStatsForTable(tableNameTup sqlname.Na
 	err := tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
 		&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
 	if err != nil {
+		if tgtdb.IsUndefinedTableError(err) {
+			// Event-count metadata table not created on target yet → no events imported.
+			return &eventCounter, nil
+		}
 		log.Errorf("error in getting import stats from target db: %v", err)
 		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
@@ -722,6 +726,12 @@ func (s *ImportDataState) GetImportedEventsStatsForTableList(tableNameTupList []
 	log.Infof("query to get import stats for tables '%s': %s", tableListQuery, query)
 	rows, err := tdb.Query(query)
 	if err != nil {
+		if tgtdb.IsUndefinedTableError(err) {
+			// Event-count metadata table not created on target yet → no events imported.
+			// tablesToEventCounter is already zero-initialized above; return it.
+			log.Infof("event-count metadata table not present yet; reporting zero imported events")
+			return tablesToEventCounter, nil
+		}
 		log.Errorf("error in getting import stats from target db: %v", err)
 		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
