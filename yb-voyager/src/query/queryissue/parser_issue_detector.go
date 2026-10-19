@@ -247,11 +247,8 @@ type ParserIssueDetector struct {
 	*/
 	columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string
 
-	// list of composite types with fully qualified typename in the exported schema
-	compositeTypes []string
-
-	// list of enum types with fully qualified typename in the exported schema
-	enumTypes []string
+	// composite and enum types in the exported schema, keyed by the type name as written in its CREATE TYPE
+	userDefinedTypes map[string]*queryparser.CreateType
 
 	// domains in the exported schema, keyed by the domain name as written in its CREATE DOMAIN
 	domains map[string]*queryparser.CreateDomain
@@ -288,8 +285,7 @@ type ParserIssueDetector struct {
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
 
-		compositeTypes:                          make([]string, 0),
-		enumTypes:                               make([]string, 0),
+		userDefinedTypes:                        make(map[string]*queryparser.CreateType),
 		domains:                                 make(map[string]*queryparser.CreateDomain),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 		columnStatistics:                        make(map[string]utils.ColumnStatistics),
@@ -367,81 +363,9 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-func (p *ParserIssueDetector) GetCompositeTypes() []string {
-	return p.compositeTypes
-}
-
-func (p *ParserIssueDetector) GetEnumTypes() []string {
-	return p.enumTypes
-}
-
-// domains can be stacked, but PostgreSQL rejects cycles; the cap only stops a malformed schema
-// file from looping forever.
-const maxDomainNestingDepth = 64
-
-// ResolveDomainBaseType follows typeName through every domain it names, down to the type the
-// innermost domain is built on, and returns that type's name qualified as written in the DDL,
-// with a "[]" suffix when an array appears anywhere on the way (a domain over an array, or an
-// array of a domain). resolved is false when typeName is not a domain known from the schema.
-//
-// typeName may be qualified or not, and may carry a "[]" suffix. An unqualified name is looked
-// up in defaultSchema first, then as written, then by a name that is unique across schemas;
-// the last step covers catalog sources that report a domain without its schema.
-func (p *ParserIssueDetector) ResolveDomainBaseType(typeName string, defaultSchema string) (baseTypeName string, resolved bool) {
-	isArray := strings.HasSuffix(typeName, "[]")
-	name := strings.TrimSuffix(typeName, "[]")
-	domain := p.lookupDomain(name, defaultSchema)
-	for depth := 0; domain != nil && depth < maxDomainNestingDepth; depth++ {
-		resolved = true
-		isArray = isArray || domain.IsBaseTypeArray
-		name = domain.GetFullBaseTypeName()
-		domain = p.lookupDomain(name, domain.SchemaName)
-	}
-	if !resolved {
-		return "", false
-	}
-	if isArray {
-		name += "[]"
-	}
-	return name, true
-}
-
-func (p *ParserIssueDetector) lookupDomain(name string, defaultSchema string) *queryparser.CreateDomain {
-	if domain, ok := p.domains[name]; ok {
-		return domain
-	}
-	if strings.Contains(name, ".") {
-		return nil
-	}
-	if defaultSchema != "" {
-		if domain, ok := p.domains[utils.BuildObjectName(defaultSchema, name)]; ok {
-			return domain
-		}
-	}
-	var match *queryparser.CreateDomain
-	for _, domain := range p.domains {
-		if domain.DomainName != name {
-			continue
-		}
-		if match != nil {
-			return nil
-		}
-		match = domain
-	}
-	return match
-}
-
-// resolveColumnType returns the type name to check a column's type against the unsupported
-// datatype lists: the type beneath its domains when the column is declared with a domain,
-// otherwise the column's own type. typeName is unqualified and fullTypeName qualified as written.
-func (p *ParserIssueDetector) resolveColumnType(col queryparser.TableColumn, tableSchema string) (typeName string, fullTypeName string) {
-	baseTypeName, ok := p.ResolveDomainBaseType(col.GetFullTypeName(), tableSchema)
-	if !ok {
-		return col.TypeName, col.GetFullTypeName()
-	}
-	fullTypeName = strings.TrimSuffix(baseTypeName, "[]")
-	typeName = fullTypeName[strings.LastIndex(fullTypeName, ".")+1:]
-	return typeName, fullTypeName
+func (p *ParserIssueDetector) isCompositeType(typeName string) bool {
+	userDefinedType, ok := p.userDefinedTypes[typeName]
+	return ok && !userDefinedType.IsEnum
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
@@ -1047,7 +971,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			meta.DataTypeMods = col.TypeMods
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
-			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
+			isUDTType := p.isCompositeType(col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
 
 			switch {
@@ -1094,12 +1018,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// Process primary keys and unique constraints as indexes for foreign key detection
 		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
-		typeObj := ddlObj
-		if typeObj.IsEnum {
-			p.enumTypes = append(p.enumTypes, typeObj.GetObjectName())
-		} else {
-			p.compositeTypes = append(p.compositeTypes, typeObj.GetObjectName())
-		}
+		p.userDefinedTypes[ddlObj.GetObjectName()] = ddlObj
 	case *queryparser.CreateDomain:
 		p.domains[ddlObj.GetObjectName()] = ddlObj
 	case *queryparser.Index:

@@ -1111,6 +1111,19 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 			TypeName:   compositeNode.CompositeTypeStmt.Typevar.GetRelname(),
 			SchemaName: compositeNode.CompositeTypeStmt.Typevar.GetSchemaname(),
 		}
+		for _, element := range compositeNode.CompositeTypeStmt.GetColdeflist() {
+			colDef := element.GetColumnDef()
+			if colDef == nil {
+				continue
+			}
+			typeSchemaName, typeName := getSchemaAndObjectName(colDef.GetTypeName().GetNames())
+			createType.CompositeFields = append(createType.CompositeFields, TableColumn{
+				ColumnName:  colDef.GetColname(),
+				TypeName:    typeName,
+				TypeSchema:  typeSchemaName,
+				IsArrayType: isArrayType(colDef.GetTypeName()),
+			})
+		}
 		return createType, nil
 	case isEnum:
 		typeNames := enumNode.CreateEnumStmt.GetTypeName()
@@ -1129,9 +1142,10 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 }
 
 type CreateType struct {
-	TypeName   string
-	SchemaName string
-	IsEnum     bool
+	TypeName        string
+	SchemaName      string
+	IsEnum          bool
+	CompositeFields []TableColumn
 }
 
 func (c *CreateType) GetObjectName() string {
