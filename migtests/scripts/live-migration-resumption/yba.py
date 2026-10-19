@@ -67,9 +67,27 @@ def _branch_key(branch: str) -> tuple:
     return tuple(int(x) for x in branch.split("."))
 
 
+def _http_get(url: str, headers: Optional[Dict[str, str]] = None) -> bytes:
+    req = urllib.request.Request(url, headers=headers or {})
+    for attempt in range(1, GET_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:500]
+            error = RuntimeError(f"GET {url}: HTTP {exc.code}: {detail}")
+            retryable = exc.code >= 500 or exc.code in (403, 429)
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            error = RuntimeError(f"GET {url}: {exc}")
+            retryable = True
+        if not retryable or attempt == GET_ATTEMPTS:
+            raise error from None
+        time.sleep(GET_RETRY_SLEEP_SEC)
+    raise AssertionError("unreachable")
+
+
 def _http_get_text(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=HTTP_TIMEOUT_SEC) as resp:
-        return resp.read().decode("utf-8", "replace")
+    return _http_get(url).decode("utf-8", "replace")
 
 
 def stable_branches() -> List[str]:
@@ -95,14 +113,11 @@ def released_builds_for_branch(branch: str) -> List[str]:
 
 def ysql_migrations(build: str) -> set:
     """Migration file names of a build, as YBA's CheckUpgrade compares them (without the V<n>__ prefix)."""
-    url = f"{MIGRATIONS_API_URL}?ref={build}"
     headers = {"Accept": "application/vnd.github+json"}
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC) as resp:
-        entries = json.loads(resp.read())
+    entries = json.loads(_http_get(f"{MIGRATIONS_API_URL}?ref={build}", headers))
     return {e["name"].split("__", 1)[1] for e in entries if e["name"].startswith("V") and "__" in e["name"]}
 
 
@@ -263,13 +278,14 @@ class YBAClient:
         return resp.get("failedSubTasks", [])
 
 
-def _build_on_yba(released: str, on_yba: List[str], report) -> str:
-    """Return the released build when the YBA has it, else the highest YBA build of the same version.
+def _build_on_yba(released: str, on_yba: Optional[List[str]], report) -> Optional[str]:
+    """The build to use for a released one: itself when the YBA has it (or no YBA is
+    consulted), else the highest YBA build of the same version, else None.
 
     The perf YBA often carries only in-development builds of a released version, so the
     version is what the test holds fixed and the build is reported, not required.
     """
-    if released in on_yba:
+    if on_yba is None or released in on_yba:
         return released
     number = version_number(released)
     same_version = sorted(
@@ -277,26 +293,31 @@ def _build_on_yba(released: str, on_yba: List[str], report) -> str:
         key=version_key,
     )
     if not same_version:
-        raise RuntimeError(f"no build of {number} is imported into the YBA (released build is {released})")
+        report(f"  no build of {number} is imported into the YBA (released build is {released})")
+        return None
     report(f"WARNING: released build {released} is not on the YBA; using {same_version[-1]} (released: {released})")
     return same_version[-1]
 
 
-def compatible_old_build(new: str, old_branch: str, report=print) -> str:
-    """Newest GA build of old_branch whose YSQL migrations are all present in `new`.
+def compatible_old_build(new: str, old_branch: str, on_yba: Optional[List[str]], report=print) -> tuple:
+    """(released, build to use) for the newest GA build of old_branch whose YSQL migrations
+    are all present in `new`, the check being run on the build actually used.
 
     YBA's CheckUpgrade refuses a target that lacks a migration the source already
     applied, which happens when a fix is backported to the older branch before the
     newer branch picks it up, so the newest release is not always upgradable.
     """
     new_migrations = ysql_migrations(new)
-    for candidate in released_builds_for_branch(old_branch):
+    for candidate_released in released_builds_for_branch(old_branch):
+        candidate = _build_on_yba(candidate_released, on_yba, report)
+        if candidate is None:
+            continue
         missing = sorted(ysql_migrations(candidate) - new_migrations)
         if not missing:
             report(f"  {candidate} -> {new}: compatible")
-            return candidate
+            return candidate_released, candidate
         report(f"  {candidate} -> {new}: blocked, migrations missing in {new}: {missing}")
-    raise RuntimeError(f"no released {old_branch} build can upgrade to {new}")
+    raise RuntimeError(f"no released {old_branch} build usable on the YBA can upgrade to {new}")
 
 
 def resolve_versions(yba: Optional[YBAClient], report=print) -> Dict[str, str]:
@@ -312,12 +333,12 @@ def resolve_versions(yba: Optional[YBAClient], report=print) -> Dict[str, str]:
     if len(released) < 2:
         raise RuntimeError(f"need released builds on two branches, found {[b for _, b in released]}")
     (_, new_released), (old_branch, _) = released[0], released[1]
-    old_released = compatible_old_build(new_released, old_branch, report)
-    new, old = new_released, old_released
+    on_yba = yba.release_versions() if yba is not None else None
+    new = _build_on_yba(new_released, on_yba, report)
+    if new is None:
+        raise RuntimeError(f"no build of {version_number(new_released)} is imported into the YBA")
+    old_released, old = compatible_old_build(new, old_branch, on_yba, report)
     if yba is not None:
-        on_yba = yba.release_versions()
-        new = _build_on_yba(new_released, on_yba, report)
-        old = _build_on_yba(old_released, on_yba, report)
         report(f"builds to use from {yba.base_url}: OLD={old} NEW={new}")
     return {
         "OLD_VERSION": old,
