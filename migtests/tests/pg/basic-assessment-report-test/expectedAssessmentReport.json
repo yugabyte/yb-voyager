@@ -2,7 +2,7 @@
     "VoyagerVersion": "main",
     "TargetDBVersion": "2024.2.3.1",
     "MigrationComplexity": "MEDIUM",
-    "MigrationComplexityExplanation": "Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity",
+    "MigrationComplexityExplanation": "Found 4 Level 1 issue(s), 6 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_basic_assessment_report",
@@ -38,9 +38,9 @@
             },
             {
                 "ObjectType": "INDEX",
-                "TotalCount": 5,
-                "InvalidCount": 1,
-                "ObjectNames": "idx_employees2_first_name ON schema1.employees2, idx_employees2_full_name ON schema1.employees2, idx_employees2_last_name ON schema1.employees2, idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp, idx_test_low_card_employed ON schema1.test_hotspot_timestamp"
+                "TotalCount": 6,
+                "InvalidCount": 2,
+                "ObjectNames": "idx_parent_table_common_column1 ON public.parent_table, idx_employees2_first_name ON schema1.employees2, idx_employees2_full_name ON schema1.employees2, idx_employees2_last_name ON schema1.employees2, idx_test_hotspot_timestamp ON schema1.test_hotspot_timestamp, idx_test_low_card_employed ON schema1.test_hotspot_timestamp"
             },
             {
                 "ObjectType": "FUNCTION",
@@ -59,7 +59,7 @@
     "Sizing": {
         "SizingRecommendation": {
             "ColocatedTables": null,
-            "ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (5 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+            "ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 11 objects (5 tables/materialized views and 6 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
             "ShardedTables": [
                 "public.parent_table",
                 "public.mixed_data_types_table1",
@@ -224,6 +224,26 @@
                 "2025.2": "2025.2.2.0",
                 "2026.1": "2026.1.0.0"
             }
+        },
+        {
+            "Category": "performance_optimizations",
+            "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+            "Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
+            "Name": "Index on column with high percentage of a particular value",
+            "Description": "If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows. Use the Recommended SQL in case this value is not being queried.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "INDEX",
+            "ObjectName": "idx_parent_table_common_column1 ON public.parent_table",
+            "ObjectUsage": "MODERATE",
+            "SqlStatement": "CREATE INDEX idx_parent_table_common_column1 ON public.parent_table USING btree (common_column1);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "common_column1",
+                "FrequencyOfTheValue": "100%",
+                "RecommendedSQL": "CREATE INDEX idx_parent_table_common_column1 ON public.parent_table USING btree (common_column1) WHERE common_column1 <> 'parent';",
+                "Value": "parent"
+            }
         }
     ],
     "TableIndexStats": [
@@ -242,26 +262,38 @@
         {
             "SchemaName": "public",
             "ObjectName": "child_table",
-            "RowCount": 0,
+            "RowCount": 1800,
             "ColumnCount": 4,
             "ReadsPerSecond": 0,
             "WritesPerSecond": 0,
             "IsIndex": false,
             "ObjectType": "table",
             "ParentTableName": null,
-            "SizeInBytes": 0
+            "SizeInBytes": 49152
         },
         {
             "SchemaName": "public",
             "ObjectName": "parent_table",
-            "RowCount": 0,
+            "RowCount": 200,
             "ColumnCount": 3,
             "ReadsPerSecond": 0,
             "WritesPerSecond": 0,
             "IsIndex": false,
             "ObjectType": "table",
             "ParentTableName": null,
-            "SizeInBytes": 0
+            "SizeInBytes": 8192
+        },
+        {
+            "SchemaName": "public",
+            "ObjectName": "idx_parent_table_common_column1",
+            "RowCount": null,
+            "ColumnCount": 1,
+            "ReadsPerSecond": 0,
+            "WritesPerSecond": 0,
+            "IsIndex": true,
+            "ObjectType": "index",
+            "ParentTableName": "public.parent_table",
+            "SizeInBytes": 16384
         },
         {
             "SchemaName": "schema1",
@@ -381,7 +413,7 @@
             "IsIndex": true,
             "ObjectType": "primary key",
             "ParentTableName": "public.parent_table",
-            "SizeInBytes": 8192
+            "SizeInBytes": 16384
         },
         {
             "SchemaName": "public",

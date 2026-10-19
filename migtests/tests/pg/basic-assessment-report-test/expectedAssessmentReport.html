@@ -302,7 +302,7 @@
                 collapse:'collapseAllButton'
             },
             true: {                       // performance optimisations
-                count: 1,
+                count: 2,
                 details: 'details-perf-',
                 arrow:   'arrow-perf-',
                 expand:  'expandAllButton-perf',
@@ -525,10 +525,12 @@
             
             <tr>
                 <td class="centered-cell">INDEX</td>
-                <td class="centered-cell">5</td>
+                <td class="centered-cell">6</td>
                 <td>
                     <div class="scrollable-div no-wrap-list">
                         <ul style="margin: 0; padding-left: 1.2em;">
+                            
+                                <li>idx_parent_table_common_column1 ON public.parent_table</li>
                             
                                 <li>idx_employees2_first_name ON schema1.employees2</li>
                             
@@ -593,13 +595,13 @@
                             <td>
                                 <div class="scrollable-div no-wrap-list">
                                     
-                                        <li>public.child_table</li>
-                                    
                                         <li>public.mixed_data_types_table1</li>
+                                    
+                                        <li>schema1.employees2</li>
                                     
                                         <li>public.parent_table</li>
                                     
-                                        <li>schema1.employees2</li>
+                                        <li>public.child_table</li>
                                     
                                         <li>schema1.test_hotspot_timestamp</li>
                                     
@@ -625,7 +627,7 @@
                         <tr><td class="centered-cell">Estimated time taken for data import (Excluding redundant indexes)</td><td class="centered-cell">1 min</td></tr>
                     </table>
                     <h3>Reasoning:</h3>
-                    <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 10 objects (5 tables/materialized views and 5 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
+                    <p class="spaced-words">Recommended instance type with 4 vCPU and 16 GiB memory could fit 11 objects (5 tables/materialized views and 6 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as sharded. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.</p>
 
                     
                         <div class="notes-section">
@@ -667,10 +669,10 @@
                         
                             <tr>
                                 <td class="centered-cell">Performance Optimizations</td>
-                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">2</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">0</td>
-                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">2</td>
                             </tr>
                         
                             <tr>
@@ -703,7 +705,7 @@
 
             <p>
                 <strong>Complexity:</strong> MEDIUM<br>
-                <strong>Reasoning:</strong> Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity
+                <strong>Reasoning:</strong> Found 4 Level 1 issue(s), 6 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity
             </p>
 
             <p>
@@ -1760,7 +1762,7 @@ INHERITS (public.parent_table);</pre>
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total optimizations:</strong> 1</p>
+                    <p><strong>Total optimizations:</strong> 2</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
@@ -1898,6 +1900,120 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                                                             <ul>
                                                             
                                                                 <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Column Name: created_at</pre></li>
+                                                            
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                     
+                        
+                        
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="performance_optimizations"
+                        data-name="Index on column with high percentage of a particular value"
+                        data-impact="LEVEL_1" 
+                        data-usage="MODERATE">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-perf-1', 'arrow-perf-1', true)">
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                        <div class="arrow-container">
+                                            <span id="arrow-perf-1">&#9654;</span>
+                                        </div>
+                                    
+                                    Index on column with high percentage of a particular value
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    idx_parent_table_common_column1 ON public.parent_table
+                                
+                            </td>
+                            
+                                <td class="centered-cell" style="text-align: center;">MODERATE</td>
+                            
+                            <td class="centered-cell" style="text-align: center;">Level 1</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-perf-1" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>INDEX</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>idx_parent_table_common_column1 ON public.parent_table</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE INDEX idx_parent_table_common_column1 ON public.parent_table USING btree (common_column1);</pre>
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">If queries do not filter on this value, using partial indexes that excludes this value. In distributed databases, unnecessary index entries for a value can increase write performance and storage usage. This index is built on column having a value occuring in large number of rows. Use the Recommended SQL in case this value is not being queried.</pre>
+                                                                
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Column Name: common_column1</pre></li>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Frequency Of The Value: 100%</pre></li>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Recommended SQL: CREATE INDEX idx_parent_table_common_column1 ON public.parent_table USING btree (common_column1) WHERE common_column1 <> 'parent';</pre></li>
+                                                            
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Value: parent</pre></li>
                                                             
                                                             </ul>
                                                         </td>
