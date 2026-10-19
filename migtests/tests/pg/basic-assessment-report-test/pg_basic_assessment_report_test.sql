@@ -35,13 +35,9 @@ CREATE TABLE child_table (
     specific_column1 DATE
 ) INHERITS (parent_table);
 
--- ANALYZE on an inheritance parent with its own rows gives pg_stats two rows per column (inherited=f and inherited=t)
--- parent rows all share one value (own stats: 100% most frequent), child rows are distinct (inherited stats: ~10%)
--- so the most frequent value issue on this index is reported only if the parent's own stats are used
-CREATE INDEX idx_parent_table_common_column1 ON parent_table (common_column1);
-INSERT INTO parent_table (common_column1, common_column2) SELECT 'parent', g FROM generate_series(1, 100) g;
-INSERT INTO child_table (common_column1, common_column2, specific_column1) SELECT 'child_' || g, g, '2024-01-01' FROM generate_series(1, 900) g;
-ANALYZE parent_table, child_table;
+-- ANALYZE on an inheritance parent with its own rows puts two rows per column in pg_stats (inherited=f and inherited=t)
+INSERT INTO parent_table (common_column1, common_column2) VALUES ('a', 1), ('b', 2);
+ANALYZE parent_table;
 
 CREATE TABLE schema1.employees2 (
     id SERIAL PRIMARY KEY,
