@@ -8,9 +8,10 @@ package io.debezium.server.ybexporter;
 import java.io.BufferedWriter;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.SyncFailedException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import org.apache.commons.csv.CSVFormat;
@@ -38,7 +39,7 @@ public class TableSnapshotWriterCSV implements RecordWriter {
         try {
             fos = new FileOutputStream(fileName);
             fd = fos.getFD();
-            var f = new FileWriter(fd);
+            var f = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
             var bufferedWriter = new BufferedWriter(f);
             CSVFormat fmt = CSVFormat.POSTGRESQL_CSV
                     .builder()
