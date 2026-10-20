@@ -4118,22 +4118,22 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 // as the OID at the root of the domain chain, so the exporter's converter has to match on the
 // root OID; matching on the name alone left these values as raw bytes that the target accepted
 // as \x hex literals, corrupting them silently (DB-23169). The plain tsvector column is the
-// control, and the hstore domain checks the map path that already handled domains. Comparing
-// full table data after the snapshot, forward streaming and fall-back streaming covers both
-// the PostgreSQL connector and the YugabyteDB connector.
-func TestLiveMigrationWithDomainsOverStringifiedTypes(t *testing.T) {
-	t.Parallel()
-
-	table := `"dom_types"."domain_text_types"`
-	lm := NewLiveMigrationTest(t, &TestConfig{
+// control, and the hstore domain checks the map path that already handled domains.
+// withTsquery adds the tsquery domain column, which only the forward flow can carry: tsquery is
+// unsupported by the YugabyteDB connector, so export data from target skips it in fall-back.
+func getDomainsOverStringifiedTypesTestConfig(dbName string, withTsquery bool) *TestConfig {
+	tsquery := func(value string) string {
+		return lo.Ternary(withTsquery, ", "+value, "")
+	}
+	return &TestConfig{
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test_domains_over_stringified_types",
+			DatabaseName: dbName,
 		},
 		TargetDB: ContainerConfig{
 			Type:         "yugabytedb",
-			DatabaseName: "test_domains_over_stringified_types",
+			DatabaseName: dbName,
 		},
 		SchemaNames: []string{"dom_types"},
 		SchemaSQL: []string{
@@ -4144,43 +4144,98 @@ func TestLiveMigrationWithDomainsOverStringifiedTypes(t *testing.T) {
 			`CREATE DOMAIN dom_types.tsq_dom AS tsquery;`,
 			`CREATE DOMAIN dom_types.varbit_dom AS varbit;`,
 			`CREATE DOMAIN dom_types.hstore_dom AS hstore;`,
-			`CREATE TABLE dom_types.domain_text_types (
+			fmt.Sprintf(`CREATE TABLE dom_types.domain_text_types (
 				id INT PRIMARY KEY,
 				plain_tsv tsvector,
 				"TsvDom" dom_types.tsv_dom,
 				tsv_nested dom_types.tsv_dom_nested,
-				tsq dom_types.tsq_dom,
 				bits dom_types.varbit_dom,
-				kv dom_types.hstore_dom
-			);`,
+				kv dom_types.hstore_dom%s
+			);`, tsquery("tsq dom_types.tsq_dom")),
 		},
 		SourceSetupSchemaSQL: []string{
 			`ALTER TABLE dom_types.domain_text_types REPLICA IDENTITY FULL;`,
 		},
 		InitialDataSQL: []string{
-			`INSERT INTO dom_types.domain_text_types VALUES
-				(1, 'a fat cat', 'a fat cat', 'sat on a mat', 'fat & rat', B'10101', '"a"=>"1", "b"=>"2"'),
-				(2, 'the quick brown fox', 'the quick brown fox', 'jumps', 'quick | !lazy', B'1', '"k"=>NULL'),
-				(3, NULL, NULL, NULL, NULL, NULL, NULL);`,
+			fmt.Sprintf(`INSERT INTO dom_types.domain_text_types VALUES
+				(1, 'a fat cat', 'a fat cat', 'sat on a mat', B'10101', '"a"=>"1", "b"=>"2"'%s),
+				(2, 'the quick brown fox', 'the quick brown fox', 'jumps', B'1', '"k"=>NULL'%s),
+				(3, NULL, NULL, NULL, NULL, NULL%s);`,
+				tsquery(`'fat & rat'`), tsquery(`'quick | !lazy'`), tsquery("NULL")),
 		},
 		SourceDeltaSQL: []string{
-			`INSERT INTO dom_types.domain_text_types VALUES
-				(4, 'lorem ipsum', 'lorem ipsum', 'dolor sit', 'lorem <-> ipsum', B'1100', '"x"=>"y"'),
-				(5, 'over the dog', 'over the dog', 'amet', 'over & dog', B'0', '"empty"=>""');`,
-			`UPDATE dom_types.domain_text_types SET "TsvDom" = 'updated text', tsq = 'updated & query', bits = B'111' WHERE id = 1;`,
+			fmt.Sprintf(`INSERT INTO dom_types.domain_text_types VALUES
+				(4, 'lorem ipsum', 'lorem ipsum', 'dolor sit', B'1100', '"x"=>"y"'%s),
+				(5, 'over the dog', 'over the dog', 'amet', B'0', '"empty"=>""'%s);`,
+				tsquery(`'lorem <-> ipsum'`), tsquery(`'over & dog'`)),
+			fmt.Sprintf(`UPDATE dom_types.domain_text_types SET "TsvDom" = 'updated text', bits = B'111'%s WHERE id = 1;`,
+				tsquery(`tsq = 'updated & query'`)),
 			`UPDATE dom_types.domain_text_types SET tsv_nested = 'now set', kv = '"z"=>"26"' WHERE id = 3;`,
 			`DELETE FROM dom_types.domain_text_types WHERE id = 2;`,
 		},
 		TargetDeltaSQL: []string{
 			`INSERT INTO dom_types.domain_text_types VALUES
-				(6, 'back on source', 'back on source', 'fallback', 'back & source', B'10', '"f"=>"b"');`,
+				(6, 'back on source', 'back on source', 'fallback', B'10', '"f"=>"b"');`,
 			`UPDATE dom_types.domain_text_types SET "TsvDom" = 'target update', bits = B'0101' WHERE id = 4;`,
 			`DELETE FROM dom_types.domain_text_types WHERE id = 5;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS dom_types CASCADE;`,
 		},
-	})
+	}
+}
+
+func TestLiveMigrationWithDomainsOverStringifiedTypes(t *testing.T) {
+	t.Parallel()
+
+	table := `"dom_types"."domain_text_types"`
+	lm := NewLiveMigrationTest(t, getDomainsOverStringifiedTypesTestConfig("test_domains_over_stringified_types", true))
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{table: 3}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after snapshot")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		table: {Inserts: 2, Updates: 2, Deletes: 1},
+	}, 120, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after forward streaming")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 120)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after cutover")
+}
+
+func TestLiveMigrationWithDomainsOverStringifiedTypesAndFallback(t *testing.T) {
+	t.Parallel()
+
+	table := `"dom_types"."domain_text_types"`
+	lm := NewLiveMigrationTest(t, getDomainsOverStringifiedTypesTestConfig("test_domains_over_stringified_types_fallback", false))
 	defer lm.Cleanup()
 
 	err := lm.SetupContainers(context.Background())
@@ -4235,8 +4290,9 @@ func TestLiveMigrationWithDomainsOverStringifiedTypes(t *testing.T) {
 // stringifies by root type too, so a domain column must reach the target exactly like a column
 // of its base type. The table has one domain column per supported type, plus a stacked domain,
 // a domain over an array and an array of a domain; data is compared after the snapshot, forward
-// streaming (PostgreSQL connector) and fall-back streaming (YugabyteDB connector). Types live
-// migration excludes (PostgresUnsupportedDataTypesForDbzm) are not covered, and neither is a
+// streaming (PostgreSQL connector) and fall-back streaming (YugabyteDB connector). Not covered:
+// types export data skips (unsupported names and all range types), tsquery, which the YugabyteDB
+// connector cannot stream back (see TestLiveMigrationWithDomainsOverStringifiedTypes), and a
 // domain over an enum, which fails Debezium's type registry at connector startup.
 func TestLiveMigrationWithDomainsOverSupportedDatatypes(t *testing.T) {
 	t.Parallel()
@@ -4270,19 +4326,12 @@ func TestLiveMigrationWithDomainsOverSupportedDatatypes(t *testing.T) {
 		`CREATE DOMAIN dom_all.cidr_dom AS cidr;`,
 		`CREATE DOMAIN dom_all.macaddr_dom AS macaddr;`,
 		`CREATE DOMAIN dom_all.macaddr8_dom AS macaddr8;`,
-		`CREATE DOMAIN dom_all.int4range_dom AS int4range;`,
-		`CREATE DOMAIN dom_all.int8range_dom AS int8range;`,
-		`CREATE DOMAIN dom_all.numrange_dom AS numrange;`,
-		`CREATE DOMAIN dom_all.daterange_dom AS daterange;`,
-		`CREATE DOMAIN dom_all.tsrange_dom AS tsrange;`,
-		`CREATE DOMAIN dom_all.tstzrange_dom AS tstzrange;`,
 		`CREATE DOMAIN dom_all.int_arr_dom AS integer[];`,
 		`CREATE DOMAIN dom_all.text_arr_dom AS text[];`,
 		`CREATE DOMAIN dom_all.hstore_dom AS hstore;`,
 		`CREATE DOMAIN dom_all.ltree_dom AS ltree;`,
 		`CREATE DOMAIN dom_all.citext_dom AS citext;`,
 		`CREATE DOMAIN dom_all.tsvector_dom AS tsvector;`,
-		`CREATE DOMAIN dom_all.tsquery_dom AS tsquery;`,
 	}
 	schemaSQL := append([]string{
 		`CREATE EXTENSION IF NOT EXISTS hstore;`,
@@ -4319,20 +4368,13 @@ func TestLiveMigrationWithDomainsOverSupportedDatatypes(t *testing.T) {
 		c_cidr dom_all.cidr_dom,
 		c_macaddr dom_all.macaddr_dom,
 		c_macaddr8 dom_all.macaddr8_dom,
-		c_int4range dom_all.int4range_dom,
-		c_int8range dom_all.int8range_dom,
-		c_numrange dom_all.numrange_dom,
-		c_daterange dom_all.daterange_dom,
-		c_tsrange dom_all.tsrange_dom,
-		c_tstzrange dom_all.tstzrange_dom,
 		c_int_arr dom_all.int_arr_dom,
 		c_text_arr dom_all.text_arr_dom,
 		c_int_dom_arr dom_all.int4_dom[],
 		c_hstore dom_all.hstore_dom,
 		c_ltree dom_all.ltree_dom,
 		c_citext dom_all.citext_dom,
-		c_tsvector dom_all.tsvector_dom,
-		c_tsquery dom_all.tsquery_dom
+		c_tsvector dom_all.tsvector_dom
 	);`)
 
 	// numeric domain values carry no trailing zeros and char domain values are already 5 long:
@@ -4345,13 +4387,12 @@ func TestLiveMigrationWithDomainsOverSupportedDatatypes(t *testing.T) {
 			'2024-0%[4]d-1%[4]d', '1%[4]d:3%[4]d:45.123456', '2024-0%[4]d-15 10:20:30.654321', '2024-0%[4]d-15 10:20:30.5+05:30', '%[2]d days 02:03:04',
 			'{"k": %[2]d, "s": "v\"q"}', '{"k": %[2]d, "nested": {"a": [1, 2]}}', '00000000-0000-0000-0000-00000000000%[4]d', B'10%[5]s1', B'1%[5]s01',
 			'192.168.%[2]d.1', '10.%[2]d.0.0/16', '08:00:2b:01:02:0%[4]d', '08:00:2b:01:02:03:04:0%[4]d',
-			'[%[2]d,%[6]d)', '[%[2]d,%[6]d]', '(%[2]d.5,%[6]d.5]', '[2024-01-0%[4]d,2024-02-0%[4]d)', '[2024-01-0%[4]d 10:00,2024-01-0%[4]d 12:00)', '[2024-01-0%[4]d 10:00+00,2024-01-0%[4]d 12:00+00)',
 			'{%[2]d,%[6]d,NULL}', '{"a %[2]d","b,c",NULL}', '{%[2]d,%[6]d}', '"k%[2]d"=>"v %[2]d", "n"=>NULL', 'top.level_%[2]d.leaf', 'MixedCase%[2]d',
-			'the quick brown fox %[2]d', 'quick & fox | !lazy')`,
+			'the quick brown fox %[2]d')`,
 			id, n, n%2 == 0, n%9+1, lo.Ternary(n%2 == 0, "0", "1"), n+10)
 	}
 	nullRow := func(id int) string {
-		return fmt.Sprintf("(%d%s)", id, strings.Repeat(", NULL", 41))
+		return fmt.Sprintf("(%d%s)", id, strings.Repeat(", NULL", 34))
 	}
 
 	lm := NewLiveMigrationTest(t, &TestConfig{
@@ -4374,14 +4415,14 @@ func TestLiveMigrationWithDomainsOverSupportedDatatypes(t *testing.T) {
 		},
 		SourceDeltaSQL: []string{
 			fmt.Sprintf(`INSERT INTO dom_all.domain_all_types VALUES %s, %s;`, rowValues(4, 4), rowValues(5, 5)),
-			`UPDATE dom_all.domain_all_types SET c_numeric = 7.777, c_jsonb = '{"updated": true}', c_tsvector = 'updated text', c_tsquery = 'updated & query',
-				c_varbit = B'111', c_int4range = '[100,200)', c_int_arr = '{9,8,7}', c_hstore = '"u"=>"1"', c_bytea = '\xdeadbeef', c_interval = '1 year 2 mons' WHERE id = 1;`,
+			`UPDATE dom_all.domain_all_types SET c_numeric = 7.777, c_jsonb = '{"updated": true}', c_tsvector = 'updated text',
+				c_varbit = B'111', c_int_arr = '{9,8,7}', c_hstore = '"u"=>"1"', c_bytea = '\xdeadbeef', c_interval = '1 year 2 mons' WHERE id = 1;`,
 			`UPDATE dom_all.domain_all_types SET c_int4 = 42, c_ts = '2025-06-01 00:00:00', c_uuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', c_citext = 'NowSet', "cText" = 'set on null row' WHERE id = 3;`,
 			`DELETE FROM dom_all.domain_all_types WHERE id = 2;`,
 		},
 		TargetDeltaSQL: []string{
 			fmt.Sprintf(`INSERT INTO dom_all.domain_all_types VALUES %s;`, rowValues(6, 6)),
-			`UPDATE dom_all.domain_all_types SET c_numeric_nested = 1.625, c_tstz = '2025-01-01 00:00:00+00', c_tsvector = 'from target', c_daterange = '[2025-01-01,2025-02-01)', c_text_arr = '{"x","y"}' WHERE id = 4;`,
+			`UPDATE dom_all.domain_all_types SET c_numeric_nested = 1.625, c_tstz = '2025-01-01 00:00:00+00', c_tsvector = 'from target', c_text_arr = '{"x","y"}' WHERE id = 4;`,
 			`DELETE FROM dom_all.domain_all_types WHERE id = 5;`,
 		},
 		CleanupSQL: []string{
