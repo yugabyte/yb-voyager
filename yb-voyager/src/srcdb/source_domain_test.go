@@ -33,33 +33,48 @@ func TestExtractTLSCertDomain(t *testing.T) {
 	}{
 		{
 			name:           "SAN",
-			cert:           &x509.Certificate{DNSNames: []string{"pg.abc.com"}},
-			expectedDomain: "abc.com",
+			cert:           &x509.Certificate{DNSNames: []string{"pg01.db.abc.com"}},
+			expectedDomain: "pg01.*.abc.com",
 		},
 		{
 			name:           "SAN preferred over CN",
-			cert:           &x509.Certificate{DNSNames: []string{"pg.abc.com"}, Subject: pkix.Name{CommonName: "pg.other.com"}},
-			expectedDomain: "abc.com",
+			cert:           &x509.Certificate{DNSNames: []string{"pg01.db.abc.com"}, Subject: pkix.Name{CommonName: "pg02.db.other.com"}},
+			expectedDomain: "pg01.*.abc.com",
 		},
 		{
 			name:           "skips unusable SANs",
-			cert:           &x509.Certificate{DNSNames: []string{"localhost", "postgres", "pg.abc.com"}},
-			expectedDomain: "abc.com",
+			cert:           &x509.Certificate{DNSNames: []string{"localhost", "postgres", "pg01.db.abc.com"}},
+			expectedDomain: "pg01.*.abc.com",
 		},
 		{
 			name:           "CN used when no SANs",
-			cert:           &x509.Certificate{Subject: pkix.Name{CommonName: "pg.abc.com"}},
-			expectedDomain: "abc.com",
+			cert:           &x509.Certificate{Subject: pkix.Name{CommonName: "pg01.db.abc.com"}},
+			expectedDomain: "pg01.*.abc.com",
 		},
 		{
 			name:           "CN used when no SAN is usable",
-			cert:           &x509.Certificate{DNSNames: []string{"localhost"}, Subject: pkix.Name{CommonName: "pg.abc.com"}},
-			expectedDomain: "abc.com",
+			cert:           &x509.Certificate{DNSNames: []string{"localhost"}, Subject: pkix.Name{CommonName: "pg01.db.abc.com"}},
+			expectedDomain: "pg01.*.abc.com",
 		},
 		{
-			name:           "managed service collapses to provider",
+			name:           "managed service keeps instance and masks account and region",
 			cert:           &x509.Certificate{DNSNames: []string{"mydb.abc123xyz.us-east-1.rds.amazonaws.com"}},
-			expectedDomain: "amazonaws.com",
+			expectedDomain: "mydb.*.amazonaws.com",
+		},
+		{
+			name:           "instance SAN preferred over earlier wildcard SAN",
+			cert:           &x509.Certificate{DNSNames: []string{"*.abc123xyz.us-east-1.rds.amazonaws.com", "mydb.abc123xyz.us-east-1.rds.amazonaws.com"}},
+			expectedDomain: "mydb.*.amazonaws.com",
+		},
+		{
+			name:           "CN with instance preferred over wildcard-only SANs",
+			cert:           &x509.Certificate{DNSNames: []string{"*.abc.com"}, Subject: pkix.Name{CommonName: "pg01.db.abc.com"}},
+			expectedDomain: "pg01.*.abc.com",
+		},
+		{
+			name:           "wildcard-only certificate gives domain without instance",
+			cert:           &x509.Certificate{DNSNames: []string{"*.abc.com"}},
+			expectedDomain: "abc.com",
 		},
 		{
 			name:           "no usable name",
