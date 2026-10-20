@@ -4,8 +4,12 @@ package testlivemigration
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/samber/lo"
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -4107,4 +4111,328 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
+}
+
+// Domains over tsvector, tsquery and varbit must be streamed as text like the plain types.
+// Debezium reports a domain column's typeName() as the domain's own name but its nativeType()
+// as the OID at the root of the domain chain, so the exporter's converter has to match on the
+// root OID; matching on the name alone left these values as raw bytes that the target accepted
+// as \x hex literals, corrupting them silently (DB-23169). The plain tsvector column is the
+// control, and the hstore domain checks the map path that already handled domains. Comparing
+// full table data after the snapshot, forward streaming and fall-back streaming covers both
+// the PostgreSQL connector and the YugabyteDB connector.
+func TestLiveMigrationWithDomainsOverStringifiedTypes(t *testing.T) {
+	t.Parallel()
+
+	table := `"dom_types"."domain_text_types"`
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_domains_over_stringified_types",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_domains_over_stringified_types",
+		},
+		SchemaNames: []string{"dom_types"},
+		SchemaSQL: []string{
+			`CREATE EXTENSION IF NOT EXISTS hstore;`,
+			`CREATE SCHEMA dom_types;`,
+			`CREATE DOMAIN dom_types.tsv_dom AS tsvector;`,
+			`CREATE DOMAIN dom_types.tsv_dom_nested AS dom_types.tsv_dom;`,
+			`CREATE DOMAIN dom_types.tsq_dom AS tsquery;`,
+			`CREATE DOMAIN dom_types.varbit_dom AS varbit;`,
+			`CREATE DOMAIN dom_types.hstore_dom AS hstore;`,
+			`CREATE TABLE dom_types.domain_text_types (
+				id INT PRIMARY KEY,
+				plain_tsv tsvector,
+				"TsvDom" dom_types.tsv_dom,
+				tsv_nested dom_types.tsv_dom_nested,
+				tsq dom_types.tsq_dom,
+				bits dom_types.varbit_dom,
+				kv dom_types.hstore_dom
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE dom_types.domain_text_types REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO dom_types.domain_text_types VALUES
+				(1, 'a fat cat', 'a fat cat', 'sat on a mat', 'fat & rat', B'10101', '"a"=>"1", "b"=>"2"'),
+				(2, 'the quick brown fox', 'the quick brown fox', 'jumps', 'quick | !lazy', B'1', '"k"=>NULL'),
+				(3, NULL, NULL, NULL, NULL, NULL, NULL);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO dom_types.domain_text_types VALUES
+				(4, 'lorem ipsum', 'lorem ipsum', 'dolor sit', 'lorem <-> ipsum', B'1100', '"x"=>"y"'),
+				(5, 'over the dog', 'over the dog', 'amet', 'over & dog', B'0', '"empty"=>""');`,
+			`UPDATE dom_types.domain_text_types SET "TsvDom" = 'updated text', tsq = 'updated & query', bits = B'111' WHERE id = 1;`,
+			`UPDATE dom_types.domain_text_types SET tsv_nested = 'now set', kv = '"z"=>"26"' WHERE id = 3;`,
+			`DELETE FROM dom_types.domain_text_types WHERE id = 2;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO dom_types.domain_text_types VALUES
+				(6, 'back on source', 'back on source', 'fallback', 'back & source', B'10', '"f"=>"b"');`,
+			`UPDATE dom_types.domain_text_types SET "TsvDom" = 'target update', bits = B'0101' WHERE id = 4;`,
+			`DELETE FROM dom_types.domain_text_types WHERE id = 5;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS dom_types CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{table: 3}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after snapshot")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		table: {Inserts: 2, Updates: 2, Deletes: 1},
+	}, 120, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after forward streaming")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 120)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		table: {Inserts: 1, Updates: 1, Deletes: 1},
+	}, 120, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after fallback streaming")
+}
+
+// Every datatype live migration supports must survive a domain end to end. Debezium picks a
+// column's representation from the root type of its domain chain, and the exporter's converter
+// stringifies by root type too, so a domain column must reach the target exactly like a column
+// of its base type. The table has one domain column per supported type, plus a stacked domain,
+// a domain over an array and an array of a domain; data is compared after the snapshot, forward
+// streaming (PostgreSQL connector) and fall-back streaming (YugabyteDB connector). Types live
+// migration excludes (PostgresUnsupportedDataTypesForDbzm) are not covered, and neither is a
+// domain over an enum, which fails Debezium's type registry at connector startup.
+func TestLiveMigrationWithDomainsOverSupportedDatatypes(t *testing.T) {
+	t.Parallel()
+
+	table := `"dom_all"."domain_all_types"`
+	domainDDLs := []string{
+		`CREATE DOMAIN dom_all.int2_dom AS smallint;`,
+		`CREATE DOMAIN dom_all.int4_dom AS integer CHECK (VALUE >= 0);`,
+		`CREATE DOMAIN dom_all.int8_dom AS bigint;`,
+		`CREATE DOMAIN dom_all.numeric_dom AS numeric(12, 3);`,
+		`CREATE DOMAIN dom_all.numeric_dom_nested AS dom_all.numeric_dom;`,
+		`CREATE DOMAIN dom_all.float4_dom AS real;`,
+		`CREATE DOMAIN dom_all.float8_dom AS double precision;`,
+		`CREATE DOMAIN dom_all.money_dom AS money;`,
+		`CREATE DOMAIN dom_all.bool_dom AS boolean;`,
+		`CREATE DOMAIN dom_all.text_dom AS text;`,
+		`CREATE DOMAIN dom_all.varchar_dom AS varchar(40);`,
+		`CREATE DOMAIN dom_all.char_dom AS char(5);`,
+		`CREATE DOMAIN dom_all.bytea_dom AS bytea;`,
+		`CREATE DOMAIN dom_all.date_dom AS date;`,
+		`CREATE DOMAIN dom_all.time_dom AS time;`,
+		`CREATE DOMAIN dom_all.ts_dom AS timestamp;`,
+		`CREATE DOMAIN dom_all.tstz_dom AS timestamptz;`,
+		`CREATE DOMAIN dom_all.interval_dom AS interval;`,
+		`CREATE DOMAIN dom_all.json_dom AS json;`,
+		`CREATE DOMAIN dom_all.jsonb_dom AS jsonb;`,
+		`CREATE DOMAIN dom_all.uuid_dom AS uuid;`,
+		`CREATE DOMAIN dom_all.bit_dom AS bit(4);`,
+		`CREATE DOMAIN dom_all.varbit_dom AS varbit;`,
+		`CREATE DOMAIN dom_all.inet_dom AS inet;`,
+		`CREATE DOMAIN dom_all.cidr_dom AS cidr;`,
+		`CREATE DOMAIN dom_all.macaddr_dom AS macaddr;`,
+		`CREATE DOMAIN dom_all.macaddr8_dom AS macaddr8;`,
+		`CREATE DOMAIN dom_all.int4range_dom AS int4range;`,
+		`CREATE DOMAIN dom_all.int8range_dom AS int8range;`,
+		`CREATE DOMAIN dom_all.numrange_dom AS numrange;`,
+		`CREATE DOMAIN dom_all.daterange_dom AS daterange;`,
+		`CREATE DOMAIN dom_all.tsrange_dom AS tsrange;`,
+		`CREATE DOMAIN dom_all.tstzrange_dom AS tstzrange;`,
+		`CREATE DOMAIN dom_all.int_arr_dom AS integer[];`,
+		`CREATE DOMAIN dom_all.text_arr_dom AS text[];`,
+		`CREATE DOMAIN dom_all.hstore_dom AS hstore;`,
+		`CREATE DOMAIN dom_all.ltree_dom AS ltree;`,
+		`CREATE DOMAIN dom_all.citext_dom AS citext;`,
+		`CREATE DOMAIN dom_all.tsvector_dom AS tsvector;`,
+		`CREATE DOMAIN dom_all.tsquery_dom AS tsquery;`,
+	}
+	schemaSQL := append([]string{
+		`CREATE EXTENSION IF NOT EXISTS hstore;`,
+		`CREATE EXTENSION IF NOT EXISTS ltree;`,
+		`CREATE EXTENSION IF NOT EXISTS citext;`,
+		`CREATE SCHEMA dom_all;`,
+	}, domainDDLs...)
+	schemaSQL = append(schemaSQL, `CREATE TABLE dom_all.domain_all_types (
+		id INT PRIMARY KEY,
+		c_int2 dom_all.int2_dom,
+		c_int4 dom_all.int4_dom,
+		c_int8 dom_all.int8_dom,
+		c_numeric dom_all.numeric_dom,
+		c_numeric_nested dom_all.numeric_dom_nested,
+		c_float4 dom_all.float4_dom,
+		c_float8 dom_all.float8_dom,
+		c_money dom_all.money_dom,
+		c_bool dom_all.bool_dom,
+		"cText" dom_all.text_dom,
+		c_varchar dom_all.varchar_dom,
+		c_char dom_all.char_dom,
+		c_bytea dom_all.bytea_dom,
+		c_date dom_all.date_dom,
+		c_time dom_all.time_dom,
+		c_ts dom_all.ts_dom,
+		c_tstz dom_all.tstz_dom,
+		c_interval dom_all.interval_dom,
+		c_json dom_all.json_dom,
+		c_jsonb dom_all.jsonb_dom,
+		c_uuid dom_all.uuid_dom,
+		c_bit dom_all.bit_dom,
+		c_varbit dom_all.varbit_dom,
+		c_inet dom_all.inet_dom,
+		c_cidr dom_all.cidr_dom,
+		c_macaddr dom_all.macaddr_dom,
+		c_macaddr8 dom_all.macaddr8_dom,
+		c_int4range dom_all.int4range_dom,
+		c_int8range dom_all.int8range_dom,
+		c_numrange dom_all.numrange_dom,
+		c_daterange dom_all.daterange_dom,
+		c_tsrange dom_all.tsrange_dom,
+		c_tstzrange dom_all.tstzrange_dom,
+		c_int_arr dom_all.int_arr_dom,
+		c_text_arr dom_all.text_arr_dom,
+		c_int_dom_arr dom_all.int4_dom[],
+		c_hstore dom_all.hstore_dom,
+		c_ltree dom_all.ltree_dom,
+		c_citext dom_all.citext_dom,
+		c_tsvector dom_all.tsvector_dom,
+		c_tsquery dom_all.tsquery_dom
+	);`)
+
+	// numeric domain values carry no trailing zeros and char domain values are already 5 long:
+	// YugabyteDB enforces a domain's typmod but, unlike for plain columns, drops numeric trailing
+	// zeros (-1.500 is stored as -1.5) and does not blank-pad char, which would otherwise read
+	// as a migration mismatch.
+	rowValues := func(id int, n int) string {
+		return fmt.Sprintf(`(%[1]d, %[2]d, %[2]d, %[2]d000000000, %[2]d.125, -%[2]d.375, %[2]d.25, %[2]d.0625, '$%[2]d.99', %[3]t,
+			'text %[2]d with ''quote'' and \backslash', 'varchar %[2]d', 'c%04[2]d', '\x%02[2]x%02[2]x',
+			'2024-0%[4]d-1%[4]d', '1%[4]d:3%[4]d:45.123456', '2024-0%[4]d-15 10:20:30.654321', '2024-0%[4]d-15 10:20:30.5+05:30', '%[2]d days 02:03:04',
+			'{"k": %[2]d, "s": "v\"q"}', '{"k": %[2]d, "nested": {"a": [1, 2]}}', '00000000-0000-0000-0000-00000000000%[4]d', B'10%[5]s1', B'1%[5]s01',
+			'192.168.%[2]d.1', '10.%[2]d.0.0/16', '08:00:2b:01:02:0%[4]d', '08:00:2b:01:02:03:04:0%[4]d',
+			'[%[2]d,%[6]d)', '[%[2]d,%[6]d]', '(%[2]d.5,%[6]d.5]', '[2024-01-0%[4]d,2024-02-0%[4]d)', '[2024-01-0%[4]d 10:00,2024-01-0%[4]d 12:00)', '[2024-01-0%[4]d 10:00+00,2024-01-0%[4]d 12:00+00)',
+			'{%[2]d,%[6]d,NULL}', '{"a %[2]d","b,c",NULL}', '{%[2]d,%[6]d}', '"k%[2]d"=>"v %[2]d", "n"=>NULL', 'top.level_%[2]d.leaf', 'MixedCase%[2]d',
+			'the quick brown fox %[2]d', 'quick & fox | !lazy')`,
+			id, n, n%2 == 0, n%9+1, lo.Ternary(n%2 == 0, "0", "1"), n+10)
+	}
+	nullRow := func(id int) string {
+		return fmt.Sprintf("(%d%s)", id, strings.Repeat(", NULL", 41))
+	}
+
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "test_domains_over_supported_datatypes",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "test_domains_over_supported_datatypes",
+		},
+		SchemaNames: []string{"dom_all"},
+		SchemaSQL:   schemaSQL,
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE dom_all.domain_all_types REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			fmt.Sprintf(`INSERT INTO dom_all.domain_all_types VALUES %s, %s, %s;`, rowValues(1, 1), rowValues(2, 2), nullRow(3)),
+		},
+		SourceDeltaSQL: []string{
+			fmt.Sprintf(`INSERT INTO dom_all.domain_all_types VALUES %s, %s;`, rowValues(4, 4), rowValues(5, 5)),
+			`UPDATE dom_all.domain_all_types SET c_numeric = 7.777, c_jsonb = '{"updated": true}', c_tsvector = 'updated text', c_tsquery = 'updated & query',
+				c_varbit = B'111', c_int4range = '[100,200)', c_int_arr = '{9,8,7}', c_hstore = '"u"=>"1"', c_bytea = '\xdeadbeef', c_interval = '1 year 2 mons' WHERE id = 1;`,
+			`UPDATE dom_all.domain_all_types SET c_int4 = 42, c_ts = '2025-06-01 00:00:00', c_uuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', c_citext = 'NowSet', "cText" = 'set on null row' WHERE id = 3;`,
+			`DELETE FROM dom_all.domain_all_types WHERE id = 2;`,
+		},
+		TargetDeltaSQL: []string{
+			fmt.Sprintf(`INSERT INTO dom_all.domain_all_types VALUES %s;`, rowValues(6, 6)),
+			`UPDATE dom_all.domain_all_types SET c_numeric_nested = 1.625, c_tstz = '2025-01-01 00:00:00+00', c_tsvector = 'from target', c_daterange = '[2025-01-01,2025-02-01)', c_text_arr = '{"x","y"}' WHERE id = 4;`,
+			`DELETE FROM dom_all.domain_all_types WHERE id = 5;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS dom_all CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{table: 3}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after snapshot")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		table: {Inserts: 2, Updates: 2, Deletes: 1},
+	}, 120, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after forward streaming")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 120)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		table: {Inserts: 1, Updates: 1, Deletes: 1},
+	}, 120, 1)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency([]string{table}, "id")
+	testutils.FatalIfError(t, err, "data mismatch after fallback streaming")
 }
