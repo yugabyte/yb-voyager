@@ -10,10 +10,11 @@ import java.io.BufferedWriter;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -81,8 +82,7 @@ public class QueueSegment {
     private void openFile() throws IOException {
         fos = new FileOutputStream(filePath, true);
         fd = fos.getFD();
-        FileWriter fw = new FileWriter(fd);
-        writer = new BufferedWriter(fw);
+        writer = new BufferedWriter(new OutputStreamWriter(fos, StandardCharsets.UTF_8));
         byteCount = Files.size(Path.of(filePath));
     }
 
@@ -180,7 +180,7 @@ public class QueueSegment {
         String last = null, line;
         BufferedReader input;
         try {
-            input = new BufferedReader(new FileReader(filePath));
+            input = new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8));
             while ((line = input.readLine()) != null) {
                 if (line.equals(EOF_MARKER)) {
                     break;
@@ -215,7 +215,7 @@ public class QueueSegment {
         String last = null, line;
         BufferedReader input;
         try {
-            input = new BufferedReader(new FileReader(filePath));
+            input = new BufferedReader(new FileReader(filePath, StandardCharsets.UTF_8));
             while ((line = input.readLine()) != null) {
                 last = line;
                 if (last.equals(EOF_MARKER)) {
