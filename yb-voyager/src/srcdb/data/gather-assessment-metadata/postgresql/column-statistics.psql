@@ -16,7 +16,7 @@ COPY (
     JOIN pg_class c ON c.relname = st.tablename
     JOIN pg_namespace ns ON ns.nspname = st.schemaname AND ns.oid = c.relnamespace
     WHERE st.schemaname= ANY(string_to_array(:'schema_list', '|')) --schema_list
-        AND NOT st.inherited --inheritance parents also get an inherited=t row (parent+children stats) with the same tablename; keep only the table's own stats
+        AND NOT st.inherited --keep each table's own stats; inheritance parents also get inherited=t rows, partitioned tables only have those (detector skips them)
     ORDER BY st.schemaname, st.tablename, st.attname
 ) TO STDOUT WITH CSV HEADER;
 \o
