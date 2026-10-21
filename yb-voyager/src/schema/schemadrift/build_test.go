@@ -762,11 +762,12 @@ func TestSituationFor(t *testing.T) {
 						default:
 							want = afterExportStart[exportType]
 						}
-						got := situationFor(
+						got, err := situationFor(
 							CapturePoint{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
 							CapturePoint{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
 							MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt},
 						)
+						require.NoError(t, err)
 						assert.Equal(t, situation{
 							Timing:           want,
 							FallBackPossible: want != TimingAfterCutover && exportType != "snapshot-only",
@@ -779,11 +780,12 @@ func TestSituationFor(t *testing.T) {
 }
 
 func TestSituationFor_ExportSchemaRerunBeforeExportData(t *testing.T) {
-	got := situationFor(
+	got, err := situationFor(
 		CapturePoint{Label: schemasnapshot.LabelExportSchema, CapturedAt: t1()},
 		CapturePoint{Label: schemasnapshot.LabelExportSchema, CapturedAt: t2()},
 		MigrationInfo{},
 	)
+	require.NoError(t, err)
 	assert.Equal(t, situation{Timing: TimingBeforeExportData, FallBackPossible: true}, got)
 }
 

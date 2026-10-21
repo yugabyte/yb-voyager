@@ -418,7 +418,7 @@ func TestDiffTables_PartitionChildren_OrderInsensitive(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: InheritsFrom and InheritedBy changed — one finding per table added or removed
+// Test: InheritsFrom and InheritedBy changed — one finding listing the tables added, one the removed
 // ──────────────────────────────────────────────────────────────────────────────
 
 func TestDiffTables_InheritAddedAndRemoved(t *testing.T) {
@@ -429,10 +429,10 @@ func TestDiffTables_InheritAddedAndRemoved(t *testing.T) {
 	newTbl.InheritsFrom = []schemasnapshot.ObjectRef{ref("public", "new_b"), ref("public", "keep"), ref("Sales", "New_A")}
 
 	want := []Difference{
-		newDifference(TableInheritAdded, OpChanged, ObjectTypeTable, AttrInherits, child, child, nil, ref("Sales", "New_A")),
-		newDifference(TableInheritAdded, OpChanged, ObjectTypeTable, AttrInherits, child, child, nil, ref("public", "new_b")),
-		newDifference(TableInheritRemoved, OpChanged, ObjectTypeTable, AttrInherits, child, child, ref("public", "gone_a"), nil),
-		newDifference(TableInheritRemoved, OpChanged, ObjectTypeTable, AttrInherits, child, child, ref("public", "gone_b"), nil),
+		newDifference(TableInheritAdded, OpChanged, ObjectTypeTable, AttrInherits, child, child, nil,
+			[]schemasnapshot.ObjectRef{ref("Sales", "New_A"), ref("public", "new_b")}),
+		newDifference(TableInheritRemoved, OpChanged, ObjectTypeTable, AttrInherits, child, child,
+			[]schemasnapshot.ObjectRef{ref("public", "gone_a"), ref("public", "gone_b")}, nil),
 	}
 	assert.Equal(t, want, Diff(snapWithTables(oldTbl), snapWithTables(newTbl)))
 }
@@ -445,8 +445,8 @@ func TestDiffTables_InheritedByAddedAndRemoved(t *testing.T) {
 	newTbl.InheritedBy = []schemasnapshot.ObjectRef{ref("public", "child_keep"), ref("public", "child_b")}
 
 	want := []Difference{
-		newDifference(TableInheritedByAdded, OpChanged, ObjectTypeTable, AttrInheritedBy, parent, parent, nil, ref("public", "child_b")),
-		newDifference(TableInheritedByRemoved, OpChanged, ObjectTypeTable, AttrInheritedBy, parent, parent, ref("public", "child_a"), nil),
+		newDifference(TableInheritedByAdded, OpChanged, ObjectTypeTable, AttrInheritedBy, parent, parent, nil, []schemasnapshot.ObjectRef{ref("public", "child_b")}),
+		newDifference(TableInheritedByRemoved, OpChanged, ObjectTypeTable, AttrInheritedBy, parent, parent, []schemasnapshot.ObjectRef{ref("public", "child_a")}, nil),
 	}
 	assert.Equal(t, want, Diff(snapWithTables(oldTbl), snapWithTables(newTbl)))
 }

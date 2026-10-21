@@ -269,10 +269,10 @@ func TestDiff_EndToEnd(t *testing.T) {
 	}
 	kid := schemasnapshot.ObjectRef{Schema: driftSchema, Name: "kid"}
 	assert.ElementsMatch(t, []inheritanceFinding{
-		{Type: schemadiff.TableInheritedByRemoved, Object: driftSchema + ".base_x", Old: kid},
-		{Type: schemadiff.TableInheritedByAdded, Object: driftSchema + ".base_z", New: kid},
-		{Type: schemadiff.TableInheritAdded, Object: driftSchema + ".kid", New: schemasnapshot.ObjectRef{Schema: driftSchema, Name: "base_z"}},
-		{Type: schemadiff.TableInheritRemoved, Object: driftSchema + ".kid", Old: schemasnapshot.ObjectRef{Schema: driftSchema, Name: "base_x"}},
+		{Type: schemadiff.TableInheritedByRemoved, Object: driftSchema + ".base_x", Old: []schemasnapshot.ObjectRef{kid}},
+		{Type: schemadiff.TableInheritedByAdded, Object: driftSchema + ".base_z", New: []schemasnapshot.ObjectRef{kid}},
+		{Type: schemadiff.TableInheritAdded, Object: driftSchema + ".kid", New: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "base_z"}}},
+		{Type: schemadiff.TableInheritRemoved, Object: driftSchema + ".kid", Old: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "base_x"}}},
 	}, gotInheritance)
 
 	// ── 10. TablePartitionChildrenChanged anchored to diff_it.events ────────────────

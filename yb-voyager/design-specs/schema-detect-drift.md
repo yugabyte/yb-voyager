@@ -159,7 +159,9 @@ var fallBackRiskByDiffType map[schemadiff.DiffType]string // appended to Impact 
 var afterCutoverInfo DriftInfo
 
 type situation struct {
-	Timing           Timing
+	Timing Timing
+	// A cutover with fall-back can still happen: live or changes-only, before cutover.
+	// Adds the type's fall-back sentence to Impact.
 	FallBackPossible bool
 }
 
@@ -170,7 +172,7 @@ Severity and its explanatory note are one value, and each type's values for a ti
 
 The Impact and Action depend on the change type AND on when the change happened (§5.3), so `infoByDiffType` is keyed by both. Every type lists `before_export_data`, `offline_after_export_start` and `live_after_export_start` explicitly; `changes_only_after_export_start` is listed only where its text differs from live. Text shared across timings is one named `DriftInfo` referenced from each timing, never copied. `getDriftInfo` applies three rules:
 
-1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type: "This change was made after cutover to target. Data already migrated to the target is not affected." It has no Action.
+1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type: "This change was made after cutover to target. Data already migrated to the target is not affected." It has no Action and no fall-back sentence: after cutover the source is the fall-back side, whose drift is not tracked (§1).
 2. Otherwise the type's entry for the timing. `TimingChangesOnlyAfterExportStart` with no entry of its own uses the `TimingLiveAfterExportStart` entry. No entry is an error naming the type and the timing: a new type must come with its guidance, and reporting it as advisory with no note would hide a change the report cannot explain.
 3. When `situation.FallBackPossible`, the type's sentence in `fallBackRiskByDiffType`, if any, is appended to the Impact.
 
@@ -211,7 +213,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
-| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.0: the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table or column names — identifiers do not go into this payload. `invoked_by` is `detect-drift` for the command, and `export-data` or `cutover-to-target` for the in-process check (§3.7). Governed by `--send-diagnostics` as everywhere else. |
+| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.1 (v1.0 before the direction-split types and timing-based severities): the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table or column names — identifiers do not go into this payload. `invoked_by` is `detect-drift` for the command, and `export-data` or `cutover-to-target` for the in-process check (§3.7). Governed by `--send-diagnostics` as everywhere else. |
 | Telemetry on failure | A run that fails before it builds a report still reports, as `ERROR` with the counts left zero: that is the population which could not use the feature at all. `error` carries `msg: "schema drift"` and the step that failed (`setup`, `connect_to_source`, `resolve_schemas`, `load_snapshots`, `capture_live_schema`, `resolve_scope`, `build_report`, `nothing_compared`, `write_reports`), never the error text, which can carry table names, patterns and paths. It follows `errs.ImportBatchError`: the run tags each failure with an `errs.SchemaDriftError` step, and callhome adds the `step` key. Callhome sets `msg` itself instead of keeping the text before the first `:`, so the console shows the cause unchanged and no wrapper can push a name into `msg`. The stack trace and any SQLSTATE still go with it. A failure before the export dir's metaDB is opened sends nothing, because the anonymizer is not set up yet. A failure after that, including one in the root pre-run, reports like any other phase, with a nil migration UUID if the UUID was never read. |
 
 ### 3.7 In-process check
@@ -412,7 +414,7 @@ Unlisted pairs get `""` and the renderer shows the window alone.
 
 The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says how a run ended and is shown on the timeline; the phase says what was happening while the drift appeared. A start→exit pair is therefore "running", whatever the exit reason.
 
-**Timing.** `schemadrift.situationFor(prev, next CapturePoint, m MigrationInfo) situation`, next to `phaseFor` and called once per interval, places the interval's changes in a `Timing` for the guidance lookup (§5.4). The phase is a display label; the timing also needs the flow and the cutover, so the two are computed separately. Rules in order, first match wins:
+**Timing.** `schemadrift.situationFor(prev, next CapturePoint, m MigrationInfo) (situation, error)`, next to `phaseFor` and called once per interval, places the interval's changes in a `Timing` for the guidance lookup (§5.4). The phase is a display label; the timing also needs the flow and the cutover, so the two are computed separately. Rules in order, first match wins:
 
 | Timing | When |
 | :---- | :---- |
@@ -420,7 +422,9 @@ The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says h
 | `before_export_data` | export data has not recorded an export type yet (`ExportType` is empty: `export data` saves it before its start capture), whatever the captures are; or the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`, whatever the earlier capture is (a `resume` start means data was already exported, even after an `export schema --start-clean`) |
 | `offline_after_export_start` | `ExportType` is `snapshot-only` |
 | `changes_only_after_export_start` | `ExportType` is `changes-only` |
-| `live_after_export_start` | anything else, including an unknown `ExportType`: an interval the rules cannot place gets the live text |
+| `live_after_export_start` | `ExportType` is `snapshot-and-changes` |
+
+Any other `ExportType` is an error: guessing a timing would print advice for the wrong flow.
 
 `situation.FallBackPossible` is true unless the timing is `after_cutover` or `ExportType` is `snapshot-only`: a live flow, or one whose export type is not recorded yet, can still cut over with fall-back. An interval that spans the cutover request is not `after_cutover`, because the change may have come before it.
 
@@ -439,11 +443,13 @@ The change types, by object:
 | Table | `TABLE_ADDED`, `TABLE_DROPPED`, `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED`, `TABLE_KIND_CHANGED` |
 | Partition (on the partition) | `TABLE_PARTITION_ATTACHED`, `TABLE_PARTITION_DETACHED`; a move between parents is one of each |
 | Partition (on the parent) | `TABLE_PARTITION_CHILDREN_CHANGED` |
-| Inheritance (on the child) | `TABLE_INHERIT_ADDED`, `TABLE_INHERIT_REMOVED`, one per parent added or removed |
-| Inheritance (on the parent) | `TABLE_INHERITED_BY_ADDED`, `TABLE_INHERITED_BY_REMOVED`, one per child added or removed |
+| Inheritance (on the child) | `TABLE_INHERIT_ADDED`, `TABLE_INHERIT_REMOVED`: at most one of each, listing the parents added or removed |
+| Inheritance (on the parent) | `TABLE_INHERITED_BY_ADDED`, `TABLE_INHERITED_BY_REMOVED`: at most one of each, listing the children added or removed |
 | Column | `COLUMN_ADDED`, `COLUMN_DROPPED`, `COLUMN_NAME_CHANGED`, `COLUMN_TYPE_CHANGED`, `COLUMN_NOT_NULL_SET`, `COLUMN_NOT_NULL_DROPPED`, `COLUMN_DEFAULT_CHANGED` |
 
-The split partition, inheritance and NOT NULL types keep `Operation` `CHANGED` and their attribute (`PARTITION_PARENT`, `INHERITS`, `INHERITED_BY`, `NULLABILITY`), so they render as before. A partition or inheritance finding carries the one parent or child it is about: the old value for a detach or removal, the new value for an attach or addition, the other side empty. A NOT NULL finding carries the old and new nullability.
+Partition and inheritance links name the other table, but are compared by its OID when tables are matched by OID: renaming or moving a parent or child is reported only on that table, not as a detach and attach on every linked table.
+
+The split partition, inheritance and NOT NULL types keep `Operation` `CHANGED` and their attribute (`PARTITION_PARENT`, `INHERITS`, `INHERITED_BY`, `NULLABILITY`), so they render as before. A partition finding carries the one parent it is about, and an inheritance finding the list of parents or children added or removed: the old value for a detach or removal, the new value for an attach or addition, the other side empty. A NOT NULL finding carries the old and new nullability.
 
 Severity by change and timing (changes-only has the live severity; after cutover every type is `advisory`). The exact Impact and Action text is in `infoByDiffType` in `schemadrift`, and in the Addendum B design doc (DB-23869).
 
@@ -451,7 +457,7 @@ Severity by change and timing (changes-only has the live severity; after cutover
 | :---- | :---- | :---- | :---- |
 | `TABLE_DROPPED` | `advisory` | `advisory` | `breaks_migration_unrecoverable` |
 | `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
-| `TABLE_ADDED` | `breaks_migration_recoverable` | `breaks_migration_unrecoverable` | `breaks_migration_unrecoverable` |
+| `TABLE_ADDED` | `breaks_migration_recoverable` | `advisory` | `advisory` |
 | `COLUMN_ADDED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_recoverable` |
 | `COLUMN_DROPPED`, `COLUMN_TYPE_CHANGED`, `COLUMN_DEFAULT_CHANGED`, `TABLE_KIND_CHANGED` | `potential_impact` | `potential_impact` | `potential_impact` |
 | `COLUMN_NAME_CHANGED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |

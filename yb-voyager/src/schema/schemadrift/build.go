@@ -50,7 +50,9 @@ type MigrationInfo struct {
 }
 
 type situation struct {
-	Timing           Timing
+	Timing Timing
+	// A cutover with fall-back can still happen: live or changes-only, before cutover.
+	// Adds the type's fall-back sentence to Impact.
 	FallBackPossible bool
 }
 
@@ -104,7 +106,10 @@ func BuildReport(p DetectionConfig) (Report, error) {
 		comparedIntervals++
 		intervalWindow := Window{From: prev.Header.CapturedAt, To: next.Header.CapturedAt}
 		phase := phaseFor(capturePoints[prevIdx], capturePoints[i])
-		intervalSituation := situationFor(capturePoints[prevIdx], capturePoints[i], p.MigrationInfo)
+		intervalSituation, err := situationFor(capturePoints[prevIdx], capturePoints[i], p.MigrationInfo)
+		if err != nil {
+			return Report{}, err
+		}
 		if next.Header.Label == schemasnapshot.LabelSourceLive {
 			liveCompared = true
 		}
@@ -212,30 +217,34 @@ func isExportDataRunningStart(label string) bool {
 }
 
 // situationFor places the changes of the interval between two captures in a
-// Timing for the guidance lookup. An interval it cannot place gets
-// TimingLiveAfterExportStart.
-func situationFor(prev, next CapturePoint, m MigrationInfo) situation {
-	timing := timingFor(prev, next, m)
+// Timing for the guidance lookup.
+func situationFor(prev, next CapturePoint, m MigrationInfo) (situation, error) {
+	timing, err := timingFor(prev, next, m)
+	if err != nil {
+		return situation{}, err
+	}
 	return situation{
 		Timing:           timing,
 		FallBackPossible: timing != TimingAfterCutover && m.ExportType != utils.SNAPSHOT_ONLY,
-	}
+	}, nil
 }
 
-func timingFor(prev, next CapturePoint, m MigrationInfo) Timing {
+func timingFor(prev, next CapturePoint, m MigrationInfo) (Timing, error) {
 	switch {
 	case isAfterCutover(prev, m):
-		return TimingAfterCutover
+		return TimingAfterCutover, nil
 	case isBeforeExportData(next, m):
-		return TimingBeforeExportData
+		return TimingBeforeExportData, nil
 	}
 	switch m.ExportType {
 	case utils.SNAPSHOT_ONLY:
-		return TimingOfflineAfterExportStart
+		return TimingOfflineAfterExportStart, nil
+	case utils.SNAPSHOT_AND_CHANGES:
+		return TimingLiveAfterExportStart, nil
 	case utils.CHANGES_ONLY:
-		return TimingChangesOnlyAfterExportStart
+		return TimingChangesOnlyAfterExportStart, nil
 	default:
-		return TimingLiveAfterExportStart
+		return "", goerrors.Errorf("unknown export type %q in the migration status record", m.ExportType)
 	}
 }
 

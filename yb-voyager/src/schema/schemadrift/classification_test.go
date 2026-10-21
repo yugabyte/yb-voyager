@@ -83,7 +83,7 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.TableDropped:                  {adv, adv, unr, unr},
 		schemadiff.TableNameChanged:              {rec, pot, unr, unr},
 		schemadiff.TableSchemaChanged:            {rec, pot, unr, unr},
-		schemadiff.TableAdded:                    {rec, unr, unr, unr},
+		schemadiff.TableAdded:                    {rec, adv, adv, adv},
 		schemadiff.ColumnAdded:                   {rec, pot, rec, rec},
 		schemadiff.ColumnDropped:                 {pot, pot, pot, pot},
 		schemadiff.ColumnNameChanged:             {rec, pot, unr, unr},
