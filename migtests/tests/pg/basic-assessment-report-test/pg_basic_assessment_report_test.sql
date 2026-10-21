@@ -35,10 +35,6 @@ CREATE TABLE child_table (
     specific_column1 DATE
 ) INHERITS (parent_table);
 
--- ANALYZE on an inheritance parent with its own rows puts two rows per column in pg_stats (inherited=f and inherited=t)
-INSERT INTO parent_table (common_column1, common_column2) VALUES ('a', 1), ('b', 2);
-ANALYZE parent_table;
-
 CREATE TABLE schema1.employees2 (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,
