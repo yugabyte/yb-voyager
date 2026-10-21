@@ -254,14 +254,14 @@
         {
             "SchemaName": "public",
             "ObjectName": "parent_table",
-            "RowCount": 4,
+            "RowCount": 0,
             "ColumnCount": 3,
             "ReadsPerSecond": 0,
             "WritesPerSecond": 0,
             "IsIndex": false,
             "ObjectType": "table",
             "ParentTableName": null,
-            "SizeInBytes": 8192
+            "SizeInBytes": 0
         },
         {
             "SchemaName": "schema1",
@@ -381,7 +381,7 @@
             "IsIndex": true,
             "ObjectType": "primary key",
             "ParentTableName": "public.parent_table",
-            "SizeInBytes": 16384
+            "SizeInBytes": 8192
         },
         {
             "SchemaName": "public",
