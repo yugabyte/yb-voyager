@@ -762,11 +762,10 @@ func TestSituationFor(t *testing.T) {
 						default:
 							want = afterExportStart[exportType]
 						}
-						got, err := situationFor(
-							CapturePoint{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
-							CapturePoint{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
-							MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt},
-						)
+						got, err := situationFor([]CapturePoint{
+							{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
+							{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
+						}, 0, 1, MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt})
 						require.NoError(t, err)
 						assert.Equal(t, situation{
 							Timing:           want,
@@ -779,12 +778,15 @@ func TestSituationFor(t *testing.T) {
 	}
 }
 
+// Two export schema runs are before export data even once export data has
+// recorded its export type, because the export data start follows them.
 func TestSituationFor_ExportSchemaRerunBeforeExportData(t *testing.T) {
-	got, err := situationFor(
-		CapturePoint{Label: schemasnapshot.LabelExportSchema, CapturedAt: t1()},
-		CapturePoint{Label: schemasnapshot.LabelExportSchema, CapturedAt: t2()},
-		MigrationInfo{},
-	)
+	points := []CapturePoint{
+		{Label: schemasnapshot.LabelExportSchema, CapturedAt: t1()},
+		{Label: schemasnapshot.LabelExportSchema, CapturedAt: t2()},
+		{Label: schemasnapshot.LabelExportDataFromSourceStart, Reason: schemasnapshot.ReasonInitial, CapturedAt: t3()},
+	}
+	got, err := situationFor(points, 0, 1, MigrationInfo{ExportType: "snapshot-and-changes"})
 	require.NoError(t, err)
 	assert.Equal(t, situation{Timing: TimingBeforeExportData, FallBackPossible: true}, got)
 }

@@ -358,7 +358,7 @@ cmd.detectDrift()
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
- │      ├─ situationFor(prevCapture, nextCapture, MigrationInfo) → situation                                   §5.3
+ │      ├─ situationFor(captures, prevIdx, nextIdx, MigrationInfo) → situation                                §5.3
  │      └─ per Difference: getDriftInfo(d.Type, situation)    → DriftInfo, embedded in DriftEntry, or error   §5.4
  │
  ├─ if Summary.ComparedIntervalCount == 0: cmd.nothingComparedError(report) → error, exit 1; no file is written   §7
@@ -414,12 +414,12 @@ Unlisted pairs get `""` and the renderer shows the window alone.
 
 The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says how a run ended and is shown on the timeline; the phase says what was happening while the drift appeared. A start→exit pair is therefore "running", whatever the exit reason.
 
-**Timing.** `schemadrift.situationFor(prev, next CapturePoint, m MigrationInfo) (situation, error)`, next to `phaseFor` and called once per interval, places the interval's changes in a `Timing` for the guidance lookup (§5.4). The phase is a display label; the timing also needs the flow and the cutover, so the two are computed separately. Rules in order, first match wins:
+**Timing.** `schemadrift.situationFor(points []CapturePoint, prevIdx, nextIdx int, m MigrationInfo) (situation, error)`, next to `phaseFor` and called once per interval, places the interval's changes in a `Timing` for the guidance lookup (§5.4). The phase is a display label; the timing also needs the flow and the cutover, so the two are computed separately. Rules in order, first match wins:
 
 | Timing | When |
 | :---- | :---- |
 | `after_cutover` | the earlier capture is an `export_data_from_source_exit` with reason `cutover`, or it was taken at or after `CutoverRequestedAt` |
-| `before_export_data` | export data has not recorded an export type yet (`ExportType` is empty: `export data` saves it before its start capture), whatever the captures are; or the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`, whatever the earlier capture is (a `resume` start means data was already exported, even after an `export schema --start-clean`) |
+| `before_export_data` | export data has not recorded an export type yet (`ExportType` is empty: `export data` saves it before its start capture), whatever the captures are; or the first export data capture (start, periodic or exit) at or after the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`, whatever the earlier capture is. So two `export schema` runs before `export data`, or an `export schema` re-run before a clean restart, are before export data. A `resume` start means data was already exported, even after an `export schema --start-clean`. With no export data capture at or after the later capture, the export type decides |
 | `offline_after_export_start` | `ExportType` is `snapshot-only` |
 | `changes_only_after_export_start` | `ExportType` is `changes-only` |
 | `live_after_export_start` | `ExportType` is `snapshot-and-changes` |
