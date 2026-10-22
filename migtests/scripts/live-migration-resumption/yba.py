@@ -67,23 +67,30 @@ def _branch_key(branch: str) -> tuple:
     return tuple(int(x) for x in branch.split("."))
 
 
-def _http_get(url: str, headers: Optional[Dict[str, str]] = None) -> bytes:
-    req = urllib.request.Request(url, headers=headers or {})
-    for attempt in range(1, GET_ATTEMPTS + 1):
+def _retryable_status(code: int) -> bool:
+    return code >= 500 or code == 429
+
+
+def _urlopen_with_retry(req: urllib.request.Request, label: str, attempts: int, context=None) -> bytes:
+    for attempt in range(1, attempts + 1):
         try:
-            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC) as resp:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC, context=context) as resp:
                 return resp.read()
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")[:500]
-            error = RuntimeError(f"GET {url}: HTTP {exc.code}: {detail}")
-            retryable = exc.code >= 500 or exc.code in (403, 429)
+            detail = exc.read().decode("utf-8", "replace")[:2000]
+            error = RuntimeError(f"{label}: HTTP {exc.code}: {detail}")
+            retryable = _retryable_status(exc.code)
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            error = RuntimeError(f"GET {url}: {exc}")
+            error = RuntimeError(f"{label}: {exc}")
             retryable = True
-        if not retryable or attempt == GET_ATTEMPTS:
+        if not retryable or attempt == attempts:
             raise error from None
         time.sleep(GET_RETRY_SLEEP_SEC)
     raise AssertionError("unreachable")
+
+
+def _http_get(url: str, headers: Optional[Dict[str, str]] = None) -> bytes:
+    return _urlopen_with_retry(urllib.request.Request(url, headers=headers or {}), f"GET {url}", GET_ATTEMPTS)
 
 
 def _http_get_text(url: str) -> str:
@@ -117,7 +124,14 @@ def ysql_migrations(build: str) -> set:
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    entries = json.loads(_http_get(f"{MIGRATIONS_API_URL}?ref={build}", headers))
+    try:
+        entries = json.loads(_http_get(f"{MIGRATIONS_API_URL}?ref={build}", headers))
+    except RuntimeError as exc:
+        if token or "HTTP 403" not in str(exc):
+            raise
+        raise RuntimeError(
+            f"{exc} (GITHUB_TOKEN is unset; the unauthenticated GitHub API allows 60 requests per hour per IP)"
+        ) from None
     return {e["name"].split("__", 1)[1] for e in entries if e["name"].startswith("V") and "__" in e["name"]}
 
 
@@ -168,22 +182,8 @@ class YBAClient:
         )
         # A POST is never retried: a repeated upgrade/restart would submit the task twice.
         attempts = GET_ATTEMPTS if method == "GET" else 1
-        for attempt in range(1, attempts + 1):
-            try:
-                with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC, context=self._ssl) as resp:
-                    raw = resp.read()
-                return json.loads(raw) if raw else {}
-            except urllib.error.HTTPError as exc:
-                detail = exc.read().decode("utf-8", "replace")[:2000]
-                error = RuntimeError(f"YBA {method} {path}: HTTP {exc.code}: {detail}")
-                retryable = exc.code >= 500
-            except (urllib.error.URLError, TimeoutError, OSError) as exc:
-                error = RuntimeError(f"YBA {method} {path}: {exc}")
-                retryable = True
-            if not retryable or attempt == attempts:
-                raise error from None
-            time.sleep(GET_RETRY_SLEEP_SEC)
-        raise AssertionError("unreachable")
+        raw = _urlopen_with_retry(req, f"YBA {method} {path}", attempts, context=self._ssl)
+        return json.loads(raw) if raw else {}
 
     @property
     def customer_uuid(self) -> str:
