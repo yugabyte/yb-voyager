@@ -117,7 +117,7 @@ type Diff struct {
 	Type       schemadiff.DiffType   `json:"type"`
 	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
 	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN
-	Attribute  schemadiff.Attribute  `json:"attribute,omitempty"` // "" for ADDED/DROPPED
+	Attribute  schemadiff.Attribute  `json:"attribute,omitempty"` // "" when operation is ADDED or DROPPED
 
 	// What it changed on, and to what. Object/SubObject are the display side: the
 	// new identity for a change, the old one for a drop.

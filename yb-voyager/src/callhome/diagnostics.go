@@ -110,8 +110,8 @@ type SourceDBDetails struct {
 	DBID               int64    `json:"db_id,omitempty"`                // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SourceDeployment   string   `json:"source_deployment_type,omitempty"`
-	TLSCertDomain      string   `json:"tls_cert_domain,omitempty"` // registered domain only (e.g. abc.com, amazonaws.com)
-	HostDomain         string   `json:"host_domain,omitempty"`     // registered domain only (e.g. abc.com, amazonaws.com)
+	TLSCertDomain      string   `json:"tls_cert_domain,omitempty"` // <instance>.*.<registered domain> (e.g. pg01.*.acme.com, mydb.*.amazonaws.com)
+	HostDomain         string   `json:"host_domain,omitempty"`     // <instance>.*.<registered domain> (e.g. pg01.*.acme.com, mydb.*.amazonaws.com)
 	SchemaNames        []string `json:"schema_names,omitempty"`    //Anonymized schema names
 	SchemaOids         []int64  `json:"schema_oids,omitempty"`     //Schema oids
 }
@@ -510,8 +510,9 @@ type ArchiveChangesPhasePayload struct {
 /*
 Version History
 1.0: Initial version
+1.1: drifts_by_type keys use the direction-split types (e.g. COLUMN_NOT_NULL_SET / _DROPPED); drifts_by_severity counts each change's severity for when it happened
 */
-var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.0"
+var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 // SchemaDriftPhasePayload reports what a `schema detect-drift` run examined and
 // found. Counts and histograms only: schema, table and column names are

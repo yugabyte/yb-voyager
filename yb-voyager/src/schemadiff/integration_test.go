@@ -60,6 +60,14 @@ func TestDiff_EndToEnd(t *testing.T) {
 			id bigint NOT NULL
 		) PARTITION BY RANGE (id)`,
 		`CREATE TABLE `+driftSchema+`.events_2026 PARTITION OF `+driftSchema+`.events FOR VALUES FROM (1) TO (1000000)`,
+		`CREATE TABLE `+driftSchema+`.flags (a int)`,
+		`CREATE TABLE `+driftSchema+`.metrics_a (id bigint NOT NULL) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.metrics_b (id bigint NOT NULL) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.metrics_p PARTITION OF `+driftSchema+`.metrics_a FOR VALUES FROM (1) TO (100)`,
+		`CREATE TABLE `+driftSchema+`.base_x (a int)`,
+		`CREATE TABLE `+driftSchema+`.base_y (a int)`,
+		`CREATE TABLE `+driftSchema+`.base_z (a int)`,
+		`CREATE TABLE `+driftSchema+`.kid (a int) INHERITS (`+driftSchema+`.base_x, `+driftSchema+`.base_y)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -97,6 +105,11 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`DROP TABLE `+driftSchema+`.legacy`,
 		`CREATE TABLE `+driftSchema+`.newbie (x int)`,
 		`CREATE TABLE `+driftSchema+`.events_2027 PARTITION OF `+driftSchema+`.events FOR VALUES FROM (1000000) TO (2000000)`,
+		`ALTER TABLE `+driftSchema+`.flags ALTER COLUMN a SET NOT NULL`,
+		`ALTER TABLE `+driftSchema+`.metrics_a DETACH PARTITION `+driftSchema+`.metrics_p`,
+		`ALTER TABLE `+driftSchema+`.metrics_b ATTACH PARTITION `+driftSchema+`.metrics_p FOR VALUES FROM (1) TO (100)`,
+		`ALTER TABLE `+driftSchema+`.kid NO INHERIT `+driftSchema+`.base_x`,
+		`ALTER TABLE `+driftSchema+`.kid INHERIT `+driftSchema+`.base_z`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -213,15 +226,54 @@ func TestDiff_EndToEnd(t *testing.T) {
 	})
 	require.Len(t, customerTypeChanged, 1, "expected exactly one ColumnTypeChanged with Object.Key='diff_it.orders.customer'")
 
-	// ── 9. ColumnNullabilityChanged for id (NotNull true → false) ──────────────
-	idNullabilityChanged := findDiffs(func(d schemadiff.Difference) bool {
-		return d.Type == schemadiff.ColumnNullabilityChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".orders.id"
+	// ── 9. ColumnNotNullDropped for id, ColumnNotNullSet for flags.a ────────────
+	idNotNullDropped := findDiffs(func(d schemadiff.Difference) bool {
+		return d.Type == schemadiff.ColumnNotNullDropped && identKey(d, constants.POSTGRESQL) == driftSchema+".orders.id"
 	})
-	require.Len(t, idNullabilityChanged, 1, "expected exactly one ColumnNullabilityChanged for 'id'")
-	assert.Equal(t, true, idNullabilityChanged[0].SideAValue,
-		"OldValue (was NotNull) must be true")
-	assert.Equal(t, false, idNullabilityChanged[0].SideBValue,
-		"NewValue (now nullable) must be false")
+	require.Len(t, idNotNullDropped, 1, "expected exactly one ColumnNotNullDropped for 'id'")
+	assert.Equal(t, true, idNotNullDropped[0].SideAValue, "OldValue (was NotNull) must be true")
+	assert.Equal(t, false, idNotNullDropped[0].SideBValue, "NewValue (now nullable) must be false")
+
+	flagsNotNullSet := findDiffs(func(d schemadiff.Difference) bool {
+		return d.Type == schemadiff.ColumnNotNullSet && identKey(d, constants.POSTGRESQL) == driftSchema+".flags.a"
+	})
+	require.Len(t, flagsNotNullSet, 1, "expected exactly one ColumnNotNullSet for 'flags.a'")
+	assert.Equal(t, false, flagsNotNullSet[0].SideAValue)
+	assert.Equal(t, true, flagsNotNullSet[0].SideBValue)
+
+	// ── 9b. A partition moved between parents: one detach, one attach ─────────
+	metricsPartition := findDiffs(func(d schemadiff.Difference) bool {
+		return d.Attribute == schemadiff.AttrPartitionParent && identKey(d, constants.POSTGRESQL) == driftSchema+".metrics_p"
+	})
+	require.Len(t, metricsPartition, 2, "expected a detach and an attach for diff_it.metrics_p")
+	assert.Equal(t, schemadiff.TablePartitionAttached, metricsPartition[0].Type)
+	assert.Nil(t, metricsPartition[0].SideAValue)
+	assert.Equal(t, schemasnapshot.ObjectRef{Schema: driftSchema, Name: "metrics_b"}, metricsPartition[0].SideBValue)
+	assert.Equal(t, schemadiff.TablePartitionDetached, metricsPartition[1].Type)
+	assert.Equal(t, schemasnapshot.ObjectRef{Schema: driftSchema, Name: "metrics_a"}, metricsPartition[1].SideAValue)
+	assert.Nil(t, metricsPartition[1].SideBValue)
+
+	// ── 9c. Inheritance: one finding per parent or child added or removed ──────
+	inheritanceFindings := findDiffs(func(d schemadiff.Difference) bool {
+		return d.Attribute == schemadiff.AttrInherits || d.Attribute == schemadiff.AttrInheritedBy
+	})
+	type inheritanceFinding struct {
+		Type   schemadiff.DiffType
+		Object string
+		Old    any
+		New    any
+	}
+	gotInheritance := make([]inheritanceFinding, len(inheritanceFindings))
+	for i, d := range inheritanceFindings {
+		gotInheritance[i] = inheritanceFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
+	}
+	kid := schemasnapshot.ObjectRef{Schema: driftSchema, Name: "kid"}
+	assert.ElementsMatch(t, []inheritanceFinding{
+		{Type: schemadiff.TableInheritedByRemoved, Object: driftSchema + ".base_x", Old: []schemasnapshot.ObjectRef{kid}},
+		{Type: schemadiff.TableInheritedByAdded, Object: driftSchema + ".base_z", New: []schemasnapshot.ObjectRef{kid}},
+		{Type: schemadiff.TableInheritAdded, Object: driftSchema + ".kid", New: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "base_z"}}},
+		{Type: schemadiff.TableInheritRemoved, Object: driftSchema + ".kid", Old: []schemasnapshot.ObjectRef{{Schema: driftSchema, Name: "base_x"}}},
+	}, gotInheritance)
 
 	// ── 10. TablePartitionChildrenChanged anchored to diff_it.events ────────────────
 	partChanged := findDiffs(func(d schemadiff.Difference) bool {
@@ -308,7 +360,7 @@ func filterLocal(diffs []schemadiff.Difference, pred func(schemadiff.Difference)
 }
 
 // identKey renders a finding's own identity key: side-A's key, falling back to
-// side-B for *_ADDED (where ObjectA is nil), in dbType's dialect. This is the
+// side-B for OpAdded (where ObjectA is nil), in dbType's dialect. This is the
 // direct replacement for the old pre-rendered Difference.Object.Key.
 func identKey(d schemadiff.Difference, dbType string) string {
 	if d.ObjectA != nil {

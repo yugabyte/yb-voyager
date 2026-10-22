@@ -4,12 +4,15 @@ package testlivemigration
 
 import (
 	"context"
-	"fmt"
-	"strings"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/require"
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -4110,6 +4113,157 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
 	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
+}
+
+var cLocaleEnv = []string{"LC_ALL=C", "LANG=C"}
+
+func getNonASCIIUnderCLocaleTestConfig(dbName string) *TestConfig {
+	return &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: dbName,
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: dbName,
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+			`CREATE SCHEMA test_schema;
+			CREATE EXTENSION IF NOT EXISTS hstore;
+			CREATE TYPE test_schema.mood_enum AS ENUM ('heureux', 'très_bien', '幸せ', '🙂');
+
+			CREATE TABLE test_schema.non_ascii_text (
+				id INT PRIMARY KEY,
+				txt TEXT,
+				vc VARCHAR(12),
+				ch CHAR(4),
+				js JSONB,
+				mood test_schema.mood_enum,
+				hs hstore,
+				arr TEXT[]
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.non_ascii_text REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.non_ascii_text VALUES
+				(1, 'café l''été', '日本語テキスト', 'ñadú', '{"name": "José", "城市": "東京"}', 'heureux', '"clé"=>"valeur"', ARRAY['naïve', 'résumé']),
+				(2, '👨‍👩‍👧‍👦 🎉 🙂', 'Ελληνικά', '😀😀😀😀', '{"emoji": "🎉", "rtl": "مرحبا"}', '幸せ', '"键"=>"值", "😀"=>"🎉"', ARRAY['😀', 'שלום']),
+				(3, 'Ünïcödé — “quotes” ‘single’', 'Привет', 'Ωµ€£', '{"mixed": "aé中"}', '🙂', '"mixed"=>"ascii é 中"', ARRAY['ascii', 'é', '中']);`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.non_ascii_text VALUES
+				(4, 'Ångström Æsir Øl', 'हिन्दी', 'ไทย', '{"k": "Ünïcödé"}', 'très_bien', '"ключ"=>"значение"', ARRAY['한국어']),
+				(5, 'zero` + "\u200d" + `width` + "\u200c" + `joiners', '中文字符', 'ß', '{"🙂": "😀"}', '🙂', '"ß"=>"ẞ"', ARRAY['ß', 'ẞ']);`,
+			`UPDATE test_schema.non_ascii_text SET txt = 'mis à jour l''été 🎉', mood = '幸せ', hs = '"clé"=>"nouvelle"' WHERE id = 1;`,
+			`UPDATE test_schema.non_ascii_text SET vc = 'Ελλάδα', js = '{"город": "Москва"}', arr = ARRAY['новый', '😀'] WHERE id = 2;`,
+			`DELETE FROM test_schema.non_ascii_text WHERE id = 3;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO test_schema.non_ascii_text VALUES
+				(6, 'retour ↩ fallback', 'العربية', 'ğüş', '{"dir": "← →"}', 'heureux', '"retour"=>"↩"', ARRAY['Türkçe']),
+				(7, '🙂 from target', 'עברית', '★☆✓✗', '{"star": "★"}', '🙂', '"★"=>"☆"', ARRAY['★', '☆']);`,
+			`UPDATE test_schema.non_ascii_text SET txt = 'cible l''œuvre ✓', mood = 'très_bien' WHERE id = 4;`,
+			`UPDATE test_schema.non_ascii_text SET vc = '更新された', hs = '"ß"=>"ss", "😀"=>"🙂"' WHERE id = 5;`,
+			`DELETE FROM test_schema.non_ascii_text WHERE id = 2;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	}
+}
+
+// requireJVMDefaultCharsetIsNotUTF8 fails the test when the C locale still gives the JVM a UTF-8
+// default charset (e.g. JDK 18+), because the locale test would then pass without exercising anything.
+func requireJVMDefaultCharsetIsNotUTF8(t *testing.T, env []string) {
+	t.Helper()
+	javaBinary := "java"
+	if javaHome := os.Getenv("JAVA_HOME"); javaHome != "" {
+		javaBinary = filepath.Join(javaHome, "bin", "java")
+	}
+	javaCmd := exec.Command(javaBinary, "-XshowSettings:properties", "-version")
+	javaCmd.Env = append(os.Environ(), env...)
+	out, err := javaCmd.CombinedOutput()
+	require.NoError(t, err, "failed to run java to read its default charset: %s", out)
+
+	match := regexp.MustCompile(`file\.encoding = (\S+)`).FindSubmatch(out)
+	require.NotNil(t, match, "file.encoding not found in java settings output: %s", out)
+	require.NotEqual(t, "UTF-8", string(match[1]), "JVM default charset is UTF-8 under %v", env)
+}
+
+// TestLiveMigrationWithNonASCIIDataUnderCLocaleAndFallback pins that non-ASCII data survives the
+// Debezium export when the host locale is C, whose JVM default charset (JDK 17) is ASCII.
+// Both voyager processes run under the C locale: export data starts the forward Debezium, and
+// import data later execs export data from target, so the fall-back Debezium inherits it too.
+func TestLiveMigrationWithNonASCIIDataUnderCLocaleAndFallback(t *testing.T) {
+	t.Parallel()
+	requireJVMDefaultCharsetIsNotUTF8(t, cLocaleEnv)
+
+	lm := NewLiveMigrationTest(t, getNonASCIIUnderCLocaleTestConfig("test_non_ascii_c_locale_fallback"))
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportDataWithEnv(true, nil, cLocaleEnv)
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportDataWithEnv(true, nil, cLocaleEnv)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	tables := []string{`"test_schema"."non_ascii_text"`}
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."non_ascii_text"`: 3,
+	}, 240)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	err = lm.ValidateDataConsistency(tables, "id")
+	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."non_ascii_text"`: {Inserts: 2, Updates: 2, Deletes: 1},
+	}, 120, 1)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = lm.ValidateDataConsistency(tables, "id")
+	testutils.FatalIfError(t, err, "failed to validate forward streaming data consistency")
+
+	err = lm.InitiateCutoverToTarget(true, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to target")
+
+	err = lm.WaitForCutoverComplete(0, 90)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to target complete")
+
+	err = lm.ExecuteTargetDelta()
+	testutils.FatalIfError(t, err, "failed to execute target delta")
+
+	err = lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."non_ascii_text"`: {Inserts: 2, Updates: 2, Deletes: 1},
+	}, 180, 2)
+	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
+
+	err = lm.ValidateDataConsistency(tables, "id")
+	testutils.FatalIfError(t, err, "failed to validate fallback streaming data consistency")
+
+	err = lm.InitiateCutoverToSource(nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover to source")
+
+	err = lm.WaitForCutoverSourceComplete(0, 150)
+	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
+
+	err = lm.ValidateDataConsistency(tables, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
 }
 

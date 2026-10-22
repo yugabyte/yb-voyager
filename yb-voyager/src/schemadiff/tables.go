@@ -14,7 +14,14 @@
 
 package schemadiff
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+import (
+	"cmp"
+	"slices"
+
+	"github.com/samber/lo"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+)
 
 // diffTables computes table-level differences between snapshots a and b. Tables
 // are matched by chooseMatchKeys: by stable OID for a same-engine Postgres/
@@ -27,8 +34,24 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 		idOfTable, schemasnapshot.Table.ForKey)
 
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,
-		compareMatchedTables(a.DatabaseType, b.DatabaseType),
+		compareMatchedTables(a.DatabaseType, b.DatabaseType, linkKeyFunc(a, keyA), linkKeyFunc(b, keyB)),
 		emitTableDropped, emitTableAdded)
+}
+
+// linkKeyFunc keys a partition or inheritance link the way tables are matched, so
+// a renamed or moved parent or child is still the same link on both sides. A link
+// to a table outside the snapshot has no ID, so it is keyed by name.
+func linkKeyFunc(s *schemasnapshot.SnapshotContent, tableKey func(schemasnapshot.Table) string) func(schemasnapshot.ObjectRef) string {
+	keyByRef := make(map[schemasnapshot.ObjectRef]string, len(s.Tables))
+	for _, t := range s.Tables {
+		keyByRef[t.ObjectRef] = tableKey(t)
+	}
+	return func(r schemasnapshot.ObjectRef) string {
+		if k, ok := keyByRef[r]; ok {
+			return k
+		}
+		return r.ForKey(s.DatabaseType)
+	}
 }
 
 // idOfTable extracts a table's stable ID (OID) for ID-based matching.
@@ -51,7 +74,7 @@ func emitTableAdded(t schemasnapshot.Table) []Difference {
 // compareMatchedTables returns the matchByKey onMatch callback for tables: it
 // emits the table's field-level differences and then diffs its nested columns.
 // dbTypeA/dbTypeB select ID- vs name-based column matching (see diffColumnsIn).
-func compareMatchedTables(dbTypeA, dbTypeB string) func(tA, tB schemasnapshot.Table) []Difference {
+func compareMatchedTables(dbTypeA, dbTypeB string, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string) func(tA, tB schemasnapshot.Table) []Difference {
 	return func(tA, tB schemasnapshot.Table) []Difference {
 		var diffs []Difference
 
@@ -67,28 +90,21 @@ func compareMatchedTables(dbTypeA, dbTypeB string) func(tA, tB schemasnapshot.Ta
 			diffs = append(diffs, newDifference(TableKindChanged, OpChanged, ObjectTypeTable, AttrKind, tA.ObjectRef, tB.ObjectRef, string(tA.Kind), string(tB.Kind)))
 		}
 
-		if !partitionParentEqual(tA.PartitionParent, tB.PartitionParent) {
-			var ov, nv any
+		if !partitionParentEqual(tA.PartitionParent, tB.PartitionParent, linkKeyA, linkKeyB) {
 			if tA.PartitionParent != nil {
-				ov = *tA.PartitionParent
+				diffs = append(diffs, newDifference(TablePartitionDetached, OpChanged, ObjectTypeTable, AttrPartitionParent, tA.ObjectRef, tB.ObjectRef, *tA.PartitionParent, nil))
 			}
 			if tB.PartitionParent != nil {
-				nv = *tB.PartitionParent
+				diffs = append(diffs, newDifference(TablePartitionAttached, OpChanged, ObjectTypeTable, AttrPartitionParent, tA.ObjectRef, tB.ObjectRef, nil, *tB.PartitionParent))
 			}
-			diffs = append(diffs, newDifference(TablePartitionParentChanged, OpChanged, ObjectTypeTable, AttrPartitionParent, tA.ObjectRef, tB.ObjectRef, ov, nv))
 		}
 
-		if !objectRefSetEqual(tA.PartitionChildren, tB.PartitionChildren) {
+		if !linkSetEqual(tA.PartitionChildren, tB.PartitionChildren, linkKeyA, linkKeyB) {
 			diffs = append(diffs, newDifference(TablePartitionChildrenChanged, OpChanged, ObjectTypeTable, AttrPartitionChildren, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.PartitionChildren), cloneObjectRefs(tB.PartitionChildren)))
 		}
 
-		if !objectRefSetEqual(tA.InheritsFrom, tB.InheritsFrom) {
-			diffs = append(diffs, newDifference(TableInheritsChanged, OpChanged, ObjectTypeTable, AttrInherits, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.InheritsFrom), cloneObjectRefs(tB.InheritsFrom)))
-		}
-
-		if !objectRefSetEqual(tA.InheritedBy, tB.InheritedBy) {
-			diffs = append(diffs, newDifference(TableInheritedByChanged, OpChanged, ObjectTypeTable, AttrInheritedBy, tA.ObjectRef, tB.ObjectRef, cloneObjectRefs(tA.InheritedBy), cloneObjectRefs(tB.InheritedBy)))
-		}
+		diffs = append(diffs, diffLinkSet(tA, tB, tA.InheritsFrom, tB.InheritsFrom, linkKeyA, linkKeyB, TableInheritAdded, TableInheritRemoved, AttrInherits)...)
+		diffs = append(diffs, diffLinkSet(tA, tB, tA.InheritedBy, tB.InheritedBy, linkKeyA, linkKeyB, TableInheritedByAdded, TableInheritedByRemoved, AttrInheritedBy)...)
 
 		diffs = append(diffs, diffColumnsIn(tA.Columns, tB.Columns, dbTypeA, dbTypeB)...)
 
@@ -96,31 +112,54 @@ func compareMatchedTables(dbTypeA, dbTypeB string) func(tA, tB schemasnapshot.Ta
 	}
 }
 
-// partitionParentEqual compares two *ObjectRef values for equality.
-// Both nil → equal; one nil → not equal; both set → compare by value.
-func partitionParentEqual(a, b *schemasnapshot.ObjectRef) bool {
+func diffLinkSet(tA, tB schemasnapshot.Table, linksA, linksB []schemasnapshot.ObjectRef, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string, addedType, removedType DiffType, attr Attribute) []Difference {
+	keysA := lo.SliceToMap(linksA, func(r schemasnapshot.ObjectRef) (string, bool) { return linkKeyA(r), true })
+	keysB := lo.SliceToMap(linksB, func(r schemasnapshot.ObjectRef) (string, bool) { return linkKeyB(r), true })
+	removed := lo.Filter(linksA, func(r schemasnapshot.ObjectRef, _ int) bool { return !keysB[linkKeyA(r)] })
+	added := lo.Filter(linksB, func(r schemasnapshot.ObjectRef, _ int) bool { return !keysA[linkKeyB(r)] })
+	slices.SortFunc(removed, compareObjectRefs)
+	slices.SortFunc(added, compareObjectRefs)
+
+	var diffs []Difference
+	if len(removed) > 0 {
+		diffs = append(diffs, newDifference(removedType, OpChanged, ObjectTypeTable, attr, tA.ObjectRef, tB.ObjectRef, removed, nil))
+	}
+	if len(added) > 0 {
+		diffs = append(diffs, newDifference(addedType, OpChanged, ObjectTypeTable, attr, tA.ObjectRef, tB.ObjectRef, nil, added))
+	}
+	return diffs
+}
+
+func compareObjectRefs(a, b schemasnapshot.ObjectRef) int {
+	return cmp.Or(cmp.Compare(a.Schema, b.Schema), cmp.Compare(a.Name, b.Name))
+}
+
+// partitionParentEqual compares two *ObjectRef values by link key.
+// Both nil → equal; one nil → not equal; both set → compare keys.
+func partitionParentEqual(a, b *schemasnapshot.ObjectRef, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string) bool {
 	if a == nil && b == nil {
 		return true
 	}
 	if a == nil || b == nil {
 		return false
 	}
-	return *a == *b
+	return linkKeyA(*a) == linkKeyB(*b)
 }
 
-// objectRefSetEqual returns true when two []ObjectRef slices have the same members
-// regardless of order. Nil and empty slices are treated as equal.
-func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
+// linkSetEqual returns true when two []ObjectRef slices have the same members by
+// link key, regardless of order. Nil and empty slices are treated as equal.
+func linkSetEqual(a, b []schemasnapshot.ObjectRef, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	set := make(map[schemasnapshot.ObjectRef]int, len(a))
+	set := make(map[string]int, len(a))
 	for _, r := range a {
-		set[r]++
+		set[linkKeyA(r)]++
 	}
 	for _, r := range b {
-		set[r]--
-		if set[r] < 0 {
+		k := linkKeyB(r)
+		set[k]--
+		if set[k] < 0 {
 			return false
 		}
 	}
@@ -130,7 +169,7 @@ func objectRefSetEqual(a, b []schemasnapshot.ObjectRef) bool {
 // cloneObjectRefs returns a fresh copy of an []ObjectRef so a Difference never
 // shares backing storage with the input snapshot — a shallow copy fully decouples
 // it since ObjectRef is a value type (nil input stays nil). Without this, a
-// consumer mutating a link finding's OldValue/NewValue slice would write through
+// consumer mutating a TABLE_PARTITION_CHILDREN_CHANGED finding's OldValue/NewValue slice would write through
 // into the source snapshot.
 func cloneObjectRefs(refs []schemasnapshot.ObjectRef) []schemasnapshot.ObjectRef {
 	if refs == nil {

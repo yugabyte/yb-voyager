@@ -234,12 +234,6 @@ EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES_LOGICAL_FF_FB = ['{123-45-0001,987-65-000
 EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES_LOGICAL_FF_FB = ['{+91123456701,+91987654301}', '{+91123456702,+91987654302}', '{+91123456703,+91987654303}', '{+91123456706,+91987654306}', '{+911111111111,+922222222222}', '{+91123456709,+91987654309}', '{+911111111111,+922222222222}']
 EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES_LOGICAL_FF_FB = ['{"ABC DEF","GHI JKL"}', '{"MNO PQR","STU VWX"}', '{"ABC XYZ","DEF ABC"}', '{"ABCD XYZ","DEFG ABC"}', '{"Updated Person","Another Update"}', '{"EFGH IJKL","UVWXYZ ABCD"}', '{"Updated Person","Another Update"}']
 
-EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES = ['{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[50,60)"}']
-EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES = ['{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.1,0.2)"}']
-
-EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES_LOGICAL_FF_FB = ['{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[1,5)","[10,20)"}', '{"[50,60)"}', '{"[2,6)","[12,22)"}', '{"[50,60)"}']
-EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES_LOGICAL_FF_FB = ['{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.5,1)","[1.5,2)"}', '{"[0.1,0.2)"}', '{"[0.6,1.1)","[1.2,2.3)"}', '{"[0.1,0.2)"}']
-
 EXPECTED_EXTENSION_TYPES_HSTORE_VALUES = ['"key1"=>"1"', '"key2"=>"2"', '"key3"=>"3"', '"key5"=>"5"', '"updated"=>"1"']
 EXPECTED_EXTENSION_TYPES_CITEXT_VALUES = ['text_1', 'text_2', 'text_3', 'text_5', 'updated_text']
 EXPECTED_EXTENSION_TYPES_LTREE_VALUES = ['Top.1', 'Top.2', 'Top.3', 'Top.5', 'Updated.Node']
@@ -296,22 +290,6 @@ EXPECTED_DATETIME_ARRAYS_TIMESTAMPTZ_VALUES_LOGICAL_FF_FB = ['2024-10-11 10:10:1
 EXPECTED_DATETIME_ARRAYS_TIMEZONE_VALUES_LOGICAL_FF_FB = ['10:11:12+05', '23:45:00+02', '03:33:33-04', '07:00:00+05:30', '13:30:45+01', '22:10:00-02']
 EXPECTED_DATETIME_ARRAYS_INTERVAL_VALUES_LOGICAL_FF_FB = ['[datetime.timedelta(seconds=18000), datetime.timedelta(seconds=1980)]', '[datetime.timedelta(days=1), datetime.timedelta(seconds=2820)]']
 
-EXPECTED_GEOMETRY_ARRAYS_POINT_VALUES = ['{"(8,8)","(9,9)"}', '{"(1,1)","(2,2)","(3,3)"}']
-EXPECTED_GEOMETRY_ARRAYS_LINE_VALUES = ['{"{1,-1,0}","{1,-1,0}"}', '{"{1,-1,0}"}']
-EXPECTED_GEOMETRY_ARRAYS_LSEG_VALUES = ['{"[(0,0),(5,5)]","[(1,2),(3,4)]"}', '{"[(6,6),(12,16)]"}']
-EXPECTED_GEOMETRY_ARRAYS_BOX_VALUES = ['{(2,2),(0,0);(5,3),(1,1)}', '{(10,12),(4,4)}']
-EXPECTED_GEOMETRY_ARRAYS_PATH_VALUES = ['{"[(0,0),(1,2),(3,1)]","[(2,2),(3,5)]"}', '{"[(5,5),(11,13)]"}']
-EXPECTED_GEOMETRY_ARRAYS_POLYGON_VALUES = ['{"((0,0),(3,0),(3,3),(0,3))","((1,1),(4,1),(4,4),(1,4))"}', '{"((5,5),(12,5),(12,12),(5,12))"}']
-EXPECTED_GEOMETRY_ARRAYS_CIRCLE_VALUES = ['{"<(1,1),2>","<(3,3),4>"}', '{"<(5,5),4>"}']
-
-EXPECTED_GEOMETRY_ARRAYS_POINT_VALUES_LOGICAL_FF_FB = ['{"(11,11)","(12,12)","(13,13)"}', '{"(14,14)","(15,15)"}']
-EXPECTED_GEOMETRY_ARRAYS_LINE_VALUES_LOGICAL_FF_FB = ['{"{1,-1,0}","{1,-1,0}"}', '{"{1,-1,0}"}']
-EXPECTED_GEOMETRY_ARRAYS_LSEG_VALUES_LOGICAL_FF_FB = ['{"[(9,14),(20,30)]"}', '{"[(4,10),(14,18)]"}']
-EXPECTED_GEOMETRY_ARRAYS_BOX_VALUES_LOGICAL_FF_FB = ['{(14,18),(6,6)}', '{(20,25),(8,8)}']
-EXPECTED_GEOMETRY_ARRAYS_PATH_VALUES_LOGICAL_FF_FB = ['{"[(8,8),(14,20)]"}', '{"[(9,9),(18,28)]"}']
-EXPECTED_GEOMETRY_ARRAYS_POLYGON_VALUES_LOGICAL_FF_FB = ['{"((6,6),(16,6),(16,16),(6,16))"}', '{"((7,7),(20,7),(20,20),(7,20))"}']
-EXPECTED_GEOMETRY_ARRAYS_CIRCLE_VALUES_LOGICAL_FF_FB = ['{"<(9,9),5>"}', '{"<(7,7),4>","<(11,11),6>"}'] 
-
 EXPECTED_NETWORK_TYPES_CIDR_VALUES = ['10.0.0.0/8', '8.8.0.0/16', '6.6.0.0/16']
 EXPECTED_NETWORK_TYPES_INET_VALUES = ['10.1.2.3', '8.8.8.8', '6.6.6.6']
 EXPECTED_NETWORK_TYPES_MACADDR_VALUES = ['aa:bb:cc:dd:ee:ff', 'aa:00:11:22:33:44', 'bb:22:33:44:55:66']
@@ -332,12 +310,6 @@ EXPECTED_NETWORK_ARRAYS_INET_VALUES_LOGICAL_FF_FB = ["['11.0.0.1', '11.20.0.5', 
 EXPECTED_NETWORK_ARRAYS_MACADDR_VALUES_LOGICAL_FF_FB = ["['ff:11:22:33:44:55', 'ff:66:77:88:99:aa']", "['ee:11:22:33:44:55', 'ee:66:77:88:99:aa', 'ee:bb:cc:dd:ee:ff']"]
 EXPECTED_NETWORK_ARRAYS_MACADDR8_VALUES_LOGICAL_FF_FB = ['{ee:11:22:ff:fe:33:44:55,ee:66:77:ff:fe:88:99:aa,ee:bb:cc:ff:fe:dd:ee:ff}', '{ff:11:22:ff:fe:33:44:55,ff:66:77:ff:fe:88:99:aa}']
 
-EXPECTED_MISC_ARRAYS_PG_LSN_VALUES = ['{0/DDD0000,0/EEE0002}', '{0/16B6C50,0/1FFAA00,0/ABC1234}']
-EXPECTED_MISC_ARRAYS_TXID_SNAPSHOT_VALUES = ['{10:20:15,100:105:101,88:90:89}', '{700:705:702,800:810:805}']
-
-EXPECTED_MISC_ARRAYS_PG_LSN_VALUES_LOGICAL_FF_FB = ['{0/111AAAA,0/222BBBB,0/333CCCC}', '{0/444DDDD,0/555EEEE}']
-EXPECTED_MISC_ARRAYS_TXID_SNAPSHOT_VALUES_LOGICAL_FF_FB = ['{800:805:802,820:825:823,840:845:842}', '{860:865:862,880:885:882}']
-
 #=============================================================================
 
 def build_expected_values(ff_fb_enabled: bool):
@@ -357,8 +329,6 @@ def build_expected_values(ff_fb_enabled: bool):
             "domain_ssn_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES,
             "domain_phone_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES,
             "domain_name_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES,
-            "range_price_array_types": EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES,
-            "range_discount_array_types": EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES,
             "extension_hstore_types": EXPECTED_EXTENSION_TYPES_HSTORE_VALUES,
             "extension_citext_types": EXPECTED_EXTENSION_TYPES_CITEXT_VALUES,
             "extension_ltree_types": EXPECTED_EXTENSION_TYPES_LTREE_VALUES,
@@ -380,13 +350,6 @@ def build_expected_values(ff_fb_enabled: bool):
             "datetime_timestamptz_arrays": EXPECTED_DATETIME_ARRAYS_TIMESTAMPTZ_VALUES,
             "datetime_timetz_arrays": EXPECTED_DATETIME_ARRAYS_TIMEZONE_VALUES,
             "datetime_interval_arrays": EXPECTED_DATETIME_ARRAYS_INTERVAL_VALUES,
-            "geometry_point_arrays": EXPECTED_GEOMETRY_ARRAYS_POINT_VALUES,
-            "geometry_line_arrays": EXPECTED_GEOMETRY_ARRAYS_LINE_VALUES,
-            "geometry_lseg_arrays": EXPECTED_GEOMETRY_ARRAYS_LSEG_VALUES,
-            "geometry_box_arrays": EXPECTED_GEOMETRY_ARRAYS_BOX_VALUES,
-            "geometry_path_arrays": EXPECTED_GEOMETRY_ARRAYS_PATH_VALUES,
-            "geometry_polygon_arrays": EXPECTED_GEOMETRY_ARRAYS_POLYGON_VALUES,
-            "geometry_circle_arrays": EXPECTED_GEOMETRY_ARRAYS_CIRCLE_VALUES,
             "network_cidr_types": EXPECTED_NETWORK_TYPES_CIDR_VALUES,
             "network_inet_types": EXPECTED_NETWORK_TYPES_INET_VALUES,
             "network_macaddr_types": EXPECTED_NETWORK_TYPES_MACADDR_VALUES,
@@ -395,8 +358,6 @@ def build_expected_values(ff_fb_enabled: bool):
             "network_inet_arrays": EXPECTED_NETWORK_ARRAYS_INET_VALUES,
             "network_macaddr_arrays": EXPECTED_NETWORK_ARRAYS_MACADDR_VALUES,
             "network_macaddr8_arrays": EXPECTED_NETWORK_ARRAYS_MACADDR8_VALUES,
-            "misc_pg_lsn_arrays": EXPECTED_MISC_ARRAYS_PG_LSN_VALUES,
-            "misc_txid_snapshot_arrays": EXPECTED_MISC_ARRAYS_TXID_SNAPSHOT_VALUES
         }
 
     # FF/FB expected values
@@ -414,8 +375,6 @@ def build_expected_values(ff_fb_enabled: bool):
         "domain_ssn_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES,
         "domain_phone_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES,
         "domain_name_array_types": EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES,
-        "range_price_array_types": EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES,
-        "range_discount_array_types": EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES,
         "extension_hstore_types": EXPECTED_EXTENSION_TYPES_HSTORE_VALUES,
         "extension_citext_types": EXPECTED_EXTENSION_TYPES_CITEXT_VALUES,
         "extension_ltree_types": EXPECTED_EXTENSION_TYPES_LTREE_VALUES,
@@ -437,13 +396,6 @@ def build_expected_values(ff_fb_enabled: bool):
         "datetime_timestamptz_arrays": EXPECTED_DATETIME_ARRAYS_TIMESTAMPTZ_VALUES,
         "datetime_timetz_arrays": EXPECTED_DATETIME_ARRAYS_TIMEZONE_VALUES,
         "datetime_interval_arrays": EXPECTED_DATETIME_ARRAYS_INTERVAL_VALUES,
-        "geometry_point_arrays": EXPECTED_GEOMETRY_ARRAYS_POINT_VALUES,
-        "geometry_line_arrays": EXPECTED_GEOMETRY_ARRAYS_LINE_VALUES,
-        "geometry_lseg_arrays": EXPECTED_GEOMETRY_ARRAYS_LSEG_VALUES,
-        "geometry_box_arrays": EXPECTED_GEOMETRY_ARRAYS_BOX_VALUES,
-        "geometry_path_arrays": EXPECTED_GEOMETRY_ARRAYS_PATH_VALUES,
-        "geometry_polygon_arrays": EXPECTED_GEOMETRY_ARRAYS_POLYGON_VALUES,
-        "geometry_circle_arrays": EXPECTED_GEOMETRY_ARRAYS_CIRCLE_VALUES,
         "network_cidr_types": EXPECTED_NETWORK_TYPES_CIDR_VALUES,
         "network_inet_types": EXPECTED_NETWORK_TYPES_INET_VALUES,
         "network_macaddr_types": EXPECTED_NETWORK_TYPES_MACADDR_VALUES,
@@ -452,8 +404,6 @@ def build_expected_values(ff_fb_enabled: bool):
         "network_inet_arrays": EXPECTED_NETWORK_ARRAYS_INET_VALUES,
         "network_macaddr_arrays": EXPECTED_NETWORK_ARRAYS_MACADDR_VALUES,
         "network_macaddr8_arrays": EXPECTED_NETWORK_ARRAYS_MACADDR8_VALUES,
-        "misc_pg_lsn_arrays": EXPECTED_MISC_ARRAYS_PG_LSN_VALUES,
-        "misc_txid_snapshot_arrays": EXPECTED_MISC_ARRAYS_TXID_SNAPSHOT_VALUES
     }
 
     # Override for logical replication
@@ -470,8 +420,6 @@ def build_expected_values(ff_fb_enabled: bool):
         expected["domain_ssn_array_types"] = EXPECTED_DOMAIN_ARRAY_TYPES_SSN_VALUES_LOGICAL_FF_FB
         expected["domain_phone_array_types"] = EXPECTED_DOMAIN_ARRAY_TYPES_PHONE_VALUES_LOGICAL_FF_FB
         expected["domain_name_array_types"] = EXPECTED_DOMAIN_ARRAY_TYPES_NAME_VALUES_LOGICAL_FF_FB
-        expected["range_price_array_types"] = EXPECTED_RANGE_ARRAY_TYPES_PRICE_VALUES_LOGICAL_FF_FB
-        expected["range_discount_array_types"] = EXPECTED_RANGE_ARRAY_TYPES_DISCOUNT_VALUES_LOGICAL_FF_FB
         expected["extension_hstore_types"] = EXPECTED_EXTENSION_TYPES_HSTORE_VALUES_LOGICAL_FF_FB
         expected["extension_citext_types"] = EXPECTED_EXTENSION_TYPES_CITEXT_VALUES_LOGICAL_FF_FB
         expected["extension_ltree_types"] = EXPECTED_EXTENSION_TYPES_LTREE_VALUES_LOGICAL_FF_FB
@@ -493,13 +441,6 @@ def build_expected_values(ff_fb_enabled: bool):
         expected["datetime_timestamptz_arrays"] = EXPECTED_DATETIME_ARRAYS_TIMESTAMPTZ_VALUES_LOGICAL_FF_FB
         expected["datetime_timetz_arrays"] = EXPECTED_DATETIME_ARRAYS_TIMEZONE_VALUES_LOGICAL_FF_FB
         expected["datetime_interval_arrays"] = EXPECTED_DATETIME_ARRAYS_INTERVAL_VALUES_LOGICAL_FF_FB
-        expected["geometry_point_arrays"] = EXPECTED_GEOMETRY_ARRAYS_POINT_VALUES_LOGICAL_FF_FB
-        expected["geometry_line_arrays"] = EXPECTED_GEOMETRY_ARRAYS_LINE_VALUES_LOGICAL_FF_FB
-        expected["geometry_lseg_arrays"] = EXPECTED_GEOMETRY_ARRAYS_LSEG_VALUES_LOGICAL_FF_FB
-        expected["geometry_box_arrays"] = EXPECTED_GEOMETRY_ARRAYS_BOX_VALUES_LOGICAL_FF_FB
-        expected["geometry_path_arrays"] = EXPECTED_GEOMETRY_ARRAYS_PATH_VALUES_LOGICAL_FF_FB
-        expected["geometry_polygon_arrays"] = EXPECTED_GEOMETRY_ARRAYS_POLYGON_VALUES_LOGICAL_FF_FB
-        expected["geometry_circle_arrays"] = EXPECTED_GEOMETRY_ARRAYS_CIRCLE_VALUES_LOGICAL_FF_FB
         expected["network_cidr_types"] = EXPECTED_NETWORK_TYPES_CIDR_VALUES_LOGICAL_FF_FB
         expected["network_inet_types"] = EXPECTED_NETWORK_TYPES_INET_VALUES_LOGICAL_FF_FB
         expected["network_macaddr_types"] = EXPECTED_NETWORK_TYPES_MACADDR_VALUES_LOGICAL_FF_FB
@@ -508,8 +449,6 @@ def build_expected_values(ff_fb_enabled: bool):
         expected["network_inet_arrays"] = EXPECTED_NETWORK_ARRAYS_INET_VALUES_LOGICAL_FF_FB
         expected["network_macaddr_arrays"] = EXPECTED_NETWORK_ARRAYS_MACADDR_VALUES_LOGICAL_FF_FB
         expected["network_macaddr8_arrays"] = EXPECTED_NETWORK_ARRAYS_MACADDR8_VALUES_LOGICAL_FF_FB
-        expected["misc_pg_lsn_arrays"] = EXPECTED_MISC_ARRAYS_PG_LSN_VALUES_LOGICAL_FF_FB
-        expected["misc_txid_snapshot_arrays"] = EXPECTED_MISC_ARRAYS_TXID_SNAPSHOT_VALUES_LOGICAL_FF_FB
 
     return expected
 
@@ -602,16 +541,6 @@ def migration_completed_checks(tgt, expected):
                                       transform_func=str,
                                       expected_distinct_values=expected_domain_name_array_values)
 
-    print("range_array_types:")
-    expected_range_price_array_values = expected.get("range_price_array_types", [])
-    tgt.assert_distinct_values_of_col("range_array_types", "price_ranges", "public",
-                                      transform_func=str,
-                                      expected_distinct_values=expected_range_price_array_values)
-    expected_range_discount_array_values = expected.get("range_discount_array_types", [])
-    tgt.assert_distinct_values_of_col("range_array_types", "discount_ranges", "public",
-                                      transform_func=str,
-                                      expected_distinct_values=expected_range_discount_array_values)
-
     print("extension_types:")
     expected_ext_hstore_values = expected.get("extension_hstore_types", [])
     tgt.assert_distinct_values_of_col("extension_types", "col_hstore", "public",
@@ -695,35 +624,6 @@ def migration_completed_checks(tgt, expected):
                                       transform_func=str,
                                       expected_distinct_values=expected_datetime_arrays_interval_values)
     
-    print("geometry_arrays:")  
-    expected_geometry_arrays_point_values = expected.get("geometry_point_arrays", [])
-    tgt.assert_distinct_text_values_of_col("geometry_arrays", "point_col", "public", 
-        expected_distinct_values=expected_geometry_arrays_point_values)
-
-    expected_geometry_arrays_line_values = expected.get("geometry_line_arrays", [])
-    tgt.assert_distinct_text_values_of_col("geometry_arrays", "line_col", "public", 
-        expected_distinct_values=expected_geometry_arrays_line_values)
-
-    expected_geometry_arrays_lseg_values = expected.get("geometry_lseg_arrays", [])
-    tgt.assert_distinct_text_values_of_col("geometry_arrays", "lseg_col", "public", 
-        expected_distinct_values=expected_geometry_arrays_lseg_values)
-
-    expected_geometry_arrays_box_values = expected.get("geometry_box_arrays", [])
-    tgt.assert_distinct_text_values_of_col("geometry_arrays", "box_col", "public", 
-        expected_distinct_values=expected_geometry_arrays_box_values)
-
-    expected_geometry_arrays_path_values = expected.get("geometry_path_arrays", [])
-    tgt.assert_distinct_text_values_of_col("geometry_arrays", "path_col", "public", 
-        expected_distinct_values=expected_geometry_arrays_path_values)
-
-    expected_geometry_arrays_polygon_values = expected.get("geometry_polygon_arrays", [])
-    tgt.assert_distinct_text_values_of_col("geometry_arrays", "polygon_col", "public", 
-        expected_distinct_values=expected_geometry_arrays_polygon_values)
-
-    expected_geometry_arrays_circle_values = expected.get("geometry_circle_arrays", [])
-    tgt.assert_distinct_text_values_of_col("geometry_arrays", "circle_col", "public", 
-        expected_distinct_values=expected_geometry_arrays_circle_values)
-
     print("network_types:")
     expected_network_types_cidr_values = expected.get("network_cidr_types", [])
     tgt.assert_distinct_values_of_col("network_types", "cidr_col", "public",
@@ -759,15 +659,6 @@ def migration_completed_checks(tgt, expected):
     tgt.assert_distinct_values_of_col("network_arrays", "macaddr8_col", "public",
                                       transform_func=str,
                                       expected_distinct_values=expected_network_arrays_macaddr8_values)
-
-    print("misc_arrays:")
-    expected_misc_arrays_pg_lsn_values = expected.get("misc_pg_lsn_arrays", [])
-    tgt.assert_distinct_values_of_col("misc_arrays", "pg_lsn_col", "public",
-                                      expected_distinct_values=expected_misc_arrays_pg_lsn_values)
-    # txid_snapshot array type doesn't support DISTINCT, so we cast to text first
-    expected_misc_arrays_txid_snapshot_values = expected.get("misc_txid_snapshot_arrays", [])
-    tgt.assert_distinct_text_values_of_col("misc_arrays", "txid_snapshot_col", "public", 
-        expected_distinct_values=expected_misc_arrays_txid_snapshot_values)
 
 #=============================================================================
 

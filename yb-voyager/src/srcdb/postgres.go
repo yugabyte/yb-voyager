@@ -702,23 +702,32 @@ func getPgxServerCertificate(db *sql.DB) (*x509.Certificate, error) {
 	return cert, nil
 }
 
-// extractTLSCertDomain returns the registered domain named by the server's TLS certificate,
-// used in callhome to identify the organisation running the migration. The SANs are tried
-// first, then the Subject CN (older or self-signed certs often carry the name only there).
-// The certificate is usually unverified (default sslmode=prefer), so this is reported next
-// to the host's domain rather than replacing it.
+// extractTLSCertDomain returns the instance-qualified domain (<instance>.*.<domain>) named by the
+// server's TLS certificate, used in callhome to identify the organisation running the migration.
+// The SANs are tried first, then the Subject CN (older or self-signed certs often carry the name
+// only there). A name carrying an instance label wins over one without, since managed-service
+// certs (RDS, Aurora) also list wildcard SANs. The certificate is usually unverified (default
+// sslmode=prefer), so this is reported next to the host's domain rather than replacing it.
 func extractTLSCertDomain(cert *x509.Certificate) string {
-	if cert != nil {
-		names := append([]string{}, cert.DNSNames...)
-		names = append(names, cert.Subject.CommonName)
-		for _, name := range names {
-			domain := utils.RegisteredDomain(name)
-			if domain != "" {
-				return domain
-			}
+	if cert == nil {
+		return ""
+	}
+	names := append([]string{}, cert.DNSNames...)
+	names = append(names, cert.Subject.CommonName)
+	var domainWithoutInstance string
+	for _, name := range names {
+		domain := utils.InstanceQualifiedDomain(name)
+		if domain == "" {
+			continue
+		}
+		if domain != utils.RegisteredDomain(name) {
+			return domain
+		}
+		if domainWithoutInstance == "" {
+			domainWithoutInstance = domain
 		}
 	}
-	return ""
+	return domainWithoutInstance
 }
 
 func (pg *PostgreSQL) FetchTLSCertDomainName() error {
@@ -786,104 +795,12 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) getAllUserDefinedRangeTypes(tableList []sqlname.NameTuple) ([]string, error) {
-	if len(tableList) == 0 {
-		return []string{}, nil
-	}
-
-	// Build the IN clause with tuples for all tables
-	// eg: [('public', 'products'), ('public', 'users'), ('public', 'invoices')]
-	var tableTuples []string
-	for _, table := range tableList {
-		schema, name := table.ForCatalogQuery()
-		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
-	}
-	inClause := strings.Join(tableTuples, ", ")
-
-	query := fmt.Sprintf(`
-		SELECT DISTINCT
-			type_n.nspname || '.' || t.typname AS qualified_type_name
-		FROM
-			pg_attribute AS a
-		JOIN
-			pg_type AS t ON t.oid = a.atttypid
-		JOIN
-			pg_namespace AS type_n ON type_n.oid = t.typnamespace
-		JOIN
-			pg_class AS c ON c.oid = a.attrelid
-		JOIN
-			pg_namespace AS table_n ON table_n.oid = c.relnamespace
-		WHERE
-			(table_n.nspname, c.relname) IN (%s)
-			AND a.attnum > 0
-			AND t.typtype = 'r'
-		ORDER BY qualified_type_name;
-	`, inClause)
-
-	rows, err := pg.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("error in querying source database for user defined columns: %q: %w\n", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	var userDefinedRangeTypes []string
-	for rows.Next() {
-		var qualifiedTypeName string
-		err = rows.Scan(&qualifiedTypeName)
-		if err != nil {
-			return nil, fmt.Errorf("error in scanning query rows for user defined columns: %w\n", err)
-		}
-		userDefinedRangeTypes = append(userDefinedRangeTypes, qualifiedTypeName)
-	}
-	return userDefinedRangeTypes, nil
-}
-
 func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
-	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	//USER DEFINED RANGE TYPE or MULTI RANGE type datatypes are not supported by importer value converter currently
-	userDefinedRangeTypes, err := pg.getAllUserDefinedRangeTypes(tableList)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error in getting user defined range types: %w", err)
+	if !(useDebezium || isStreamingEnabled) {
+		return utils.NewStructMap[sqlname.NameTuple, []string](), utils.NewStructMap[sqlname.NameTuple, []string](), nil
 	}
-	unsupportedDatatypesList := append(PostgresUnsupportedDataTypesForDbzm, userDefinedRangeTypes...)
-	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, pg.db)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
-	}
-	for _, tableName := range tableList {
-		allTableColumnsInfo := allTablesColumnsInfo[tableName]
-		columns := allTableColumnsInfo.Columns
-		dataTypes := allTableColumnsInfo.DataTypes
-		var unsupportedColumnNames []string
-		var supportedColumnNames []string
-		for i, column := range columns {
-			if useDebezium || isStreamingEnabled {
-				// Use ContainsAnyStringFromSlice for string matching here because catalog table only contain base type names without modifiers. For example:
-				// - For VARCHAR(255), only "VARCHAR" is reported (no length/precision/scale in data_type column) in data_type column of the catalog table
-				// - For public.geometry(Point,4326), only "geometry" is reported in typename column of the catalog table
-				if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
-					unsupportedColumnNames = append(unsupportedColumnNames, column)
-				} else {
-					supportedColumnNames = append(supportedColumnNames, column)
-				}
-			}
-		}
-		if len(supportedColumnNames) == len(columns) {
-			supportedTableColumnsMap.Put(tableName, []string{"*"})
-		} else {
-			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
-			if len(unsupportedColumnNames) > 0 {
-				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
-			}
-		}
-	}
-	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+	// range and multirange values are not handled by the importer's value converter
+	return getColumnsWithSupportedTypes(pg.db, tableList, PostgresUnsupportedDataTypesForDbzm, []string{pgTypTypeRange, pgTypTypeMultirange})
 }
 
 // GetGeneratedStoredColumns returns, per table in tableList, the names of its STORED
