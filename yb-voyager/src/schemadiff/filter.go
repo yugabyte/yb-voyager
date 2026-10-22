@@ -129,7 +129,7 @@ func schemasOf(d Difference) []string {
 // derived from its identity: a table-scoped object (column/index) anchors to its
 // parent table; a TABLE anchors to itself; a top-level object (view/function) has
 // none. ok is false when there is no table anchor. Uses the side-A identity
-// (side-B for *_ADDED, where ObjectA is nil).
+// (side-B for OpAdded, where ObjectA is nil).
 func anchorTableOf(d Difference) (schemasnapshot.ObjectRef, bool) {
 	id := d.ObjectA
 	if id == nil {

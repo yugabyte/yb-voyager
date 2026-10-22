@@ -18,6 +18,7 @@ package schemadiff
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -56,7 +57,7 @@ func refPtr(schema, name string) *schemasnapshot.ObjectRef {
 }
 
 // identKey renders a finding's own identity key: side-A's key, falling back to
-// side-B for *_ADDED (where ObjectA is nil), in dbType's dialect. This is the
+// side-B for OpAdded (where ObjectA is nil), in dbType's dialect. This is the
 // direct replacement for the old pre-rendered Object.Key.
 func identKey(d Difference, dbType string) string {
 	if d.ObjectA != nil {
@@ -183,13 +184,13 @@ func TestSortDifferences_Ordering(t *testing.T) {
 
 // TestDifferenceDecompositionMatchesType verifies that every finding Diff emits
 // carries an (Operation, ObjectType, Attribute) triple consistent with its Type
-// string, and that a single rich scenario exercises all 15 V1 DiffTypes. The
+// string, and that a single rich scenario exercises every DiffType. The
 // expected facets are derived by parsing Type here — an independent oracle that
 // would disagree if any newDifference call site passed the wrong op/objtype/attr.
 func TestDifferenceDecompositionMatchesType(t *testing.T) {
 	// A matched table (OID "1") with every table attribute and a rich set of
 	// column changes, plus one dropped-only and one added-only table, so the diff
-	// spans all 15 DiffTypes.
+	// spans every DiffType.
 	tA := schemasnapshot.Table{
 		ObjectRef:         ref("s1", "t_old"),
 		ID:                "1",
@@ -201,6 +202,7 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		Columns: []schemasnapshot.Column{
 			makeColumn("s1", "t_old", "1:1", "col_keep", "integer", notNull(), withDefault("0")),
 			makeColumn("s1", "t_old", "1:2", "col_gone", "text"),
+			makeColumn("s1", "t_old", "1:4", "col_gains_not_null", "text"),
 		},
 	}
 	tB := schemasnapshot.Table{
@@ -215,6 +217,7 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 			// col "1:1" matches by ID; name+type+nullability+default all differ.
 			makeColumn("s2", "t_new", "1:1", "col_renamed", "bigint"),
 			makeColumn("s2", "t_new", "1:3", "col_added", "text"), // added
+			makeColumn("s2", "t_new", "1:4", "col_gains_not_null", "text", notNull()),
 		},
 	}
 
@@ -226,6 +229,9 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 	seen := map[DiffType]bool{}
 	for _, d := range got {
 		seen[d.Type] = true
+		if !slices.Contains(AllDiffTypes(), d.Type) {
+			t.Errorf("emitted type %s is missing from AllDiffTypes", d.Type)
+		}
 
 		wantOp, wantOT, wantAttr := expectedFacets(t, d.Type)
 		if d.Operation != wantOp {
@@ -237,20 +243,13 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		if d.Attribute != wantAttr {
 			t.Errorf("%s: Attribute=%q, want %q", d.Type, d.Attribute, wantAttr)
 		}
-		// Invariant: Attribute is set iff the finding is a *_CHANGED.
+		// Invariant: Attribute is set iff the finding is OpChanged.
 		if (d.Operation == OpChanged) != (d.Attribute != AttrNone) {
 			t.Errorf("%s: Attribute/Operation mismatch: op=%q attr=%q", d.Type, d.Operation, d.Attribute)
 		}
 	}
 
-	allTypes := []DiffType{
-		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged, TableKindChanged,
-		TablePartitionParentChanged, TablePartitionChildrenChanged, TableInheritsChanged,
-		TableInheritedByChanged,
-		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
-		ColumnNullabilityChanged, ColumnDefaultChanged,
-	}
-	for _, dt := range allTypes {
+	for _, dt := range AllDiffTypes() {
 		if !seen[dt] {
 			t.Errorf("scenario did not emit %s — decomposition for it is unverified", dt)
 		}
@@ -262,6 +261,24 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 // independent oracle; production sets these explicitly at each call site.
 func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute) {
 	t.Helper()
+	// The direction-split types name a direction, not the verb, so their suffix
+	// cannot be parsed: they are all CHANGED on the attribute they split.
+	splitTypes := map[DiffType]struct {
+		ot   ObjectType
+		attr Attribute
+	}{
+		TablePartitionAttached:  {ObjectTypeTable, AttrPartitionParent},
+		TablePartitionDetached:  {ObjectTypeTable, AttrPartitionParent},
+		TableInheritAdded:       {ObjectTypeTable, AttrInherits},
+		TableInheritRemoved:     {ObjectTypeTable, AttrInherits},
+		TableInheritedByAdded:   {ObjectTypeTable, AttrInheritedBy},
+		TableInheritedByRemoved: {ObjectTypeTable, AttrInheritedBy},
+		ColumnNotNullSet:        {ObjectTypeColumn, AttrNullability},
+		ColumnNotNullDropped:    {ObjectTypeColumn, AttrNullability},
+	}
+	if f, ok := splitTypes[dt]; ok {
+		return OpChanged, f.ot, f.attr
+	}
 	s := string(dt)
 
 	var op Operation

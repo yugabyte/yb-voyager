@@ -98,13 +98,21 @@ const LabelSourceLive = "source_live" // accepts no reason; never persisted
 
 ```go
 type DetectionConfig struct {
-	Source    Source
-	Snapshots []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
-	Scope     schemadiff.Scope                // the exact sets compared; Comparing is rendered from it
+	Source        Source
+	Snapshots     []schemasnapshot.SchemaSnapshot // oldest first; the live read, if any, is last
+	Scope         schemadiff.Scope                // the exact sets compared; Comparing is rendered from it
+	MigrationInfo MigrationInfo                   // what the migration status record says about the flow
+}
+
+type MigrationInfo struct {
+	ExportType         string    // snapshot-only, snapshot-and-changes, changes-only; "" before export data records it
+	CutoverRequestedAt time.Time // zero until cutover to target is requested
 }
 ```
 
 The complete input to `BuildReport`. Plain data, no connections or handles, so the assembler is testable with fixtures.
+
+`MigrationInfo` is what the report needs from the migration status record to place each change in a timing (§5.3). `cmd` fills it from `ExportTypeFromSource` and `CutoverTimings.ToTargetRequestedAt` of the record in the metaDB the snapshots come from. `ExportType` is empty until `export data` records it, so an empty value means "unknown flow", not "offline".
 
 `Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which holds the exact sets compared, so they are not passed separately. The report does not say whether a list flag narrowed those sets: `Scope` cannot carry that, and the listed sets already tell a reader what "no drift" covers.
 
@@ -112,7 +120,7 @@ The complete input to `BuildReport`. Plain data, no connections or handles, so t
 func BuildReport(p DetectionConfig) (Report, error)
 ```
 
-Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on. It returns an error for a finding whose identity is neither a table nor a table-scoped object: that is a new engine object kind the report does not know how to place, and emitting it with an empty object would read as a real finding on nothing.
+Walks `p.Snapshots` oldest-first, diffs each comparable pair, and assembles the report. Rules in §5.2. `Report.GeneratedAt` is stamped here from the wall clock rather than passed in: it describes the act of building the report, not the data being reported on. It returns an error for a finding whose identity is neither a table nor a table-scoped object: that is a new engine object kind the report does not know how to place, and emitting it with an empty object would read as a real finding on nothing. It also returns the error from `getDriftInfo` (§3.4) for a `DiffType` with no guidance.
 
 ### 3.4 `schemadrift` classification
 
@@ -136,14 +144,41 @@ type DriftInfo struct {
 	Action   string   `json:"action,omitempty"`
 }
 
-var infoByDiffType map[schemadiff.DiffType]DriftInfo
+type Timing string
 
-func getDriftInfo(t schemadiff.DiffType) DriftInfo
+const (
+	TimingBeforeExportData            Timing = "before_export_data"
+	TimingOfflineAfterExportStart     Timing = "offline_after_export_start"
+	TimingLiveAfterExportStart        Timing = "live_after_export_start"
+	TimingChangesOnlyAfterExportStart Timing = "changes_only_after_export_start"
+	TimingAfterCutover                Timing = "after_cutover"
+)
+
+var infoByDiffType map[schemadiff.DiffType]map[Timing]DriftInfo
+var fallBackRiskByDiffType map[schemadiff.DiffType]string // appended to Impact while a cutover with fall-back is still possible
+var afterCutoverInfo DriftInfo
+
+type situation struct {
+	Timing Timing
+	// A cutover with fall-back can still happen: live or changes-only, before cutover.
+	// Adds the type's fall-back sentence to Impact.
+	FallBackPossible bool
+}
+
+func getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)
 ```
 
-Severity and its explanatory note are one value in one map. Two parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain. `getDriftInfo` returns `SeverityAdvisory` with empty Impact and Action for a `DiffType` the map does not know.
+Severity and its explanatory note are one value, and each type's values for a timing are one `DriftInfo` in one map. Parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain.
 
-`DriftInfo` is what enriches a raw `schemadiff.Difference` into drift: what the change means for the migration in flight. It is exported and embedded in `DriftEntry` rather than copied field by field. Today `getDriftInfo` keys on the DiffType alone, so every entry of a given type carries the same three values; deriving them per finding (from the old/new values) would not change the shape.
+The Impact and Action depend on the change type AND on when the change happened (§5.3), so `infoByDiffType` is keyed by both. Every type lists `before_export_data`, `offline_after_export_start` and `live_after_export_start` explicitly; `changes_only_after_export_start` is listed only where its text differs from live. Text shared across timings is one named `DriftInfo` referenced from each timing, never copied. `getDriftInfo` applies three rules:
+
+1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type: "This change was made after cutover to target. Data already migrated to the target is not affected." It has no Action and no fall-back sentence: after cutover the source is the fall-back side, whose drift is not tracked (§1).
+2. Otherwise the type's entry for the timing. `TimingChangesOnlyAfterExportStart` with no entry of its own uses the `TimingLiveAfterExportStart` entry. No entry is an error naming the type and the timing: a new type must come with its guidance, and reporting it as advisory with no note would hide a change the report cannot explain.
+3. When `situation.FallBackPossible`, the type's sentence in `fallBackRiskByDiffType`, if any, is appended to the Impact.
+
+Each type is one `DiffType`, so the type alone says what happened. Changes whose two directions need different guidance are separate types (`COLUMN_NOT_NULL_SET` / `COLUMN_NOT_NULL_DROPPED`, §5.4), not one type plus a direction read from the old and new values.
+
+`DriftInfo` is what enriches a raw `schemadiff.Difference` into drift: what the change means for the migration in flight. It is exported and embedded in `DriftEntry` rather than copied field by field.
 
 ### 3.5 `schemadrift` renderers (\#3813)
 
@@ -178,7 +213,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
-| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.0: the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table or column names — identifiers do not go into this payload. `invoked_by` is `detect-drift` for the command, and `export-data` or `cutover-to-target` for the in-process check (§3.7). Governed by `--send-diagnostics` as everywhere else. |
+| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.1 (v1.0 before the direction-split types and timing-based severities): the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table or column names — identifiers do not go into this payload. `invoked_by` is `detect-drift` for the command, and `export-data` or `cutover-to-target` for the in-process check (§3.7). Governed by `--send-diagnostics` as everywhere else. |
 | Telemetry on failure | A run that fails before it builds a report still reports, as `ERROR` with the counts left zero: that is the population which could not use the feature at all. `error` carries `msg: "schema drift"` and the step that failed (`setup`, `connect_to_source`, `resolve_schemas`, `load_snapshots`, `capture_live_schema`, `resolve_scope`, `build_report`, `nothing_compared`, `write_reports`), never the error text, which can carry table names, patterns and paths. It follows `errs.ImportBatchError`: the run tags each failure with an `errs.SchemaDriftError` step, and callhome adds the `step` key. Callhome sets `msg` itself instead of keeping the text before the first `:`, so the console shows the cause unchanged and no wrapper can push a name into `msg`. The stack trace and any SQLSTATE still go with it. A failure before the export dir's metaDB is opened sends nothing, because the anonymizer is not set up yet. A failure after that, including one in the root pre-run, reports like any other phase, with a nil migration UUID if the UUID was never read. |
 
 ### 3.7 In-process check
@@ -195,7 +230,7 @@ type driftCheckInput struct {
 }
 ```
 
-`schema detect-drift` and the in-process callers in `export data` and `initiate cutover to target` share this function. It runs from the snapshot load through the report write. The caller owns the source connection, and `checkSchemaDrift` never connects or disconnects. It takes no lock: a standalone run at the same moment only reads metaDB and writes its own files. The returned report is nil when the run failed before one was built.
+`schema detect-drift` and the in-process callers in `export data` and `initiate cutover to target` share this function. It runs from the snapshot load through the report write. The caller owns the source connection, and `checkSchemaDrift` never connects or disconnects. It takes no lock: a standalone run at the same moment only reads metaDB and writes its own files. It reads the migration status record with `metaDB.GetMigrationStatusRecord` and passes `driftMigrationInfoFrom(msr)` to `BuildReport` (§3.3), so all three callers place changes in a timing the same way; a nil record is an error. The returned report is nil when the run failed before one was built.
 
 | Invoker | Report files under `reports/` | Notes (snapshot load, report overwrite) |
 | :---- | :---- | :---- |
@@ -306,6 +341,7 @@ One invocation of `schema detect-drift`, as the sequence of calls that carry dat
 ```
 cmd.detectDrift()
  │
+ ├─ metaDB.GetMigrationStatusRecord(), cmd.driftMigrationInfoFrom(msr) → MigrationInfo; a nil record is an error
  ├─ schemasnapshot.ListSnapshots(metaDB)                      → []SnapshotHeader         cmd → schemasnapshot
  ├─ per header: schemasnapshot.LoadSnapshotByName(metaDB, name) → *SnapshotContent | nil  cmd → schemasnapshot
  │      each becomes a schemasnapshot.SchemaSnapshot{Header, Content}
@@ -322,7 +358,8 @@ cmd.detectDrift()
  │      ├─ schemadiff.NewDiffer(Config{Scope})
  │      ├─ per comparable pair (§5.2): differ.Diff(prev, next) → []Difference            schemadrift → schemadiff
  │      ├─ phaseFor(prevCapture, nextCapture)                 → phase string                                   §5.3
- │      └─ per Difference: getDriftInfo(d.Type)               → DriftInfo, embedded in DriftEntry             §5.4
+ │      ├─ situationFor(captures, prevIdx, nextIdx, MigrationInfo) → situation                                §5.3
+ │      └─ per Difference: getDriftInfo(d.Type, situation)    → DriftInfo, embedded in DriftEntry, or error   §5.4
  │
  ├─ if Summary.ComparedIntervalCount == 0: cmd.nothingComparedError(report) → error, exit 1; no file is written   §7
  │
@@ -377,20 +414,64 @@ Unlisted pairs get `""` and the renderer shows the window alone.
 
 The exit capture's `Reason` (`cutover`, `complete`, `interrupt`, `error`) says how a run ended and is shown on the timeline; the phase says what was happening while the drift appeared. A start→exit pair is therefore "running", whatever the exit reason.
 
+**Timing.** `schemadrift.situationFor(points []CapturePoint, prevIdx, nextIdx int, m MigrationInfo) (situation, error)`, next to `phaseFor` and called once per interval, places the interval's changes in a `Timing` for the guidance lookup (§5.4). The phase is a display label; the timing also needs the flow and the cutover, so the two are computed separately. Rules in order, first match wins:
+
+| Timing | When |
+| :---- | :---- |
+| `after_cutover` | the earlier capture is an `export_data_from_source_exit` with reason `cutover`, or it was taken at or after `CutoverRequestedAt` |
+| `before_export_data` | export data has not recorded an export type yet (`ExportType` is empty: `export data` saves it before its start capture), whatever the captures are; or the first export data capture (start, periodic or exit) at or after the later capture is an `export_data_from_source_start` with reason `initial` or `clean_restart`, whatever the earlier capture is. So two `export schema` runs before `export data`, or an `export schema` re-run before a clean restart, are before export data. A `resume` start means data was already exported, even after an `export schema --start-clean`. With no export data capture at or after the later capture, the export type decides |
+| `offline_after_export_start` | `ExportType` is `snapshot-only` |
+| `changes_only_after_export_start` | `ExportType` is `changes-only` |
+| `live_after_export_start` | `ExportType` is `snapshot-and-changes` |
+
+Any other `ExportType` is an error: guessing a timing would print advice for the wrong flow.
+
+`situation.FallBackPossible` is true unless the timing is `after_cutover` or `ExportType` is `snapshot-only`: a live flow, or one whose export type is not recorded yet, can still cut over with fall-back. An interval that spans the cutover request is not `after_cutover`, because the change may have come before it.
+
+Known gap: `export data --start-clean` can change the export type (for example `snapshot-only` to `snapshot-and-changes`), while the snapshots from the earlier run stay in metaDB. `situationFor` applies the current `ExportType` to every interval, so intervals from before the restart get the new run's timing and text. This is accepted because such a restart is rare and only affects history from before it.
+
 ### 5.4 Severity
 
-**Where:** `schemadrift.getDriftInfo(t schemadiff.DiffType) DriftInfo`, backed by `infoByDiffType`, called once per `Difference` from `BuildReport`. **In:** a `DiffType`. **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action`. **Decides:** what the migration does about a change, and the note that explains it.
+**Where:** `schemadrift.getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)`, backed by `infoByDiffType`, `fallBackRiskByDiffType` and `afterCutoverInfo`, called once per `Difference` from `BuildReport`. **In:** a `DiffType` and the interval's `situation` (§5.3). **Out:** the `DriftInfo` embedded in each `DriftEntry` -- `Severity`, `Impact`, `Action` -- or an error for a type and timing with no entry. **Decides:** what the migration does about a change, and the note that explains it.
 
-| Severity | Meaning | DiffTypes |
-| :---- | :---- | :---- |
-| `breaks_migration_unrecoverable` | `export data` keeps running but cannot be restarted; the migration must restart from scratch | `TABLE_DROPPED`, `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED` |
-| `breaks_migration_recoverable` | `import data` can fail until the same DDL is applied on the target, then resumes | `COLUMN_ADDED`, `COLUMN_NAME_CHANGED`, `COLUMN_TYPE_CHANGED`, `COLUMN_NULLABILITY_CHANGED` |
-| `potential_impact` | the migration is unaffected but source and target now diverge; reconcile before cutover | `TABLE_ADDED`, `COLUMN_DROPPED`, `COLUMN_DEFAULT_CHANGED`, `TABLE_KIND_CHANGED`, `TABLE_PARTITION_PARENT_CHANGED`, `TABLE_PARTITION_CHILDREN_CHANGED` |
-| `advisory` | informational; inheritance changes and any `DiffType` the map does not know | `TABLE_INHERITS_CHANGED`, `TABLE_INHERITED_BY_CHANGED`, unknown |
+The guidance is a matrix: one entry per change type and timing. The resolution order is in §3.4: after cutover, every type gets the same advisory; changes-only uses the live text when a type has none of its own; an unknown type is an error; and the fall-back sentence is appended while a cutover with fall-back is still possible.
 
-The ordering reads backwards from a DDL point of view and that is deliberate. An added column is more severe than a dropped one because incoming rows carry a value the target cannot store, while a dropped column only leaves the target with an extra column. A dropped table is the worst case because the stored table list still expects it, so the next `export data` restart fails.
+The change types, by object:
 
-Every entry in the map carries a non-empty Impact and Action. Backticks in the text become inline code in HTML and stay literal in JSON.
+| Object | DiffTypes |
+| :---- | :---- |
+| Table | `TABLE_ADDED`, `TABLE_DROPPED`, `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED`, `TABLE_KIND_CHANGED` |
+| Partition (on the partition) | `TABLE_PARTITION_ATTACHED`, `TABLE_PARTITION_DETACHED`; a move between parents is one of each |
+| Partition (on the parent) | `TABLE_PARTITION_CHILDREN_CHANGED` |
+| Inheritance (on the child) | `TABLE_INHERIT_ADDED`, `TABLE_INHERIT_REMOVED`: at most one of each, listing the parents added or removed |
+| Inheritance (on the parent) | `TABLE_INHERITED_BY_ADDED`, `TABLE_INHERITED_BY_REMOVED`: at most one of each, listing the children added or removed |
+| Column | `COLUMN_ADDED`, `COLUMN_DROPPED`, `COLUMN_NAME_CHANGED`, `COLUMN_TYPE_CHANGED`, `COLUMN_NOT_NULL_SET`, `COLUMN_NOT_NULL_DROPPED`, `COLUMN_DEFAULT_CHANGED` |
+
+Partition and inheritance links name the other table, but are compared by its OID when tables are matched by OID: renaming or moving a parent or child is reported only on that table, not as a detach and attach on every linked table.
+
+The split partition, inheritance and NOT NULL types keep `Operation` `CHANGED` and their attribute (`PARTITION_PARENT`, `INHERITS`, `INHERITED_BY`, `NULLABILITY`), so they render as before. A partition finding carries the one parent it is about, and an inheritance finding the list of parents or children added or removed: the old value for a detach or removal, the new value for an attach or addition, the other side empty. A NOT NULL finding carries the old and new nullability.
+
+Severity by change and timing (changes-only has the live severity; after cutover every type is `advisory`). The exact Impact and Action text is in `infoByDiffType` in `schemadrift`, and in the Addendum B design doc (DB-23869).
+
+| DiffType | Before export data | Offline, after export data started | Live, after export data started |
+| :---- | :---- | :---- | :---- |
+| `TABLE_DROPPED` | `advisory` | `advisory` | `breaks_migration_unrecoverable` |
+| `TABLE_NAME_CHANGED`, `TABLE_SCHEMA_CHANGED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `TABLE_ADDED` | `breaks_migration_recoverable` | `advisory` | `advisory` |
+| `COLUMN_ADDED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_recoverable` |
+| `COLUMN_DROPPED`, `COLUMN_TYPE_CHANGED`, `COLUMN_DEFAULT_CHANGED`, `TABLE_KIND_CHANGED` | `potential_impact` | `potential_impact` | `potential_impact` |
+| `COLUMN_NAME_CHANGED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `COLUMN_NOT_NULL_DROPPED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_recoverable` |
+| `COLUMN_NOT_NULL_SET`, `TABLE_PARTITION_CHILDREN_CHANGED`, `TABLE_INHERIT_REMOVED`, `TABLE_INHERITED_BY_REMOVED` | `advisory` | `advisory` | `advisory` |
+| `TABLE_PARTITION_ATTACHED` | `breaks_migration_recoverable` | `potential_impact` | `potential_impact` |
+| `TABLE_PARTITION_DETACHED` | `potential_impact` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `TABLE_INHERIT_ADDED`, `TABLE_INHERITED_BY_ADDED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
+
+Recoverable means the target can be fixed within this migration and `import data` run again. Unrecoverable means `--start-clean`, a new migration, or a separate migration for the affected rows is needed; this includes rows that are silently not migrated. `TABLE_KIND_CHANGED` never fires on PostgreSQL (making a table partitioned is a drop plus an add), so its text is not part of the verified set.
+
+Severity is about what the migration does, not how alarming the DDL is. An added column is more severe than a dropped one because incoming rows carry a value the target cannot store, while a dropped column only leaves the target with an extra column.
+
+Every entry in `infoByDiffType` carries a non-empty Severity, Impact and Action. Backticks in the text become inline code in HTML and stay literal in JSON.
 
 ### 5.5 Table universe and scope resolution
 
@@ -486,15 +567,15 @@ The SSL certificate and key paths in the migration status record are host paths.
 
 Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
 
-| Flow | Captures | detect-drift | Notes |
-| :---- | :---- | :---- | :---- |
-| Offline | export schema, export data start / periodic / exit(complete) | covered |  |
-| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | Cutover to target runs the pre-check of §5.8 before its prompt. |
-| Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
-| Live with fall-forward | same as fall-back | same |  |
-| Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered |  |
-| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. Cutover to target's pre-check (§5.8) also runs per iteration, against that iteration's metaDB: DDL applied before the iteration's first capture is not reported. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
-| Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | Oracle and MySQL are non-goals (§1). |
+| Flow | Captures | detect-drift | Timing after `export data` starts (§5.3) | Notes |
+| :---- | :---- | :---- | :---- | :---- |
+| Offline | export schema, export data start / periodic / exit(complete) | covered | `offline_after_export_start` |  |
+| Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | `live_after_export_start`; `after_cutover` from the exit(cutover) capture or the cutover request | Cutover to target runs the pre-check of §5.8 before its prompt. |
+| Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | as live; a type's fall-back sentence is appended before cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
+| Live with fall-forward | same as fall-back | same | as fall-back |  |
+| Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered | `changes_only_after_export_start`, which uses the live text where a type has none of its own; `after_cutover` as live |  |
+| Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | from the migration status record of the metaDB the snapshots come from | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. Cutover to target's pre-check (§5.8) also runs per iteration, against that iteration's metaDB: DDL applied before the iteration's first capture is not reported. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
+| Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | n/a | Oracle and MySQL are non-goals (§1). |
 
 ## 7\. Failure modes
 
@@ -509,7 +590,8 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Live capture fails or the source is unreachable | error, exit 1; no report is written | The live read covers drift since the last stored snapshot. A report without it can show no drift while the source has drifted, and a script reading `summary.change_count` would not notice. |
 | One stored snapshot, and the live read makes it a pair | warning; report covers that single interval | Not an error: one stored capture plus the live read is a real interval. Zero stored snapshots gets no warning, because it can never form an interval and always lands on the row below. |
 | No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
-| `DiffType` not in the classification map | `advisory`, no Impact or Action, note omitted in the render | Dropping the change would hide it. |
+| `DiffType` with no guidance entry | error, exit 1 (§3.4) | Reporting it as advisory with no note would show a change the report cannot explain. A test fails when a `DiffType` has no entry, so only a coding error reaches this. |
+| The migration status record is missing | error, exit 1 | Without it the report cannot place a change in a timing, and guessing one would print advice for the wrong flow. |
 | The cutover pre-check cannot run (§5.8) | cutover fails, exit 1, and names `--skip-pre-checks schema_drift` | A pre-check that silently passes reads as "no drift" just before the user commits to the target. |
 | The check on export failure fails (§5.7) | one line, export exit code unchanged | The export's own error is the failure. The check is best effort, like capture. |
 | The HTML renderer meets a state it cannot display (§3.5) | error, exit 1 | Rendering past it drops or misprints a finding in a report that still looks complete. |
@@ -529,6 +611,8 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Narrowing to a subset of the captured schemas | filter findings after diffing | project each snapshot's content first | Projection turns a cross-schema move into a false `TABLE_DROPPED` (§3.1). |
 | Severity and note | one struct in one map | parallel maps keyed by `DiffType` | Parallel maps drift silently. A test asserts every mapped type has a note. |
 | Severity semantics | what the migration does | how alarming the DDL is | The user's question is "is my migration broken", not "was this a big change". |
+| Guidance key | change type and timing | change type alone | The right advice depends on when the change happened: a table dropped before `export data` is not part of the migration, one dropped during a live export makes a restart fail. |
+| Direction of a change | one `DiffType` per direction (`COLUMN_NOT_NULL_SET` / `_DROPPED`, attached / detached, added / removed) | one type, with the direction read from the old and new values | The two directions need different guidance, and the type alone then says what happened, in the report and in callhome's `drifts_by_type`. |
 | Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
 | Live capture failure | error, exit 1 | warn and report history alone | Connecting and listing the source's tables both precede the capture, so a source that is down already fails the run. What is left is a capture that failed on a reachable source, and a report missing the newest interval reads as "no drift". |
 | Report formats | `--output-format` takes one value; unset writes both | a comma-separated list | Matches `analyze-schema`. With both as the default, a list only lets a user spell out the default. |
