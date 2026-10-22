@@ -91,8 +91,7 @@ func Diff(a, b *schemasnapshot.SnapshotContent) []Difference {
 // sortDifferences sorts a slice of Difference values in place by a deterministic
 // key: the finding's side-A identity key (side-B for OpAdded, where ObjectA is
 // nil), then Type. Grouping columns under their table still holds because
-// "public.orders" < "public.orders.email". The sort is stable so findings with
-// the same key and type keep the order they were emitted in.
+// "public.orders" < "public.orders.email".
 func sortDifferences(diffs []Difference, dbTypeA, dbTypeB string) {
 	keyOf := func(d Difference) string {
 		if d.ObjectA != nil {
@@ -100,7 +99,7 @@ func sortDifferences(diffs []Difference, dbTypeA, dbTypeB string) {
 		}
 		return d.ObjectB.ForKey(dbTypeB)
 	}
-	sort.SliceStable(diffs, func(i, j int) bool {
+	sort.Slice(diffs, func(i, j int) bool {
 		ki, kj := keyOf(diffs[i]), keyOf(diffs[j])
 		if ki != kj {
 			return ki < kj

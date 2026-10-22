@@ -778,17 +778,34 @@ func TestSituationFor(t *testing.T) {
 	}
 }
 
-// Two export schema runs are before export data even once export data has
-// recorded its export type, because the export data start follows them.
-func TestSituationFor_ExportSchemaRerunBeforeExportData(t *testing.T) {
-	points := []CapturePoint{
-		{Label: schemasnapshot.LabelExportSchema, CapturedAt: t1()},
-		{Label: schemasnapshot.LabelExportSchema, CapturedAt: t2()},
-		{Label: schemasnapshot.LabelExportDataFromSourceStart, Reason: schemasnapshot.ReasonInitial, CapturedAt: t3()},
+// An interval between two export schema runs is before export data only when the
+// first export data capture after it is an initial or clean-restart start: a
+// resumed start means data was already exported.
+func TestSituationFor_ExportSchemaRerunLookAhead(t *testing.T) {
+	es := CapturePoint{Label: schemasnapshot.LabelExportSchema}
+	start := func(reason string) CapturePoint {
+		return CapturePoint{Label: schemasnapshot.LabelExportDataFromSourceStart, Reason: reason}
 	}
-	got, err := situationFor(points, 0, 1, MigrationInfo{ExportType: "snapshot-and-changes"})
-	require.NoError(t, err)
-	assert.Equal(t, situation{Timing: TimingBeforeExportData, FallBackPossible: true}, got)
+	tests := []struct {
+		name   string
+		points []CapturePoint
+		want   Timing
+	}{
+		{"then initial start", []CapturePoint{es, es, start(schemasnapshot.ReasonInitial)}, TimingBeforeExportData},
+		{"then clean-restart start", []CapturePoint{es, es, start(schemasnapshot.ReasonCleanRestart)}, TimingBeforeExportData},
+		{"then resumed start", []CapturePoint{es, es, start(schemasnapshot.ReasonResume)}, TimingLiveAfterExportStart},
+		{"nothing follows", []CapturePoint{es, es}, TimingLiveAfterExportStart},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := situationFor(tt.points, 0, 1, MigrationInfo{ExportType: "snapshot-and-changes"})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got.Timing)
+		})
+	}
+
+	_, err := situationFor([]CapturePoint{es, es}, 0, 1, MigrationInfo{ExportType: "bogus"})
+	require.ErrorContains(t, err, `unknown export type "bogus"`)
 }
 
 func TestBuildReport_AfterCutoverIntervalGetsTheAdvisory(t *testing.T) {

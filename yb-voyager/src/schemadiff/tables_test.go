@@ -355,6 +355,56 @@ func TestDiffTables_PartitionParentChanges(t *testing.T) {
 	}
 }
 
+// The parent is in both snapshots with the same OID, so links to it compare by
+// OID: renaming or moving it reports only on the parent, never a detach/attach
+// or remove/add on each child.
+func TestDiffTables_LinkedParentRenamedOrMoved(t *testing.T) {
+	tests := []struct {
+		name      string
+		oldParent schemasnapshot.ObjectRef
+		newParent schemasnapshot.ObjectRef
+		kind      schemasnapshot.TableKind
+		link      func(parent, child *schemasnapshot.Table, parentRef, childRef schemasnapshot.ObjectRef)
+		want      Difference
+	}{
+		{
+			name:      "partitioned parent renamed",
+			oldParent: ref("public", "events"),
+			newParent: ref("public", "events_v2"),
+			kind:      schemasnapshot.TableKindPartitioned,
+			link: func(parent, child *schemasnapshot.Table, parentRef, childRef schemasnapshot.ObjectRef) {
+				parent.PartitionChildren = []schemasnapshot.ObjectRef{childRef}
+				child.PartitionParent = &parentRef
+			},
+			want: newDifference(TableNameChanged, OpChanged, ObjectTypeTable, AttrName, ref("public", "events"), ref("public", "events_v2"), "events", "events_v2"),
+		},
+		{
+			name:      "inheritance parent moved to another schema",
+			oldParent: ref("public", "base"),
+			newParent: ref("s2", "base"),
+			kind:      schemasnapshot.TableKindOrdinary,
+			link: func(parent, child *schemasnapshot.Table, parentRef, childRef schemasnapshot.ObjectRef) {
+				parent.InheritedBy = []schemasnapshot.ObjectRef{childRef}
+				child.InheritsFrom = []schemasnapshot.ObjectRef{parentRef}
+			},
+			want: newDifference(TableSchemaChanged, OpChanged, ObjectTypeTable, AttrSchema, ref("public", "base"), ref("s2", "base"), "public", "s2"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			childRef := ref("public", "child")
+			snap := func(parentRef schemasnapshot.ObjectRef) *schemasnapshot.SnapshotContent {
+				parent := makeTable("1", parentRef.Schema, parentRef.Name, tt.kind)
+				child := makeTable("2", childRef.Schema, childRef.Name, schemasnapshot.TableKindOrdinary)
+				tt.link(&parent, &child, parentRef, childRef)
+				return snapWithTables(parent, child)
+			}
+
+			assert.Equal(t, []Difference{tt.want}, Diff(snap(tt.oldParent), snap(tt.newParent)))
+		})
+	}
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Test: PartitionChildren changed — add member, remove member, order-insensitive
 // ──────────────────────────────────────────────────────────────────────────────
