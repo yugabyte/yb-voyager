@@ -4158,7 +4158,7 @@ func getNonASCIIUnderCLocaleTestConfig(dbName string) *TestConfig {
 		SourceDeltaSQL: []string{
 			`INSERT INTO test_schema.non_ascii_text VALUES
 				(4, 'Ångström Æsir Øl', 'हिन्दी', 'ไทย', '{"k": "Ünïcödé"}', 'très_bien', '"ключ"=>"значение"', ARRAY['한국어']),
-				(5, 'zero‍width‌joiners', '中文字符', 'ß', '{"🙂": "😀"}', '🙂', '"ß"=>"ẞ"', ARRAY['ß', 'ẞ']);`,
+				(5, 'zero` + "\u200d" + `width` + "\u200c" + `joiners', '中文字符', 'ß', '{"🙂": "😀"}', '🙂', '"ß"=>"ẞ"', ARRAY['ß', 'ẞ']);`,
 			`UPDATE test_schema.non_ascii_text SET txt = 'mis à jour l''été 🎉', mood = '幸せ', hs = '"clé"=>"nouvelle"' WHERE id = 1;`,
 			`UPDATE test_schema.non_ascii_text SET vc = 'Ελλάδα', js = '{"город": "Москва"}', arr = ARRAY['новый', '😀'] WHERE id = 2;`,
 			`DELETE FROM test_schema.non_ascii_text WHERE id = 3;`,
@@ -4180,6 +4180,7 @@ func getNonASCIIUnderCLocaleTestConfig(dbName string) *TestConfig {
 // requireJVMDefaultCharsetIsNotUTF8 fails the test when the C locale still gives the JVM a UTF-8
 // default charset (e.g. JDK 18+), because the locale test would then pass without exercising anything.
 func requireJVMDefaultCharsetIsNotUTF8(t *testing.T, env []string) {
+	t.Helper()
 	javaBinary := "java"
 	if javaHome := os.Getenv("JAVA_HOME"); javaHome != "" {
 		javaBinary = filepath.Join(javaHome, "bin", "java")
@@ -4198,9 +4199,6 @@ func requireJVMDefaultCharsetIsNotUTF8(t *testing.T, env []string) {
 // Debezium export when the host locale is C, whose JVM default charset (JDK 17) is ASCII.
 // Both voyager processes run under the C locale: export data starts the forward Debezium, and
 // import data later execs export data from target, so the fall-back Debezium inherits it too.
-// Every row mixes multibyte text across text, varchar, char, jsonb, enum, hstore and text[],
-// so a default-charset writer or decoder anywhere in the snapshot or CDC path would turn those
-// characters into '?' and fail the source/target comparison.
 func TestLiveMigrationWithNonASCIIDataUnderCLocaleAndFallback(t *testing.T) {
 	t.Parallel()
 	requireJVMDefaultCharsetIsNotUTF8(t, cLocaleEnv)

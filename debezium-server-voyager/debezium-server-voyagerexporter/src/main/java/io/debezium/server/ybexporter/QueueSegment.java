@@ -94,6 +94,8 @@ public class QueueSegment {
         try {
             String cdcJson = ow.writeValueAsString(generateCdcMessageForRecord(r)) + "\n";
             writer.write(cdcJson);
+            // Counts UTF-16 chars, not bytes, to avoid a per-event byte[] copy, so segments with multibyte data
+            // can overshoot queueSegmentMaxBytes. Resume is unaffected: the committed size comes from Files.size().
             byteCount += cdcJson.length();
             updateStats(r);
         }
