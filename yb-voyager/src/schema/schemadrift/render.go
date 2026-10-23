@@ -523,6 +523,33 @@ func severityLabel(sev Severity) (string, error) {
 	return s, nil
 }
 
+// ownKeyAndIndexDefs lists the definitions of a table's own keys, checks and indexes.
+// Partition and inheritance copies are left out: the parent's definition covers them.
+func ownKeyAndIndexDefs(t schemasnapshot.Table) []string {
+	var defs []string
+	if t.PrimaryKey != nil && !t.PrimaryKey.FromParent {
+		defs = append(defs, t.PrimaryKey.Definition)
+	}
+	for _, constraints := range [][]schemasnapshot.Constraint{t.UniqueKeys, t.Checks, t.ForeignKeys} {
+		for _, c := range constraints {
+			if !c.FromParent {
+				defs = append(defs, c.Definition)
+			}
+		}
+	}
+	for _, idx := range t.UniqueIndexes {
+		if !idx.FromParent {
+			defs = append(defs, "UNIQUE INDEX "+idx.Definition)
+		}
+	}
+	for _, idx := range t.Indexes {
+		if !idx.FromParent {
+			defs = append(defs, "INDEX "+idx.Definition)
+		}
+	}
+	return defs
+}
+
 // stringifyValue renders a DriftEntry.OldValue/NewValue (an `any` whose
 // dynamic type tracks attribute, per Difference's field docs) as display
 // text:
@@ -535,9 +562,10 @@ func severityLabel(sev Severity) (string, error) {
 //   - schemasnapshot.Column                    -> the column's definition
 //     (COLUMN_ADDED/DROPPED's whole added/dropped column), e.g.
 //     "integer NOT NULL DEFAULT 0"
-//   - schemasnapshot.Table                     -> the table's full column list
-//     (TABLE_ADDED/DROPPED's whole added/dropped table), e.g.
-//     "id integer NOT NULL, email text"; "no columns" when it has none
+//   - schemasnapshot.Table                     -> the table's full column list, then its
+//     own keys, checks and indexes (TABLE_ADDED/DROPPED's whole added/dropped table),
+//     e.g. "id integer NOT NULL, email text; PRIMARY KEY (id); INDEX USING btree (email)";
+//     "no columns" when it has none
 //   - anything else                          -> an error
 func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (string, error) {
 	switch v := value.(type) {
@@ -567,14 +595,15 @@ func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (s
 	case schemasnapshot.Column:
 		return stringifyColumnDef(v), nil
 	case schemasnapshot.Table:
-		if len(v.Columns) == 0 {
-			return "no columns", nil
+		columns := "no columns"
+		if len(v.Columns) > 0 {
+			parts := make([]string, len(v.Columns))
+			for i, c := range v.Columns {
+				parts[i] = minQuoted(c.Name, dbType) + " " + stringifyColumnDef(c)
+			}
+			columns = strings.Join(parts, ", ")
 		}
-		parts := make([]string, len(v.Columns))
-		for i, c := range v.Columns {
-			parts[i] = minQuoted(c.Name, dbType) + " " + stringifyColumnDef(c)
-		}
-		return strings.Join(parts, ", "), nil
+		return strings.Join(append([]string{columns}, ownKeyAndIndexDefs(v)...), "; "), nil
 	default:
 		return "", goerrors.Errorf("unexpected value type %T for attribute %q", value, attribute)
 	}
