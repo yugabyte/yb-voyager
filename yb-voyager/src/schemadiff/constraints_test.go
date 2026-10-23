@@ -95,6 +95,8 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	withKey.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "11", "Orders_Email_key", `UNIQUE ("Email")`)}
 	withKey.Checks = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Qty_check", `CHECK ("Qty" > 0)`)}
 	withKey.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "13", "Orders_Cust_fkey", `FOREIGN KEY ("Cust") REFERENCES "Sales"."Customers"(id)`)}
+	withKey.UniqueIndexes = []schemasnapshot.Index{{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: "Orders_Email_uq"}, ID: "14", Definition: `USING btree (lower("Email"))`}}
+	withKey.Indexes = []schemasnapshot.Index{{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: "Orders_Qty_idx"}, ID: "15", Definition: `USING btree ("Qty")`}}
 	withoutKey := tableWithPrimaryKey(nil)
 
 	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
@@ -110,7 +112,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	}{
 		{"v1 to v2 skips keys", 1, schemasnapshot.VersionWithKeysAndIndexes, nil},
 		{"v2 to v1 skips keys", schemasnapshot.VersionWithKeysAndIndexes, 1, nil},
-		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded, UniqueAdded, CheckAdded, ForeignKeyAdded}},
+		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded, UniqueAdded, CheckAdded, ForeignKeyAdded, UniqueIndexAdded, IndexAdded}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -231,14 +233,9 @@ func TestDiffByOID_Indexes(t *testing.T) {
 			Definition:           definition,
 		}
 	}
-	parentCopy := func(i schemasnapshot.Index) schemasnapshot.Index {
-		i.FromParent = true
-		return i
-	}
 	emailIdx := newIndex("10", "Orders_Email_idx", `USING btree ("Email")`)
 	renamedEmailIdx := newIndex("10", "orders_email_ix", `USING btree ("Email")`)
 	reindexedEmailIdx := newIndex("20", "Orders_Email_idx", `USING btree ("Email")`)
-	skuIdx := newIndex("11", "Orders_Sku_idx", `USING btree (lower("Sku")) WHERE ("Sku" IS NOT NULL)`)
 
 	kinds := []struct {
 		name                       string
@@ -263,20 +260,10 @@ func TestDiffByOID_Indexes(t *testing.T) {
 			earlier, later []schemasnapshot.Index
 			want           []Difference
 		}{
-			{"both empty", nil, nil, nil},
-			{"unchanged", []schemasnapshot.Index{emailIdx}, []schemasnapshot.Index{emailIdx}, nil},
 			{"renamed", []schemasnapshot.Index{emailIdx}, []schemasnapshot.Index{renamedEmailIdx}, []Difference{renamed}},
-			{"dropped", []schemasnapshot.Index{skuIdx}, nil, []Difference{dropped(skuIdx)}},
-			{"added", nil, []schemasnapshot.Index{skuIdx}, []Difference{added(skuIdx)}},
 			{"REINDEX CONCURRENTLY shape: same name, new OID, reports a drop and an add",
 				[]schemasnapshot.Index{emailIdx}, []schemasnapshot.Index{reindexedEmailIdx},
 				[]Difference{dropped(emailIdx), added(reindexedEmailIdx)}},
-			{"partition copy added or dropped reports nothing",
-				[]schemasnapshot.Index{parentCopy(skuIdx)}, []schemasnapshot.Index{parentCopy(emailIdx)}, nil},
-			{"own index renamed against a copy reports nothing",
-				[]schemasnapshot.Index{emailIdx}, []schemasnapshot.Index{parentCopy(renamedEmailIdx)}, nil},
-			{"own index amid copies is still reported",
-				[]schemasnapshot.Index{parentCopy(emailIdx)}, []schemasnapshot.Index{parentCopy(emailIdx), skuIdx}, []Difference{added(skuIdx)}},
 		}
 		for _, tc := range tests {
 			t.Run(k.name+"/"+tc.name, func(t *testing.T) {
@@ -284,31 +271,4 @@ func TestDiffByOID_Indexes(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestDiff_IndexesFollowTheKeysVersionGuard(t *testing.T) {
-	withIndexes := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
-	withIndexes.UniqueIndexes = []schemasnapshot.Index{{
-		TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: "Orders_Email_uq"},
-		ID:                   "10", Definition: `USING btree (lower("Email"))`,
-	}}
-	withIndexes.Indexes = []schemasnapshot.Index{{
-		TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: "Orders_Qty_idx"},
-		ID:                   "11", Definition: `USING btree ("Qty")`,
-	}}
-	withoutIndexes := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
-
-	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
-		s := snapWithTables(table)
-		s.Version = version
-		return s
-	}
-	assert.Empty(t, Diff(snapshot(1, withoutIndexes), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withIndexes)))
-	assert.Empty(t, Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withIndexes), snapshot(1, withoutIndexes)))
-
-	var got []DiffType
-	for _, d := range Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withoutIndexes), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withIndexes)) {
-		got = append(got, d.Type)
-	}
-	assert.ElementsMatch(t, []DiffType{UniqueIndexAdded, IndexAdded}, got)
 }

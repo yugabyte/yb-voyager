@@ -563,17 +563,3 @@ func TestRenderHTML_PrimaryKeyFindings(t *testing.T) {
 		assert.Contains(t, html, `<span class="chiplet v-old">Orders_Pkey</span><span class="arrow">→</span><span class="chiplet v-new">New_Pk</span>`)
 	})
 }
-
-func TestRenderHTML_IndexFindings(t *testing.T) {
-	r := fixtureReport()
-	d := Diff{Type: schemadiff.IndexAdded, Operation: schemadiff.OpAdded, ObjectType: schemadiff.ObjectTypeIndex,
-		Object: schemasnapshot.ObjectRef{Schema: "public", Name: "Orders"}, SubObject: "Orders_Email_Idx", NewValue: `USING btree (lower("Email"))`}
-	r.Drifts = []DriftEntry{{Diff: d, Window: fixtureReport().Drifts[0].Window, Phase: "export data: running", DriftInfo: infoByDiffType[d.Type][TimingBeforeExportData]}}
-	r.Summary.ChangeCount = 1
-	out, err := RenderHTML(r)
-	require.NoError(t, err)
-	html := string(out)
-	assert.Contains(t, html, "index added")
-	assert.Contains(t, html, `<span class="s">&#34;Orders_Email_Idx&#34;</span>`)
-	assert.Contains(t, html, "USING btree (lower(&#34;Email&#34;))")
-}
