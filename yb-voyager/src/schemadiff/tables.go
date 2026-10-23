@@ -112,12 +112,12 @@ func compareMatchedTables(dbTypeA, dbTypeB string, compareKeys bool, linkKeyA, l
 		diffs = append(diffs, diffColumnsIn(tA.Columns, tB.Columns, dbTypeA, dbTypeB)...)
 
 		if compareKeys {
-			diffs = append(diffs, diffPrimaryKey(tA, tB)...)
-			diffs = append(diffs, diffByOID(tA.UniqueKeys, tB.UniqueKeys, constraintRef, uniqueTypes)...)
-			diffs = append(diffs, diffByOID(tA.Checks, tB.Checks, constraintRef, checkTypes)...)
-			diffs = append(diffs, diffByOID(tA.ForeignKeys, tB.ForeignKeys, constraintRef, foreignKeyTypes)...)
-			diffs = append(diffs, diffByOID(tA.UniqueIndexes, tB.UniqueIndexes, indexRef, uniqueIndexTypes)...)
-			diffs = append(diffs, diffByOID(tA.Indexes, tB.Indexes, indexRef, indexTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(primaryKeyAsSlice(tA.PrimaryKey), primaryKeyAsSlice(tB.PrimaryKey), constraintRef, primaryKeyTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.UniqueKeys, tB.UniqueKeys, constraintRef, uniqueTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.Checks, tB.Checks, constraintRef, checkTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.ForeignKeys, tB.ForeignKeys, constraintRef, foreignKeyTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.UniqueIndexes, tB.UniqueIndexes, indexRef, uniqueIndexTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.Indexes, tB.Indexes, indexRef, indexTypes)...)
 		}
 
 		return diffs

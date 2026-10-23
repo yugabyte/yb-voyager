@@ -83,7 +83,7 @@ func TestDiffPrimaryKey(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := diffPrimaryKey(tableWithPrimaryKey(tc.a), tableWithPrimaryKey(tc.b))
+			got := diffConstraintsOrIndexes(primaryKeyAsSlice(tc.a), primaryKeyAsSlice(tc.b), constraintRef, primaryKeyTypes)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -141,7 +141,7 @@ func TestFilterByScope_PrimaryKeyFindingAnchorsToItsTable(t *testing.T) {
 	assert.Empty(t, FilterByScope(diffs, scope(ref("public", "Orders"), ObjectTypeTable)))
 }
 
-func TestDiffByOID(t *testing.T) {
+func TestDiffConstraintsOrIndexes(t *testing.T) {
 	newKey := func(id, name, definition string) schemasnapshot.Constraint {
 		return *makePrimaryKey("public", "Orders", id, name, definition)
 	}
@@ -184,22 +184,22 @@ func TestDiffByOID(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, diffByOID(tc.earlier, tc.later, constraintRef, uniqueTypes))
+			assert.Equal(t, tc.want, diffConstraintsOrIndexes(tc.earlier, tc.later, constraintRef, uniqueTypes))
 		})
 	}
 
 	t.Run("check types carry their own DiffTypes", func(t *testing.T) {
-		got := diffByOID(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
+		got := diffConstraintsOrIndexes(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
 		assert.Equal(t, CheckAdded, got[0].Type)
 	})
 
 	t.Run("foreign key types carry their own DiffTypes", func(t *testing.T) {
-		got := diffByOID(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, foreignKeyTypes)
+		got := diffConstraintsOrIndexes(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, foreignKeyTypes)
 		assert.Equal(t, ForeignKeyAdded, got[0].Type)
 	})
 }
 
-func TestDiffByOID_ForeignKeys(t *testing.T) {
+func TestDiffConstraintsOrIndexes_ForeignKeys(t *testing.T) {
 	newFK := func(id, name, definition string) schemasnapshot.Constraint {
 		return *makePrimaryKey("public", "Orders", id, name, definition)
 	}
@@ -215,17 +215,17 @@ func TestDiffByOID_ForeignKeys(t *testing.T) {
 	t.Run("copies added and dropped next to an own foreign key report nothing", func(t *testing.T) {
 		earlier := []schemasnapshot.Constraint{ownFK, copyA, copyB}
 		later := []schemasnapshot.Constraint{ownFK, copyB, copyC}
-		assert.Empty(t, diffByOID(earlier, later, constraintRef, foreignKeyTypes))
+		assert.Empty(t, diffConstraintsOrIndexes(earlier, later, constraintRef, foreignKeyTypes))
 	})
 
 	t.Run("an own foreign key is still reported amid copies", func(t *testing.T) {
-		got := diffByOID([]schemasnapshot.Constraint{copyA}, []schemasnapshot.Constraint{ownFK, copyB}, constraintRef, foreignKeyTypes)
+		got := diffConstraintsOrIndexes([]schemasnapshot.Constraint{copyA}, []schemasnapshot.Constraint{ownFK, copyB}, constraintRef, foreignKeyTypes)
 		want := []Difference{{Type: ForeignKeyAdded, Operation: OpAdded, ObjectType: ObjectTypeConstraint, ObjectB: ownFK.TableScopedObjectRef, SideBValue: ownFK.Definition}}
 		assert.Equal(t, want, got)
 	})
 }
 
-func TestDiffByOID_Indexes(t *testing.T) {
+func TestDiffConstraintsOrIndexes_Indexes(t *testing.T) {
 	newIndex := func(id, name, definition string) schemasnapshot.Index {
 		return schemasnapshot.Index{
 			TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: name},
@@ -267,7 +267,7 @@ func TestDiffByOID_Indexes(t *testing.T) {
 		}
 		for _, tc := range tests {
 			t.Run(k.name+"/"+tc.name, func(t *testing.T) {
-				assert.Equal(t, tc.want, diffByOID(tc.earlier, tc.later, indexRef, k.types))
+				assert.Equal(t, tc.want, diffConstraintsOrIndexes(tc.earlier, tc.later, indexRef, k.types))
 			})
 		}
 	}
