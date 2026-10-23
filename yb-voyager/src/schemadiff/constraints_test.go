@@ -83,7 +83,7 @@ func TestDiffPrimaryKey(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := diffPrimaryKey(tableWithPrimaryKey(tc.a), tableWithPrimaryKey(tc.b))
+			got := diffConstraintsOrIndexes(primaryKeyAsSlice(tc.a), primaryKeyAsSlice(tc.b), constraintRef, primaryKeyTypes)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -138,7 +138,7 @@ func TestFilterByScope_PrimaryKeyFindingAnchorsToItsTable(t *testing.T) {
 	assert.Empty(t, FilterByScope(diffs, scope(ref("public", "Orders"), ObjectTypeTable)))
 }
 
-func TestDiffByOID(t *testing.T) {
+func TestDiffConstraintsOrIndexes(t *testing.T) {
 	newKey := func(id, name, definition string) schemasnapshot.Constraint {
 		return *makePrimaryKey("public", "Orders", id, name, definition)
 	}
@@ -181,12 +181,12 @@ func TestDiffByOID(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, diffByOID(tc.earlier, tc.later, constraintRef, uniqueTypes))
+			assert.Equal(t, tc.want, diffConstraintsOrIndexes(tc.earlier, tc.later, constraintRef, uniqueTypes))
 		})
 	}
 
 	t.Run("check types carry their own DiffTypes", func(t *testing.T) {
-		got := diffByOID(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
+		got := diffConstraintsOrIndexes(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
 		assert.Equal(t, CheckAdded, got[0].Type)
 	})
 }
