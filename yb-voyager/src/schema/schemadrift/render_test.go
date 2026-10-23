@@ -468,6 +468,11 @@ func TestRenderHTML_RejectsReportsItCannotDisplay(t *testing.T) {
 			wantErr: "CONSTRAINT finding on public.orders has no object name",
 		},
 		{
+			name:    "an index finding without an index",
+			breakIt: func(r *Report) { r.Drifts[1].ObjectType = schemadiff.ObjectTypeIndex; r.Drifts[1].SubObject = "" },
+			wantErr: "INDEX finding on public.orders has no object name",
+		},
+		{
 			name:    "a finding without an object name",
 			breakIt: func(r *Report) { r.Drifts[0].Object.Name = "" },
 			wantErr: "has an empty schema or name",
@@ -579,4 +584,18 @@ func TestRenderHTML_UniqueAndCheckFindings(t *testing.T) {
 	assert.Contains(t, html, "UNIQUE (&#34;Email&#34;)")
 	assert.Contains(t, html, "check dropped")
 	assert.NotContains(t, html, "CHECK ((")
+}
+
+func TestRenderHTML_IndexFindings(t *testing.T) {
+	r := fixtureReport()
+	d := Diff{Type: schemadiff.IndexAdded, Operation: schemadiff.OpAdded, ObjectType: schemadiff.ObjectTypeIndex,
+		Object: schemasnapshot.ObjectRef{Schema: "public", Name: "Orders"}, SubObject: "Orders_Email_Idx", NewValue: `USING btree (lower("Email"))`}
+	r.Drifts = []DriftEntry{{Diff: d, Window: fixtureReport().Drifts[0].Window, Phase: "export data: running", DriftInfo: infoByDiffType[d.Type][TimingBeforeExportData]}}
+	r.Summary.ChangeCount = 1
+	out, err := RenderHTML(r)
+	require.NoError(t, err)
+	html := string(out)
+	assert.Contains(t, html, "index added")
+	assert.Contains(t, html, `<span class="s">&#34;Orders_Email_Idx&#34;</span>`)
+	assert.Contains(t, html, "USING btree (lower(&#34;Email&#34;))")
 }

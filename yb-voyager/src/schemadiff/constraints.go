@@ -29,6 +29,9 @@ var (
 	uniqueTypes     = kindTypes{UniqueAdded, UniqueDropped, UniqueNameChanged, ObjectTypeConstraint}
 	checkTypes      = kindTypes{CheckAdded, CheckDropped, CheckNameChanged, ObjectTypeConstraint}
 	foreignKeyTypes = kindTypes{ForeignKeyAdded, ForeignKeyDropped, ForeignKeyNameChanged, ObjectTypeConstraint}
+
+	uniqueIndexTypes = kindTypes{UniqueIndexAdded, UniqueIndexDropped, UniqueIndexNameChanged, ObjectTypeIndex}
+	indexTypes       = kindTypes{IndexAdded, IndexDropped, IndexNameChanged, ObjectTypeIndex}
 )
 
 // objectRef is what the diff reads of a constraint or index; generic code cannot
@@ -42,6 +45,10 @@ type objectRef struct {
 
 func constraintRef(c schemasnapshot.Constraint) objectRef {
 	return objectRef{ID: c.ID, Ref: c.TableScopedObjectRef, Definition: c.Definition, FromParent: c.FromParent}
+}
+
+func indexRef(i schemasnapshot.Index) objectRef {
+	return objectRef{ID: i.ID, Ref: i.TableScopedObjectRef, Definition: i.Definition, FromParent: i.FromParent}
 }
 
 // ownConstraint returns the table's own constraint: nil for none, and for a copy
@@ -59,7 +66,7 @@ func ownConstraint(c *schemasnapshot.Constraint) *schemasnapshot.Constraint {
 func diffPrimaryKey(tA, tB schemasnapshot.Table) []Difference {
 	keyA, keyB := tA.PrimaryKey, tB.PrimaryKey
 	if keyA != nil && keyB != nil && keyA.ID == keyB.ID {
-		return diffMatchedConstraint(primaryKeyTypes, constraintRef(*keyA), constraintRef(*keyB))
+		return diffMatchedByOID(primaryKeyTypes, constraintRef(*keyA), constraintRef(*keyB))
 	}
 
 	var diffs []Difference
@@ -88,7 +95,7 @@ func diffByOID[T schemasnapshot.Constraint | schemasnapshot.Index](earlier, late
 		rEarlier := toRef(item)
 		earlierIDs[rEarlier.ID] = struct{}{}
 		if rLater, ok := laterByID[rEarlier.ID]; ok {
-			diffs = append(diffs, diffMatchedConstraint(types, rEarlier, rLater)...)
+			diffs = append(diffs, diffMatchedByOID(types, rEarlier, rLater)...)
 			continue
 		}
 		if !rEarlier.FromParent {
@@ -113,10 +120,10 @@ func addedDifference(types kindTypes, r objectRef) Difference {
 	return newDifference(types.added, OpAdded, types.objectType, AttrNone, nil, r.Ref, nil, r.Definition)
 }
 
-// diffMatchedConstraint reports a rename of a constraint present on both sides under
+// diffMatchedByOID reports a rename of a constraint or index present on both sides under
 // one OID. A copy on either side reports nothing: renaming the parent's object renames
 // its copies, and attaching, detaching and inheriting have table-level findings.
-func diffMatchedConstraint(types kindTypes, a, b objectRef) []Difference {
+func diffMatchedByOID(types kindTypes, a, b objectRef) []Difference {
 	if a.FromParent || b.FromParent || a.Ref.Name == b.Ref.Name {
 		return nil
 	}

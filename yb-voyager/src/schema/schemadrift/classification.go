@@ -325,15 +325,50 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 		TimingOfflineAfterExportStart: keyNameChangedInfo,
 		TimingLiveAfterExportStart:    keyNameChangedInfo,
 	},
+	schemadiff.UniqueIndexAdded: {
+		TimingBeforeExportData:        uniqueAddedInfo,
+		TimingOfflineAfterExportStart: uniqueAddedInfo,
+		TimingLiveAfterExportStart:    uniqueAddedInfo,
+	},
+	schemadiff.UniqueIndexDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: uniqueDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingLiveAfterExportStart: uniqueDroppedLiveInfo,
+	},
+	schemadiff.UniqueIndexNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
+	schemadiff.IndexAdded: {
+		TimingBeforeExportData:        indexChangedInfo,
+		TimingOfflineAfterExportStart: indexChangedInfo,
+		TimingLiveAfterExportStart:    indexChangedInfo,
+	},
+	schemadiff.IndexDropped: {
+		TimingBeforeExportData:        indexChangedInfo,
+		TimingOfflineAfterExportStart: indexChangedInfo,
+		TimingLiveAfterExportStart:    indexChangedInfo,
+	},
+	schemadiff.IndexNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
 }
 
 // Appended to Impact while a cutover with fall-back is still possible.
 var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
-	schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
-	schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
-	schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
-	schemadiff.ForeignKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first row from the target that breaks it, and refuses to start at all if its user can't turn foreign-key checks off on the source.",
-	schemadiff.PrimaryKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
+	schemadiff.ColumnDropped:    "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+	schemadiff.UniqueAdded:      uniqueAddedFallBackRisk,
+	schemadiff.UniqueIndexAdded: uniqueAddedFallBackRisk,
+	schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+	schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first row from the target that breaks it, and refuses to start at all if its user can't turn foreign-key checks off on the source.",
+	schemadiff.PrimaryKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
 }
 
 // Shared by several timings or change types.
@@ -398,21 +433,25 @@ var (
 
 	uniqueAddedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`import data` is not affected.",
-		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique constraints only when it starts, so with the new one missing, the first write that frees and reuses a value stops it."}
+		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it."}
 
-	uniqueDroppedImpact = "The source now allows duplicate values, and the target still has the constraint, so `import data` fails on the first duplicate."
+	uniqueDroppedImpact = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` fails on the first duplicate."
 
 	uniqueDroppedLiveInfo = DriftInfo{Severity: SeverityBreaksRecoverable,
-		Impact: "The source now allows duplicate values, and the target still has the constraint, so `import data` stops at the first duplicate value.",
+		Impact: "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` stops at the first duplicate value.",
 		Action: "Drop it on the target, then run `import data` again."}
 
-	uniqueAddedFallBackRisk = "If you cut over with fall-back while the target doesn't have this constraint, `import data to source` stops at the first row from the target that breaks it."
+	uniqueAddedFallBackRisk = "If you cut over with fall-back while the target doesn't have it, `import data to source` stops at the first row from the target that breaks it."
 
 	checkAddedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`import data` is not affected.",
 		Action: "Add it on the target to keep the schemas the same."}
 
 	checkDroppedImpact = "The source now allows rows the target's check rejects, so `import data` fails on the first one."
+
+	indexChangedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "Only query speed is affected. `export data` and `import data` are not.",
+		Action: "Make the same change on the target."}
 
 	foreignKeyAddedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`import data` is not affected, because foreign-key checks are off on the target while it loads.",

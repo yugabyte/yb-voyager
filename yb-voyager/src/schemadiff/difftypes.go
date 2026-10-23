@@ -57,6 +57,14 @@ const (
 	ForeignKeyAdded       DiffType = "FOREIGN_KEY_ADDED"
 	ForeignKeyDropped     DiffType = "FOREIGN_KEY_DROPPED"
 	ForeignKeyNameChanged DiffType = "FOREIGN_KEY_NAME_CHANGED"
+
+	// Index findings.
+	UniqueIndexAdded       DiffType = "UNIQUE_INDEX_ADDED"
+	UniqueIndexDropped     DiffType = "UNIQUE_INDEX_DROPPED"
+	UniqueIndexNameChanged DiffType = "UNIQUE_INDEX_NAME_CHANGED"
+	IndexAdded             DiffType = "INDEX_ADDED"
+	IndexDropped           DiffType = "INDEX_DROPPED"
+	IndexNameChanged       DiffType = "INDEX_NAME_CHANGED"
 )
 
 // AllDiffTypes returns every DiffType the engine can emit, so consumers keyed by
@@ -72,6 +80,8 @@ func AllDiffTypes() []DiffType {
 		UniqueAdded, UniqueDropped, UniqueNameChanged,
 		CheckAdded, CheckDropped, CheckNameChanged,
 		ForeignKeyAdded, ForeignKeyDropped, ForeignKeyNameChanged,
+		UniqueIndexAdded, UniqueIndexDropped, UniqueIndexNameChanged,
+		IndexAdded, IndexDropped, IndexNameChanged,
 	}
 }
 
@@ -108,10 +118,10 @@ const (
 	// key constraints as their findings land. Like COLUMN, it anchors to its host table
 	// for --table-list.
 	ObjectTypeConstraint ObjectType = "CONSTRAINT"
-	// Not yet emitted by the diff engine — uncomment each as its findings land
-	// (INDEX is its own selector but stays anchored to its host table for
-	// --table-list, like COLUMN):
-	// ObjectTypeIndex    ObjectType = "INDEX"
+	// ObjectTypeIndex is its own selector but stays anchored to its host table for
+	// --table-list, like COLUMN.
+	ObjectTypeIndex ObjectType = "INDEX"
+	// Not yet emitted by the diff engine — uncomment each as its findings land:
 	// ObjectTypeSequence ObjectType = "SEQUENCE"
 	// ObjectTypeView     ObjectType = "VIEW"
 	// ObjectTypeFunction ObjectType = "FUNCTION"

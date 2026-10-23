@@ -246,8 +246,20 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		tbl.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "41", "fk_new", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makePrimaryKey("s1", "uq", "43", "fk_added", "FOREIGN KEY (c) REFERENCES s1.p(id)")}
 	})
 
-	a := snapWithTables(tA, uniqueA, pkDroppedA, pkAddedA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
-	b := snapWithTables(tB, uniqueB, pkDroppedB, pkAddedB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
+	mkIndex := func(table, id, name, definition string) schemasnapshot.Index {
+		return schemasnapshot.Index{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("s1", table), Name: name}, ID: id, Definition: definition}
+	}
+	indexA := withKeys("7", "ix", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueIndexes = []schemasnapshot.Index{mkIndex("ix", "51", "uix_old", "USING btree (a)"), mkIndex("ix", "52", "uix_dropped", "USING btree (b)")}
+		tbl.Indexes = []schemasnapshot.Index{mkIndex("ix", "61", "ix_old", "USING btree (a)"), mkIndex("ix", "62", "ix_dropped", "USING btree (b)")}
+	})
+	indexB := withKeys("7", "ix", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueIndexes = []schemasnapshot.Index{mkIndex("ix", "51", "uix_new", "USING btree (a)"), mkIndex("ix", "53", "uix_added", "USING btree (c)")}
+		tbl.Indexes = []schemasnapshot.Index{mkIndex("ix", "61", "ix_new", "USING btree (a)"), mkIndex("ix", "63", "ix_added", "USING btree (c)")}
+	})
+
+	a := snapWithTables(tA, uniqueA, indexA, pkDroppedA, pkAddedA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(tB, uniqueB, indexB, pkDroppedB, pkAddedB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
 	a.Version = schemasnapshot.VersionWithKeysAndIndexes
 	b.Version = schemasnapshot.VersionWithKeysAndIndexes
 
@@ -327,9 +339,11 @@ func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute
 		{"TABLE_", ObjectTypeTable},
 		{"COLUMN_", ObjectTypeColumn},
 		{"PRIMARY_KEY_", ObjectTypeConstraint},
+		{"UNIQUE_INDEX_", ObjectTypeIndex},
 		{"UNIQUE_", ObjectTypeConstraint},
 		{"CHECK_", ObjectTypeConstraint},
 		{"FOREIGN_KEY_", ObjectTypeConstraint},
+		{"INDEX_", ObjectTypeIndex},
 	}
 	var ot ObjectType
 	rest := ""
