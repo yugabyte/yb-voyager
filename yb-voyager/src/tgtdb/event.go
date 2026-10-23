@@ -459,7 +459,7 @@ func (event *Event) getPreparedInsertStmt(tdb TargetDB, targetDBType string, use
 	for pos, key := range keys {
 		column, err := tdb.QuoteAttributeName(event.TableNameTup, key)
 		if err != nil {
-			panic(fmt.Errorf("quote column name %s: %w", column, err))
+			return "", fmt.Errorf("quote column name %s: %w", key, err)
 		}
 		columnList = append(columnList, column)
 		valueList = append(valueList, fmt.Sprintf("$%d", pos+1))
