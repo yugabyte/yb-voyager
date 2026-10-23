@@ -2544,7 +2544,7 @@ func getPartitionTableToRootTableMap(queryFn func(query string) (*sql.Rows, erro
 		FROM pg_class t
 		JOIN pg_namespace n ON t.relnamespace = n.oid
 		WHERE t.relkind IN ('r', 'p')  -- regular tables and partitioned tables
-		
+		AND t.relispartition
 		UNION ALL
 		
 		-- Recursive case: if current table has a parent, traverse up
