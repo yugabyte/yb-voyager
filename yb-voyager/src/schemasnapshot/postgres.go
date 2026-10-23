@@ -25,6 +25,8 @@ import (
 	"fmt"
 	"strings"
 
+	goerrors "github.com/go-errors/errors"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
@@ -259,7 +261,7 @@ func attachConstraints(tables []Table, rows []constraintRow) error {
 		switch r.contype {
 		case "p":
 			if tbl.PrimaryKey != nil {
-				return fmt.Errorf("table %s.%s has two primary keys: %q and %q",
+				return goerrors.Errorf("table %s.%s has two primary keys: %q and %q",
 					tbl.Schema, tbl.Name, tbl.PrimaryKey.Name, con.Name)
 			}
 			tbl.PrimaryKey = &con
@@ -270,7 +272,7 @@ func attachConstraints(tables []Table, rows []constraintRow) error {
 		case "f":
 			tbl.ForeignKeys = append(tbl.ForeignKeys, con)
 		default:
-			return fmt.Errorf("constraint %q on table %s.%s has unexpected contype %q",
+			return goerrors.Errorf("constraint %q on table %s.%s has unexpected contype %q",
 				con.Name, tbl.Schema, tbl.Name, r.contype)
 		}
 	}
@@ -562,7 +564,7 @@ func stripIndexDefPrefix(indexDef, quotedName, tableRegclass string, isUnique bo
 	if rest, ok := strings.CutPrefix(indexDef, onlyPrefix); ok {
 		return rest, nil
 	}
-	return "", fmt.Errorf("index %s: definition %q does not start with %q or %q",
+	return "", goerrors.Errorf("index %s: definition %q does not start with %q or %q",
 		quotedName, indexDef, prefix, onlyPrefix)
 }
 
