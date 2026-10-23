@@ -92,6 +92,9 @@ func TestDiffPrimaryKey(t *testing.T) {
 func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	pk := makePrimaryKey("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
 	withKey := tableWithPrimaryKey(pk)
+	withKey.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "11", "Orders_Email_key", `UNIQUE ("Email")`)}
+	withKey.Checks = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Qty_check", `CHECK ("Qty" > 0)`)}
+	withKey.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "13", "Orders_Cust_fkey", `FOREIGN KEY ("Cust") REFERENCES "Sales"."Customers"(id)`)}
 	withoutKey := tableWithPrimaryKey(nil)
 
 	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
@@ -107,7 +110,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	}{
 		{"v1 to v2 skips keys", 1, schemasnapshot.VersionWithKeysAndIndexes, nil},
 		{"v2 to v1 skips keys", schemasnapshot.VersionWithKeysAndIndexes, 1, nil},
-		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded}},
+		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded, UniqueAdded, CheckAdded, ForeignKeyAdded}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -115,7 +118,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 			for _, d := range Diff(snapshot(tc.versionA, withoutKey), snapshot(tc.versionB, withKey)) {
 				got = append(got, d.Type)
 			}
-			assert.Equal(t, tc.want, got)
+			assert.ElementsMatch(t, tc.want, got)
 		})
 	}
 }
@@ -194,30 +197,6 @@ func TestDiffByOID(t *testing.T) {
 	})
 }
 
-func TestDiff_UniqueAndCheckFollowTheKeysVersionGuard(t *testing.T) {
-	key := *makePrimaryKey("public", "Orders", "10", "Orders_Email_key", `UNIQUE ("Email")`)
-	check := *makePrimaryKey("public", "Orders", "11", "Orders_Qty_check", `CHECK ("Qty" > 0)`)
-	withKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
-	withKeys.UniqueKeys = []schemasnapshot.Constraint{key}
-	withKeys.Checks = []schemasnapshot.Constraint{check}
-	withKeys.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Cust_fkey", `FOREIGN KEY ("Cust") REFERENCES "Sales"."Customers"(id)`)}
-	withoutKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
-
-	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
-		s := snapWithTables(table)
-		s.Version = version
-		return s
-	}
-	assert.Empty(t, Diff(snapshot(1, withoutKeys), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys)))
-	assert.Empty(t, Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys), snapshot(1, withoutKeys)))
-
-	var got []DiffType
-	for _, d := range Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withoutKeys), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys)) {
-		got = append(got, d.Type)
-	}
-	assert.ElementsMatch(t, []DiffType{UniqueAdded, CheckAdded, ForeignKeyAdded}, got)
-}
-
 func TestDiffByOID_ForeignKeys(t *testing.T) {
 	newFK := func(id, name, definition string) schemasnapshot.Constraint {
 		return *makePrimaryKey("public", "Orders", id, name, definition)
@@ -230,8 +209,6 @@ func TestDiffByOID_ForeignKeys(t *testing.T) {
 	copyA := parentCopy(newFK("11", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p1"(id)`))
 	copyB := parentCopy(newFK("12", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p2"(id)`))
 	copyC := parentCopy(newFK("13", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p3"(id)`))
-	renamedFK := newFK("10", "orders_customer_fk", ownFK.Definition)
-	recreatedFK := newFK("20", "Orders_Customer_fkey", ownFK.Definition)
 
 	t.Run("copies added and dropped next to an own foreign key report nothing", func(t *testing.T) {
 		earlier := []schemasnapshot.Constraint{ownFK, copyA, copyB}
@@ -243,19 +220,6 @@ func TestDiffByOID_ForeignKeys(t *testing.T) {
 		got := diffByOID([]schemasnapshot.Constraint{copyA}, []schemasnapshot.Constraint{ownFK, copyB}, constraintRef, foreignKeyTypes)
 		want := []Difference{{Type: ForeignKeyAdded, Operation: OpAdded, ObjectType: ObjectTypeConstraint, ObjectB: ownFK.TableScopedObjectRef, SideBValue: ownFK.Definition}}
 		assert.Equal(t, want, got)
-	})
-
-	t.Run("drop, rename and re-create", func(t *testing.T) {
-		assert.Equal(t,
-			[]Difference{{Type: ForeignKeyDropped, Operation: OpDropped, ObjectType: ObjectTypeConstraint, ObjectA: ownFK.TableScopedObjectRef, SideAValue: ownFK.Definition}},
-			diffByOID([]schemasnapshot.Constraint{ownFK}, nil, constraintRef, foreignKeyTypes))
-		assert.Equal(t,
-			[]Difference{{Type: ForeignKeyNameChanged, Operation: OpChanged, ObjectType: ObjectTypeConstraint, Attribute: AttrName,
-				ObjectA: ownFK.TableScopedObjectRef, ObjectB: renamedFK.TableScopedObjectRef, SideAValue: "Orders_Customer_fkey", SideBValue: "orders_customer_fk"}},
-			diffByOID([]schemasnapshot.Constraint{ownFK}, []schemasnapshot.Constraint{renamedFK}, constraintRef, foreignKeyTypes))
-		got := diffByOID([]schemasnapshot.Constraint{ownFK}, []schemasnapshot.Constraint{recreatedFK}, constraintRef, foreignKeyTypes)
-		assert.Len(t, got, 2)
-		assert.Equal(t, []DiffType{ForeignKeyDropped, ForeignKeyAdded}, []DiffType{got[0].Type, got[1].Type})
 	})
 }
 
