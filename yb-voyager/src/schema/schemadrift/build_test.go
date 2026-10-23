@@ -751,33 +751,54 @@ func TestSituationFor(t *testing.T) {
 		for j, next := range situationNexts {
 			for _, exportType := range situationExports {
 				for _, cutover := range cutovers {
-					for _, fallForward := range []bool{false, true} {
-						name := fmt.Sprintf("%s->%s/%q/%s/fall-forward=%t", prev.name, next.name, exportType, cutover.name, fallForward)
-						t.Run(name, func(t *testing.T) {
-							var want Timing
-							switch cell := cells[j]; {
-							case cell == "C" || cutover.movesToC:
-								want = TimingAfterCutover
-							case cell == "B", exportType == "":
-								want = TimingBeforeExportData
-							default:
-								want = afterExportStart[exportType]
-							}
-							got, err := situationFor([]CapturePoint{
-								{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
-								{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
-							}, 0, 1, MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt, FallForwardEnabled: fallForward})
-							require.NoError(t, err)
-							assert.Equal(t, situation{
-								Timing:              want,
-								FallBackPossible:    want != TimingAfterCutover && exportType != "snapshot-only",
-								FallForwardPossible: want != TimingAfterCutover && fallForward,
-							}, got)
-						})
-					}
+					name := fmt.Sprintf("%s->%s/%q/%s", prev.name, next.name, exportType, cutover.name)
+					t.Run(name, func(t *testing.T) {
+						var want Timing
+						switch cell := cells[j]; {
+						case cell == "C" || cutover.movesToC:
+							want = TimingAfterCutover
+						case cell == "B", exportType == "":
+							want = TimingBeforeExportData
+						default:
+							want = afterExportStart[exportType]
+						}
+						got, err := situationFor([]CapturePoint{
+							{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
+							{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
+						}, 0, 1, MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt})
+						require.NoError(t, err)
+						assert.Equal(t, situation{
+							Timing:           want,
+							FallBackPossible: want != TimingAfterCutover && exportType != "snapshot-only",
+						}, got)
+					})
 				}
 			}
 		}
+	}
+}
+
+func TestSituationFor_FallForwardOnlyBeforeCutover(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	points := []CapturePoint{
+		{Label: schemasnapshot.LabelExportDataFromSourceStart, Reason: schemasnapshot.ReasonInitial, CapturedAt: start},
+		{Label: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: start.Add(time.Hour)},
+	}
+	tests := []struct {
+		name               string
+		m                  MigrationInfo
+		wantFallForwardSet bool
+	}{
+		{"fall-forward in use before cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true}, true},
+		{"fall-forward in use after cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true, CutoverRequestedAt: start.Add(-time.Minute)}, false},
+		{"fall-forward not in use", MigrationInfo{ExportType: "snapshot-and-changes"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := situationFor(points, 0, 1, tt.m)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFallForwardSet, got.FallForwardPossible)
+		})
 	}
 }
 
