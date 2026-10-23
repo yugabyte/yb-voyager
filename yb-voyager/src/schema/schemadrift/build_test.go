@@ -751,27 +751,30 @@ func TestSituationFor(t *testing.T) {
 		for j, next := range situationNexts {
 			for _, exportType := range situationExports {
 				for _, cutover := range cutovers {
-					name := fmt.Sprintf("%s->%s/%q/%s", prev.name, next.name, exportType, cutover.name)
-					t.Run(name, func(t *testing.T) {
-						var want Timing
-						switch cell := cells[j]; {
-						case cell == "C" || cutover.movesToC:
-							want = TimingAfterCutover
-						case cell == "B", exportType == "":
-							want = TimingBeforeExportData
-						default:
-							want = afterExportStart[exportType]
-						}
-						got, err := situationFor([]CapturePoint{
-							{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
-							{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
-						}, 0, 1, MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt})
-						require.NoError(t, err)
-						assert.Equal(t, situation{
-							Timing:           want,
-							FallBackPossible: want != TimingAfterCutover && exportType != "snapshot-only",
-						}, got)
-					})
+					for _, fallForward := range []bool{false, true} {
+						name := fmt.Sprintf("%s->%s/%q/%s/fall-forward=%t", prev.name, next.name, exportType, cutover.name, fallForward)
+						t.Run(name, func(t *testing.T) {
+							var want Timing
+							switch cell := cells[j]; {
+							case cell == "C" || cutover.movesToC:
+								want = TimingAfterCutover
+							case cell == "B", exportType == "":
+								want = TimingBeforeExportData
+							default:
+								want = afterExportStart[exportType]
+							}
+							got, err := situationFor([]CapturePoint{
+								{Label: prev.label, Reason: prev.reason, CapturedAt: prevAt},
+								{Label: next.label, Reason: next.reason, CapturedAt: nextAt},
+							}, 0, 1, MigrationInfo{ExportType: exportType, CutoverRequestedAt: cutover.requestedAt, FallForwardEnabled: fallForward})
+							require.NoError(t, err)
+							assert.Equal(t, situation{
+								Timing:              want,
+								FallBackPossible:    want != TimingAfterCutover && exportType != "snapshot-only",
+								FallForwardPossible: want != TimingAfterCutover && fallForward,
+							}, got)
+						})
+					}
 				}
 			}
 		}

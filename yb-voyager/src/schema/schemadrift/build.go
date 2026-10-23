@@ -47,6 +47,8 @@ type MigrationInfo struct {
 	// "" until export data records it.
 	ExportType         string
 	CutoverRequestedAt time.Time // zero until cutover to target is requested
+	// Set once import data to source-replica has run.
+	FallForwardEnabled bool
 }
 
 type situation struct {
@@ -54,6 +56,9 @@ type situation struct {
 	// A cutover with fall-back can still happen: live or changes-only, before cutover.
 	// Adds the type's fall-back sentence to Impact.
 	FallBackPossible bool
+	// Fall-forward is in use and cutover has not happened. Adds the type's
+	// fall-forward sentence to Action.
+	FallForwardPossible bool
 }
 
 // BuildReport assembles a Report from p, comparing each usable snapshot to the
@@ -224,8 +229,9 @@ func situationFor(points []CapturePoint, prevIdx, nextIdx int, m MigrationInfo) 
 		return situation{}, err
 	}
 	return situation{
-		Timing:           timing,
-		FallBackPossible: timing != TimingAfterCutover && m.ExportType != utils.SNAPSHOT_ONLY,
+		Timing:              timing,
+		FallBackPossible:    timing != TimingAfterCutover && m.ExportType != utils.SNAPSHOT_ONLY,
+		FallForwardPossible: timing != TimingAfterCutover && m.FallForwardEnabled,
 	}, nil
 }
 

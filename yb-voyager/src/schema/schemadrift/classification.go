@@ -70,6 +70,9 @@ func getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error) {
 	if risk, ok := fallBackRiskByDiffType[t]; ok && s.FallBackPossible {
 		info.Impact += " " + risk
 	}
+	if action, ok := fallForwardActionByDiffType[t]; ok && s.FallForwardPossible {
+		info.Action += " " + action
+	}
 	return info, nil
 }
 
@@ -369,6 +372,23 @@ var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
 	schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
 	schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first row from the target that breaks it, and refuses to start at all if its user can't turn foreign-key checks off on the source.",
 	schemadiff.PrimaryKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
+}
+
+const fallForwardAction = "Fall-forward is in use, so make the same change on the source-replica too."
+
+// Appended to Action while fall-forward is in use and cutover has not happened.
+// TABLE_PARTITION_CHILDREN_CHANGED has none: its Action points at each partition's own
+// entry, which carries the sentence.
+var fallForwardActionByDiffType = fallForwardActions()
+
+func fallForwardActions() map[schemadiff.DiffType]string {
+	actions := make(map[schemadiff.DiffType]string)
+	for _, t := range schemadiff.AllDiffTypes() {
+		if t != schemadiff.TablePartitionChildrenChanged {
+			actions[t] = fallForwardAction
+		}
+	}
+	return actions
 }
 
 // Shared by several timings or change types.
