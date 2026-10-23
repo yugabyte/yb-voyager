@@ -43,6 +43,11 @@ const (
 	ColumnNotNullSet     DiffType = "COLUMN_NOT_NULL_SET"
 	ColumnNotNullDropped DiffType = "COLUMN_NOT_NULL_DROPPED"
 	ColumnDefaultChanged DiffType = "COLUMN_DEFAULT_CHANGED"
+
+	// Key findings.
+	PrimaryKeyAdded       DiffType = "PRIMARY_KEY_ADDED"
+	PrimaryKeyDropped     DiffType = "PRIMARY_KEY_DROPPED"
+	PrimaryKeyNameChanged DiffType = "PRIMARY_KEY_NAME_CHANGED"
 )
 
 // AllDiffTypes returns every DiffType the engine can emit, so consumers keyed by
@@ -54,6 +59,7 @@ func AllDiffTypes() []DiffType {
 		TableInheritAdded, TableInheritRemoved, TableInheritedByAdded, TableInheritedByRemoved,
 		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
 		ColumnNotNullSet, ColumnNotNullDropped, ColumnDefaultChanged,
+		PrimaryKeyAdded, PrimaryKeyDropped, PrimaryKeyNameChanged,
 	}
 }
 
@@ -86,6 +92,10 @@ type ObjectType string
 const (
 	ObjectTypeTable  ObjectType = "TABLE"
 	ObjectTypeColumn ObjectType = "COLUMN"
+	// ObjectTypeConstraint covers primary keys now, and the unique, check and foreign
+	// key constraints as their findings land. Like COLUMN, it anchors to its host table
+	// for --table-list.
+	ObjectTypeConstraint ObjectType = "CONSTRAINT"
 	// Not yet emitted by the diff engine — uncomment each as its findings land
 	// (INDEX is its own selector but stays anchored to its host table for
 	// --table-list, like COLUMN):

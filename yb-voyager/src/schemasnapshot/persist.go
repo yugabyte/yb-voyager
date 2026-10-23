@@ -27,7 +27,11 @@ import (
 )
 
 // currentSnapshotVersion is the snapshot JSON version this library understands.
-const currentSnapshotVersion = 2
+const currentSnapshotVersion = VersionWithKeysAndIndexes
+
+// VersionWithKeysAndIndexes is the first snapshot version that captures keys, checks
+// and indexes; an earlier snapshot holds tables and columns only.
+const VersionWithKeysAndIndexes = 2
 
 // Sentinel errors returned by LoadSnapshotByName.
 var (

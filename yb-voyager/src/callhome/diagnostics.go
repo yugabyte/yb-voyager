@@ -511,8 +511,9 @@ type ArchiveChangesPhasePayload struct {
 Version History
 1.0: Initial version
 1.1: drifts_by_type keys use the direction-split types (e.g. COLUMN_NOT_NULL_SET / _DROPPED); drifts_by_severity counts each change's severity for when it happened
+1.2: drifts_by_type gains key, check and index types; object_types gains CONSTRAINT and INDEX
 */
-var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.1"
+var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.2"
 
 // SchemaDriftPhasePayload reports what a `schema detect-drift` run examined and
 // found. Counts and histograms only: schema, table and column names are

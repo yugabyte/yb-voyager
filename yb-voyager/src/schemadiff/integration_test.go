@@ -68,6 +68,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`.base_y (a int)`,
 		`CREATE TABLE `+driftSchema+`.base_z (a int)`,
 		`CREATE TABLE `+driftSchema+`.kid (a int) INHERITS (`+driftSchema+`.base_x, `+driftSchema+`.base_y)`,
+		`CREATE TABLE `+driftSchema+`."Pk_Added" ("Id" int)`,
+		`CREATE TABLE `+driftSchema+`.pk_dropped (id int PRIMARY KEY)`,
+		`CREATE TABLE `+driftSchema+`.pk_renamed (id int CONSTRAINT old_pk PRIMARY KEY)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -110,6 +113,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`.metrics_b ATTACH PARTITION `+driftSchema+`.metrics_p FOR VALUES FROM (1) TO (100)`,
 		`ALTER TABLE `+driftSchema+`.kid NO INHERIT `+driftSchema+`.base_x`,
 		`ALTER TABLE `+driftSchema+`.kid INHERIT `+driftSchema+`.base_z`,
+		`ALTER TABLE `+driftSchema+`."Pk_Added" ADD CONSTRAINT "Pk_Added_Pkey" PRIMARY KEY ("Id")`,
+		`ALTER TABLE `+driftSchema+`.pk_dropped DROP CONSTRAINT pk_dropped_pkey`,
+		`ALTER TABLE `+driftSchema+`.pk_renamed RENAME CONSTRAINT old_pk TO "New_Pk"`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -280,6 +286,24 @@ func TestDiff_EndToEnd(t *testing.T) {
 		return d.Type == schemadiff.TablePartitionChildrenChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".events"
 	})
 	require.Len(t, partChanged, 1, "expected exactly one TablePartitionChildrenChanged for diff_it.events")
+
+	// ── 10b. Primary key findings ────────────────────────────────────────────────
+	pkFindings := findDiffs(func(d schemadiff.Difference) bool { return d.ObjectType == schemadiff.ObjectTypeConstraint })
+	type pkFinding struct {
+		Type   schemadiff.DiffType
+		Object string
+		Old    any
+		New    any
+	}
+	gotPKs := make([]pkFinding, len(pkFindings))
+	for i, d := range pkFindings {
+		gotPKs[i] = pkFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
+	}
+	assert.ElementsMatch(t, []pkFinding{
+		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.Pk_Added.Pk_Added_Pkey`, New: `PRIMARY KEY ("Id")`},
+		{Type: schemadiff.PrimaryKeyDropped, Object: driftSchema + `.pk_dropped.pk_dropped_pkey`, Old: `PRIMARY KEY (id)`},
+		{Type: schemadiff.PrimaryKeyNameChanged, Object: driftSchema + `.pk_renamed.old_pk`, Old: "old_pk", New: "New_Pk"},
+	}, gotPKs)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
 	// Rename/move alias handling is TEMPORARILY DISABLED in FilterByScope (see

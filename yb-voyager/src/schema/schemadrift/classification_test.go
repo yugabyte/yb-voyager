@@ -99,6 +99,9 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.TableInheritRemoved:           {adv, adv, adv, adv},
 		schemadiff.TableInheritedByAdded:         {rec, pot, unr, unr},
 		schemadiff.TableInheritedByRemoved:       {adv, adv, adv, adv},
+		schemadiff.PrimaryKeyAdded:               {rec, adv, adv, adv},
+		schemadiff.PrimaryKeyDropped:             {rec, pot, unr, unr},
+		schemadiff.PrimaryKeyNameChanged:         {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -130,12 +133,17 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 	}
 }
 
-func TestGetDriftInfo_FallBackSentenceOnlyOnColumnDropped(t *testing.T) {
-	const sentence = "If you cut over with fall-back, `import data to source` stops at the first insert on this table"
+func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
+	sentences := map[schemadiff.DiffType]string{
+		schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table",
+		schemadiff.PrimaryKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
+	}
 	for _, diffType := range schemadiff.AllDiffTypes() {
 		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
 		require.NoError(t, err)
-		assert.Equal(t, diffType == schemadiff.ColumnDropped, strings.Contains(info.Impact, sentence), string(diffType))
+		for sentenceType, sentence := range sentences {
+			assert.Equal(t, diffType == sentenceType, strings.Contains(info.Impact, sentence), "%s / %s", diffType, sentenceType)
+		}
 	}
 	info, err := getDriftInfo(schemadiff.ColumnDropped, situation{Timing: TimingLiveAfterExportStart})
 	require.NoError(t, err)
