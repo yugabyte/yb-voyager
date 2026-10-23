@@ -405,6 +405,34 @@ func TestRenderHTML_AddedTableColumnsAreMinQuoted(t *testing.T) {
 	assert.Contains(t, string(out), "&#34;InvoiceNo&#34; text NOT NULL, amount numeric")
 }
 
+// The Action for an added table is to create it on the target, so its definition
+// lists the table's own keys, checks and indexes, but not partition copies.
+func TestStringifyValue_AddedTableListsOwnKeysAndIndexes(t *testing.T) {
+	refunds := schemasnapshot.ObjectRef{Schema: "public", Name: "refunds"}
+	ref := func(name string) schemasnapshot.TableScopedObjectRef {
+		return schemasnapshot.TableScopedObjectRef{Table: refunds, Name: name}
+	}
+	table := schemasnapshot.Table{
+		ObjectRef: refunds,
+		Columns: []schemasnapshot.Column{
+			{TableScopedObjectRef: ref("id"), DataType: "integer", NotNull: true},
+			{TableScopedObjectRef: ref("order_id"), DataType: "integer"},
+		},
+		PrimaryKey:    &schemasnapshot.Constraint{TableScopedObjectRef: ref("refunds_pkey"), ID: "1", Definition: "PRIMARY KEY (id)"},
+		Checks:        []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_id_check"), ID: "2", Definition: "CHECK (id > 0)"}},
+		ForeignKeys:   []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_order_fk"), ID: "3", Definition: "FOREIGN KEY (order_id) REFERENCES public.orders(id)"}},
+		UniqueKeys:    []schemasnapshot.Constraint{{TableScopedObjectRef: ref("parent_uq"), ID: "4", Definition: "UNIQUE (id)", FromParent: true}},
+		UniqueIndexes: []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_order_uq"), ID: "5", Definition: "USING btree (order_id)"}},
+		Indexes:       []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_parent_idx"), ID: "6", Definition: "USING btree (id)", FromParent: true}},
+	}
+
+	got, err := stringifyValue(schemadiff.AttrNone, table, "postgresql")
+	require.NoError(t, err)
+
+	assert.Equal(t, "id integer NOT NULL, order_id integer; PRIMARY KEY (id); CHECK (id > 0); "+
+		"FOREIGN KEY (order_id) REFERENCES public.orders(id); UNIQUE INDEX USING btree (order_id)", got)
+}
+
 // An empty dimension compared nothing, so the dropdown must agree with the
 // summary's "no tables" instead of offering an "all" chip.
 func TestRenderHTML_EmptyScopeDimensionShowsNoChip(t *testing.T) {
