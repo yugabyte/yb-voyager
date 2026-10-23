@@ -748,6 +748,7 @@ func driftMigrationInfoFrom(msr *metadb.MigrationStatusRecord) schemadrift.Migra
 	return schemadrift.MigrationInfo{
 		ExportType:         msr.ExportTypeFromSource,
 		CutoverRequestedAt: msr.CutoverTimings.ToTargetRequestedAt,
+		FallForwardEnabled: msr.FallForwardEnabled,
 	}
 }
 

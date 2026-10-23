@@ -778,6 +778,30 @@ func TestSituationFor(t *testing.T) {
 	}
 }
 
+func TestSituationFor_FallForwardOnlyBeforeCutover(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	points := []CapturePoint{
+		{Label: schemasnapshot.LabelExportDataFromSourceStart, Reason: schemasnapshot.ReasonInitial, CapturedAt: start},
+		{Label: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: start.Add(time.Hour)},
+	}
+	tests := []struct {
+		name               string
+		m                  MigrationInfo
+		wantFallForwardSet bool
+	}{
+		{"fall-forward in use before cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true}, true},
+		{"fall-forward in use after cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true, CutoverRequestedAt: start.Add(-time.Minute)}, false},
+		{"fall-forward not in use", MigrationInfo{ExportType: "snapshot-and-changes"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := situationFor(points, 0, 1, tt.m)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantFallForwardSet, got.FallForwardPossible)
+		})
+	}
+}
+
 // An interval between two export schema runs is before export data only when the
 // first export data capture after it is an initial or clean-restart start: a
 // resumed start means data was already exported.
