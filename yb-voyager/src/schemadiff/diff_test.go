@@ -230,8 +230,22 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 	pkAddedB := makeTable("5", "s1", "pk_added", schemasnapshot.TableKindOrdinary)
 	pkAddedB.PrimaryKey = makePrimaryKey("s1", "pk_added", "12", "pk_added_pkey", "PRIMARY KEY (id)")
 
-	a := snapWithTables(tA, pkDroppedA, pkAddedA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
-	b := snapWithTables(tB, pkDroppedB, pkAddedB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
+	withKeys := func(id, table string, mutate func(*schemasnapshot.Table)) schemasnapshot.Table {
+		tbl := makeTable(id, "s1", table, schemasnapshot.TableKindOrdinary)
+		mutate(&tbl)
+		return tbl
+	}
+	uniqueA := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "21", "uq_old", "UNIQUE (a)"), *makePrimaryKey("s1", "uq", "22", "uq_dropped", "UNIQUE (b)")}
+		tbl.Checks = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "31", "ck_old", "CHECK (a > 0)"), *makePrimaryKey("s1", "uq", "32", "ck_dropped", "CHECK (b > 0)")}
+	})
+	uniqueB := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "21", "uq_new", "UNIQUE (a)"), *makePrimaryKey("s1", "uq", "23", "uq_added", "UNIQUE (c)")}
+		tbl.Checks = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "31", "ck_new", "CHECK (a > 0)"), *makePrimaryKey("s1", "uq", "33", "ck_added", "CHECK (c > 0)")}
+	})
+
+	a := snapWithTables(tA, uniqueA, pkDroppedA, pkAddedA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(tB, uniqueB, pkDroppedB, pkAddedB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
 	a.Version = schemasnapshot.VersionWithKeysAndIndexes
 	b.Version = schemasnapshot.VersionWithKeysAndIndexes
 
@@ -304,26 +318,31 @@ func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute
 		t.Fatalf("unrecognized DiffType verb: %s", s)
 	}
 
+	prefixes := []struct {
+		prefix string
+		ot     ObjectType
+	}{
+		{"TABLE_", ObjectTypeTable},
+		{"COLUMN_", ObjectTypeColumn},
+		{"PRIMARY_KEY_", ObjectTypeConstraint},
+		{"UNIQUE_", ObjectTypeConstraint},
+		{"CHECK_", ObjectTypeConstraint},
+	}
 	var ot ObjectType
-	switch {
-	case strings.HasPrefix(s, "TABLE_"):
-		ot = ObjectTypeTable
-	case strings.HasPrefix(s, "COLUMN_"):
-		ot = ObjectTypeColumn
-	case strings.HasPrefix(s, "PRIMARY_KEY_"):
-		ot = ObjectTypeConstraint
-	default:
+	rest := ""
+	for _, p := range prefixes {
+		if strings.HasPrefix(s, p.prefix) {
+			ot, rest = p.ot, strings.TrimPrefix(s, p.prefix)
+			break
+		}
+	}
+	if ot == "" {
 		t.Fatalf("unrecognized DiffType object prefix: %s", s)
 	}
 
 	attr := AttrNone
 	if op == OpChanged {
-		prefix := string(ot)
-		if ot == ObjectTypeConstraint {
-			prefix = "PRIMARY_KEY"
-		}
-		mid := strings.TrimSuffix(strings.TrimPrefix(s, prefix+"_"), "_CHANGED")
-		attr = Attribute(mid)
+		attr = Attribute(strings.TrimSuffix(rest, "_CHANGED"))
 	}
 	return op, ot, attr
 }

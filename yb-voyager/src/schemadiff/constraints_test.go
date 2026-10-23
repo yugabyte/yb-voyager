@@ -135,3 +135,79 @@ func TestFilterByScope_PrimaryKeyFindingAnchorsToItsTable(t *testing.T) {
 	assert.Empty(t, FilterByScope(diffs, scope(ref("public", "Other"), ObjectTypeConstraint)))
 	assert.Empty(t, FilterByScope(diffs, scope(ref("public", "Orders"), ObjectTypeTable)))
 }
+
+func TestDiffByOID(t *testing.T) {
+	newKey := func(id, name, definition string) schemasnapshot.Constraint {
+		return *makePrimaryKey("public", "Orders", id, name, definition)
+	}
+	parentCopy := func(c schemasnapshot.Constraint) schemasnapshot.Constraint {
+		c.FromParent = true
+		return c
+	}
+	emailKey := newKey("10", "Orders_Email_key", `UNIQUE ("Email")`)
+	renamedEmailKey := newKey("10", "orders_email_uq", `UNIQUE ("Email")`)
+	skuKey := newKey("11", "Orders_Sku_key", `UNIQUE ("Sku")`)
+	recreatedEmailKey := newKey("20", "Orders_Email_key", `UNIQUE ("Email")`)
+
+	dropped := func(c schemasnapshot.Constraint) Difference {
+		return Difference{Type: UniqueDropped, Operation: OpDropped, ObjectType: ObjectTypeConstraint, ObjectA: c.TableScopedObjectRef, SideAValue: c.Definition}
+	}
+	added := func(c schemasnapshot.Constraint) Difference {
+		return Difference{Type: UniqueAdded, Operation: OpAdded, ObjectType: ObjectTypeConstraint, ObjectB: c.TableScopedObjectRef, SideBValue: c.Definition}
+	}
+	renamed := Difference{Type: UniqueNameChanged, Operation: OpChanged, ObjectType: ObjectTypeConstraint, Attribute: AttrName,
+		ObjectA: emailKey.TableScopedObjectRef, ObjectB: renamedEmailKey.TableScopedObjectRef, SideAValue: "Orders_Email_key", SideBValue: "orders_email_uq"}
+
+	tests := []struct {
+		name           string
+		earlier, later []schemasnapshot.Constraint
+		want           []Difference
+	}{
+		{"both empty", nil, nil, nil},
+		{"unchanged", []schemasnapshot.Constraint{emailKey}, []schemasnapshot.Constraint{emailKey}, nil},
+		{"renamed", []schemasnapshot.Constraint{emailKey}, []schemasnapshot.Constraint{renamedEmailKey}, []Difference{renamed}},
+		{"dropped", []schemasnapshot.Constraint{emailKey}, nil, []Difference{dropped(emailKey)}},
+		{"added", nil, []schemasnapshot.Constraint{emailKey}, []Difference{added(emailKey)}},
+		{"new OID under the same name reports a drop and an add", []schemasnapshot.Constraint{emailKey}, []schemasnapshot.Constraint{recreatedEmailKey}, []Difference{dropped(emailKey), added(recreatedEmailKey)}},
+		{"same OID with a copy on either side reports nothing", []schemasnapshot.Constraint{emailKey}, []schemasnapshot.Constraint{parentCopy(renamedEmailKey)}, nil},
+		{"copy on side A only is ignored", []schemasnapshot.Constraint{parentCopy(emailKey)}, nil, nil},
+		{"copy on side B only is ignored", nil, []schemasnapshot.Constraint{parentCopy(emailKey)}, nil},
+		{"several constraints: rename, drop and add in input order",
+			[]schemasnapshot.Constraint{emailKey, skuKey},
+			[]schemasnapshot.Constraint{renamedEmailKey, newKey("12", "Orders_Zip_key", `UNIQUE ("Zip")`)},
+			[]Difference{renamed, dropped(skuKey), added(newKey("12", "Orders_Zip_key", `UNIQUE ("Zip")`))}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, diffByOID(tc.earlier, tc.later, constraintRef, uniqueTypes))
+		})
+	}
+
+	t.Run("check types carry their own DiffTypes", func(t *testing.T) {
+		got := diffByOID(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
+		assert.Equal(t, CheckAdded, got[0].Type)
+	})
+}
+
+func TestDiff_UniqueAndCheckFollowTheKeysVersionGuard(t *testing.T) {
+	key := *makePrimaryKey("public", "Orders", "10", "Orders_Email_key", `UNIQUE ("Email")`)
+	check := *makePrimaryKey("public", "Orders", "11", "Orders_Qty_check", `CHECK ("Qty" > 0)`)
+	withKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
+	withKeys.UniqueKeys = []schemasnapshot.Constraint{key}
+	withKeys.Checks = []schemasnapshot.Constraint{check}
+	withoutKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
+
+	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
+		s := snapWithTables(table)
+		s.Version = version
+		return s
+	}
+	assert.Empty(t, Diff(snapshot(1, withoutKeys), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys)))
+	assert.Empty(t, Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys), snapshot(1, withoutKeys)))
+
+	var got []DiffType
+	for _, d := range Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withoutKeys), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys)) {
+		got = append(got, d.Type)
+	}
+	assert.Equal(t, []DiffType{UniqueAdded, CheckAdded}, got)
+}
