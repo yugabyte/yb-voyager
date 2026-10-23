@@ -310,6 +310,21 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 		TimingOfflineAfterExportStart: keyNameChangedInfo,
 		TimingLiveAfterExportStart:    keyNameChangedInfo,
 	},
+	schemadiff.ForeignKeyAdded: {
+		TimingBeforeExportData:        foreignKeyAddedInfo,
+		TimingOfflineAfterExportStart: foreignKeyAddedInfo,
+		TimingLiveAfterExportStart:    foreignKeyAddedInfo,
+	},
+	schemadiff.ForeignKeyDropped: {
+		TimingBeforeExportData:        foreignKeyDroppedInfo,
+		TimingOfflineAfterExportStart: foreignKeyDroppedInfo,
+		TimingLiveAfterExportStart:    foreignKeyDroppedInfo,
+	},
+	schemadiff.ForeignKeyNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
 }
 
 // Appended to Impact while a cutover with fall-back is still possible.
@@ -317,6 +332,7 @@ var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
 	schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
 	schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
 	schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+	schemadiff.ForeignKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first row from the target that breaks it, and refuses to start at all if its user can't turn foreign-key checks off on the source.",
 	schemadiff.PrimaryKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
 }
 
@@ -397,6 +413,14 @@ var (
 		Action: "Add it on the target to keep the schemas the same."}
 
 	checkDroppedImpact = "The source now allows rows the target's check rejects, so `import data` fails on the first one."
+
+	foreignKeyAddedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected, because foreign-key checks are off on the target while it loads.",
+		Action: "Add it on the target to keep the schemas the same."}
+
+	foreignKeyDroppedInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, `import data` stops on the first such row instead.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped."}
 
 	keyNameChangedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`export data` and `import data` are not affected.",

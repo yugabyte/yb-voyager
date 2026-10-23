@@ -108,6 +108,9 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.CheckAdded:                    {adv, adv, adv, adv},
 		schemadiff.CheckDropped:                  {rec, pot, rec, rec},
 		schemadiff.CheckNameChanged:              {adv, adv, adv, adv},
+		schemadiff.ForeignKeyAdded:               {adv, adv, adv, adv},
+		schemadiff.ForeignKeyDropped:             {pot, pot, pot, pot},
+		schemadiff.ForeignKeyNameChanged:         {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -145,6 +148,7 @@ func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 		schemadiff.PrimaryKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
 		schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
 		schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+		schemadiff.ForeignKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first row from the target that breaks it, and refuses to start at all if its user can't turn foreign-key checks off on the source.",
 	}
 	for _, diffType := range schemadiff.AllDiffTypes() {
 		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})

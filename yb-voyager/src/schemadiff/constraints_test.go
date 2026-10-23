@@ -187,6 +187,11 @@ func TestDiffByOID(t *testing.T) {
 		got := diffByOID(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
 		assert.Equal(t, CheckAdded, got[0].Type)
 	})
+
+	t.Run("foreign key types carry their own DiffTypes", func(t *testing.T) {
+		got := diffByOID(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, foreignKeyTypes)
+		assert.Equal(t, ForeignKeyAdded, got[0].Type)
+	})
 }
 
 func TestDiff_UniqueAndCheckFollowTheKeysVersionGuard(t *testing.T) {
@@ -195,6 +200,7 @@ func TestDiff_UniqueAndCheckFollowTheKeysVersionGuard(t *testing.T) {
 	withKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
 	withKeys.UniqueKeys = []schemasnapshot.Constraint{key}
 	withKeys.Checks = []schemasnapshot.Constraint{check}
+	withKeys.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Cust_fkey", `FOREIGN KEY ("Cust") REFERENCES "Sales"."Customers"(id)`)}
 	withoutKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
 
 	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
@@ -209,5 +215,46 @@ func TestDiff_UniqueAndCheckFollowTheKeysVersionGuard(t *testing.T) {
 	for _, d := range Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withoutKeys), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys)) {
 		got = append(got, d.Type)
 	}
-	assert.Equal(t, []DiffType{UniqueAdded, CheckAdded}, got)
+	assert.ElementsMatch(t, []DiffType{UniqueAdded, CheckAdded, ForeignKeyAdded}, got)
+}
+
+func TestDiffByOID_ForeignKeys(t *testing.T) {
+	newFK := func(id, name, definition string) schemasnapshot.Constraint {
+		return *makePrimaryKey("public", "Orders", id, name, definition)
+	}
+	parentCopy := func(c schemasnapshot.Constraint) schemasnapshot.Constraint {
+		c.FromParent = true
+		return c
+	}
+	ownFK := newFK("10", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers"(id) ON DELETE CASCADE`)
+	copyA := parentCopy(newFK("11", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p1"(id)`))
+	copyB := parentCopy(newFK("12", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p2"(id)`))
+	copyC := parentCopy(newFK("13", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p3"(id)`))
+	renamedFK := newFK("10", "orders_customer_fk", ownFK.Definition)
+	recreatedFK := newFK("20", "Orders_Customer_fkey", ownFK.Definition)
+
+	t.Run("copies added and dropped next to an own foreign key report nothing", func(t *testing.T) {
+		earlier := []schemasnapshot.Constraint{ownFK, copyA, copyB}
+		later := []schemasnapshot.Constraint{ownFK, copyB, copyC}
+		assert.Empty(t, diffByOID(earlier, later, constraintRef, foreignKeyTypes))
+	})
+
+	t.Run("an own foreign key is still reported amid copies", func(t *testing.T) {
+		got := diffByOID([]schemasnapshot.Constraint{copyA}, []schemasnapshot.Constraint{ownFK, copyB}, constraintRef, foreignKeyTypes)
+		want := []Difference{{Type: ForeignKeyAdded, Operation: OpAdded, ObjectType: ObjectTypeConstraint, ObjectB: ownFK.TableScopedObjectRef, SideBValue: ownFK.Definition}}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("drop, rename and re-create", func(t *testing.T) {
+		assert.Equal(t,
+			[]Difference{{Type: ForeignKeyDropped, Operation: OpDropped, ObjectType: ObjectTypeConstraint, ObjectA: ownFK.TableScopedObjectRef, SideAValue: ownFK.Definition}},
+			diffByOID([]schemasnapshot.Constraint{ownFK}, nil, constraintRef, foreignKeyTypes))
+		assert.Equal(t,
+			[]Difference{{Type: ForeignKeyNameChanged, Operation: OpChanged, ObjectType: ObjectTypeConstraint, Attribute: AttrName,
+				ObjectA: ownFK.TableScopedObjectRef, ObjectB: renamedFK.TableScopedObjectRef, SideAValue: "Orders_Customer_fkey", SideBValue: "orders_customer_fk"}},
+			diffByOID([]schemasnapshot.Constraint{ownFK}, []schemasnapshot.Constraint{renamedFK}, constraintRef, foreignKeyTypes))
+		got := diffByOID([]schemasnapshot.Constraint{ownFK}, []schemasnapshot.Constraint{recreatedFK}, constraintRef, foreignKeyTypes)
+		assert.Len(t, got, 2)
+		assert.Equal(t, []DiffType{ForeignKeyDropped, ForeignKeyAdded}, []DiffType{got[0].Type, got[1].Type})
+	})
 }

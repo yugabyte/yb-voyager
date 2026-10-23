@@ -28,6 +28,7 @@ var (
 	primaryKeyTypes = kindTypes{PrimaryKeyAdded, PrimaryKeyDropped, PrimaryKeyNameChanged, ObjectTypeConstraint}
 	uniqueTypes     = kindTypes{UniqueAdded, UniqueDropped, UniqueNameChanged, ObjectTypeConstraint}
 	checkTypes      = kindTypes{CheckAdded, CheckDropped, CheckNameChanged, ObjectTypeConstraint}
+	foreignKeyTypes = kindTypes{ForeignKeyAdded, ForeignKeyDropped, ForeignKeyNameChanged, ObjectTypeConstraint}
 )
 
 // objectRef is what the diff reads of a constraint or index; generic code cannot

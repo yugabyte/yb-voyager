@@ -32,6 +32,8 @@ import (
 
 const driftSchema = "diff_it"
 
+const refSchema = "diff_it_ref"
+
 // TestDiff_EndToEnd starts a real PostgreSQL container, captures two schema
 // snapshots with DDL mutations in between, and asserts that schemadiff.Diff
 // produces the expected findings including rename detection, column changes,
@@ -50,6 +52,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 	// ── Baseline DDL — snapshot A ──────────────────────────────────────────────
 	pg.ExecuteSqls(
 		`CREATE SCHEMA `+driftSchema,
+		`CREATE SCHEMA `+refSchema,
+		`CREATE TABLE `+refSchema+`.parent (id int PRIMARY KEY)`,
 		`CREATE TABLE `+driftSchema+`.orders (
 			id       integer NOT NULL,
 			customer text,
@@ -77,6 +81,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`."Ck_Added" (a int)`,
 		`CREATE TABLE `+driftSchema+`.ck_dropped (a int CONSTRAINT ck_dropped_check CHECK (a > 0))`,
 		`CREATE TABLE `+driftSchema+`.ck_renamed (a int CONSTRAINT old_ck CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`."Fk_Added" (x int)`,
+		`CREATE TABLE `+driftSchema+`.fk_dropped (x int CONSTRAINT fk_dropped_fkey REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
+		`CREATE TABLE `+driftSchema+`.fk_renamed (x int CONSTRAINT old_fk REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -128,6 +135,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`."Ck_Added" ADD CONSTRAINT "Ck_Added_Check" CHECK (a > 0)`,
 		`ALTER TABLE `+driftSchema+`.ck_dropped DROP CONSTRAINT ck_dropped_check`,
 		`ALTER TABLE `+driftSchema+`.ck_renamed RENAME CONSTRAINT old_ck TO "New_Ck"`,
+		`ALTER TABLE `+driftSchema+`."Fk_Added" ADD CONSTRAINT "Fk_Added_Fkey" FOREIGN KEY (x) REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE`,
+		`ALTER TABLE `+driftSchema+`.fk_dropped DROP CONSTRAINT fk_dropped_fkey`,
+		`ALTER TABLE `+driftSchema+`.fk_renamed RENAME CONSTRAINT old_fk TO "New_Fk"`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -311,6 +321,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 	for i, d := range constraintFindings {
 		gotConstraints[i] = constraintFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
 	}
+	fkDefinition := `FOREIGN KEY (x) REFERENCES ` + refSchema + `.parent(id) ON DELETE CASCADE`
 	assert.ElementsMatch(t, []constraintFinding{
 		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.Pk_Added.Pk_Added_Pkey`, New: `PRIMARY KEY ("Id")`},
 		{Type: schemadiff.PrimaryKeyDropped, Object: driftSchema + `.pk_dropped.pk_dropped_pkey`, Old: `PRIMARY KEY (id)`},
@@ -321,6 +332,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.CheckAdded, Object: driftSchema + `.Ck_Added.Ck_Added_Check`, New: `CHECK (a > 0)`},
 		{Type: schemadiff.CheckDropped, Object: driftSchema + `.ck_dropped.ck_dropped_check`, Old: `CHECK (a > 0)`},
 		{Type: schemadiff.CheckNameChanged, Object: driftSchema + `.ck_renamed.old_ck`, Old: "old_ck", New: "New_Ck"},
+		{Type: schemadiff.ForeignKeyAdded, Object: driftSchema + `.Fk_Added.Fk_Added_Fkey`, New: fkDefinition},
+		{Type: schemadiff.ForeignKeyDropped, Object: driftSchema + `.fk_dropped.fk_dropped_fkey`, Old: fkDefinition},
+		{Type: schemadiff.ForeignKeyNameChanged, Object: driftSchema + `.fk_renamed.old_fk`, Old: "old_fk", New: "New_Fk"},
 	}, gotConstraints)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────

@@ -115,6 +115,7 @@ func compareMatchedTables(dbTypeA, dbTypeB string, compareKeys bool, linkKeyA, l
 			diffs = append(diffs, diffPrimaryKey(tA, tB)...)
 			diffs = append(diffs, diffByOID(tA.UniqueKeys, tB.UniqueKeys, constraintRef, uniqueTypes)...)
 			diffs = append(diffs, diffByOID(tA.Checks, tB.Checks, constraintRef, checkTypes)...)
+			diffs = append(diffs, diffByOID(tA.ForeignKeys, tB.ForeignKeys, constraintRef, foreignKeyTypes)...)
 		}
 
 		return diffs
