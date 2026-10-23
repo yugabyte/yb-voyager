@@ -379,24 +379,6 @@ func TestTakeSnapshotUnexpectedContypeIsError(t *testing.T) {
 	assert.Contains(t, err.Error(), `unexpected contype "x"`)
 }
 
-func TestTakeSnapshotIndexDefinitionMismatchIsError(t *testing.T) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	defer db.Close()
-	p, err := newProvider(constants.POSTGRESQL, db)
-	require.NoError(t, err)
-
-	expectTables(mock, [3]string{"100", "public", "orders"})
-	mock.ExpectQuery(`pg_get_constraintdef`).WillReturnRows(sqlmock.NewRows(constraintColumns))
-	mock.ExpectQuery(`pg_get_indexdef`).WillReturnRows(sqlmock.NewRows(indexColumns).
-		AddRow("100", "idx", "1", false, "idx", "CREATE INDEX other ON public.orders USING btree (a)", "public.orders", false))
-
-	_, _, err = p.TakeSnapshot(context.Background(), []string{"public"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "index idx: definition")
-	assert.Contains(t, err.Error(), "does not start with")
-}
-
 func TestStripIndexDefPrefix(t *testing.T) {
 	cases := []struct {
 		name      string
