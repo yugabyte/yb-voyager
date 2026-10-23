@@ -94,6 +94,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	withKey := tableWithPrimaryKey(pk)
 	withKey.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "11", "Orders_Email_key", `UNIQUE ("Email")`)}
 	withKey.Checks = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Qty_check", `CHECK ("Qty" > 0)`)}
+	withKey.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "13", "Orders_Cust_fkey", `FOREIGN KEY ("Cust") REFERENCES "Sales"."Customers"(id)`)}
 	withoutKey := tableWithPrimaryKey(nil)
 
 	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
@@ -109,7 +110,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	}{
 		{"v1 to v2 skips keys", 1, schemasnapshot.VersionWithKeysAndIndexes, nil},
 		{"v2 to v1 skips keys", schemasnapshot.VersionWithKeysAndIndexes, 1, nil},
-		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded, UniqueAdded, CheckAdded}},
+		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded, UniqueAdded, CheckAdded, ForeignKeyAdded}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -188,5 +189,36 @@ func TestDiffConstraintsOrIndexes(t *testing.T) {
 	t.Run("check types carry their own DiffTypes", func(t *testing.T) {
 		got := diffConstraintsOrIndexes(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
 		assert.Equal(t, CheckAdded, got[0].Type)
+	})
+
+	t.Run("foreign key types carry their own DiffTypes", func(t *testing.T) {
+		got := diffConstraintsOrIndexes(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, foreignKeyTypes)
+		assert.Equal(t, ForeignKeyAdded, got[0].Type)
+	})
+}
+
+func TestDiffConstraintsOrIndexes_ForeignKeys(t *testing.T) {
+	newFK := func(id, name, definition string) schemasnapshot.Constraint {
+		return *makePrimaryKey("public", "Orders", id, name, definition)
+	}
+	parentCopy := func(c schemasnapshot.Constraint) schemasnapshot.Constraint {
+		c.FromParent = true
+		return c
+	}
+	ownFK := newFK("10", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers"(id) ON DELETE CASCADE`)
+	copyA := parentCopy(newFK("11", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p1"(id)`))
+	copyB := parentCopy(newFK("12", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p2"(id)`))
+	copyC := parentCopy(newFK("13", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p3"(id)`))
+
+	t.Run("copies added and dropped next to an own foreign key report nothing", func(t *testing.T) {
+		earlier := []schemasnapshot.Constraint{ownFK, copyA, copyB}
+		later := []schemasnapshot.Constraint{ownFK, copyB, copyC}
+		assert.Empty(t, diffConstraintsOrIndexes(earlier, later, constraintRef, foreignKeyTypes))
+	})
+
+	t.Run("an own foreign key is still reported amid copies", func(t *testing.T) {
+		got := diffConstraintsOrIndexes([]schemasnapshot.Constraint{copyA}, []schemasnapshot.Constraint{ownFK, copyB}, constraintRef, foreignKeyTypes)
+		want := []Difference{{Type: ForeignKeyAdded, Operation: OpAdded, ObjectType: ObjectTypeConstraint, ObjectB: ownFK.TableScopedObjectRef, SideBValue: ownFK.Definition}}
+		assert.Equal(t, want, got)
 	})
 }
