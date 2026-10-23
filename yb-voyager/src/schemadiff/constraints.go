@@ -67,7 +67,7 @@ func diffConstraintsOrIndexes[T schemasnapshot.Constraint | schemasnapshot.Index
 		rEarlier := toRef(item)
 		earlierIDs[rEarlier.ID] = struct{}{}
 		if rLater, ok := laterByID[rEarlier.ID]; ok {
-			diffs = append(diffs, diffMatchedConstraint(types, rEarlier, rLater)...)
+			diffs = append(diffs, diffMatchedConstraintOrIndex(types, rEarlier, rLater)...)
 			continue
 		}
 		if !rEarlier.FromParent {
@@ -92,10 +92,10 @@ func addedDifference(types kindTypes, r objectRef) Difference {
 	return newDifference(types.added, OpAdded, types.objectType, AttrNone, nil, r.Ref, nil, r.Definition)
 }
 
-// diffMatchedConstraint reports a rename of a constraint present on both sides under
+// diffMatchedConstraintOrIndex reports a rename of a constraint or index present on both sides under
 // one OID. A copy on either side reports nothing: renaming the parent's object renames
 // its copies, and attaching, detaching and inheriting have table-level findings.
-func diffMatchedConstraint(types kindTypes, a, b objectRef) []Difference {
+func diffMatchedConstraintOrIndex(types kindTypes, a, b objectRef) []Difference {
 	if a.FromParent || b.FromParent || a.Ref.Name == b.Ref.Name {
 		return nil
 	}
