@@ -3138,3 +3138,178 @@ func TestTransactionIDDatatypesAreLiveMigrationIssues(t *testing.T) {
 		assert.Contains(t, UnsupportedDatatypesInLiveMigrationIssues, issueType)
 	}
 }
+
+// A column is checked against the unsupported datatype lists using every type it is built from,
+// so it is reported the same way as a column of the unsupported type: through stacked domains,
+// a domain over an array, an array of a domain, composite fields at any depth, a domain over a
+// composite (live migration with fall-forward/fall-back), and an unqualified domain reference
+// resolved in the table's schema. A domain over a supported type is not reported.
+func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
+	domainDDLs := []string{
+		`CREATE TYPE public.address AS (street text, city text);`,
+		`CREATE TYPE public."Geo" AS (label text, lsn pg_lsn);`,
+		`CREATE TYPE public.wrapper AS (name text, inner_geo public."Geo");`,
+		`CREATE DOMAIN public.xid8_dom AS xid8;`,
+		`CREATE DOMAIN public.lsn_dom AS pg_lsn;`,
+		`CREATE DOMAIN public."LsnDomNested" AS public.lsn_dom NOT NULL;`,
+		`CREATE DOMAIN public.cid_dom AS cid;`,
+		`CREATE DOMAIN public.xid8_arr_dom AS xid8[];`,
+		`CREATE DOMAIN public.address_dom AS public.address;`,
+		`CREATE DOMAIN public.email_dom AS text CHECK (VALUE LIKE '%@%');`,
+	}
+	newDetector := func(t *testing.T) *ParserIssueDetector {
+		detector := NewParserIssueDetector()
+		for _, ddl := range domainDDLs {
+			assert.NoError(t, detector.ParseAndProcessDDL(ddl))
+		}
+		return detector
+	}
+
+	testCases := []struct {
+		name     string
+		stmt     string
+		expected func(stmt string) []QueryIssue
+	}{
+		{
+			name: "domain over xid8",
+			stmt: `CREATE TABLE public.dom_xid8 (id int PRIMARY KEY, txn public.xid8_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewXID8DatatypeIssue("TABLE", "public.dom_xid8", stmt, "xid8", "txn")}
+			},
+		},
+		{
+			name: "case-sensitive domain stacked on a domain over pg_lsn",
+			stmt: `CREATE TABLE public.dom_lsn (id int PRIMARY KEY, "LsnCol" public."LsnDomNested");`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewPgLsnDatatypeIssue("TABLE", "public.dom_lsn", stmt, "pg_lsn", "LsnCol")}
+			},
+		},
+		{
+			name: "domain over cid reports the live-migration issue",
+			stmt: `CREATE TABLE public.dom_cid (id int PRIMARY KEY, cmd public.cid_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewCIDLiveMigrationDatatypeIssue("TABLE", "public.dom_cid", stmt, "cid", "cmd")}
+			},
+		},
+		{
+			name: "domain over an array and an array of a domain",
+			stmt: `CREATE TABLE public.dom_arrays (id int PRIMARY KEY, a public.xid8_arr_dom, b public.xid8_dom[]);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewXID8DatatypeIssue("TABLE", "public.dom_arrays", stmt, "xid8", "a"),
+					NewXID8DatatypeIssue("TABLE", "public.dom_arrays", stmt, "xid8", "b"),
+				}
+			},
+		},
+		{
+			name: "unqualified domain reference resolves in the table's schema",
+			stmt: `CREATE TABLE public.dom_unqualified (id int PRIMARY KEY, txn xid8_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewXID8DatatypeIssue("TABLE", "public.dom_unqualified", stmt, "xid8", "txn")}
+			},
+		},
+		{
+			name: "domain over a composite type is a live fall-forward/fall-back issue",
+			stmt: `CREATE TABLE public.dom_composite (id int PRIMARY KEY, addr public.address_dom);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewUserDefinedDatatypeIssue("TABLE", "public.dom_composite", stmt, "public.address", "addr")}
+			},
+		},
+		{
+			name: "composite with an unsupported field, an array of it, and a composite nesting it",
+			stmt: `CREATE TABLE public.comp_fields (id int PRIMARY KEY, geo public."Geo", geos public."Geo"[], wrapped public.wrapper);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewPgLsnDatatypeIssue("TABLE", "public.comp_fields", stmt, "pg_lsn", "geo"),
+					NewPgLsnDatatypeIssue("TABLE", "public.comp_fields", stmt, "pg_lsn", "geos"),
+					NewPgLsnDatatypeIssue("TABLE", "public.comp_fields", stmt, "pg_lsn", "wrapped"),
+				}
+			},
+		},
+		{
+			name: "composite of supported fields, and an array of it, are live fall-forward/fall-back issues",
+			stmt: `CREATE TABLE public.comp_supported (id int PRIMARY KEY, addr public.address, addrs public.address[]);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewUserDefinedDatatypeIssue("TABLE", "public.comp_supported", stmt, "public.address", "addr"),
+					NewUserDefinedDatatypeIssue("TABLE", "public.comp_supported", stmt, "public.address", "addrs"),
+				}
+			},
+		},
+		{
+			name: "domain over a supported type is not reported",
+			stmt: `CREATE TABLE public.dom_supported (id int PRIMARY KEY, email public.email_dom, emails public.email_dom[]);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{}
+			},
+		},
+		{
+			name: "foreign table with a domain over xid8",
+			stmt: `CREATE FOREIGN TABLE public.dom_foreign (id int, txn public.xid8_dom) SERVER remote_server OPTIONS (table_name 'remote');`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewForeignTableIssue("FOREIGN TABLE", "public.dom_foreign", stmt, "remote_server"),
+					NewXID8DatatypeIssue("FOREIGN TABLE", "public.dom_foreign", stmt, "xid8", "txn"),
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := newDetector(t).GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			assert.NoError(t, err)
+			expected := tc.expected(tc.stmt)
+			assert.True(t, cmp.Equal(expected, issues), "issues mismatch (-expected +actual):\n%s", cmp.Diff(expected, issues))
+		})
+	}
+}
+
+// Assessment looks up the types its catalog query reports: a single-level domain without its
+// schema, a stacked domain qualified, an array with "[]", and built-ins by their SQL names.
+func TestGetUnderlyingTypes(t *testing.T) {
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{
+		`CREATE DOMAIN public.xid8_dom AS xid8;`,
+		`CREATE DOMAIN public.xid8_dom_nested AS public.xid8_dom;`,
+		`CREATE DOMAIN sales.amount_dom AS numeric;`,
+		`CREATE DOMAIN public.shared_dom AS xid8;`,
+		`CREATE DOMAIN sales.shared_dom AS text;`,
+		`CREATE TYPE public."Geo" AS (label text, lsn pg_lsn, tags text[]);`,
+		`CREATE TYPE public.wrapper AS (name text, inner_geo public."Geo", geos public."Geo"[]);`,
+		`CREATE TYPE public.status AS ENUM ('active', 'inactive');`,
+		`CREATE DOMAIN public.geo_dom AS public."Geo";`,
+	} {
+		assert.NoError(t, detector.ParseAndProcessDDL(ddl))
+	}
+	domain := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindDomain} }
+	composite := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindComposite} }
+	other := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindOther} }
+
+	testCases := []struct {
+		name          string
+		typeName      string
+		defaultSchema string
+		expected      []UnderlyingType
+	}{
+		{"qualified domain", "public.xid8_dom", "", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
+		{"stacked domain", "public.xid8_dom_nested", "", []UnderlyingType{domain("public.xid8_dom_nested"), domain("public.xid8_dom"), other("xid8")}},
+		{"array of a domain", "public.xid8_dom[]", "", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
+		{"unqualified, resolved in the default schema", "xid8_dom", "public", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
+		{"unqualified, unique across schemas", "amount_dom", "public", []UnderlyingType{domain("sales.amount_dom"), other("pg_catalog.numeric")}},
+		{"unqualified and ambiguous, default schema decides", "shared_dom", "sales", []UnderlyingType{domain("sales.shared_dom"), other("text")}},
+		{"unqualified and ambiguous without a match in the default schema", "shared_dom", "other", []UnderlyingType{other("shared_dom")}},
+		{"built-in", "xid8", "public", []UnderlyingType{other("xid8")}},
+		{"built-in reported by its SQL name", "time with time zone", "public", []UnderlyingType{other("time with time zone")}},
+		{"case-sensitive composite and its fields", "public.Geo", "", []UnderlyingType{composite("public.Geo"), other("text"), other("pg_lsn")}},
+		{"array of a composite", "public.Geo[]", "", []UnderlyingType{composite("public.Geo"), other("text"), other("pg_lsn")}},
+		{"composite nesting a composite and an array of it", "public.wrapper", "", []UnderlyingType{composite("public.wrapper"), other("text"), composite("public.Geo"), other("pg_lsn")}},
+		{"domain over a composite", "public.geo_dom", "", []UnderlyingType{domain("public.geo_dom"), composite("public.Geo"), other("text"), other("pg_lsn")}},
+		{"enum", "public.status", "", []UnderlyingType{{Name: "public.status", Kind: TypeKindEnum}}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, detector.GetUnderlyingTypes(tc.typeName, tc.defaultSchema))
+		})
+	}
+}

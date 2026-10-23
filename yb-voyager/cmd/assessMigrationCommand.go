@@ -1245,62 +1245,34 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		allColumnsDataTypes = append(allColumnsDataTypes, columnDataTypes)
 	}
 
-	var sourceUnsupportedDatatypes, liveUnsupportedDatatypes, liveWithFForFBUnsupportedDatatypes []string
-
-	switch source.DBType {
-	case POSTGRESQL:
-		sourceUnsupportedDatatypes = srcdb.PostgresUnsupportedDataTypes
-		liveUnsupportedDatatypes = srcdb.GetPGLiveMigrationUnsupportedDatatypes()
-		liveWithFForFBUnsupportedDatatypes = srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
-	case ORACLE:
-		sourceUnsupportedDatatypes = srcdb.OracleUnsupportedDataTypes
-	default:
-		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
-	}
-	// filter columns with unsupported data types using sourceUnsupportedDataTypes
-	for i := 0; i < len(allColumnsDataTypes); i++ {
-		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
-		//of these types there are other columns available for these information so we just do string match of types with our list
-		baseTypeName := allColumnsDataTypes[i].GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
-
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(sourceUnsupportedDatatypes, baseTypeName)
-		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, baseTypeName)
-
-		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFForFBUnsupportedDatatypes, baseTypeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetCompositeTypes(), allColumnsDataTypes[i].DataType)
-		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
-		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
-
-		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
-		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
-		allColumnsDataTypes[i].IsUDTType = isUDTDatatype
-
-		// Array of enums are now supported with logical connector (default), so not including them as unsupported
-		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
-
-		if isUnsupportedDatatype {
-			unsupportedDataTypes = append(unsupportedDataTypes, allColumnsDataTypes[i])
-		}
-		switch true {
-		case isUnsupportedDatatypeInLive:
-			unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, allColumnsDataTypes[i])
-		case isUnsupportedDatatypeInLiveWithFFOrFB:
-			/*
-				TODO test this for Oracle case if there is any special handling required
-				For Live mgiration with FF or FB, It is meant to be for the datatypes that are going to be in YB after migration
-				so it makes sense to use the analyzeSchema `compositeTypes` or `enumTypes` and check from there but some information
-				we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
-				source or analyzeSchema's results.
-			*/
-			//reporting types in the list YugabyteUnsupportedDataTypesForDbzm and UDT columns as unsupported with live migration with ff/fb
-			//Note: hstore, tsvector, and array of enums are now supported with logical connector (default)
-			unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, allColumnsDataTypes[i])
-
+	for _, colInfo := range allColumnsDataTypes {
+		switch source.DBType {
+		case POSTGRESQL:
+			support := parserIssueDetector.GetColumnDatatypeSupport(colInfo.DataType, colInfo.SchemaName)
+			if support.UnsupportedInOffline != nil {
+				unsupportedDataTypes = append(unsupportedDataTypes, withUnsupportedType(colInfo, support.UnsupportedInOffline))
+			}
+			if support.UnsupportedInLive != nil {
+				unsupportedDataTypesForLiveMigration = append(unsupportedDataTypesForLiveMigration, withUnsupportedType(colInfo, support.UnsupportedInLive))
+			} else if support.UnsupportedInLiveWithFFOrFB != nil {
+				unsupportedDataTypesForLiveMigrationWithFForFB = append(unsupportedDataTypesForLiveMigrationWithFForFB, withUnsupportedType(colInfo, support.UnsupportedInLiveWithFFOrFB))
+			}
+		case ORACLE:
+			if utils.ContainsAnyStringFromSlice(srcdb.OracleUnsupportedDataTypes, colInfo.GetBaseTypeNameFromDatatype()) {
+				unsupportedDataTypes = append(unsupportedDataTypes, colInfo)
+			}
+		default:
+			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
 	}
 
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
+}
+
+func withUnsupportedType(colInfo utils.TableColumnsDataTypes, unsupportedType *queryissue.UnderlyingType) utils.TableColumnsDataTypes {
+	colInfo.UnsupportedType = unsupportedType.BaseName()
+	colInfo.IsUDTType = unsupportedType.Kind == queryissue.TypeKindComposite
+	return colInfo
 }
 
 func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) {
@@ -1327,9 +1299,7 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			}
 			assessmentReport.AppendIssues(issue)
 		case POSTGRESQL:
-			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
-			// for the array types we add the '[]' to the type for distinguish between normal type and array based datatype
-			baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
+			baseTypeName := colInfo.UnsupportedType
 
 			// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
@@ -1527,7 +1497,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
+				baseTypeName := colInfo.UnsupportedType
 
 				// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
@@ -1545,7 +1515,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
+				baseTypeName := colInfo.UnsupportedType
 
 				var queryIssue queryissue.QueryIssue
 
