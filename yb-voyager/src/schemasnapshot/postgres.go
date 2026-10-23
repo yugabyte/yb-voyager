@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // PostgreSQL SnapshotProvider for the schemasnapshot package.
-// v1 loads tables (including partition and inheritance wiring) and columns only.
+// Loads tables (including partition and inheritance wiring), columns, constraints and indexes.
 // Activate PostgreSQL support by importing this package (schemasnapshot); no
 // separate sub-package import is required. Add more engines by adding a file
 // and a switch case in newProvider (provider.go).
@@ -24,6 +24,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	goerrors "github.com/go-errors/errors"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
@@ -90,6 +92,58 @@ WHERE  a.attnum > 0
 ORDER  BY a.attrelid, a.attnum
 `
 
+// sqlLoadConstraintsFmt is the format template for loading primary key, unique, check
+// and foreign key constraints. It expects %s to be replaced with a comma-separated list
+// of $N placeholders (one per schema).
+// Columns returned: table_oid, name, oid, contype, definition, from_parent
+const sqlLoadConstraintsFmt = `
+SELECT con.conrelid::text                     AS table_oid,
+       con.conname                            AS name,
+       con.oid::text                          AS oid,
+       con.contype                            AS contype,
+       pg_get_constraintdef(con.oid, true)    AS definition,
+       -- conislocal is false for a partition's or inheritance child's copy, and true for a
+       -- check declared both locally and inherited, which is the table's own.
+       NOT con.conislocal                     AS from_parent
+FROM   pg_constraint con
+JOIN   pg_class      c ON c.oid = con.conrelid
+JOIN   pg_namespace  n ON n.oid = c.relnamespace
+WHERE  con.contype IN ('p','u','c','f')
+  AND  c.relkind IN ('r','p','f')
+  AND  n.nspname IN (%s)
+ORDER  BY con.conrelid, con.conname, con.oid
+`
+
+// sqlLoadIndexesFmt is the format template for loading indexes that back no constraint.
+// It expects %s to be replaced with a comma-separated list of $N placeholders (one per
+// schema).
+// Columns returned: table_oid, name, oid, is_unique, quoted_name, index_def, table_regclass, from_parent
+const sqlLoadIndexesFmt = `
+SELECT i.indrelid::text         AS table_oid,
+       ic.relname               AS name,
+       i.indexrelid::text       AS oid,
+       i.indisunique            AS is_unique,
+       quote_ident(ic.relname)  AS quoted_name,
+       pg_get_indexdef(i.indexrelid) AS index_def,
+       i.indrelid::regclass::text    AS table_regclass,
+       ic.relispartition        AS from_parent
+FROM   pg_index     i
+JOIN   pg_class     ic ON ic.oid = i.indexrelid
+JOIN   pg_class     c  ON c.oid = i.indrelid
+JOIN   pg_namespace n  ON n.oid = c.relnamespace
+-- An invalid index (a failed CREATE INDEX CONCURRENTLY) enforces nothing.
+WHERE  i.indisvalid
+  -- The constraint reports its own index. conrelid must match because a foreign key's
+  -- conindid points at the referenced table's index, which must still be reported there.
+  AND  NOT EXISTS (SELECT 1 FROM pg_constraint k
+                   WHERE  k.conindid = i.indexrelid
+                     AND  k.conrelid = i.indrelid
+                     AND  k.contype IN ('p','u','x'))
+  AND  c.relkind IN ('r','p','f')
+  AND  n.nspname IN (%s)
+ORDER  BY i.indrelid, ic.relname, i.indexrelid
+`
+
 // ─── PostgreSQL provider ───────────────────────────────────────────────────────
 
 // postgresSnapshotProvider implements SnapshotProvider for PostgreSQL.
@@ -102,11 +156,12 @@ type postgresSnapshotProvider struct {
 func (p *postgresSnapshotProvider) DatabaseType() string { return constants.POSTGRESQL }
 
 // TakeSnapshot captures the PostgreSQL schema for the given schemas.
-// It loads tables (including hierarchy links) and columns (v1 scope).
+// It loads tables (including hierarchy links), columns, constraints and indexes.
 // Returns the schema content, the probed database version string (e.g. "16.4"), and any error.
 // The header fields (Version, DatabaseType, DBMetadata) are stamped by the
 // Capture orchestrator in capture.go after this call returns.
-// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
+// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute →
+// pg_constraint → pg_index.
 func (p *postgresSnapshotProvider) TakeSnapshot(
 	ctx context.Context,
 	schemas []string,
@@ -135,6 +190,20 @@ func (p *postgresSnapshotProvider) TakeSnapshot(
 	}
 	attachColumns(snap.Tables, columns)
 
+	constraints, err := loadConstraints(ctx, p.db, placeholders, args)
+	if err != nil {
+		return nil, "", fmt.Errorf("postgres: loading constraints: %w", err)
+	}
+	if err := attachConstraints(snap.Tables, constraints); err != nil {
+		return nil, "", fmt.Errorf("postgres: attaching constraints: %w", err)
+	}
+
+	indexes, err := loadIndexes(ctx, p.db, placeholders, args)
+	if err != nil {
+		return nil, "", fmt.Errorf("postgres: loading indexes: %w", err)
+	}
+	attachIndexes(snap.Tables, indexes)
+
 	return snap, dbVersion, nil
 }
 
@@ -154,6 +223,81 @@ func attachColumns(tables []Table, columns []Column) {
 		}
 		if ti, ok := oidToIdx[tableOID]; ok {
 			tables[ti].Columns = append(tables[ti].Columns, c)
+		}
+	}
+}
+
+// constraintRow is one row of sqlLoadConstraintsFmt.
+type constraintRow struct {
+	tableOID string
+	contype  string
+	Constraint
+}
+
+// indexRow is one row of sqlLoadIndexesFmt, with the definition already reduced to the
+// part after the table name.
+type indexRow struct {
+	tableOID string
+	isUnique bool
+	Index
+}
+
+// attachConstraints routes each constraint to the Table field for its contype, by table
+// OID. Constraints of a table that is not in tables are dropped, as attachColumns does
+// for columns.
+func attachConstraints(tables []Table, rows []constraintRow) error {
+	oidToIdx := make(map[string]int, len(tables))
+	for i, t := range tables {
+		oidToIdx[t.ID] = i
+	}
+	for _, r := range rows {
+		ti, ok := oidToIdx[r.tableOID]
+		if !ok {
+			continue
+		}
+		tbl := &tables[ti]
+		con := r.Constraint
+		con.Table = tbl.ObjectRef
+		switch r.contype {
+		case "p":
+			if tbl.PrimaryKey != nil {
+				return goerrors.Errorf("table %s.%s has two primary keys: %q and %q",
+					tbl.Schema, tbl.Name, tbl.PrimaryKey.Name, con.Name)
+			}
+			tbl.PrimaryKey = &con
+		case "u":
+			tbl.UniqueKeys = append(tbl.UniqueKeys, con)
+		case "c":
+			tbl.Checks = append(tbl.Checks, con)
+		case "f":
+			tbl.ForeignKeys = append(tbl.ForeignKeys, con)
+		default:
+			return goerrors.Errorf("constraint %q on table %s.%s has unexpected contype %q",
+				con.Name, tbl.Schema, tbl.Name, r.contype)
+		}
+	}
+	return nil
+}
+
+// attachIndexes routes each index to UniqueIndexes or Indexes by table OID. Indexes of a
+// table that is not in tables are dropped, as attachColumns does for columns.
+func attachIndexes(tables []Table, rows []indexRow) {
+	oidToIdx := make(map[string]int, len(tables))
+	for i, t := range tables {
+		oidToIdx[t.ID] = i
+	}
+	for _, r := range rows {
+		ti, ok := oidToIdx[r.tableOID]
+		if !ok {
+			continue
+		}
+		tbl := &tables[ti]
+		idx := r.Index
+		idx.Table = tbl.ObjectRef
+		if r.isUnique {
+			tbl.UniqueIndexes = append(tbl.UniqueIndexes, idx)
+		} else {
+			tbl.Indexes = append(tbl.Indexes, idx)
 		}
 	}
 }
@@ -346,6 +490,82 @@ func loadColumns(ctx context.Context, db QueryExecutor, placeholders string, arg
 		return nil, fmt.Errorf("iterate column rows: %w", err)
 	}
 	return columns, nil
+}
+
+// loadConstraints queries pg_constraint for primary key, unique, check and foreign key
+// constraints of tables in the given schemas.
+func loadConstraints(ctx context.Context, db QueryExecutor, placeholders string, args []interface{}) ([]constraintRow, error) {
+	query := fmt.Sprintf(sqlLoadConstraintsFmt, placeholders)
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query pg_constraint: %w", err)
+	}
+	defer rows.Close()
+
+	var out []constraintRow
+	for rows.Next() {
+		var r constraintRow
+		if err := rows.Scan(&r.tableOID, &r.Name, &r.ID, &r.contype, &r.Definition, &r.FromParent); err != nil {
+			return nil, fmt.Errorf("scan constraint row: %w", err)
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate constraint rows: %w", err)
+	}
+	return out, nil
+}
+
+// loadIndexes queries pg_index for valid indexes, of tables in the given schemas, that
+// back no primary key, unique or exclusion constraint.
+func loadIndexes(ctx context.Context, db QueryExecutor, placeholders string, args []interface{}) ([]indexRow, error) {
+	query := fmt.Sprintf(sqlLoadIndexesFmt, placeholders)
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query pg_index: %w", err)
+	}
+	defer rows.Close()
+
+	var out []indexRow
+	for rows.Next() {
+		var r indexRow
+		var quotedName, indexDef, tableRegclass string
+		if err := rows.Scan(&r.tableOID, &r.Name, &r.ID, &r.isUnique, &quotedName, &indexDef, &tableRegclass, &r.FromParent); err != nil {
+			return nil, fmt.Errorf("scan index row: %w", err)
+		}
+		r.Definition, err = stripIndexDefPrefix(indexDef, quotedName, tableRegclass, r.isUnique)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate index rows: %w", err)
+	}
+	return out, nil
+}
+
+// stripIndexDefPrefix removes "CREATE [UNIQUE] INDEX <name> ON [ONLY ]<table> " from a
+// pg_get_indexdef result, leaving "USING ..." onward. The prefix is rebuilt from the
+// quoted name and the table text the same query returned, so a mismatch means the
+// output format changed and is an error rather than a guess.
+func stripIndexDefPrefix(indexDef, quotedName, tableRegclass string, isUnique bool) (string, error) {
+	create := "CREATE INDEX "
+	if isUnique {
+		create = "CREATE UNIQUE INDEX "
+	}
+	prefix := create + quotedName + " ON " + tableRegclass + " "
+	if rest, ok := strings.CutPrefix(indexDef, prefix); ok {
+		return rest, nil
+	}
+	onlyPrefix := create + quotedName + " ON ONLY " + tableRegclass + " "
+	if rest, ok := strings.CutPrefix(indexDef, onlyPrefix); ok {
+		return rest, nil
+	}
+	return "", goerrors.Errorf("index %s: definition %q does not start with %q or %q",
+		quotedName, indexDef, prefix, onlyPrefix)
 }
 
 // relkindToTableKind converts a pg_class.relkind character to a TableKind.

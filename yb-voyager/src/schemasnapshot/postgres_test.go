@@ -18,6 +18,7 @@ package schemasnapshot
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -80,6 +81,7 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 		AddRow("16420", "1", "public", "orders", "id", "bigint", true, "").
 		AddRow("16420", "2", "public", "orders", "amount", "numeric", false, "0")
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(colRows)
+	expectEmptyConstraintsAndIndexes(mock)
 
 	snap, dbVersion, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
@@ -126,13 +128,14 @@ func TestTakeSnapshotDatabaseVersionReturned(t *testing.T) {
 	p, err := newProvider(constants.POSTGRESQL, db)
 	require.NoError(t, err)
 
-	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
+	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
 	mock.ExpectQuery(`SHOW server_version`).
 		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("14.11"))
 
 	mock.ExpectQuery(`pg_class`).WillReturnRows(sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}))
 	mock.ExpectQuery(`pg_inherits`).WillReturnRows(sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}))
+	expectEmptyConstraintsAndIndexes(mock)
 
 	snap, dbVersion, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
@@ -152,7 +155,7 @@ func TestTakeSnapshotPartitionLinkage(t *testing.T) {
 	p, err := newProvider("postgresql", db)
 	require.NoError(t, err)
 
-	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
+	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
 
 	// version
 	mock.ExpectQuery(`SHOW server_version`).
@@ -173,6 +176,7 @@ func TestTakeSnapshotPartitionLinkage(t *testing.T) {
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(
 		sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}),
 	)
+	expectEmptyConstraintsAndIndexes(mock)
 
 	snap, _, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
@@ -212,7 +216,7 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 	p, err := newProvider("postgresql", db)
 	require.NoError(t, err)
 
-	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute.
+	// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
 
 	// version
 	mock.ExpectQuery(`SHOW server_version`).
@@ -233,6 +237,7 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 	mock.ExpectQuery(`pg_attribute`).WillReturnRows(
 		sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}),
 	)
+	expectEmptyConstraintsAndIndexes(mock)
 
 	snap, _, err := p.TakeSnapshot(context.Background(), []string{"public"})
 	require.NoError(t, err)
@@ -261,4 +266,163 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 	assert.Nil(t, animals.PartitionParent, "legacy-inheritance parent must have nil PartitionParent")
 
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+var (
+	constraintColumns = []string{"table_oid", "name", "oid", "contype", "definition", "from_parent"}
+	indexColumns      = []string{"table_oid", "name", "oid", "is_unique", "quoted_name", "index_def", "table_regclass", "from_parent"}
+)
+
+func expectEmptyConstraintsAndIndexes(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery(`pg_get_constraintdef`).WillReturnRows(sqlmock.NewRows(constraintColumns))
+	mock.ExpectQuery(`pg_get_indexdef`).WillReturnRows(sqlmock.NewRows(indexColumns))
+}
+
+// expectTables registers the version, tables, links and (empty) columns queries for the
+// given tables, each as (oid, schema, name).
+func expectTables(mock sqlmock.Sqlmock, tables ...[3]string) {
+	mock.ExpectQuery(`SHOW server_version`).
+		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("17.2"))
+	tableRows := sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"})
+	for _, tb := range tables {
+		tableRows.AddRow(tb[0], tb[1], tb[2], "r")
+	}
+	mock.ExpectQuery(`pg_class`).WillReturnRows(tableRows)
+	mock.ExpectQuery(`pg_inherits`).WillReturnRows(
+		sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
+	mock.ExpectQuery(`pg_attribute`).WillReturnRows(
+		sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}))
+}
+
+func TestTakeSnapshotAttachesConstraintsAndIndexes(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	p, err := newProvider(constants.POSTGRESQL, db)
+	require.NoError(t, err)
+
+	expectTables(mock, [3]string{"100", "MixedCase", "My Table"}, [3]string{"200", "public", "plain"})
+	mock.ExpectQuery(`pg_get_constraintdef`).WillReturnRows(sqlmock.NewRows(constraintColumns).
+		AddRow("100", "My Check", "11", "c", "CHECK (qty > 0)", false).
+		AddRow("100", "My FK", "12", "f", "FOREIGN KEY (ref_id) REFERENCES other.ref(id) ON DELETE CASCADE", false).
+		AddRow("100", "My PK", "13", "p", `PRIMARY KEY ("Id")`, false).
+		AddRow("100", "My Unique", "14", "u", "UNIQUE (email)", false).
+		AddRow("100", "inherited_chk", "15", "c", "CHECK (a > 0)", true).
+		AddRow("999", "out_of_scope_pkey", "16", "p", "PRIMARY KEY (id)", false))
+	mock.ExpectQuery(`pg_get_indexdef`).WillReturnRows(sqlmock.NewRows(indexColumns).
+		AddRow("100", "My Idx", "21", false, `"My Idx"`,
+			`CREATE INDEX "My Idx" ON "MixedCase"."My Table" USING btree (qty)`, `"MixedCase"."My Table"`, false).
+		AddRow("100", "My Uidx", "22", true, `"My Uidx"`,
+			`CREATE UNIQUE INDEX "My Uidx" ON "MixedCase"."My Table" USING btree (lower(email)) WHERE (email IS NOT NULL)`, `"MixedCase"."My Table"`, true).
+		AddRow("999", "out_of_scope_idx", "23", false, "out_of_scope_idx",
+			"CREATE INDEX out_of_scope_idx ON other.t USING btree (a)", "other.t", false))
+
+	snap, _, err := p.TakeSnapshot(context.Background(), []string{"MixedCase", "public"})
+	require.NoError(t, err)
+	require.Len(t, snap.Tables, 2)
+
+	tableRef := ObjectRef{Schema: "MixedCase", Name: "My Table"}
+	scoped := func(name string) TableScopedObjectRef { return TableScopedObjectRef{Table: tableRef, Name: name} }
+	mixed := snap.Tables[0]
+	assert.Equal(t, &Constraint{TableScopedObjectRef: scoped("My PK"), ID: "13", Definition: `PRIMARY KEY ("Id")`}, mixed.PrimaryKey)
+	assert.Equal(t, []Constraint{{TableScopedObjectRef: scoped("My Unique"), ID: "14", Definition: "UNIQUE (email)"}}, mixed.UniqueKeys)
+	assert.Equal(t, []Constraint{
+		{TableScopedObjectRef: scoped("My Check"), ID: "11", Definition: "CHECK (qty > 0)"},
+		{TableScopedObjectRef: scoped("inherited_chk"), ID: "15", Definition: "CHECK (a > 0)", FromParent: true},
+	}, mixed.Checks)
+	assert.Equal(t, []Constraint{{TableScopedObjectRef: scoped("My FK"), ID: "12",
+		Definition: "FOREIGN KEY (ref_id) REFERENCES other.ref(id) ON DELETE CASCADE"}}, mixed.ForeignKeys)
+	assert.Equal(t, []Index{{TableScopedObjectRef: scoped("My Idx"), ID: "21", Definition: "USING btree (qty)"}}, mixed.Indexes)
+	assert.Equal(t, []Index{{TableScopedObjectRef: scoped("My Uidx"), ID: "22",
+		Definition: "USING btree (lower(email)) WHERE (email IS NOT NULL)", FromParent: true}}, mixed.UniqueIndexes)
+
+	plain := snap.Tables[1]
+	assert.Nil(t, plain.PrimaryKey)
+	assert.Empty(t, plain.UniqueKeys)
+	assert.Empty(t, plain.Checks)
+	assert.Empty(t, plain.ForeignKeys)
+	assert.Empty(t, plain.Indexes)
+	assert.Empty(t, plain.UniqueIndexes)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestTakeSnapshotTwoPrimaryKeysIsError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	p, err := newProvider(constants.POSTGRESQL, db)
+	require.NoError(t, err)
+
+	expectTables(mock, [3]string{"100", "public", "orders"})
+	mock.ExpectQuery(`pg_get_constraintdef`).WillReturnRows(sqlmock.NewRows(constraintColumns).
+		AddRow("100", "orders_pkey", "1", "p", "PRIMARY KEY (id)", false).
+		AddRow("100", "orders_pkey2", "2", "p", "PRIMARY KEY (id)", false))
+
+	_, _, err = p.TakeSnapshot(context.Background(), []string{"public"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `table public.orders has two primary keys: "orders_pkey" and "orders_pkey2"`)
+}
+
+func TestTakeSnapshotUnexpectedContypeIsError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	p, err := newProvider(constants.POSTGRESQL, db)
+	require.NoError(t, err)
+
+	expectTables(mock, [3]string{"100", "public", "orders"})
+	mock.ExpectQuery(`pg_get_constraintdef`).WillReturnRows(sqlmock.NewRows(constraintColumns).
+		AddRow("100", "weird", "1", "x", "EXCLUDE USING gist (a WITH &&)", false))
+
+	_, _, err = p.TakeSnapshot(context.Background(), []string{"public"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unexpected contype "x"`)
+}
+
+func TestStripIndexDefPrefix(t *testing.T) {
+	cases := []struct {
+		name      string
+		indexDef  string
+		quoted    string
+		table     string
+		isUnique  bool
+		want      string
+		wantError bool
+	}{
+		{name: "plain", indexDef: "CREATE INDEX idx ON public.orders USING btree (a)",
+			quoted: "idx", table: "public.orders", want: "USING btree (a)"},
+		{name: "unique", indexDef: "CREATE UNIQUE INDEX idx ON public.orders USING btree (a)",
+			quoted: "idx", table: "public.orders", isUnique: true, want: "USING btree (a)"},
+		{name: "on only", indexDef: "CREATE INDEX idx ON ONLY public.orders USING btree (a)",
+			quoted: "idx", table: "public.orders", want: "USING btree (a)"},
+		{name: "unique on only", indexDef: "CREATE UNIQUE INDEX idx ON ONLY public.orders USING btree (a)",
+			quoted: "idx", table: "public.orders", isUnique: true, want: "USING btree (a)"},
+		{name: "quoted spaced names", indexDef: `CREATE INDEX "My Idx" ON "Mixed Case"."My Table" USING btree (qty)`,
+			quoted: `"My Idx"`, table: `"Mixed Case"."My Table"`, want: "USING btree (qty)"},
+		{name: "keeps expression and predicate",
+			indexDef: `CREATE UNIQUE INDEX "My Uidx" ON "MixedCase"."T" USING btree (lower(email)) WHERE (email IS NOT NULL)`,
+			quoted:   `"My Uidx"`, table: `"MixedCase"."T"`, isUnique: true,
+			want: "USING btree (lower(email)) WHERE (email IS NOT NULL)"},
+		{name: "index name containing USING",
+			indexDef: `CREATE INDEX "a USING b" ON public.t USING btree (x)`,
+			quoted:   `"a USING b"`, table: "public.t", want: "USING btree (x)"},
+		{name: "wrong index name", indexDef: "CREATE INDEX other ON public.orders USING btree (a)",
+			quoted: "idx", table: "public.orders", wantError: true},
+		{name: "wrong table", indexDef: "CREATE INDEX idx ON public.other USING btree (a)",
+			quoted: "idx", table: "public.orders", wantError: true},
+		{name: "unique flag disagrees", indexDef: "CREATE UNIQUE INDEX idx ON public.orders USING btree (a)",
+			quoted: "idx", table: "public.orders", wantError: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := stripIndexDefPrefix(tc.indexDef, tc.quoted, tc.table, tc.isUnique)
+			if tc.wantError {
+				require.Error(t, err)
+				assert.True(t, strings.Contains(err.Error(), "index "+tc.quoted))
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }

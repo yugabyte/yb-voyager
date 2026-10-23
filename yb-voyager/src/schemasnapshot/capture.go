@@ -79,6 +79,12 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 		return nil, err
 	}
 
+	// Empty search_path makes pg_get_constraintdef, pg_get_indexdef and regclass text
+	// always schema-qualified, so a REFERENCES target never depends on the session.
+	if _, err := tx.ExecContext(ctx, "SET LOCAL search_path = ''"); err != nil {
+		return nil, fmt.Errorf("schemasnapshot: clearing search_path for snapshot: %w", err)
+	}
+
 	schema, dbVersion, err := provider.TakeSnapshot(ctx, p.Schemas)
 	if err != nil {
 		return nil, fmt.Errorf("schemasnapshot: taking snapshot: %w", err)
@@ -89,7 +95,7 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 	}
 
 	// Stamp schema-level fields (content).
-	schema.Version = 1
+	schema.Version = currentSnapshotVersion
 	schema.DatabaseType = p.DatabaseType
 	schema.DBMetadata = p.DBMetadata
 
