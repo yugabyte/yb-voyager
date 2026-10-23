@@ -232,3 +232,30 @@ func TestSnapshotHeaderNameDifferentLabels(t *testing.T) {
 	}
 	assert.Equal(t, "export_data_from_source_exit_20260512T100000Z", h.Name())
 }
+
+func TestSchemaSnapshotJSONRoundTripKeysAndIndexes(t *testing.T) {
+	tableRef := ObjectRef{Schema: "MixedCase", Name: "My Table"}
+	scoped := func(name string) TableScopedObjectRef { return TableScopedObjectRef{Table: tableRef, Name: name} }
+	snap := &SnapshotContent{
+		Version:      currentSnapshotVersion,
+		DatabaseType: "postgresql",
+		Tables: []Table{{
+			ObjectRef:     tableRef,
+			ID:            "1",
+			Kind:          TableKindOrdinary,
+			PrimaryKey:    &Constraint{TableScopedObjectRef: scoped("My PK"), ID: "2", Definition: "PRIMARY KEY (id)"},
+			UniqueKeys:    []Constraint{{TableScopedObjectRef: scoped("uk"), ID: "3", Definition: "UNIQUE (a)", FromParent: true}},
+			Checks:        []Constraint{{TableScopedObjectRef: scoped("ck"), ID: "4", Definition: "CHECK (a > 0)"}},
+			ForeignKeys:   []Constraint{{TableScopedObjectRef: scoped("fk"), ID: "5", Definition: "FOREIGN KEY (a) REFERENCES s.t(id)"}},
+			UniqueIndexes: []Index{{TableScopedObjectRef: scoped("uidx"), ID: "6", Definition: "USING btree (lower(a))"}},
+			Indexes:       []Index{{TableScopedObjectRef: scoped("idx"), ID: "7", Definition: "USING btree (a)", FromParent: true}},
+		}},
+	}
+
+	data, err := json.Marshal(snap)
+	require.NoError(t, err)
+
+	var got SnapshotContent
+	require.NoError(t, json.Unmarshal(data, &got))
+	assert.Equal(t, snap, &got)
+}
