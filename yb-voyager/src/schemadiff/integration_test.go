@@ -84,6 +84,13 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`."Fk_Added" (x int)`,
 		`CREATE TABLE `+driftSchema+`.fk_dropped (x int CONSTRAINT fk_dropped_fkey REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
 		`CREATE TABLE `+driftSchema+`.fk_renamed (x int CONSTRAINT old_fk REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
+		`CREATE TABLE `+driftSchema+`."Ix_Added" (a int, b text)`,
+		`CREATE TABLE `+driftSchema+`.ix_dropped (a int, b text)`,
+		`CREATE INDEX ix_dropped_a_idx ON `+driftSchema+`.ix_dropped (a)`,
+		`CREATE UNIQUE INDEX ix_dropped_b_uq ON `+driftSchema+`.ix_dropped (lower(b)) WHERE b IS NOT NULL`,
+		`CREATE TABLE `+driftSchema+`.ix_renamed (a int, b text)`,
+		`CREATE INDEX old_ix ON `+driftSchema+`.ix_renamed (a)`,
+		`CREATE UNIQUE INDEX old_uix ON `+driftSchema+`.ix_renamed (lower(b)) WHERE b IS NOT NULL`,
 	)
 
 	db, err := pg.GetConnection()
@@ -138,6 +145,12 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`."Fk_Added" ADD CONSTRAINT "Fk_Added_Fkey" FOREIGN KEY (x) REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE`,
 		`ALTER TABLE `+driftSchema+`.fk_dropped DROP CONSTRAINT fk_dropped_fkey`,
 		`ALTER TABLE `+driftSchema+`.fk_renamed RENAME CONSTRAINT old_fk TO "New_Fk"`,
+		`CREATE INDEX "Ix_Added_A_Idx" ON `+driftSchema+`."Ix_Added" (a)`,
+		`CREATE UNIQUE INDEX "Ix_Added_B_Uq" ON `+driftSchema+`."Ix_Added" (lower(b)) WHERE b IS NOT NULL`,
+		`DROP INDEX `+driftSchema+`.ix_dropped_a_idx`,
+		`DROP INDEX `+driftSchema+`.ix_dropped_b_uq`,
+		`ALTER INDEX `+driftSchema+`.old_ix RENAME TO "New_Ix"`,
+		`ALTER INDEX `+driftSchema+`.old_uix RENAME TO "New_Uix"`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -336,6 +349,25 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.ForeignKeyDropped, Object: driftSchema + `.fk_dropped.fk_dropped_fkey`, Old: fkDefinition},
 		{Type: schemadiff.ForeignKeyNameChanged, Object: driftSchema + `.fk_renamed.old_fk`, Old: "old_fk", New: "New_Fk"},
 	}, gotConstraints)
+
+	// ── 10c. Index findings ─────────────────────────────────────────────────────
+	indexFindings := findDiffs(func(d schemadiff.Difference) bool { return d.ObjectType == schemadiff.ObjectTypeIndex })
+	gotIndexes := make([]constraintFinding, len(indexFindings))
+	for i, d := range indexFindings {
+		gotIndexes[i] = constraintFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
+	}
+	const (
+		plainIndexDefinition  = `USING btree (a)`
+		uniqueIndexDefinition = `USING btree (lower(b)) WHERE (b IS NOT NULL)`
+	)
+	assert.ElementsMatch(t, []constraintFinding{
+		{Type: schemadiff.IndexAdded, Object: driftSchema + `.Ix_Added.Ix_Added_A_Idx`, New: plainIndexDefinition},
+		{Type: schemadiff.IndexDropped, Object: driftSchema + `.ix_dropped.ix_dropped_a_idx`, Old: plainIndexDefinition},
+		{Type: schemadiff.IndexNameChanged, Object: driftSchema + `.ix_renamed.old_ix`, Old: "old_ix", New: "New_Ix"},
+		{Type: schemadiff.UniqueIndexAdded, Object: driftSchema + `.Ix_Added.Ix_Added_B_Uq`, New: uniqueIndexDefinition},
+		{Type: schemadiff.UniqueIndexDropped, Object: driftSchema + `.ix_dropped.ix_dropped_b_uq`, Old: uniqueIndexDefinition},
+		{Type: schemadiff.UniqueIndexNameChanged, Object: driftSchema + `.ix_renamed.old_uix`, Old: "old_uix", New: "New_Uix"},
+	}, gotIndexes)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
 	// Rename/move alias handling is TEMPORARILY DISABLED in FilterByScope (see
