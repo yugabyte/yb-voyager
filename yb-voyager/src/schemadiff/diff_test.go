@@ -221,8 +221,19 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		},
 	}
 
-	a := snapWithTables(tA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
-	b := snapWithTables(tB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
+	tA.PrimaryKey = makePrimaryKey("s1", "t_old", "10", "pk_old", "PRIMARY KEY (col_keep)")
+	tB.PrimaryKey = makePrimaryKey("s2", "t_new", "10", "pk_new", "PRIMARY KEY (col_renamed)")
+	pkDroppedA := makeTable("4", "s1", "pk_dropped", schemasnapshot.TableKindOrdinary)
+	pkDroppedA.PrimaryKey = makePrimaryKey("s1", "pk_dropped", "11", "pk_dropped_pkey", "PRIMARY KEY (id)")
+	pkDroppedB := makeTable("4", "s1", "pk_dropped", schemasnapshot.TableKindOrdinary)
+	pkAddedA := makeTable("5", "s1", "pk_added", schemasnapshot.TableKindOrdinary)
+	pkAddedB := makeTable("5", "s1", "pk_added", schemasnapshot.TableKindOrdinary)
+	pkAddedB.PrimaryKey = makePrimaryKey("s1", "pk_added", "12", "pk_added_pkey", "PRIMARY KEY (id)")
+
+	a := snapWithTables(tA, pkDroppedA, pkAddedA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(tB, pkDroppedB, pkAddedB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
+	a.Version = schemasnapshot.VersionWithKeysAndIndexes
+	b.Version = schemasnapshot.VersionWithKeysAndIndexes
 
 	got := Diff(a, b)
 
@@ -299,13 +310,19 @@ func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute
 		ot = ObjectTypeTable
 	case strings.HasPrefix(s, "COLUMN_"):
 		ot = ObjectTypeColumn
+	case strings.HasPrefix(s, "PRIMARY_KEY_"):
+		ot = ObjectTypeConstraint
 	default:
 		t.Fatalf("unrecognized DiffType object prefix: %s", s)
 	}
 
 	attr := AttrNone
 	if op == OpChanged {
-		mid := strings.TrimSuffix(strings.TrimPrefix(s, string(ot)+"_"), "_CHANGED")
+		prefix := string(ot)
+		if ot == ObjectTypeConstraint {
+			prefix = "PRIMARY_KEY"
+		}
+		mid := strings.TrimSuffix(strings.TrimPrefix(s, prefix+"_"), "_CHANGED")
 		attr = Attribute(mid)
 	}
 	return op, ot, attr
