@@ -92,6 +92,8 @@ func TestDiffPrimaryKey(t *testing.T) {
 func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	pk := makePrimaryKey("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
 	withKey := tableWithPrimaryKey(pk)
+	withKey.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "11", "Orders_Email_key", `UNIQUE ("Email")`)}
+	withKey.Checks = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Qty_check", `CHECK ("Qty" > 0)`)}
 	withoutKey := tableWithPrimaryKey(nil)
 
 	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
@@ -107,7 +109,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	}{
 		{"v1 to v2 skips keys", 1, schemasnapshot.VersionWithKeysAndIndexes, nil},
 		{"v2 to v1 skips keys", schemasnapshot.VersionWithKeysAndIndexes, 1, nil},
-		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded}},
+		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded, UniqueAdded, CheckAdded}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -115,7 +117,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 			for _, d := range Diff(snapshot(tc.versionA, withoutKey), snapshot(tc.versionB, withKey)) {
 				got = append(got, d.Type)
 			}
-			assert.Equal(t, tc.want, got)
+			assert.ElementsMatch(t, tc.want, got)
 		})
 	}
 }
@@ -187,27 +189,4 @@ func TestDiffByOID(t *testing.T) {
 		got := diffByOID(nil, []schemasnapshot.Constraint{emailKey}, constraintRef, checkTypes)
 		assert.Equal(t, CheckAdded, got[0].Type)
 	})
-}
-
-func TestDiff_UniqueAndCheckFollowTheKeysVersionGuard(t *testing.T) {
-	key := *makePrimaryKey("public", "Orders", "10", "Orders_Email_key", `UNIQUE ("Email")`)
-	check := *makePrimaryKey("public", "Orders", "11", "Orders_Qty_check", `CHECK ("Qty" > 0)`)
-	withKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
-	withKeys.UniqueKeys = []schemasnapshot.Constraint{key}
-	withKeys.Checks = []schemasnapshot.Constraint{check}
-	withoutKeys := makeTable("1", "public", "Orders", schemasnapshot.TableKindOrdinary)
-
-	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
-		s := snapWithTables(table)
-		s.Version = version
-		return s
-	}
-	assert.Empty(t, Diff(snapshot(1, withoutKeys), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys)))
-	assert.Empty(t, Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys), snapshot(1, withoutKeys)))
-
-	var got []DiffType
-	for _, d := range Diff(snapshot(schemasnapshot.VersionWithKeysAndIndexes, withoutKeys), snapshot(schemasnapshot.VersionWithKeysAndIndexes, withKeys)) {
-		got = append(got, d.Type)
-	}
-	assert.Equal(t, []DiffType{UniqueAdded, CheckAdded}, got)
 }
