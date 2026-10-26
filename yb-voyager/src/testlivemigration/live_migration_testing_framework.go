@@ -89,6 +89,8 @@ type ContainerConfig struct {
 	Type         string // "postgresql", "yugabytedb", etc.
 	ForLive      bool   // Whether to configure for live migration
 	DatabaseName string // Database name to use for the container
+	// MTLS, when set, uses a dedicated container that accepts only client-certificate TLS.
+	MTLS *testcontainers.MTLSConfig
 }
 
 // ============================================================
@@ -113,6 +115,7 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 	// Start source container
 	containerConfig := &testcontainers.ContainerConfig{
 		ForLive: lm.config.SourceDB.ForLive,
+		MTLS:    lm.config.SourceDB.MTLS,
 	}
 	lm.sourceContainer = testcontainers.NewTestContainer(lm.config.SourceDB.Type, containerConfig)
 	if err := lm.sourceContainer.Start(ctx); err != nil {
@@ -124,6 +127,7 @@ func (lm *LiveMigrationTest) SetupContainers(ctx context.Context) error {
 		targetContainerConfig := &testcontainers.ContainerConfig{
 			ForLive: lm.config.TargetDB.ForLive,
 			DBName:  lm.config.TargetDB.DatabaseName,
+			MTLS:    lm.config.TargetDB.MTLS,
 		}
 		lm.targetContainer = testcontainers.NewTestContainer(lm.config.TargetDB.Type, targetContainerConfig)
 		if err := lm.targetContainer.Start(ctx); err != nil {
@@ -267,6 +271,48 @@ func (lm *LiveMigrationTest) Cleanup() {
 // ============================================================
 // MIGRATION COMMANDS
 // ============================================================
+
+// RunExportSchema runs export schema to completion against the source.
+func (lm *LiveMigrationTest) RunExportSchema(extraArgs map[string]string) error {
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
+		"--source-db-name", lm.config.SourceDB.DatabaseName,
+		"--yes",
+	}
+	return lm.runSchemaCommand(lm.sourceContainer, "export schema", args, extraArgs)
+}
+
+// RunImportSchema runs import schema to completion against the target.
+func (lm *LiveMigrationTest) RunImportSchema(extraArgs map[string]string) error {
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--target-db-name", lm.config.TargetDB.DatabaseName,
+		"--yes",
+	}
+	return lm.runSchemaCommand(lm.targetContainer, "import schema", args, extraArgs)
+}
+
+// RunFinalizeSchemaPostDataImport runs finalize-schema-post-data-import to completion against the target.
+func (lm *LiveMigrationTest) RunFinalizeSchemaPostDataImport(extraArgs map[string]string) error {
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--target-db-name", lm.config.TargetDB.DatabaseName,
+		"--yes",
+	}
+	return lm.runSchemaCommand(lm.targetContainer, "finalize-schema-post-data-import", args, extraArgs)
+}
+
+func (lm *LiveMigrationTest) runSchemaCommand(container testcontainers.TestContainer, cmdName string, args []string, extraArgs map[string]string) error {
+	for key, value := range extraArgs {
+		args = append(args, key, value)
+	}
+	err := testutils.NewVoyagerCommandRunner(container, cmdName, args, nil, false).WithT(lm.t).Run()
+	if err != nil {
+		return goerrors.Errorf("%s: %w", cmdName, err)
+	}
+	return nil
+}
 
 // StartExportData starts export data command
 func (lm *LiveMigrationTest) StartExportData(async bool, extraArgs map[string]string) error {

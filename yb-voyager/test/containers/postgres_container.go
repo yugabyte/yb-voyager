@@ -1,6 +1,7 @@
 package testcontainers
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -9,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,6 +53,10 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 
 		// Wait for it to accept connections again
 		return pingDatabase("pgx", pg.GetConnectionString())
+	}
+
+	if pg.MTLS != nil {
+		return pg.startWithMTLS(ctx)
 	}
 
 	// since these Start() can be called from anywhere so need a way to ensure that correct files(without needing abs path) are picked from project directories
@@ -178,7 +184,8 @@ func (pg *PostgresContainer) GetConnectionString() string {
 		utils.ErrExit("failed to get host port for postgres connection string: %w", err)
 	}
 
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", config.User, config.Password, host, port, config.DBName)
+	return withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName),
+		config.harnessConnQuery("sslmode=disable"))
 }
 
 func (pg *PostgresContainer) GetConnection() (*sql.DB, error) {
@@ -241,7 +248,8 @@ func (pg *PostgresContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
 	}
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", pg.User, pg.Password, host, port, "postgres")
+	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", pg.User, pg.Password, host, port, "postgres"),
+		pg.harnessConnQuery("sslmode=disable"))
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
@@ -330,7 +338,8 @@ func (pg *PostgresContainer) GetConnectionWithDB(dbName string) (*sql.DB, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
 	}
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName)
+	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName),
+		config.harnessConnQuery(""))
 	return sql.Open("pgx", connStr)
 }
 
@@ -365,6 +374,78 @@ func (pg *PostgresContainer) ExecuteSqlsOnDB(dbName string, sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
 		}
 	}
+}
+
+const (
+	pgMTLSStagingDir = "/tmp/mtls"
+	pgMTLSServingDir = "/var/lib/postgresql/mtls"
+)
+
+// The `local` line is the only one that does not require TLS: docker-entrypoint initializes the
+// database over the Unix socket, which is not reachable from outside the container.
+const pgMTLSHBA = `local    all          all       trust
+hostssl  all          all  all  cert
+hostssl  replication  all  all  cert
+`
+
+// startWithMTLS starts a server whose pg_hba.conf admits network clients only over TLS with
+// `cert` authentication, i.e. a client certificate signed by the CA whose CN is the role.
+func (pg *PostgresContainer) startWithMTLS(ctx context.Context) (err error) {
+	// Postgres refuses a key file that is not owned by its OS user, and copied files are
+	// root-owned, so the entrypoint installs them with the right owner before starting postgres.
+	entrypointScript := fmt.Sprintf(
+		"install -d -o postgres -g postgres -m 700 %[2]s && "+
+			"install -o postgres -g postgres -m 644 %[1]s/ca.crt %[1]s/server.crt %[1]s/pg_hba.conf %[2]s/ && "+
+			"install -o postgres -g postgres -m 600 %[1]s/server.key %[2]s/ && "+
+			`exec docker-entrypoint.sh "$@"`,
+		pgMTLSStagingDir, pgMTLSServingDir)
+
+	cmd := []string{
+		"postgres",
+		"-c", "ssl=on",
+		"-c", "ssl_ca_file=" + pgMTLSServingDir + "/ca.crt",
+		"-c", "ssl_cert_file=" + pgMTLSServingDir + "/server.crt",
+		"-c", "ssl_key_file=" + pgMTLSServingDir + "/server.key",
+		"-c", "hba_file=" + pgMTLSServingDir + "/pg_hba.conf",
+	}
+	if pg.ForLive {
+		cmd = append(cmd, "-c", "wal_level=logical", "-c", "max_replication_slots=20")
+	}
+
+	req := testcontainers.ContainerRequest{
+		Image:        fmt.Sprintf("postgres:%s", pg.DBVersion),
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_USER":     pg.User,
+			"POSTGRES_PASSWORD": pg.Password,
+			"POSTGRES_DB":       pg.DBName,
+		},
+		Entrypoint: []string{"sh", "-c", entrypointScript, "sh"},
+		Cmd:        cmd,
+		Files: []testcontainers.ContainerFile{
+			{Reader: bytes.NewReader(pg.MTLS.CACertPEM), ContainerFilePath: pgMTLSStagingDir + "/ca.crt", FileMode: 0o644},
+			{Reader: bytes.NewReader(pg.MTLS.ServerCertPEM), ContainerFilePath: pgMTLSStagingDir + "/server.crt", FileMode: 0o644},
+			{Reader: bytes.NewReader(pg.MTLS.ServerKeyPEM), ContainerFilePath: pgMTLSStagingDir + "/server.key", FileMode: 0o600},
+			{Reader: strings.NewReader(pgMTLSHBA), ContainerFilePath: pgMTLSStagingDir + "/pg_hba.conf", FileMode: 0o644},
+		},
+		// The first occurrence is the entrypoint's temporary, socket-only initdb server.
+		WaitingFor: wait.ForLog("database system is ready to accept connections").
+			WithOccurrence(2).WithStartupTimeout(3 * time.Minute),
+	}
+
+	pg.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		printContainerLogs(pg.container)
+		return fmt.Errorf("failed to start mTLS postgres container: %w", err)
+	}
+	err = pingDatabase("pgx", pg.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to ping mTLS postgres container: %w", err)
+	}
+	return nil
 }
 
 const (

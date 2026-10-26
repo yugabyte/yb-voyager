@@ -1,6 +1,7 @@
 package testcontainers
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -71,6 +72,10 @@ func (yb *YugabyteDBContainer) SetConfig(config ContainerConfig) {
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	yb.mutex.Lock()
 	defer yb.mutex.Unlock()
+
+	if yb.MTLS != nil {
+		return yb.startWithMTLS(ctx)
+	}
 
 	// External-instance mode: skip docker entirely.
 	if host := os.Getenv("YB_EXTERNAL_HOST"); host != "" {
@@ -179,6 +184,94 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	return nil
 }
 
+const (
+	ybMTLSStagingDir = "/tmp/mtls"
+	ybMTLSCertsDir   = "/home/yugabyte/mtls-certs"
+	// yugabyted advertises this name, and the tserver serves node.<advertised address>.crt/.key
+	// from certs_for_client_dir.
+	ybMTLSHostname = "yb-mtls"
+	// Only hostssl with `cert` authentication: a client certificate signed by the CA whose CN is
+	// the role. With no other line, non-TLS connections match no entry and are rejected.
+	ybMTLSHBA = "hostssl all all all cert"
+)
+
+// startWithMTLS starts a node with client-to-server encryption whose YSQL hba admits only
+// TLS connections authenticated by a client certificate.
+func (yb *YugabyteDBContainer) startWithMTLS(ctx context.Context) (err error) {
+	if os.Getenv("YB_EXTERNAL_HOST") != "" {
+		return fmt.Errorf("an mTLS yugabytedb container cannot use the external instance from YB_EXTERNAL_HOST")
+	}
+	if yb.container != nil {
+		if yb.container.IsRunning() {
+			return nil
+		}
+		if err := yb.container.Start(ctx); err != nil {
+			return fmt.Errorf("failed to restart mTLS yugabytedb container: %w", err)
+		}
+		return yb.mtlsReadyWait().WaitUntilReady(ctx, yb.container)
+	}
+
+	tserverFlags := fmt.Sprintf("use_client_to_server_encryption=true,certs_for_client_dir=%s,ysql_hba_conf_csv={%s}",
+		ybMTLSCertsDir, ybMTLSHBA)
+	cmd := []string{
+		"bin/yugabyted",
+		"start",
+		"--daemon=false",
+		"--ui=false",
+		"--advertise_address=" + ybMTLSHostname,
+	}
+	// appendConcurrentDDLFlags would add a second --tserver_flags, which replaces this one.
+	if ddlFlags := concurrentDDLGFlags(yb.DBVersion); ddlFlags != "" {
+		tserverFlags += "," + ddlFlags
+		cmd = append(cmd, "--master_flags="+ddlFlags)
+	}
+	cmd = append(cmd, "--tserver_flags="+tserverFlags)
+
+	nodeCertName := fmt.Sprintf("node.%s.crt", ybMTLSHostname)
+	nodeKeyName := fmt.Sprintf("node.%s.key", ybMTLSHostname)
+	// The image runs as the non-root yugabyte user and copied files are root-owned. YSQL refuses
+	// a key that is group/world readable or owned by another user, so the entrypoint copies the
+	// staged files into place as yugabyte before starting yugabyted.
+	entrypointScript := fmt.Sprintf(
+		"install -d -m 700 %[2]s && "+
+			"install -m 644 %[1]s/ca.crt %[1]s/%[3]s %[2]s/ && "+
+			"install -m 600 %[1]s/%[4]s %[2]s/ && "+
+			`exec "$@"`,
+		ybMTLSStagingDir, ybMTLSCertsDir, nodeCertName, nodeKeyName)
+	req := testcontainers.ContainerRequest{
+		Image:        fmt.Sprintf("yugabytedb/yugabyte:%s", yb.DBVersion),
+		Hostname:     ybMTLSHostname,
+		ExposedPorts: []string{"5433/tcp"},
+		Entrypoint:   []string{"/sbin/tini", "--", "sh", "-c", entrypointScript, "sh"},
+		Cmd:          cmd,
+		Files: []testcontainers.ContainerFile{
+			{Reader: bytes.NewReader(yb.MTLS.CACertPEM), ContainerFilePath: ybMTLSStagingDir + "/ca.crt", FileMode: 0o644},
+			{Reader: bytes.NewReader(yb.MTLS.ServerCertPEM), ContainerFilePath: ybMTLSStagingDir + "/" + nodeCertName, FileMode: 0o644},
+			{Reader: bytes.NewReader(yb.MTLS.ServerKeyPEM), ContainerFilePath: ybMTLSStagingDir + "/" + nodeKeyName, FileMode: 0o644},
+		},
+		WaitingFor: yb.mtlsReadyWait(),
+	}
+	yb.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		printContainerLogs(yb.container)
+		return fmt.Errorf("failed to start mTLS yugabytedb container: %w", err)
+	}
+	return nil
+}
+
+func (yb *YugabyteDBContainer) mtlsReadyWait() wait.Strategy {
+	return wait.ForSQL(nat.Port("5433/tcp"), "pgx",
+		func(host string, port nat.Port) string {
+			return withConnQuery(fmt.Sprintf("postgres://%s@%s:%s/yugabyte", yb.User, host, port.Port()),
+				yb.harnessConnQuery(""))
+		},
+	).WithQuery("SELECT 1").
+		WithStartupTimeout(4 * time.Minute)
+}
+
 // Stop simulates a database outage by stopping (but not removing) the Docker container.
 // The underlying data directory remains intact, so you can call Start() later
 // and the DB will pick up with exactly the same contents.
@@ -260,7 +353,8 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 		utils.ErrExit("failed to get host port for yugabytedb connection string: %w", err)
 	}
 
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
+	return withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName),
+		config.harnessConnQuery(""))
 }
 
 func (yb *YugabyteDBContainer) GetConnection() (*sql.DB, error) {
@@ -301,7 +395,8 @@ func (yb *YugabyteDBContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
 		return nil, fmt.Errorf("failed to get host port for yugabytedb connection string: %w", err)
 	}
 
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", yb.User, yb.Password, host, port, "yugabyte")
+	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", yb.User, yb.Password, host, port, "yugabyte"),
+		yb.harnessConnQuery("sslmode=disable"))
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to yugabytedb: %w", err)
@@ -426,7 +521,8 @@ func (yb *YugabyteDBContainer) GetConnectionWithDB(dbName string) (*sql.DB, erro
 		utils.ErrExit("failed to get host port for yugabytedb connection string: %w", err)
 	}
 
-	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName)
+	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName),
+		config.harnessConnQuery(""))
 	conn, err := sql.Open("pgx", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to yugabytedb with db '%s': %w", dbName, err)

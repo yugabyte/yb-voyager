@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/versions"
 )
 
@@ -63,6 +64,41 @@ type ContainerConfig struct {
 	// YugabyteDB Cluster-specific fields
 	NodeCount         int // Number of nodes in cluster (default: 1)
 	ReplicationFactor int // RF-1, RF-3, etc. (default: 1)
+	// MTLS, when set, starts a dedicated container that accepts only TLS connections
+	// authenticated by a client certificate.
+	MTLS *MTLSConfig
+}
+
+// MTLSConfig locks a container down to TLS connections that present a client certificate
+// signed by CACertPEM whose CN is the connecting role.
+type MTLSConfig struct {
+	CACertPEM     []byte
+	ServerCertPEM []byte
+	ServerKeyPEM  []byte
+	// Host paths the harness's own connections (setup SQL, validation, cleanup) authenticate
+	// with; the client certificate's CN must be ContainerConfig.User.
+	RootCertPath   string
+	ClientCertPath string
+	ClientKeyPath  string
+}
+
+// harnessConnQuery returns the URI query for the harness's own connections: the mTLS client
+// parameters when the server is locked down, otherwise plainQuery unchanged.
+func (config *ContainerConfig) harnessConnQuery(plainQuery string) string {
+	if config.MTLS == nil {
+		return plainQuery
+	}
+	return fmt.Sprintf("sslmode=verify-full&sslrootcert=%s&sslcert=%s&sslkey=%s",
+		utils.EscapeConnUriQueryValue(config.MTLS.RootCertPath),
+		utils.EscapeConnUriQueryValue(config.MTLS.ClientCertPath),
+		utils.EscapeConnUriQueryValue(config.MTLS.ClientKeyPath))
+}
+
+func withConnQuery(uri string, query string) string {
+	if query == "" {
+		return uri
+	}
+	return uri + "?" + query
 }
 
 func (config *ContainerConfig) buildContainerName(dbType string) string {
@@ -72,6 +108,9 @@ func (config *ContainerConfig) buildContainerName(dbType string) string {
 		containerName = fmt.Sprintf("%s-live-%s", dbType, config.DBVersion)
 	} else if config.NodeCount > 1 {
 		containerName = fmt.Sprintf("%s-cluster-%d-%s", dbType, config.NodeCount, config.DBVersion)
+	}
+	if config.MTLS != nil {
+		containerName += "-mtls"
 	}
 	return containerName
 }
