@@ -3158,6 +3158,9 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 		`CREATE DOMAIN public.xid8_arr_dom AS xid8[];`,
 		`CREATE DOMAIN public.address_dom AS public.address;`,
 		`CREATE DOMAIN public.email_dom AS text CHECK (VALUE LIKE '%@%');`,
+		`CREATE TYPE public.point AS (x int, y int);`,
+		`CREATE DOMAIN public.xml AS text;`,
+		`CREATE TYPE public.lo AS ENUM ('a', 'b');`,
 	}
 	newDetector := func(t *testing.T) *ParserIssueDetector {
 		detector := NewParserIssueDetector()
@@ -3243,6 +3246,13 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 			stmt: `CREATE TABLE public.dom_supported (id int PRIMARY KEY, email public.email_dom, emails public.email_dom[]);`,
 			expected: func(stmt string) []QueryIssue {
 				return []QueryIssue{}
+			},
+		},
+		{
+			name: "user-defined types named like unsupported datatypes are judged by what they are built from",
+			stmt: `CREATE TABLE public.udt_named_like_builtin (id int PRIMARY KEY, p public.point, x public.xml, l public.lo);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{NewUserDefinedDatatypeIssue("TABLE", "public.udt_named_like_builtin", stmt, "public.point", "p")}
 			},
 		},
 		{
