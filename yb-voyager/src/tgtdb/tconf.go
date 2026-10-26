@@ -99,7 +99,7 @@ func generateSSLQueryStringIfNotExists(t *TargetConf) string {
 		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
 			SSLQueryString = "sslmode=" + t.SSLMode
 			if t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
-
+				// File paths are user input and may contain URI syntax (spaces, '%', '&'); see utils.EscapeConnUriQueryValue.
 				if t.SSLCertPath != "" {
 					SSLQueryString += "&sslcert=" + utils.EscapeConnUriQueryValue(t.SSLCertPath)
 				}

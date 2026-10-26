@@ -501,8 +501,10 @@ func GetRedactedURLs(urlList []string) []string {
 	return result
 }
 
-// EscapeConnUriQueryValue percent-encodes a value for the query part of a postgresql:// URI.
-// Spaces become %20, not url.QueryEscape's "+": pgx (>= v5.11) and libpq read "+" in a URI as a literal plus.
+// EscapeConnUriQueryValue percent-encodes a value, such as an SSL cert path, for the query part of a postgresql:// URI.
+// In a URI, characters like space, '%', '&', '=' and '#' are syntax, not data: pasted raw, "/my certs/100%/ca.crt"
+// is rejected by pgx (>= v5.11) and libpq, or read as a different path. Encoded, the driver decodes the exact path back.
+// Spaces become %20, not url.QueryEscape's "+", because pgx and libpq read "+" in a URI as a literal plus.
 func EscapeConnUriQueryValue(value string) string {
 	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
 }
