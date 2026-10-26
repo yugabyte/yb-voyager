@@ -31,6 +31,7 @@ curl -s https://go.dev/doc/devel/release | grep -oE 'go1\.[0-9]+\.0 \(released [
 | golangci-lint | `yb-voyager/versions/ci-config.json` → `golangci_lint` | Must be built with Go ≥ target. Check `go.mod` of the pinned tag: `curl -s https://raw.githubusercontent.com/golangci/golangci-lint/<tag>/go.mod \| grep ^go`. If it is older than the target, bump the pin (the user must agree) and re-run lint. |
 | delve | `docker/Dockerfile` (`go install .../dlv@vX`) | `curl -s https://raw.githubusercontent.com/go-delve/delve/<tag>/pkg/goversion/compat.go \| grep MaxSupportedVersionOfGoMinor` must be ≥ target minor. |
 | golang Docker image | `docker/Dockerfile` (`FROM golang:X`) | `docker manifest inspect golang:<version>` must succeed. |
+| Homebrew `go@X.Y` | release pipelines (Homebrew formula) | `curl -s https://formulae.brew.sh/api/formula/go@X.Y.json` must exist and not be deprecated. |
 | Installer tarballs | `installer_scripts/install-yb-voyager` | `curl -sIL -o /dev/null -w '%{http_code}' https://golang.org/dl/go<version>.<os>-<arch>.tar.gz` → 200 for linux/darwin × amd64/arm64. |
 
 ## Step 2: Bump every pin
@@ -102,4 +103,5 @@ All 13 tag groups must report `0 issues.`
 - Branch `upgrade-go-<version>`. Commit only the pin files plus any vet/lint fixes.
 - PR body: old → new version, why this version, tool compatibility checked (golangci-lint, delve, Docker image, tarballs), and local results (vet, lint 13/13, unit, integration with the Oracle caveat).
 - Merge only after **all** GitHub Actions checks are green. The CI-only tiers are the real validation for the installer and live-migration paths.
+- The release build pipelines (apt, rhel8, rhel9, airgapped variants, and the Homebrew formula's `go@X.Y` build dependency) pin Go separately and need a matching PR. Land it alongside this one.
 - After merge, update any Jenkins/migtest build agents that pin Go separately. The installer skips its own download when the agent's existing Go is already ≥ `GO_VERSION`.
