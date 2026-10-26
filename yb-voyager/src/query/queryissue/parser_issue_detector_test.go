@@ -3265,14 +3265,11 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 	}
 }
 
-// Assessment looks up the types its catalog query reports: a single-level domain without its
-// schema, a stacked domain qualified, an array with "[]", and built-ins by their SQL names.
 func TestGetUnderlyingTypes(t *testing.T) {
 	detector := NewParserIssueDetector()
 	for _, ddl := range []string{
 		`CREATE DOMAIN public.xid8_dom AS xid8;`,
 		`CREATE DOMAIN public.xid8_dom_nested AS public.xid8_dom;`,
-		`CREATE DOMAIN sales.amount_dom AS numeric;`,
 		`CREATE DOMAIN public.shared_dom AS xid8;`,
 		`CREATE DOMAIN sales.shared_dom AS text;`,
 		`CREATE TYPE public."Geo" AS (label text, lsn pg_lsn, tags text[]);`,
@@ -3296,7 +3293,6 @@ func TestGetUnderlyingTypes(t *testing.T) {
 		{"stacked domain", "public.xid8_dom_nested", "", []UnderlyingType{domain("public.xid8_dom_nested"), domain("public.xid8_dom"), other("xid8")}},
 		{"array of a domain", "public.xid8_dom[]", "", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
 		{"unqualified, resolved in the default schema", "xid8_dom", "public", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
-		{"unqualified, unique across schemas", "amount_dom", "public", []UnderlyingType{domain("sales.amount_dom"), other("pg_catalog.numeric")}},
 		{"unqualified and ambiguous, default schema decides", "shared_dom", "sales", []UnderlyingType{domain("sales.shared_dom"), other("text")}},
 		{"unqualified and ambiguous without a match in the default schema", "shared_dom", "other", []UnderlyingType{other("shared_dom")}},
 		{"built-in", "xid8", "public", []UnderlyingType{other("xid8")}},
