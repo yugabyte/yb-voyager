@@ -4641,10 +4641,6 @@ func TestLiveMigrationWithDomainsOverSupportedDatatypes(t *testing.T) {
 		c_tsvector dom_all.tsvector_dom
 	);`)
 
-	// numeric domain values carry no trailing zeros and char domain values are already 5 long:
-	// YugabyteDB enforces a domain's typmod but, unlike for plain columns, drops numeric trailing
-	// zeros (-1.500 is stored as -1.5) and does not blank-pad char, which would otherwise read
-	// as a migration mismatch.
 	rowValues := func(id int, n int) string {
 		return fmt.Sprintf(`(%[1]d, %[2]d, %[2]d, %[2]d000000000, %[2]d.125, -%[2]d.375, %[2]d.25, %[2]d.0625, '$%[2]d.99', %[3]t,
 			'text %[2]d with ''quote'' and \backslash', 'varchar %[2]d', 'c%04[2]d', '\x%02[2]x%02[2]x',

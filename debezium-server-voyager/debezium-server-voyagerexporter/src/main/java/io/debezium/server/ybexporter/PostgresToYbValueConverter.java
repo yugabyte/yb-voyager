@@ -21,8 +21,6 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PostgresToYbValueConverter.class);
 
-    private static final Set<String> STRINGIFY_TYPE_NAMES = Set.of("varbit", "tsvector", "tsquery", "hstore");
-
     // Comma-separated name:oid pairs that voyager looks up in the exported database, since an
     // extension type like hstore has a different OID in every database.
     static final String STRINGIFY_TYPE_OIDS_PROPERTY = "stringify.type.oids";
@@ -67,13 +65,10 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
             default:
                 break;
         }
-        if (STRINGIFY_TYPE_NAMES.contains(column.typeName())) {
-            return true;
-        }
-        // typeName() of a domain column is the domain's own name, but the PostgreSQL connector sets
-        // nativeType() to the OID at the root of the domain chain, so a domain over one of these
-        // types is caught here. Without it a tsvector or tsquery domain is emitted as raw bytes that
-        // land on the target as a \x hex literal these types accept as valid input.
+        // Matched by nativeType(), not typeName(): every connector sets nativeType() to the OID at the
+        // root of the domain chain, so it covers a plain column and a domain over the type alike, while
+        // typeName() of a domain is the domain's own name. A missed tsvector or tsquery domain is emitted
+        // as raw bytes that land on the target as a \x hex literal these types accept as valid input.
         return stringifyRootTypeOids.contains(column.nativeType());
     }
 
