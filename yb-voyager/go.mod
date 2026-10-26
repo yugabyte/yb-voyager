@@ -1,6 +1,6 @@
 module github.com/yugabyte/yb-voyager/yb-voyager
 
-go 1.24.2
+go 1.26.10
 
 require (
 	cloud.google.com/go/storage v1.38.0

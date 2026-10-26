@@ -10,7 +10,7 @@ YugabyteDB Voyager (`yb-voyager`) is a database migration CLI tool. It supports 
 
 This repo ships two artifacts that together form YugabyteDB Voyager:
 
-- `yb-voyager/` — the Go CLI module (`module github.com/yugabyte/yb-voyager/yb-voyager`, Go 1.24.2). `main.go` is a thin entrypoint; all command wiring and migration logic lives under `yb-voyager/cmd/` and `yb-voyager/src/`.
+- `yb-voyager/` — the Go CLI module (`module github.com/yugabyte/yb-voyager/yb-voyager`, Go 1.26.10). `main.go` is a thin entrypoint; all command wiring and migration logic lives under `yb-voyager/cmd/` and `yb-voyager/src/`.
 - `debezium-server-voyager/` — Java/Maven sources for the Debezium CDC plugin used by live migration. Built and installed separately by the installer.
 
 Supporting trees:
@@ -27,7 +27,7 @@ Current scopes: repo root (this file), `debezium-server-voyager/`, `migtests/`, 
 
 ## Key environment requirements
 
-- **Go 1.24.2** — required by `go.mod`.
+- **Go 1.26.10** — required by `go.mod`.
 - **JDK 17** (not 21+) — the installer script enforces Java 17–19 for the Debezium build. Set `JAVA_HOME` accordingly.
 - **Maven 3.9.16** — auto-installed by the installer and always used for the Debezium build (pinned; the system Maven is ignored).
 - **PostgreSQL client 18** — provides `pg_dump`/`pg_restore`.
