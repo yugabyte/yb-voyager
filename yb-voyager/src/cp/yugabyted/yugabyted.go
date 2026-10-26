@@ -29,8 +29,8 @@ import (
 	goerrors "github.com/go-errors/errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 )
@@ -361,8 +361,14 @@ func (cp *YugabyteD) connect() error {
 	}
 	connectionUri := os.Getenv("YUGABYTED_DB_CONN_STRING")
 
-	connPool, err := pgxpool.Connect(context.Background(), connectionUri)
+	connPool, err := pgxpool.New(context.Background(), connectionUri)
 	if err != nil {
+		return fmt.Errorf("error while connecting to yugabyted db. error: %w", err)
+	}
+	// pgx v5's pgxpool.New is lazy, unlike v4's pgxpool.Connect which dialed eagerly; ping to keep failing fast here.
+	err = connPool.Ping(context.Background())
+	if err != nil {
+		connPool.Close()
 		return fmt.Errorf("error while connecting to yugabyted db. error: %w", err)
 	}
 

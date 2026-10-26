@@ -41,7 +41,7 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -499,6 +499,12 @@ func GetRedactedURLs(urlList []string) []string {
 		result = append(result, obj.Redacted())
 	}
 	return result
+}
+
+// EscapeConnUriQueryValue percent-encodes a value for the query part of a postgresql:// URI.
+// Spaces become %20, not url.QueryEscape's "+": pgx (>= v5.11) and libpq read "+" in a URI as a literal plus.
+func EscapeConnUriQueryValue(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
 }
 
 func GetSqlStmtToPrint(stmt string) string {
@@ -1036,16 +1042,16 @@ func IsSetEqual(a, b []string) bool {
 	return setA.Equal(setB)
 }
 
-// ConvertPgTextArrayToStringSlice converts a pgtype.TextArray to a []string.
+// ConvertPgTextArrayToStringSlice converts a pgtype.Array[pgtype.Text] to a []string.
 // This utility function handles PostgreSQL text arrays returned from queries using array_agg() or similar functions.
-func ConvertPgTextArrayToStringSlice(textArray pgtype.TextArray) []string {
-	if textArray.Status != pgtype.Present {
+func ConvertPgTextArrayToStringSlice(textArray pgtype.Array[pgtype.Text]) []string {
+	if !textArray.Valid {
 		return []string{}
 	}
 
 	result := make([]string, 0, len(textArray.Elements))
 	for _, elem := range textArray.Elements {
-		if elem.Status == pgtype.Present {
+		if elem.Valid {
 			result = append(result, elem.String)
 		}
 		// Skip null elements - they won't be added to the result slice
