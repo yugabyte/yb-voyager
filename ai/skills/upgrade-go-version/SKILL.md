@@ -103,5 +103,7 @@ All 13 tag groups must report `0 issues.`
 - Branch `upgrade-go-<version>`. Commit only the pin files plus any vet/lint fixes.
 - PR body: old → new version, why this version, tool compatibility checked (golangci-lint, delve, Docker image, tarballs), and local results (vet, lint 13/13, unit, integration with the Oracle caveat).
 - Merge only after **all** GitHub Actions checks are green. The CI-only tiers are the real validation for the installer and live-migration paths.
-- The release build pipelines (apt, rhel8, rhel9, airgapped variants, and the Homebrew formula's `go@X.Y` build dependency) pin Go separately and need a matching PR. Land it alongside this one.
-- After merge, update any Jenkins/migtest build agents that pin Go separately. The installer skips its own download when the agent's existing Go is already ≥ `GO_VERSION`.
+
+## Step 8: Follow-up — update the release build pipelines
+
+**This step is required; the upgrade is not done until it is.** The release build pipelines pin Go separately from this repo, so this PR does not change them. Tell the user they need a matching Go bump, and land it together with this PR. Also update any Jenkins/migtest build agents that pin Go. The installer skips its own download when the agent's Go is already ≥ `GO_VERSION`.
