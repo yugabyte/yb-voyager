@@ -1137,6 +1137,28 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[s
 TODO(future): figure out the sql error codes for prepared statements which have become invalid
 and needs to be prepared again
 */
+// describeBatchExecError names the event behind a failed br.Exec() for the i-th event of an EventBatch queued
+// one query per event into pgxBatch. pgx reports a failure to prepare or encode any queued query on the first
+// br.Exec(), as pgx.ErrPreprocessingBatch carrying that query's SQL; DB execution errors surface on the
+// failing event's own br.Exec().
+func describeBatchExecError(err error, pgxBatch *pgx.Batch, batch *EventBatch, i int) string {
+	var preprocessingErr pgx.ErrPreprocessingBatch
+	if errors.As(err, &preprocessingErr) {
+		// Prepared statements are shared by name across events, so this is the first event that queued the failing statement.
+		for idx, queued := range pgxBatch.QueuedQueries {
+			if queued.SQL == preprocessingErr.SQL() {
+				return fmt.Sprintf("error preprocessing statement first queued by event with vsn(%d) in batch(%s)", batch.Events[idx].Vsn, batch.ID())
+			}
+		}
+		return fmt.Sprintf("error preprocessing statements for events in batch(%s)", batch.ID())
+	}
+	if i == 0 {
+		// Errors sending the whole batch (e.g. a broken connection) also surface on the first br.Exec().
+		return fmt.Sprintf("error sending batch(%s) or executing event with vsn(%d)", batch.ID(), batch.Events[i].Vsn)
+	}
+	return fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
+}
+
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 
@@ -1233,22 +1255,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				err = fpErr
 			}
 			if err != nil {
-				// When using pgx SendBatch, there can be two types of errors thrown:
-				// 1. Error while preparing the statement - this is preprocessing (parsing, preparinng statements, etc)
-				//	that pgx will do before sending the batch. Examples - syntax error.
-				//  No matter which statement in the batch has an issue, the error will be thrown on calling br.Exec() for the first time.
-				// 2. Error while executing the statement - this is the actual execution of the statement, and the error comes from the DB.
-				// 	Examples - constraint violation, etc.
-				//  In this case, we get the error on the appropriate br.Exec() call associated with the statement that failed.
-				// Therefore, if error is thrown on the first br.Exec() call, it could be either of the above cases.
-				// Reference - https://github.com/jackc/pgx/issues/872
-				// This ideally needs to be fixed in pgx library.
-				errorMsg := ""
+				errorMsg := describeBatchExecError(err, &ybBatch, batch, i)
 				if i == 0 {
-					errorMsg = fmt.Sprintf("error preparing statements for events in batch (%s) or when executing event with vsn(%d)", batch.ID(), batch.Events[i].Vsn)
 					log.Errorf("Event VSNs in batch(%s): %v", batch.ID(), batch.GetAllVsns())
-				} else {
-					errorMsg = fmt.Sprintf("error executing stmt for event with vsn(%d) in batch(%s)", batch.Events[i].Vsn, batch.ID())
 				}
 				log.Errorf("%s : %v", errorMsg, err)
 				_ = closeBatch() // best-effort; the original error below takes precedence
