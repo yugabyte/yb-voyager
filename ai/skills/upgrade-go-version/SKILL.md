@@ -40,8 +40,8 @@ All of these must change together (`grep -rn "<old-version>"` over the repo, exc
 | File | What |
 | --- | --- |
 | `yb-voyager/go.mod` | `go X.Y.Z` directive |
-| `yb-voyager/versions/ci-config.json` | `versions.go`. All GitHub workflows read Go from here through `prepare-versions.yml`, which **fails the build if it differs from go.mod**. |
-| `installer_scripts/install-yb-voyager` | `GO_VERSION="X.Y.Z"` in `install_golang()` |
+| `yb-voyager/versions/ci-config.json` | `versions.go`. The workflows that call `setup-go` (go, lint, build-voyager, integration-tests, failpoint-tests, issue-tests) read it through `prepare-versions.yml`, which **fails the build if it differs from go.mod**. |
+| `installer_scripts/install-yb-voyager` | `GO_VERSION="X.Y.Z"` in `install_golang()`. The pg-13/17/18, mysql and misc migtest workflows have no `setup-go`, so they get Go only from this pin (or the runner's Go if it is already newer). No CI check compares it with go.mod. |
 | `docker/Dockerfile` | `FROM golang:X.Y.Z` |
 | `AGENTS.md` (root) | two `Go X.Y.Z` mentions. Edit `AGENTS.md`, not the `CLAUDE.md` symlink. |
 
