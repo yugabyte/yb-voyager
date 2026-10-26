@@ -85,12 +85,10 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate TableColumnsDataTypes Struct Definition",
 			actualType: reflect.TypeOf(utils.TableColumnsDataTypes{}),
 			expectedType: struct {
-				SchemaName      string `json:"SchemaName"`
-				TableName       string `json:"TableName"`
-				ColumnName      string `json:"ColumnName"`
-				DataType        string `json:"DataType"`
-				UnsupportedType string `json:"-"`
-				IsUDTType       bool   `json:"-"`
+				SchemaName string `json:"SchemaName"`
+				TableName  string `json:"TableName"`
+				ColumnName string `json:"ColumnName"`
+				DataType   string `json:"DataType"`
 			}{},
 		},
 		{

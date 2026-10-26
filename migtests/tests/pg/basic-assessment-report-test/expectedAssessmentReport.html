@@ -802,7 +802,7 @@
                             </td>
                             <td class="centered-cell">
                                 
-                                    public.mixed_data_types_table1.snapshot_data
+                                    public.mixed_data_types_table1
                                 
                             </td>
                             
@@ -835,21 +835,26 @@
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Type</th>
-                                                        <td>COLUMN</td>
+                                                        <td>TABLE</td>
                                                     </tr>
                                                 
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Name</th>
-                                                        <td>public.mixed_data_types_table1.snapshot_data</td>
+                                                        <td>public.mixed_data_types_table1</td>
                                                     </tr>
                                                 
                                                 <tr>
                                                     <th class="centered-cell">SQL Statement</th>
                                                     <td>
                                                         
-                                                        <!-- display N/A if Sql Statement not present -->
-                                                            N/A
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TABLE public.mixed_data_types_table1 (
+    id integer NOT NULL,
+    data jsonb,
+    snapshot_data txid_snapshot
+);</pre>
+                                                            </div>
                                                         
                                                     </td>
                                                 </tr>

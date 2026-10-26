@@ -50,8 +50,7 @@ func (t UnderlyingType) BaseName() string {
 // its fields, through the domains and types defined in the exported schema.
 //
 // typeName may be qualified or not and may carry a "[]" suffix. An unqualified name is looked
-// up in defaultSchema first, then as written, then by a name that is unique across schemas;
-// the last step covers catalog sources that report a domain without its schema.
+// up as written, then in defaultSchema.
 func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string, defaultSchema string) []UnderlyingType {
 	var types []UnderlyingType
 	visited := make(map[string]bool)
@@ -92,12 +91,7 @@ func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string, defaultSchema 
 	return types
 }
 
-type schemaObject interface {
-	GetObjectName() string
-	GetSchemaName() string
-}
-
-func lookupSchemaObject[T schemaObject](objects map[string]T, name string, defaultSchema string) (T, bool) {
+func lookupSchemaObject[T any](objects map[string]T, name string, defaultSchema string) (T, bool) {
 	if object, ok := objects[name]; ok {
 		return object, true
 	}
@@ -105,23 +99,11 @@ func lookupSchemaObject[T schemaObject](objects map[string]T, name string, defau
 	if strings.Contains(name, ".") {
 		return none, false
 	}
-	if defaultSchema != "" {
-		if object, ok := objects[utils.BuildObjectName(defaultSchema, name)]; ok {
-			return object, true
-		}
+	if defaultSchema == "" {
+		return none, false
 	}
-	var match T
-	found := false
-	for _, object := range objects {
-		if object.GetObjectName() != utils.BuildObjectName(object.GetSchemaName(), name) {
-			continue
-		}
-		if found {
-			return none, false
-		}
-		match, found = object, true
-	}
-	return match, found
+	object, ok := objects[utils.BuildObjectName(defaultSchema, name)]
+	return object, ok
 }
 
 // ColumnDatatypeSupport holds, for each migration flow, the type that makes a column

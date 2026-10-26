@@ -150,9 +150,6 @@ type TableColumnsDataTypes struct {
 	TableName  string `json:"TableName"`
 	ColumnName string `json:"ColumnName"`
 	DataType   string `json:"DataType"`
-	// the type, among those DataType is built from, that makes the column unsupported
-	UnsupportedType string `json:"-"`
-	IsUDTType       bool   `json:"-"`
 }
 
 func (colDatatype *TableColumnsDataTypes) GetBaseTypeNameFromDatatype() string {

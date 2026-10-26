@@ -122,9 +122,9 @@
             "Name": "Unsupported datatype - geometry",
             "Description": "GEOMETRY datatype is not yet supported in YugabyteDB. Affected column: geom.",
             "Impact": "LEVEL_3",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.osm_changeset.geom",
-            "SqlStatement": "",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.osm_changeset",
+            "SqlStatement": "CREATE TABLE public.osm_changeset (\n    id bigint NOT NULL,\n    user_id bigint,\n    created_at timestamp without time zone,\n    min_lat numeric(10,7),\n    max_lat numeric(10,7),\n    min_lon numeric(10,7),\n    max_lon numeric(10,7),\n    closed_at timestamp without time zone,\n    open boolean,\n    num_changes integer,\n    user_name character varying(255),\n    tags public.hstore,\n    geom public.geometry(Polygon,4326)\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
             "MinimumVersionsFixedIn": null
         }
