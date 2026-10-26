@@ -24,9 +24,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
@@ -3261,6 +3263,59 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 			assert.NoError(t, err)
 			expected := tc.expected(tc.stmt)
 			assert.True(t, cmp.Equal(expected, issues), "issues mismatch (-expected +actual):\n%s", cmp.Diff(expected, issues))
+		})
+	}
+}
+
+// A partition or an inheritance child declares no columns of its own, so a column's datatype
+// issue is reported once, on the table that declares the column.
+func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
+	const (
+		ordersRoot        = `CREATE TABLE sales."Orders" (id int, "Region" text, "Lsn" types.lsn_dom, addr types.address, PRIMARY KEY (id, "Region")) PARTITION BY LIST ("Region");`
+		ordersMid         = `CREATE TABLE sales."Orders_EU" PARTITION OF sales."Orders" FOR VALUES IN ('EU') PARTITION BY HASH (id);`
+		ordersLeaf        = `CREATE TABLE sales."Orders_EU_0" PARTITION OF sales."Orders_EU" FOR VALUES WITH (MODULUS 2, REMAINDER 0);`
+		eventsParent      = `CREATE TABLE sales.events (id int, "Lsn" types.lsn_dom);`
+		eventsChild       = `CREATE TABLE sales.events_2024 () INHERITS (sales.events);`
+		eventsChildOwnCol = `CREATE TABLE sales.events_2025 (extra types.lsn_dom) INHERITS (sales.events);`
+	)
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{
+		`CREATE DOMAIN types.lsn_dom AS pg_lsn;`,
+		`CREATE TYPE types.address AS (street text, zip int);`,
+		ordersRoot, ordersMid, ordersLeaf, eventsParent, eventsChild, eventsChildOwnCol,
+	} {
+		require.NoError(t, detector.ParseAndProcessDDL(ddl))
+	}
+	detector.FinalizeTablesMetadata()
+
+	testCases := []struct {
+		name     string
+		stmt     string
+		expected []QueryIssue
+	}{
+		{"case-sensitive partitioned root", ordersRoot, []QueryIssue{
+			NewPgLsnDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "pg_lsn", "Lsn"),
+			NewUserDefinedDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "types.address", "addr"),
+		}},
+		{"intermediate partition", ordersMid, nil},
+		{"leaf partition", ordersLeaf, nil},
+		{"inheritance parent", eventsParent, []QueryIssue{
+			NewPgLsnDatatypeIssue("TABLE", "sales.events", eventsParent, "pg_lsn", "Lsn"),
+		}},
+		{"inheritance child without columns of its own", eventsChild, nil},
+		{"inheritance child reports only its own column", eventsChildOwnCol, []QueryIssue{
+			NewPgLsnDatatypeIssue("TABLE", "sales.events_2025", eventsChildOwnCol, "pg_lsn", "extra"),
+		}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := detector.GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			require.NoError(t, err)
+			datatypeIssues := lo.Filter(issues, func(issue QueryIssue, _ int) bool {
+				return strings.HasPrefix(issue.Type, "UNSUPPORTED_DATATYPE")
+			})
+			assert.True(t, cmp.Equal(tc.expected, datatypeIssues, cmpopts.EquateEmpty()),
+				"issues mismatch (-expected +actual):\n%s", cmp.Diff(tc.expected, datatypeIssues, cmpopts.EquateEmpty()))
 		})
 	}
 }
