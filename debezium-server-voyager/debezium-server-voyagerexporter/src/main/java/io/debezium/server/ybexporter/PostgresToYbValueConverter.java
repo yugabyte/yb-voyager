@@ -6,6 +6,7 @@
 package io.debezium.server.ybexporter;
 
 import java.sql.JDBCType;
+import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
 
@@ -22,17 +23,28 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
 
     private static final Set<String> STRINGIFY_TYPE_NAMES = Set.of("varbit", "tsvector", "tsquery", "hstore");
 
-    // Fixed OIDs from PostgreSQL's pg_type catalog, shared by YugabyteDB. hstore is an extension
-    // type with a per-database OID, but a domain over it already reaches the record transformer as
-    // a MAP through hstore.handling.mode=map, so it needs no entry here.
-    static final int VARBIT_OID = 1562;
-    static final int TSVECTOR_OID = 3614;
-    static final int TSQUERY_OID = 3615;
-    private static final Set<Integer> STRINGIFY_ROOT_TYPE_OIDS = Set.of(VARBIT_OID, TSVECTOR_OID, TSQUERY_OID);
+    // Comma-separated name:oid pairs that voyager looks up in the exported database, since an
+    // extension type like hstore has a different OID in every database.
+    static final String STRINGIFY_TYPE_OIDS_PROPERTY = "stringify.type.oids";
+
+    private final Set<Integer> stringifyRootTypeOids = new HashSet<>();
 
     @Override
     public void configure(Properties props) {
-        return;
+        String typeOids = props.getProperty(STRINGIFY_TYPE_OIDS_PROPERTY);
+        if (typeOids == null || typeOids.isBlank()) {
+            throw new IllegalArgumentException("missing converter property " + STRINGIFY_TYPE_OIDS_PROPERTY);
+        }
+        for (String entry : typeOids.split(",")) {
+            String[] nameAndOid = entry.trim().split(":");
+            if (nameAndOid.length != 2) {
+                throw new IllegalArgumentException("invalid " + STRINGIFY_TYPE_OIDS_PROPERTY + " entry '" + entry + "', expected name:oid");
+            }
+            // Debezium reads pg_type.oid with (int) getLong, so an OID above Integer.MAX_VALUE wraps
+            // the same way here and still matches nativeType().
+            stringifyRootTypeOids.add((int) Long.parseLong(nameAndOid[1].trim()));
+            LOGGER.info("Stringifying columns whose root type is {} (OID {})", nameAndOid[0].trim(), nameAndOid[1].trim());
+        }
     }
 
     @Override
@@ -46,7 +58,7 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
         }
     }
 
-    private static boolean shouldStringify(RelationalColumn column) {
+    private boolean shouldStringify(RelationalColumn column) {
         switch (JDBCType.valueOf(column.jdbcType())) {
             case BIT:
             case STRUCT:
@@ -60,9 +72,9 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
         }
         // typeName() of a domain column is the domain's own name, but the PostgreSQL connector sets
         // nativeType() to the OID at the root of the domain chain, so a domain over one of these
-        // types is caught here. Without it the value is emitted as raw bytes and lands on the
-        // target as a \x hex literal that these types accept as valid input.
-        return STRINGIFY_ROOT_TYPE_OIDS.contains(column.nativeType());
+        // types is caught here. Without it a tsvector or tsquery domain is emitted as raw bytes that
+        // land on the target as a \x hex literal these types accept as valid input.
+        return stringifyRootTypeOids.contains(column.nativeType());
     }
 
     private Object stringify(Object x) {

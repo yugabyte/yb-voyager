@@ -407,6 +407,10 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, use
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
+func (ms *MySQL) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	return nil, nil
+}
+
 func (ms *MySQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }

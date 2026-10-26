@@ -4,14 +4,14 @@ package testlivemigration
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
-	"strings"
-	"fmt"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
@@ -275,32 +275,63 @@ import (
 //             2 INSERTs, 4 UPDATEs, 1 DELETE (Fallback)
 //
 // ============================================================================
+// 14. COMPOSITE (UDT) OVER STRINGIFIED TYPES
+// ============================================================================
+// Edge Case                          | Snapshot | Forward | Fallback | Notes
+// -----------------------------------|----------|---------|----------|------------------
+// Composite with tsvector/varbit/    | ✓        | ✓       | ✓        | plain composite column
+//   hstore fields                    |          |         |          |
+// Domain over the composite          | ✓        | ✓       | ✓        | root type is the composite
+// Array of that domain               | ✓        | ✓       | ✓        | incl. a NULL element
+// Domain-typed field (tsvector)      | ✓        | ✓       | ✓        | inside the composite
+// Quotes/backslash in a text field   | ✓        | ✓       | ✓        | composite text escaping
+// hstore NULL entry and "" value     | ✓        | ✓       | ✓        | inside the composite
+// NULL field inside the composite    | ✓        | ✓       | ✓        | renders as an empty slot
+// NULL transitions                   | ✓        | ✓       | ✓        | NULL↔non-NULL
+//
+// tsquery is not a field: the YugabyteDB connector cannot stream it, so export data from
+// target would skip the whole composite column in fall-back.
+//
+// Operations: 6 rows snapshot, 2 INSERTs, 4 UPDATEs, 1 DELETE (Forward)
+//             2 INSERTs, 4 UPDATEs, 1 DELETE (Fallback)
+//
+// ============================================================================
 // SUMMARY STATISTICS
 // ============================================================================
 //
-// Total Datatypes:      13 (12 tables, 1 combined UUID/LTREE)
-// Total Snapshot Rows:  72 (6 rows × 12 tables)
+// Total Datatypes:      14 (13 tables, 1 combined UUID/LTREE)
+// Total Snapshot Rows:  78 (6 rows × 13 tables)
 // Total Edge Cases:     150+
 //
 // Forward Streaming Operations (SourceDeltaSQL):
-//   - INSERTs:  28 (varies by datatype: STRING=4, JSON=3, ENUM=3, others=2 each)
-//   - UPDATEs:  59 (varies by datatype: STRING=10, ENUM=8, JSON=5, others=4 each)
+//   - INSERTs:  30 (varies by datatype: STRING=4, JSON=3, ENUM=3, others=2 each)
+//   - UPDATEs:  63 (varies by datatype: STRING=10, ENUM=8, JSON=5, others=4 each)
 //                   (includes NULL transitions + literal \n/actual newline + special chars)
-//   - DELETEs:  12 (1 per table, targets snapshot row 3)
+//   - DELETEs:  13 (1 per table, targets snapshot row 3)
 //
 // Fallback Streaming Operations (TargetDeltaSQL):
-//   - INSERTs:  30 (varies by datatype: STRING=5, JSON=4, ENUM=3, others=2 each)
+//   - INSERTs:  32 (varies by datatype: STRING=5, JSON=4, ENUM=3, others=2 each)
 //                   (includes marker rows for UPDATE testing)
-//   - UPDATEs:  55 (varies by datatype: STRING=7, ENUM=7, JSON=5, others=4 each)
+//   - UPDATEs:  59 (varies by datatype: STRING=7, ENUM=7, JSON=5, others=4 each)
 //                   (includes NULL transitions + Unicode separators + literal \n/actual newline)
-//   - DELETEs:  12 (1 per table, targets snapshot row 4)
+//   - DELETEs:  13 (1 per table, targets snapshot row 4)
 //
 // NULL Transition Coverage:
-//   - All 12 datatypes have full bidirectional NULL transitions:
+//   - All 13 datatypes have full bidirectional NULL transitions:
 //     * Row 5: non-NULL → NULL (Forward) → non-NULL (Fallback)
 //     * Row 6: NULL → non-NULL (Forward) → NULL (Fallback)
 //   - Tested in both forward and fallback streaming phases
 //   - Ensures proper handling of NULL ↔ non-NULL value transitions
+
+// searchDoc renders a test_schema.search_doc value from SQL literals for its fields; tsv fills
+// both the tsvector field and the field typed as a domain over tsvector.
+func searchDoc(title, tsv, bits, attrs string) string {
+	return fmt.Sprintf("ROW(%s, %s, %s, %s, %s)::test_schema.search_doc", title, tsv, tsv, bits, attrs)
+}
+
+func searchDocDomain(title, tsv, bits, attrs string) string {
+	return searchDoc(title, tsv, bits, attrs) + "::test_schema.search_doc_dom"
+}
 
 func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 	return &TestConfig{
@@ -422,6 +453,26 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 				map_domain test_schema.meta_map
 			);
 
+			-- every field but title is a type the exporter's converter stringifies, and the
+			-- composite as a whole is stringified as a STRUCT, so the domain and array over it must
+			-- carry the same text form
+			CREATE DOMAIN test_schema.tsv_field_dom AS TSVECTOR;
+			CREATE TYPE test_schema.search_doc AS (
+				title TEXT,
+				tsv TSVECTOR,
+				tsv_dom test_schema.tsv_field_dom,
+				bits VARBIT,
+				attrs HSTORE
+			);
+			CREATE DOMAIN test_schema.search_doc_dom AS test_schema.search_doc;
+
+			CREATE TABLE test_schema.udt_edge_cases (
+				id SERIAL PRIMARY KEY,
+				doc test_schema.search_doc,
+				doc_domain test_schema.search_doc_dom,
+				doc_domain_array test_schema.search_doc_dom[]
+			);
+
 			CREATE TABLE test_schema.interval_edge_cases (
 				id SERIAL PRIMARY KEY,
 				interval_positive INTERVAL,
@@ -479,6 +530,7 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 			`ALTER TABLE test_schema.datetime_edge_cases REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.uuid_ltree_edge_cases REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.map_edge_cases REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.udt_edge_cases REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.interval_edge_cases REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.zonedtimestamp_edge_cases REPLICA IDENTITY FULL;`,
 			`ALTER TABLE test_schema.decimal_edge_cases REPLICA IDENTITY FULL;`,
@@ -1662,6 +1714,19 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 			// NUMERIC TYPES
 			// ======================================================================
 
+			// --- COMPOSITE (udt_edge_cases) ---
+			fmt.Sprintf(`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (%s, %s, ARRAY[%s, NULL]);`,
+				searchDoc(`'doc one'`, `'a fat cat'`, `B'101'`, `'"a"=>"1"'`), searchDocDomain(`'doc one'`, `'a fat cat'`, `B'101'`, `'"a"=>"1"'`), searchDocDomain(`'doc one'`, `'a fat cat'`, `B'101'`, `'"a"=>"1"'`)),
+			fmt.Sprintf(`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (%s, %s, ARRAY[%s, NULL]);`,
+				searchDoc(`'say "hi" \ there'`, `'quick brown fox'`, `B'1'`, `'"q"=>"O''Brien", "n"=>NULL, "e"=>""'`), searchDocDomain(`'say "hi" \ there'`, `'quick brown fox'`, `B'1'`, `'"q"=>"O''Brien", "n"=>NULL, "e"=>""'`), searchDocDomain(`'say "hi" \ there'`, `'quick brown fox'`, `B'1'`, `'"q"=>"O''Brien", "n"=>NULL, "e"=>""'`)),
+			fmt.Sprintf(`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (%s, %s, ARRAY[%s, NULL]);`,
+				searchDoc(`'doc three'`, `'lorem ipsum'`, `NULL`, `'"x"=>"y"'`), searchDocDomain(`'doc three'`, `'lorem ipsum'`, `NULL`, `'"x"=>"y"'`), searchDocDomain(`'doc three'`, `'lorem ipsum'`, `NULL`, `'"x"=>"y"'`)), // row 3: NULL varbit field
+			fmt.Sprintf(`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (%s, %s, ARRAY[%s, NULL]);`,
+				searchDoc(`'doc four'`, `'dolor sit'`, `B'1111'`, `'"k"=>"v"'`), searchDocDomain(`'doc four'`, `'dolor sit'`, `B'1111'`, `'"k"=>"v"'`), searchDocDomain(`'doc four'`, `'dolor sit'`, `B'1111'`, `'"k"=>"v"'`)),
+			fmt.Sprintf(`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (%s, %s, ARRAY[%s, NULL]);`,
+				searchDoc(`'doc five'`, `'amet'`, `B'10'`, `'"five"=>"5"'`), searchDocDomain(`'doc five'`, `'amet'`, `B'10'`, `'"five"=>"5"'`), searchDocDomain(`'doc five'`, `'amet'`, `B'10'`, `'"five"=>"5"'`)), // row 5: set to NULL in forward, back to non-NULL in fall-back
+			`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (NULL, NULL, NULL);`, // row 6: set to non-NULL in forward, back to NULL in fall-back
+
 			// --- INTEGER (integer_edge_cases) ---
 
 			`INSERT INTO test_schema.integer_edge_cases (
@@ -2709,6 +2774,19 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 			// NUMERIC TYPES
 			// ======================================================================
 
+			// --- COMPOSITE (udt_edge_cases) ---
+			fmt.Sprintf(`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (%s, %s, ARRAY[%s, NULL]);`,
+				searchDoc(`'stream "doc" \ seven'`, `'stream text'`, `B'110'`, `'"s"=>NULL, "t"=>""'`), searchDocDomain(`'stream "doc" \ seven'`, `'stream text'`, `B'110'`, `'"s"=>NULL, "t"=>""'`), searchDocDomain(`'stream "doc" \ seven'`, `'stream text'`, `B'110'`, `'"s"=>NULL, "t"=>""'`)),
+			`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (NULL, NULL, NULL);`,
+			fmt.Sprintf(`UPDATE test_schema.udt_edge_cases SET doc = %s, doc_domain = %s, doc_domain_array = ARRAY[%s] WHERE id = 1;`,
+				searchDoc(`'doc one updated'`, `'updated text'`, `B'111'`, `'"a"=>NULL, "b"=>"2"'`), searchDocDomain(`'doc one updated'`, `'updated text'`, `B'111'`, `'"a"=>NULL, "b"=>"2"'`), searchDocDomain(`'doc one updated'`, `'updated text'`, `B'111'`, `'"a"=>NULL, "b"=>"2"'`)),
+			fmt.Sprintf(`UPDATE test_schema.udt_edge_cases SET doc = %s, doc_domain = %s, doc_domain_array = ARRAY[%s] WHERE id = 2;`,
+				searchDoc(`'quote "upd" \ x'`, `'quick fox'`, `NULL`, `'"q"=>"", "n"=>"x"'`), searchDocDomain(`'quote "upd" \ x'`, `'quick fox'`, `NULL`, `'"q"=>"", "n"=>"x"'`), searchDocDomain(`'quote "upd" \ x'`, `'quick fox'`, `NULL`, `'"q"=>"", "n"=>"x"'`)),
+			`UPDATE test_schema.udt_edge_cases SET doc = NULL, doc_domain = NULL, doc_domain_array = NULL WHERE id = 5;`,
+			fmt.Sprintf(`UPDATE test_schema.udt_edge_cases SET doc = %s, doc_domain = %s, doc_domain_array = ARRAY[%s] WHERE id = 6 AND doc IS NULL;`,
+				searchDoc(`'from null'`, `'from null'`, `B'01'`, `'"fn"=>NULL'`), searchDocDomain(`'from null'`, `'from null'`, `B'01'`, `'"fn"=>NULL'`), searchDocDomain(`'from null'`, `'from null'`, `B'01'`, `'"fn"=>NULL'`)),
+			`DELETE FROM test_schema.udt_edge_cases WHERE id = 3;`,
+
 			// --- INTEGER (integer_edge_cases) ---
 
 			`INSERT INTO test_schema.integer_edge_cases (
@@ -3664,6 +3742,19 @@ func getDatatypeEdgeCasesTestConfig(dbName string) *TestConfig {
 			// NUMERIC TYPES
 			// ======================================================================
 
+			// --- COMPOSITE (udt_edge_cases) ---
+			fmt.Sprintf(`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (%s, %s, ARRAY[%s, NULL]);`,
+				searchDoc(`'fallback "doc" \ nine'`, `'fallback text'`, `B'1001'`, `'"fb"=>NULL, "fe"=>""'`), searchDocDomain(`'fallback "doc" \ nine'`, `'fallback text'`, `B'1001'`, `'"fb"=>NULL, "fe"=>""'`), searchDocDomain(`'fallback "doc" \ nine'`, `'fallback text'`, `B'1001'`, `'"fb"=>NULL, "fe"=>""'`)),
+			`INSERT INTO test_schema.udt_edge_cases (doc, doc_domain, doc_domain_array) VALUES (NULL, NULL, NULL);`,
+			fmt.Sprintf(`UPDATE test_schema.udt_edge_cases SET doc = %s, doc_domain = %s, doc_domain_array = ARRAY[%s] WHERE id = 1;`,
+				searchDoc(`'doc one fb'`, `'fb text'`, `B'0'`, `'"fb1"=>"O''Brien"'`), searchDocDomain(`'doc one fb'`, `'fb text'`, `B'0'`, `'"fb1"=>"O''Brien"'`), searchDocDomain(`'doc one fb'`, `'fb text'`, `B'0'`, `'"fb1"=>"O''Brien"'`)),
+			fmt.Sprintf(`UPDATE test_schema.udt_edge_cases SET doc = %s, doc_domain = %s, doc_domain_array = ARRAY[%s] WHERE id = 2;`,
+				searchDoc(`'fb "two" \ y'`, `'fb fox'`, `B'11'`, `'"fq"=>NULL'`), searchDocDomain(`'fb "two" \ y'`, `'fb fox'`, `B'11'`, `'"fq"=>NULL'`), searchDocDomain(`'fb "two" \ y'`, `'fb fox'`, `B'11'`, `'"fq"=>NULL'`)),
+			fmt.Sprintf(`UPDATE test_schema.udt_edge_cases SET doc = %s, doc_domain = %s, doc_domain_array = ARRAY[%s] WHERE id = 5 AND doc IS NULL;`,
+				searchDoc(`'doc five back'`, `'back again'`, `B'101'`, `'"back"=>""'`), searchDocDomain(`'doc five back'`, `'back again'`, `B'101'`, `'"back"=>""'`), searchDocDomain(`'doc five back'`, `'back again'`, `B'101'`, `'"back"=>""'`)),
+			`UPDATE test_schema.udt_edge_cases SET doc = NULL, doc_domain = NULL, doc_domain_array = NULL WHERE id = 6;`,
+			`DELETE FROM test_schema.udt_edge_cases WHERE id = 4;`,
+
 			// --- INTEGER (integer_edge_cases) ---
 
 			`INSERT INTO test_schema.integer_edge_cases (
@@ -3836,10 +3927,11 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 		`"test_schema"."decimal_edge_cases"`:        6, // 6 rows (5 edge cases + 1 with NULL for transitions)
 		`"test_schema"."integer_edge_cases"`:        6, // 6 rows (INT/BIGINT boundaries + NULL transitions)
 		`"test_schema"."boolean_edge_cases"`:        6, // 6 rows (TRUE/FALSE patterns + NULL transitions)
+		`"test_schema"."udt_edge_cases"`:            6, // 6 rows (composite, its domain and an array of the domain + NULL transitions)
 	}, 240) // Increased timeout for 72 rows
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`, `"test_schema"."udt_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	err = lm.ExecuteSourceDelta()
@@ -3906,10 +3998,15 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 			Updates: 4, // 4 UPDATE operations: 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1, // 1 DELETE operation: delete BOOLEAN row 3
 		},
+		`"test_schema"."udt_edge_cases"`: {
+			Inserts: 2, // 1 with composite values + 1 with NULLs
+			Updates: 4, // 2 regular + 1 row 5 + 1 row 6 NULL transition
+			Deletes: 1,
+		},
 	}, 120, 1) // 1 minute timeout, 1 second poll interval
 	testutils.FatalIfError(t, err, "failed to wait for streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`, `"test_schema"."udt_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
@@ -3918,7 +4015,7 @@ func TestLiveMigrationWithDatatypeEdgeCases(t *testing.T) {
 	err = lm.WaitForCutoverComplete(0, 60)
 	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`, `"test_schema"."udt_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check")
 }
 
@@ -3954,10 +4051,11 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 		`"test_schema"."decimal_edge_cases"`:        6,
 		`"test_schema"."integer_edge_cases"`:        6,
 		`"test_schema"."boolean_edge_cases"`:        6,
+		`"test_schema"."udt_edge_cases"`:            6,
 	}, 240)
 	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`, `"test_schema"."udt_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate snapshot data consistency")
 
 	err = lm.ExecuteSourceDelta()
@@ -4024,10 +4122,15 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Updates: 4, // 2 regular + 1 row 5 (value→NULL) + 1 row 6 (NULL→value)
 			Deletes: 1,
 		},
+		`"test_schema"."udt_edge_cases"`: {
+			Inserts: 2, // 1 with composite values + 1 with NULLs
+			Updates: 4, // 2 regular + 1 row 5 + 1 row 6 NULL transition
+			Deletes: 1,
+		},
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`, `"test_schema"."udt_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate streaming data consistency")
 
 	err = lm.InitiateCutoverToTarget(true, nil)
@@ -4102,10 +4205,15 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 			Updates: 4, // 2 regular + 1 row 5 (NULL→value) + 1 row 6 (value→NULL)
 			Deletes: 1,
 		},
+		`"test_schema"."udt_edge_cases"`: {
+			Inserts: 2, // 1 with composite values + 1 with NULLs
+			Updates: 4, // 2 regular + 1 row 5 + 1 row 6 NULL transition
+			Deletes: 1,
+		},
 	}, 180, 2)
 	testutils.FatalIfError(t, err, "failed to wait for fallback streaming complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`, `"test_schema"."udt_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed to validate fallback streaming data consistency")
 
 	err = lm.InitiateCutoverToSource(nil)
@@ -4114,7 +4222,7 @@ func TestLiveMigrationWithDatatypeEdgeCasesAndFallback(t *testing.T) {
 	err = lm.WaitForCutoverSourceComplete(0, 150)
 	testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
-	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`}, "id")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."string_edge_cases"`, `"test_schema"."decimal_edge_cases"`, `"test_schema"."json_edge_cases"`, `"test_schema"."enum_edge_cases"`, `"test_schema"."bytes_edge_cases"`, `"test_schema"."datetime_edge_cases"`, `"test_schema"."uuid_ltree_edge_cases"`, `"test_schema"."map_edge_cases"`, `"test_schema"."interval_edge_cases"`, `"test_schema"."zonedtimestamp_edge_cases"`, `"test_schema"."integer_edge_cases"`, `"test_schema"."boolean_edge_cases"`, `"test_schema"."udt_edge_cases"`}, "id")
 	testutils.FatalIfError(t, err, "failed final data consistency check after fallback")
 }
 

@@ -165,6 +165,10 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		SnapshotMode:          snapshotMode,
 		TransactionOrdering:   transactionOrdering,
 	}
+	config.StringifyTypeOids, err = getStringifyTypeOids()
+	if err != nil {
+		return nil, nil, err
+	}
 	if source.DBType == ORACLE {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
 		if source.IsOracleCDBSetup() {
@@ -208,6 +212,17 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 
 	return config, tableNameToApproxRowCountMap, nil
+}
+
+// getStringifyTypeOids looks up the types the exporter's converter must stringify. The converter
+// matches a column by the OID at the root of its domain chain, which is the only way to recognise a
+// domain over one of these types, and extension types like hstore have a different OID per database.
+func getStringifyTypeOids() (map[string]int, error) {
+	typeToOid, err := source.DB().GetTypeToOid([]string{"varbit", "tsvector", "tsquery", "hstore"})
+	if err != nil {
+		return nil, fmt.Errorf("getting the oids of types to stringify: %w", err)
+	}
+	return typeToOid, nil
 }
 
 func generateOrGetStreamIDForYugabyteCDCClient(config *dbzm.Config) error {

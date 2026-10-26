@@ -700,6 +700,10 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	return getColumnsWithSupportedTypes(yb.db, tableList, GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector), unsupportedTypTypes)
 }
 
+func (yb *YugabyteDB) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	return getTypeToOid(yb.db, typeNames)
+}
+
 func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required

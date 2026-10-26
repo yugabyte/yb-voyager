@@ -22,11 +22,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -84,6 +86,9 @@ type Config struct {
 	ReplicationSlotName   string
 	PublicationName       string
 	TransactionOrdering   utils.BoolStr
+	// StringifyTypeOids maps type names to their OIDs in the exported database, for the exporter's
+	// converter to stringify columns of those types and of domains over them.
+	StringifyTypeOids map[string]int
 }
 
 var baseConfigTemplate = `
@@ -157,6 +162,10 @@ debezium.source.slot.name=%s`
 
 var postgresPublicationNameTemplate = `
 debezium.source.publication.name=%s
+`
+
+var postgresStringifyTypeOidsTemplate = `
+debezium.source.postgres_to_yb_converter.stringify.type.oids=%s
 `
 
 var postgresConfigTemplate = baseConfigTemplate +
@@ -276,6 +285,10 @@ var yugabyteLogicalReplicationPublicationNameTemplate = `
 debezium.source.publication.name=%s
 `
 
+var yugabyteStringifyTypeOidsTemplate = `
+debezium.source.postgres_source_converter.stringify.type.oids=%s
+`
+
 var yugabyteSrcTransactionOrderingConfigTemplate = `
 debezium.source.transaction.ordering=true
 debezium.source.TEST.override.transaction.ordering.deprecation=true
@@ -366,6 +379,9 @@ func (c *Config) String() string {
 		if c.PublicationName != "" {
 			conf = conf + fmt.Sprintf(postgresPublicationNameTemplate, c.PublicationName)
 		}
+		if len(c.StringifyTypeOids) > 0 {
+			conf = conf + fmt.Sprintf(postgresStringifyTypeOidsTemplate, c.stringifyTypeOidsProperty())
+		}
 	case "yugabytedb":
 		if !c.UseYBgRPCConnector {
 			conf = fmt.Sprintf(yugabyteLogicalReplicationConfigTemplate,
@@ -433,6 +449,10 @@ func (c *Config) String() string {
 				sslConf += fmt.Sprintf(yugabyteSSLRootCertTemplate, c.SSLRootCert)
 			}
 			conf = conf + sslConf
+		}
+
+		if len(c.StringifyTypeOids) > 0 {
+			conf = conf + fmt.Sprintf(yugabyteStringifyTypeOidsTemplate, c.stringifyTypeOidsProperty())
 		}
 
 		//TODO test SSL for other methods for yugabytedb
@@ -517,8 +537,16 @@ func (c *Config) String() string {
 		conf += fmt.Sprintf("\ndebezium.source.column.include.list=%s", strings.Join(c.ColumnList, ","))
 	}
 
-
 	return conf
+}
+
+// stringifyTypeOidsProperty renders StringifyTypeOids as comma-separated name:oid pairs.
+func (c *Config) stringifyTypeOidsProperty() string {
+	typeNames := lo.Keys(c.StringifyTypeOids)
+	slices.Sort(typeNames)
+	return strings.Join(lo.Map(typeNames, func(typeName string, _ int) string {
+		return fmt.Sprintf("%s:%d", typeName, c.StringifyTypeOids[typeName])
+	}), ",")
 }
 
 func (c *Config) WriteToFile(filePath string) error {
