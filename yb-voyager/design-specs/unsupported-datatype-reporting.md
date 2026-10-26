@@ -112,7 +112,8 @@ func (t UnderlyingType) BaseName() string // unqualified, no "[]", canonical spe
 
 - **Inputs.** `ParseAndProcessDDL` records every `CREATE DOMAIN` and `CREATE TYPE` before any `CREATE TABLE` is checked. The object-type order of the first pass guarantees this: SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, ....
 - **Name lookup.** A name is looked up as written. If that fails and the name is unqualified, it is looked up again in `defaultSchema`. For a column this is the table's schema; for a domain's base type or a composite's field, it is the schema of that domain or type. There is no `search_path` emulation and no cross-schema guess.
-- **Types not in the schema.** Built-ins, extension types (`geometry`, `lo`, `hstore`) and types from schemas that were not exported come out as `TypeKindOther`, named as written. They match the lists by `BaseName()` and are never walked further.
+- **Types not in the schema.** Built-ins, extension types (`geometry`, `lo`, `hstore`) and types from schemas that were not exported come out as `TypeKindOther`, named as written. They are never walked further.
+- **List matching.** Only `TypeKindOther` types are matched against the lists, by `BaseName()`. A domain, composite or enum defined in the schema never matches by its own name, so `public.point` or `public.xml` is judged by what it is built from.
 
 ### 3.3 Catalog walk (`srcdb.columnUnderlyingTypesQuery`)
 
@@ -283,12 +284,11 @@ Both sides use the same list, both walk domains, arrays and composites, and both
 | :---- | :---- | :---- | :---- | :---- |
 | D1 | Built-in or user range column (`int4range`, `tsrange`, a `CREATE TYPE ... AS RANGE`) | Not reported. | Skipped in every Debezium export. | Report ranges as live issues, or teach the importer ranges and drop `r` from export. Follow-up. |
 | D2 | Composite column, FF/FB with logical connector | Reported as user-defined type under FF/FB. | Not skipped. | The logical connector is the default and streams composites, so align analyze/assess with export. Stop reporting every composite under FF/FB: drop the `TypeKindComposite` rule from `UnsupportedInLiveWithFFOrFB` and retire `UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED`. A composite is reported only when the walk finds an unsupported type among its fields, as the field type's issue. Separate PR. |
-| D3 | `hstore`, `citext`, `ltree`, `tsvector` with the gRPC connector | Not reported: FF/FB issues assume the logical connector. | Skipped. | Acceptable while logical is the default. Document it. |
+| D3 | `hstore`, `citext`, `ltree`, `tsvector` with the gRPC connector | Not reported: FF/FB issues assume the logical connector. | Skipped only when the FF/FB target exporter uses the gRPC connector. The PG source exporter and the logical connector stream them. | Acceptable while logical is the default. Document it. |
 | D4 | Domain or composite defined in a schema that was not exported | Missed: the parser cannot walk it and sees only the outer name. | Skipped: the catalog sees every schema. | Accept. Export is the safety net. |
-| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` | Matched by base name, so wrongly reported. | Not matched: composite names are qualified. | Match names only for `TypeKindOther` in `GetColumnDatatypeSupport`. |
+| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` | Not matched. | Not matched: composite names are qualified. | As its usert defined type and not a base type, its acceptable|
 | D6 | Schema drift after `export schema` | Reflects the exported files. | Reflects the live catalog. | By design. Drift is covered by `schema detect-drift`. |
 
-D5 is a small, local fix and should go in with \#3898. D2 is decided and goes in a separate PR. D1 needs a product decision and a live-migration test, so it is a follow-up.
 
 ## 7\. Migration-flow matrix
 

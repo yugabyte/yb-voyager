@@ -121,15 +121,21 @@ func (p *ParserIssueDetector) GetColumnDatatypeSupport(typeName string, defaultS
 	liveWithFFOrFBUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	return ColumnDatatypeSupport{
 		UnsupportedInOffline: findUnderlyingType(types, func(t UnderlyingType) bool {
-			return utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, t.BaseName())
+			return isListedDatatype(t, srcdb.PostgresUnsupportedDataTypes)
 		}),
 		UnsupportedInLive: findUnderlyingType(types, func(t UnderlyingType) bool {
-			return utils.ContainsAnyStringFromSlice(srcdb.GetPGLiveMigrationUnsupportedDatatypes(), t.BaseName())
+			return isListedDatatype(t, srcdb.GetPGLiveMigrationUnsupportedDatatypes())
 		}),
 		UnsupportedInLiveWithFFOrFB: findUnderlyingType(types, func(t UnderlyingType) bool {
-			return t.Kind == TypeKindComposite || utils.ContainsAnyStringFromSlice(liveWithFFOrFBUnsupportedDatatypes, t.BaseName())
+			return t.Kind == TypeKindComposite || isListedDatatype(t, liveWithFFOrFBUnsupportedDatatypes)
 		}),
 	}
+}
+
+// isListedDatatype matches only types not defined in the exported schema, since the lists name
+// built-in and extension types and a user-defined type such as public.point merely shares a name.
+func isListedDatatype(t UnderlyingType, datatypes []string) bool {
+	return t.Kind == TypeKindOther && utils.ContainsAnyStringFromSlice(datatypes, t.BaseName())
 }
 
 func findUnderlyingType(types []UnderlyingType, matches func(UnderlyingType) bool) *UnderlyingType {
