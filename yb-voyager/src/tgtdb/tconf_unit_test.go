@@ -18,6 +18,7 @@ limitations under the License.
 package tgtdb
 
 import (
+	"io/fs"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// pgconn.ParseConfig loads the root cert while parsing, so a missing file surfaces the exact path pgx decoded from the URI.
+// pgconn.ParseConfig loads the root cert while parsing, so a missing file surfaces, as an *fs.PathError, the exact path pgx decoded from the URI.
 func TestGetConnectionUriSSLPathsRoundTripThroughPgx(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -51,8 +52,9 @@ func TestGetConnectionUriSSLPathsRoundTripThroughPgx(t *testing.T) {
 
 			_, err := pgconn.ParseConfig(tconf.GetConnectionUri())
 
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "unable to read CA file: open "+tt.sslRootCert+": no such file or directory")
+			var pathErr *fs.PathError
+			require.ErrorAs(t, err, &pathErr)
+			assert.Equal(t, tt.sslRootCert, pathErr.Path)
 		})
 	}
 }

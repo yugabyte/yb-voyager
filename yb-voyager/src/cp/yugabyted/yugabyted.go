@@ -365,7 +365,7 @@ func (cp *YugabyteD) connect() error {
 	if err != nil {
 		return fmt.Errorf("error while connecting to yugabyted db. error: %w", err)
 	}
-	// pgx v5's pgxpool.New is lazy, unlike v4's pgxpool.Connect which dialed eagerly; ping to keep failing fast here.
+	// pgxpool.New does not dial; ping so a bad YUGABYTED_DB_CONN_STRING fails here rather than on first use.
 	err = connPool.Ping(context.Background())
 	if err != nil {
 		connPool.Close()
