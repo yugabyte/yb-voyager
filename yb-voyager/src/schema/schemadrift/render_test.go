@@ -18,6 +18,7 @@ package schemadrift
 
 import (
 	"encoding/json"
+	"html"
 	"strings"
 	"testing"
 	"time"
@@ -406,31 +407,63 @@ func TestRenderHTML_AddedTableColumnsAreMinQuoted(t *testing.T) {
 }
 
 // The Action for an added table is to create it on the target, so its definition
-// lists the table's own keys, checks and indexes, but not partition copies.
-func TestStringifyValue_AddedTableListsOwnKeysAndIndexes(t *testing.T) {
+// lists the table's own keys, checks and indexes, and the parent link that brings
+// the copies it leaves out.
+func TestRenderHTML_AddedTableShowsOwnKeysAndParentLink(t *testing.T) {
+	orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
 	refunds := schemasnapshot.ObjectRef{Schema: "public", Name: "refunds"}
 	ref := func(name string) schemasnapshot.TableScopedObjectRef {
 		return schemasnapshot.TableScopedObjectRef{Table: refunds, Name: name}
 	}
-	table := schemasnapshot.Table{
-		ObjectRef: refunds,
-		Columns: []schemasnapshot.Column{
-			{TableScopedObjectRef: ref("id"), DataType: "integer", NotNull: true},
-			{TableScopedObjectRef: ref("order_id"), DataType: "integer"},
-		},
+	columns := []schemasnapshot.Column{
+		{TableScopedObjectRef: ref("id"), DataType: "integer", NotNull: true},
+		{TableScopedObjectRef: ref("order_id"), DataType: "integer"},
+	}
+	ownKeys := schemasnapshot.Table{
+		ObjectRef:     refunds,
+		Columns:       columns,
 		PrimaryKey:    &schemasnapshot.Constraint{TableScopedObjectRef: ref("refunds_pkey"), ID: "1", Definition: "PRIMARY KEY (id)"},
 		Checks:        []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_id_check"), ID: "2", Definition: "CHECK (id > 0)"}},
 		ForeignKeys:   []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_order_fk"), ID: "3", Definition: "FOREIGN KEY (order_id) REFERENCES public.orders(id)"}},
-		UniqueKeys:    []schemasnapshot.Constraint{{TableScopedObjectRef: ref("parent_uq"), ID: "4", Definition: "UNIQUE (id)", FromParent: true}},
 		UniqueIndexes: []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_order_uq"), ID: "5", Definition: "USING btree (order_id)"}},
-		Indexes:       []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_parent_idx"), ID: "6", Definition: "USING btree (id)", FromParent: true}},
+	}
+	partition := schemasnapshot.Table{
+		ObjectRef:       refunds,
+		Columns:         columns,
+		PartitionParent: &orders,
+		PrimaryKey:      &schemasnapshot.Constraint{TableScopedObjectRef: ref("refunds_pkey"), ID: "1", Definition: "PRIMARY KEY (id)", FromParent: true},
+		Indexes:         []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_id_idx"), ID: "6", Definition: "USING btree (id)", FromParent: true}},
+	}
+	child := schemasnapshot.Table{
+		ObjectRef:    refunds,
+		Columns:      columns,
+		InheritsFrom: []schemasnapshot.ObjectRef{orders, {Schema: "public", Name: "Audited"}},
+		Checks:       []schemasnapshot.Constraint{{TableScopedObjectRef: ref("orders_id_check"), ID: "2", Definition: "CHECK (id > 0)", FromParent: true}},
 	}
 
-	got, err := stringifyValue(schemadiff.AttrNone, table, "postgresql")
-	require.NoError(t, err)
+	tests := []struct {
+		name  string
+		table schemasnapshot.Table
+		want  string
+	}{
+		{"own keys, checks and indexes", ownKeys, "id integer NOT NULL, order_id integer; PRIMARY KEY (id); CHECK (id > 0); " +
+			"FOREIGN KEY (order_id) REFERENCES public.orders(id); UNIQUE INDEX USING btree (order_id)"},
+		{"a partition shows its parent instead of the parent's copies", partition, "id integer NOT NULL, order_id integer; PARTITION OF public.orders"},
+		{"an inheritance child shows its parents instead of their copies", child, `id integer NOT NULL, order_id integer; INHERITS (public.orders, public."Audited")`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := fixtureReport()
+			r.Drifts = r.Drifts[:1]
+			r.Drifts[0].NewValue = tc.table
+			r.Summary.ChangeCount = 1
 
-	assert.Equal(t, "id integer NOT NULL, order_id integer; PRIMARY KEY (id); CHECK (id > 0); "+
-		"FOREIGN KEY (order_id) REFERENCES public.orders(id); UNIQUE INDEX USING btree (order_id)", got)
+			out, err := RenderHTML(r)
+			require.NoError(t, err)
+
+			assert.Contains(t, html.UnescapeString(string(out)), tc.want)
+		})
+	}
 }
 
 // An empty dimension compared nothing, so the dropdown must agree with the

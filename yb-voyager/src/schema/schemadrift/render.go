@@ -523,8 +523,8 @@ func severityLabel(sev Severity) (string, error) {
 	return s, nil
 }
 
-// ownKeyAndIndexDefs lists the definitions of a table's own keys, checks and indexes.
-// Partition and inheritance copies are left out: the parent's definition covers them.
+// Partition and inheritance copies are left out: creating the table with its
+// PARTITION OF or INHERITS link brings them.
 func ownKeyAndIndexDefs(t schemasnapshot.Table) []string {
 	var defs []string
 	if t.PrimaryKey != nil && !t.PrimaryKey.FromParent {
@@ -603,7 +603,18 @@ func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (s
 			}
 			columns = strings.Join(parts, ", ")
 		}
-		return strings.Join(append([]string{columns}, ownKeyAndIndexDefs(v)...), "; "), nil
+		parts := []string{columns}
+		if v.PartitionParent != nil {
+			parts = append(parts, "PARTITION OF "+v.PartitionParent.ForDisplay(dbType))
+		}
+		if len(v.InheritsFrom) > 0 {
+			parents := make([]string, len(v.InheritsFrom))
+			for i, ref := range v.InheritsFrom {
+				parents[i] = ref.ForDisplay(dbType)
+			}
+			parts = append(parts, "INHERITS ("+strings.Join(parents, ", ")+")")
+		}
+		return strings.Join(append(parts, ownKeyAndIndexDefs(v)...), "; "), nil
 	default:
 		return "", goerrors.Errorf("unexpected value type %T for attribute %q", value, attribute)
 	}
