@@ -84,6 +84,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`."Fk_Added" (x int)`,
 		`CREATE TABLE `+driftSchema+`.fk_dropped (x int CONSTRAINT fk_dropped_fkey REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
 		`CREATE TABLE `+driftSchema+`.fk_renamed (x int CONSTRAINT old_fk REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
+		`CREATE TABLE `+driftSchema+`.pk_part (id int) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a PARTITION OF `+driftSchema+`.pk_part FOR VALUES FROM (1) TO (10) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a1 PARTITION OF `+driftSchema+`.pk_part_a FOR VALUES FROM (1) TO (5)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -138,6 +141,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`."Fk_Added" ADD CONSTRAINT "Fk_Added_Fkey" FOREIGN KEY (x) REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE`,
 		`ALTER TABLE `+driftSchema+`.fk_dropped DROP CONSTRAINT fk_dropped_fkey`,
 		`ALTER TABLE `+driftSchema+`.fk_renamed RENAME CONSTRAINT old_fk TO "New_Fk"`,
+		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -335,6 +339,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.ForeignKeyAdded, Object: driftSchema + `.Fk_Added.Fk_Added_Fkey`, New: fkDefinition},
 		{Type: schemadiff.ForeignKeyDropped, Object: driftSchema + `.fk_dropped.fk_dropped_fkey`, Old: fkDefinition},
 		{Type: schemadiff.ForeignKeyNameChanged, Object: driftSchema + `.fk_renamed.old_fk`, Old: "old_fk", New: "New_Fk"},
+		// The key's copies on pk_part_a and pk_part_a1 report nothing.
+		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.pk_part.pk_part_pkey`, New: `PRIMARY KEY (id)`},
 	}, gotConstraints)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
