@@ -162,7 +162,8 @@ var afterCutoverInfo DriftInfo
 
 type situation struct {
 	Timing Timing
-	// A cutover with fall-back can still happen: live or changes-only, before cutover.
+	// A cutover with fall-back can still happen: live or changes-only, before cutover,
+	// and fall-forward not in use, since voyager refuses to enable both.
 	// Adds the type's fall-back sentence to Impact.
 	FallBackPossible bool
 	// Fall-forward is in use and cutover has not happened. Adds the type's
@@ -180,7 +181,7 @@ The Impact and Action depend on the change type AND on when the change happened 
 1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type: "This change was made after cutover to target. Data already migrated to the target is not affected." It has no Action and no fall-back or fall-forward sentence: after cutover the source is the fall-back side, whose drift is not tracked (§1).
 2. Otherwise the type's entry for the timing. `TimingChangesOnlyAfterExportStart` with no entry of its own uses the `TimingLiveAfterExportStart` entry. No entry is an error naming the type and the timing: a new type must come with its guidance, and reporting it as advisory with no note would hide a change the report cannot explain.
 3. When `situation.FallBackPossible`, the type's sentence in `fallBackRiskByDiffType`, if any, is appended to the Impact.
-4. When `situation.FallForwardPossible`, the type's sentence in `fallForwardActionByDiffType`, if any, is appended to the Action. Every type whose Action changes the target has one, saying to make the same change on the source-replica.
+4. When `situation.FallForwardPossible`, the type's sentence in `fallForwardActionByDiffType`, if any, is appended to the Action. Every type but `TABLE_PARTITION_CHILDREN_CHANGED` has one: make on the source-replica any change the Action asks for on the target, and restart `import data to source-replica` whenever the Action restarts `import data`. It is worded that way so it also reads correctly where the Action is only a restart, a fix on the source, or a table exclusion.
 
 Each type is one `DiffType`, so the type alone says what happened. Changes whose two directions need different guidance are separate types (`COLUMN_NOT_NULL_SET` / `COLUMN_NOT_NULL_DROPPED`, §5.4), not one type plus a direction read from the old and new values.
 
@@ -593,7 +594,7 @@ The SSL certificate and key paths in the migration status record are host paths.
 | Unique index | `pg_index`, `indisunique`, no constraint behind it | invalid indexes |
 | Index | `pg_index`, not unique | indexes behind a primary key, unique or exclusion constraint (the constraint reports them, or is left out), invalid indexes |
 
-The PostgreSQL provider empties `search_path` for the capture transaction before its first query, so every captured text is schema-qualified and never depends on the session: column types and defaults, a foreign key's `REFERENCES`, and index definitions. Copies made for partitions and inheritance are captured with `FromParent` set, so the diff can tell them from the table's own objects. A `TABLE_ADDED` finding's definition lists the table's own keys, checks and indexes, because its Action is to create the table on the target.
+The PostgreSQL provider empties `search_path` for the capture transaction before its first query, so every captured text is schema-qualified and never depends on the session: column types and defaults, a foreign key's `REFERENCES`, and index definitions. Copies made for partitions and inheritance are captured with `FromParent` set, so the diff can tell them from the table's own objects. A `TABLE_ADDED` finding's definition lists the table's own keys, checks and indexes, because its Action is to create the table on the target. For a partition or inheritance child it also names `PARTITION OF` or `INHERITS`, since creating the table that way brings the copies the definition leaves out.
 
 **Matching, by OID only.**
 
@@ -628,7 +629,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Offline | export schema, export data start / periodic / exit(complete) | covered | `offline_after_export_start` |  |
 | Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | `live_after_export_start`; `after_cutover` from the exit(cutover) capture or the cutover request | Cutover to target runs the pre-check of §5.8 before its prompt. |
 | Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | as live; a type's fall-back sentence is appended before cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
-| Live with fall-forward | same as fall-back | same | as fall-back; once import data to source-replica has run, a type's fall-forward sentence is appended to Action before cutover |  |
+| Live with fall-forward | same as fall-back | same | as live; once import data to source-replica has run, a type's fall-forward sentence is appended to Action before cutover, and no fall-back sentence is added, since fall-back cannot also be enabled |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered | `changes_only_after_export_start`, which uses the live text where a type has none of its own; `after_cutover` as live |  |
 | Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | from the migration status record of the metaDB the snapshots come from | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. Cutover to target's pre-check (§5.8) also runs per iteration, against that iteration's metaDB: DDL applied before the iteration's first capture is not reported. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
 | Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | n/a | Oracle and MySQL are non-goals (§1). |
