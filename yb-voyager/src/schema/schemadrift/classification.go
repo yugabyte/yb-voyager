@@ -367,7 +367,7 @@ var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
 	schemadiff.UniqueAdded:      uniqueAddedFallBackRisk,
 	schemadiff.UniqueIndexAdded: uniqueAddedFallBackRisk,
 	schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
-	schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first row from the target that breaks it, and refuses to start at all if its user can't turn foreign-key checks off on the source.",
+	schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
 	schemadiff.PrimaryKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
 }
 
@@ -454,12 +454,12 @@ var (
 		Action: "Make the same change on the target."}
 
 	foreignKeyAddedInfo = DriftInfo{Severity: SeverityAdvisory,
-		Impact: "`import data` is not affected, because foreign-key checks are off on the target while it loads.",
+		Impact: "`import data` is not affected, because the target does not have the key.",
 		Action: "Add it on the target to keep the schemas the same."}
 
 	foreignKeyDroppedInfo = DriftInfo{Severity: SeverityPotentialImpact,
-		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, `import data` stops on the first such row instead.",
-		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped."}
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first row that breaks it, and an `ON DELETE` or `ON UPDATE` action such as `CASCADE` removes or changes rows the source keeps.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped. Restore from the source any rows the key's action removed or changed on the target, because running `import data` again does not bring them back."}
 
 	keyNameChangedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`export data` and `import data` are not affected.",
