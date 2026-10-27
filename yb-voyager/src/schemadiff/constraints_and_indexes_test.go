@@ -216,9 +216,9 @@ func TestDiffConstraintsOrIndexes_ForeignKeys(t *testing.T) {
 		return c
 	}
 	ownFK := newFK("10", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers"(id) ON DELETE CASCADE`)
-	copyA := parentCopy(newFK("11", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p1"(id)`))
-	copyB := parentCopy(newFK("12", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p2"(id)`))
-	copyC := parentCopy(newFK("13", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers_p3"(id)`))
+	copyA := parentCopy(newFK("11", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers"(id) ON DELETE CASCADE`))
+	copyB := parentCopy(newFK("12", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers"(id) ON DELETE CASCADE`))
+	copyC := parentCopy(newFK("13", "Orders_Customer_fkey", `FOREIGN KEY ("Customer_Id") REFERENCES "Sales"."Customers"(id) ON DELETE CASCADE`))
 
 	t.Run("copies added and dropped next to an own foreign key report nothing", func(t *testing.T) {
 		earlier := []schemasnapshot.Constraint{ownFK, copyA, copyB}

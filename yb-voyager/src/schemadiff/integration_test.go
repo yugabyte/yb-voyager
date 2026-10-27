@@ -92,6 +92,11 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`.part_leaf PARTITION OF `+driftSchema+`.part_mid FOR VALUES FROM (0) TO (50)`,
 		`CREATE TABLE `+driftSchema+`.inh_base (a int CONSTRAINT inh_ck CHECK (a > 0))`,
 		`CREATE TABLE `+driftSchema+`.inh_kid (b int) INHERITS (`+driftSchema+`.inh_base)`,
+		`CREATE TABLE `+refSchema+`.pparent (id int PRIMARY KEY) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+refSchema+`.pparent_p1 PARTITION OF `+refSchema+`.pparent FOR VALUES FROM (0) TO (100)`,
+		`CREATE TABLE `+driftSchema+`.fk_to_partitioned (x int CONSTRAINT fk_to_partitioned_fkey REFERENCES `+refSchema+`.pparent(id))`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned (x int CONSTRAINT fk_from_partitioned_fkey REFERENCES `+refSchema+`.parent(id)) PARTITION BY RANGE (x)`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned_p1 PARTITION OF `+driftSchema+`.fk_from_partitioned FOR VALUES FROM (0) TO (100)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -150,6 +155,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_uq UNIQUE (id)`,
 		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_ck CHECK (a > 0)`,
 		`ALTER TABLE `+driftSchema+`.inh_base DROP CONSTRAINT inh_ck`,
+		`CREATE TABLE `+refSchema+`.pparent_p2 PARTITION OF `+refSchema+`.pparent FOR VALUES FROM (100) TO (200)`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned_p2 PARTITION OF `+driftSchema+`.fk_from_partitioned FOR VALUES FROM (100) TO (200)`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -353,6 +360,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.UniqueAdded, Object: driftSchema + `.part_root.part_root_uq`, New: `UNIQUE (id)`},
 		{Type: schemadiff.CheckAdded, Object: driftSchema + `.part_root.part_root_ck`, New: `CHECK (a > 0)`},
 		{Type: schemadiff.CheckDropped, Object: driftSchema + `.inh_base.inh_ck`, Old: `CHECK (a > 0)`},
+		// New partitions on either side of fk_to_partitioned_fkey and fk_from_partitioned_fkey report nothing.
 	}, gotConstraints)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
