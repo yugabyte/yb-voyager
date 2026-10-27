@@ -111,7 +111,7 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.ForeignKeyAdded:               {adv, adv, adv, adv},
 		schemadiff.ForeignKeyDropped:             {pot, pot, pot, pot},
 		schemadiff.ForeignKeyNameChanged:         {adv, adv, adv, adv},
-		schemadiff.UniqueIndexAdded:              {adv, adv, adv, adv},
+		schemadiff.UniqueIndexAdded:              {adv, adv, pot, pot},
 		schemadiff.UniqueIndexDropped:            {rec, pot, rec, rec},
 		schemadiff.UniqueIndexNameChanged:        {adv, adv, adv, adv},
 		schemadiff.IndexAdded:                    {adv, adv, adv, adv},

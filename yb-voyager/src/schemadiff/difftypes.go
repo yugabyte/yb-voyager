@@ -113,9 +113,8 @@ type ObjectType string
 const (
 	ObjectTypeTable  ObjectType = "TABLE"
 	ObjectTypeColumn ObjectType = "COLUMN"
-	// ObjectTypeConstraint covers primary keys now, and the unique, check and foreign
-	// key constraints as their findings land. Like COLUMN, it anchors to its host table
-	// for --table-list.
+	// ObjectTypeConstraint covers primary key, unique, check and foreign key
+	// constraints. Like COLUMN, it anchors to its host table for --table-list.
 	ObjectTypeConstraint ObjectType = "CONSTRAINT"
 	// ObjectTypeIndex is its own selector but stays anchored to its host table for
 	// --table-list, like COLUMN.
