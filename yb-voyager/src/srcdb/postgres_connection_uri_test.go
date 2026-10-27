@@ -47,3 +47,16 @@ func TestPostgreSQLConnectionUriConnectTimeout(t *testing.T) {
 		})
 	}
 }
+
+// Connect caches the full URI in source.Uri before pg_dump and replica connections build their
+// own URIs, which must still carry the SSL settings.
+func TestPostgreSQLUrisKeepSSLAfterConnectionUriIsCached(t *testing.T) {
+	s := Source{Host: "localhost", Port: 5432, User: "u", Password: "p", DBName: "db",
+		SSLMode: "verify-full", SSLRootCert: "/certs/ca.crt", SSLCertPath: "/certs/c.crt", SSLKey: "/certs/c.key"}
+	pg := &PostgreSQL{source: &s}
+	pg.getConnectionUri()
+
+	wantQuery := "sslmode=verify-full&sslcert=%2Fcerts%2Fc.crt&sslkey=%2Fcerts%2Fc.key&sslrootcert=%2Fcerts%2Fca.crt"
+	assert.Equal(t, "postgresql://u@localhost:5432/db?"+wantQuery, pg.GetConnectionUriWithoutPassword())
+	assert.Equal(t, "postgresql://u:p@replica:5432/db?"+wantQuery, pg.GetReplicaConnectionUri("replica", 5432))
+}

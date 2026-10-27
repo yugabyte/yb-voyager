@@ -943,37 +943,30 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 }
 
 func generateSSLQueryStringIfNotExists(s *Source) string {
-
-	if s.Uri == "" {
-		SSLQueryString := ""
-		if s.SSLQueryString == "" {
-
-			if s.SSLMode == "disable" || s.SSLMode == "allow" || s.SSLMode == "prefer" || s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-				SSLQueryString = "sslmode=" + s.SSLMode
-				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
-					// File paths are user input and may contain URI syntax (spaces, '%', '&'); see utils.EscapeConnUriQueryValue.
-					if s.SSLCertPath != "" {
-						SSLQueryString += "&sslcert=" + utils.EscapeConnUriQueryValue(s.SSLCertPath)
-					}
-					if s.SSLKey != "" {
-						SSLQueryString += "&sslkey=" + utils.EscapeConnUriQueryValue(s.SSLKey)
-					}
-					if s.SSLRootCert != "" {
-						SSLQueryString += "&sslrootcert=" + utils.EscapeConnUriQueryValue(s.SSLRootCert)
-					}
-					if s.SSLCRL != "" {
-						SSLQueryString += "&sslcrl=" + utils.EscapeConnUriQueryValue(s.SSLCRL)
-					}
-				}
-			} else {
-				utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
-			}
-		} else {
-			SSLQueryString = s.SSLQueryString
+	if s.SSLQueryString != "" {
+		return s.SSLQueryString
+	}
+	switch s.SSLMode {
+	case "disable", "allow", "prefer":
+		return "sslmode=" + s.SSLMode
+	case "require", "verify-ca", "verify-full":
+		query := "sslmode=" + s.SSLMode
+		// File paths are user input and may contain URI syntax (spaces, '%', '&'); see utils.EscapeConnUriQueryValue.
+		if s.SSLCertPath != "" {
+			query += "&sslcert=" + utils.EscapeConnUriQueryValue(s.SSLCertPath)
 		}
-		return SSLQueryString
-	} else {
+		if s.SSLKey != "" {
+			query += "&sslkey=" + utils.EscapeConnUriQueryValue(s.SSLKey)
+		}
+		if s.SSLRootCert != "" {
+			query += "&sslrootcert=" + utils.EscapeConnUriQueryValue(s.SSLRootCert)
+		}
+		if s.SSLCRL != "" {
+			query += "&sslcrl=" + utils.EscapeConnUriQueryValue(s.SSLCRL)
+		}
+		return query
+	default:
+		utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
 		return ""
 	}
 }
