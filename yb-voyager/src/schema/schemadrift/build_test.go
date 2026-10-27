@@ -785,19 +785,21 @@ func TestSituationFor_FallForwardOnlyBeforeCutover(t *testing.T) {
 		{Label: schemasnapshot.LabelExportDataFromSourcePeriodic, CapturedAt: start.Add(time.Hour)},
 	}
 	tests := []struct {
-		name               string
-		m                  MigrationInfo
-		wantFallForwardSet bool
+		name            string
+		m               MigrationInfo
+		wantFallForward bool
+		wantFallBack    bool
 	}{
-		{"fall-forward in use before cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true}, true},
-		{"fall-forward in use after cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true, CutoverRequestedAt: start.Add(-time.Minute)}, false},
-		{"fall-forward not in use", MigrationInfo{ExportType: "snapshot-and-changes"}, false},
+		{"fall-forward in use before cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true}, true, false},
+		{"fall-forward in use after cutover", MigrationInfo{ExportType: "snapshot-and-changes", FallForwardEnabled: true, CutoverRequestedAt: start.Add(-time.Minute)}, false, false},
+		{"fall-forward not in use", MigrationInfo{ExportType: "snapshot-and-changes"}, false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := situationFor(points, 0, 1, tt.m)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantFallForwardSet, got.FallForwardPossible)
+			assert.Equal(t, tt.wantFallForward, got.FallForwardPossible)
+			assert.Equal(t, tt.wantFallBack, got.FallBackPossible)
 		})
 	}
 }

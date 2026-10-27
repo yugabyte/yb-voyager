@@ -177,7 +177,7 @@ func TestGetDriftInfo_FallForwardSentenceOnEveryTypeButPartitionChildren(t *test
 	}
 	info, err := getDriftInfo(schemadiff.ColumnAdded, situation{Timing: TimingLiveAfterExportStart})
 	require.NoError(t, err)
-	assert.NotContains(t, info.Action, "source-replica")
+	assert.Equal(t, infoByDiffType[schemadiff.ColumnAdded][TimingLiveAfterExportStart].Action, info.Action)
 }
 
 func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {

@@ -53,7 +53,8 @@ type MigrationInfo struct {
 
 type situation struct {
 	Timing Timing
-	// A cutover with fall-back can still happen: live or changes-only, before cutover.
+	// A cutover with fall-back can still happen: live or changes-only, before cutover,
+	// and fall-forward not in use, since voyager refuses to enable both.
 	// Adds the type's fall-back sentence to Impact.
 	FallBackPossible bool
 	// Fall-forward is in use and cutover has not happened. Adds the type's
@@ -230,7 +231,7 @@ func situationFor(points []CapturePoint, prevIdx, nextIdx int, m MigrationInfo) 
 	}
 	return situation{
 		Timing:              timing,
-		FallBackPossible:    timing != TimingAfterCutover && m.ExportType != utils.SNAPSHOT_ONLY,
+		FallBackPossible:    timing != TimingAfterCutover && m.ExportType != utils.SNAPSHOT_ONLY && !m.FallForwardEnabled,
 		FallForwardPossible: timing != TimingAfterCutover && m.FallForwardEnabled,
 	}, nil
 }

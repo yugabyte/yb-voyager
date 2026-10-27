@@ -374,7 +374,7 @@ var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
 	schemadiff.PrimaryKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
 }
 
-const fallForwardAction = "Fall-forward is in use, so make the same change on the source-replica too."
+const fallForwardAction = "Fall-forward is in use: make on the source-replica any change this asks you to make on the target, and when it restarts `import data`, restart `import data to source-replica` the same way."
 
 // Appended to Action while fall-forward is in use and cutover has not happened.
 // TABLE_PARTITION_CHILDREN_CHANGED has none: its Action points at each partition's own
