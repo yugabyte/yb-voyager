@@ -38,12 +38,12 @@ func TestNewProviderUnknownTypeFromCapture(t *testing.T) {
 }
 
 // setupSuccessfulPGMock registers the minimal pg_catalog expectations for one
-// round of TakeSnapshot: the search_path reset, server_version, pg_class (empty), pg_inherits (empty),
+// round of TakeSnapshot: set_config(search_path), server_version, pg_class (empty), pg_inherits (empty),
 // pg_attribute, pg_constraint and pg_index (all empty). Use this when testing Capture orchestration (header
 // stamping, tx commit/rollback) rather than the loader logic itself.
 func setupSuccessfulPGMock(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
-	mock.ExpectExec(`SET LOCAL search_path = ''`).WillReturnResult(sqlmock.NewResult(0, 0))
+	expectEmptySearchPath(mock)
 	mock.ExpectQuery(`SHOW server_version`).
 		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("16.4"))
 	mock.ExpectQuery(`pg_class`).
@@ -68,7 +68,7 @@ func TestCaptureRollbackOnSnapshotError(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`SET LOCAL search_path = ''`).WillReturnResult(sqlmock.NewResult(0, 0))
+	expectEmptySearchPath(mock)
 	// Make detectDatabaseVersion fail — this causes TakeSnapshot to return an error.
 	mock.ExpectQuery(`SHOW server_version`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
@@ -173,7 +173,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`SET LOCAL search_path = ''`).WillReturnResult(sqlmock.NewResult(0, 0))
+	expectEmptySearchPath(mock)
 	mock.ExpectQuery(`SHOW server_version`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
@@ -242,7 +242,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectExec(`SET LOCAL search_path = ''`).WillReturnResult(sqlmock.NewResult(0, 0))
+	expectEmptySearchPath(mock)
 	mock.ExpectQuery(`SHOW server_version`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
