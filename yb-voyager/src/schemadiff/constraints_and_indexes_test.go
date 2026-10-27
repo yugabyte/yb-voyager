@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
@@ -105,20 +106,31 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 		return s
 	}
 
+	type finding struct {
+		Type   DiffType
+		Object string
+	}
 	tests := []struct {
 		name               string
 		versionA, versionB int
-		want               []DiffType
+		want               []finding
 	}{
 		{"v1 to v2 skips keys", 1, schemasnapshot.VersionWithKeysAndIndexes, nil},
 		{"v2 to v1 skips keys", schemasnapshot.VersionWithKeysAndIndexes, 1, nil},
-		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []DiffType{PrimaryKeyAdded, UniqueAdded, CheckAdded, ForeignKeyAdded, UniqueIndexAdded, IndexAdded}},
+		{"v2 to v2 compares keys", schemasnapshot.VersionWithKeysAndIndexes, schemasnapshot.VersionWithKeysAndIndexes, []finding{
+			{PrimaryKeyAdded, "public.Orders.Orders_pkey"},
+			{UniqueAdded, "public.Orders.Orders_Email_key"},
+			{CheckAdded, "public.Orders.Orders_Qty_check"},
+			{ForeignKeyAdded, "public.Orders.Orders_Cust_fkey"},
+			{UniqueIndexAdded, "public.Orders.Orders_Email_uq"},
+			{IndexAdded, "public.Orders.Orders_Qty_idx"},
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var got []DiffType
+			var got []finding
 			for _, d := range Diff(snapshot(tc.versionA, withoutKey), snapshot(tc.versionB, withKey)) {
-				got = append(got, d.Type)
+				got = append(got, finding{d.Type, identKey(d, constants.POSTGRESQL)})
 			}
 			assert.ElementsMatch(t, tc.want, got)
 		})
