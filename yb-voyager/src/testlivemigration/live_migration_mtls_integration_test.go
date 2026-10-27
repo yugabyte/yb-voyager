@@ -110,9 +110,10 @@ type hbaRule struct {
 }
 
 // TestLiveMigrationWithMTLSOnlySourceAndTarget pins that a snapshot-and-changes live migration
-// (export/import schema, pg_dump snapshot + Debezium CDC, import data, cutover to target,
-// finalize-schema-post-data-import, end migration) works when the source and the target accept
-// only TLS connections authenticated by a client certificate, using sslmode=verify-full.
+// (export schema via pg_dump, import schema, Debezium snapshot + CDC, import data, cutover to
+// target, finalize-schema-post-data-import, end migration), and one with fall-back, work when the
+// source and the target accept only TLS connections authenticated by a client certificate, using
+// sslmode=verify-full; and that voyager refuses to connect when the TLS setup is wrong.
 //
 // The cert/key paths reach several consumers that each parse them differently: pgx and libpq
 // (pg_dump) read them from a connection URI's query string, pg_dump additionally runs inside
@@ -185,7 +186,18 @@ func TestLiveMigrationWithMTLSOnlySourceAndTarget(t *testing.T) {
 
 	t.Run("plain cert paths", func(t *testing.T) {
 		t.Parallel()
-		runMTLSLiveMigration(t, "mtls_plain", sourceMTLS, targetMTLS, plainCerts)
+		runMTLSLiveMigration(t, "mtls_plain", sourceMTLS, targetMTLS, plainCerts, false)
+	})
+
+	t.Run("fall-back with cert path with space and plus", func(t *testing.T) {
+		t.Parallel()
+		certs := pems.writeTo(t, filepath.Join(certsBaseDir, "fall-back", "certs dir+fb"))
+		runMTLSLiveMigration(t, "mtls_fall_back", sourceMTLS, targetMTLS, certs, true)
+	})
+
+	t.Run("rejected TLS setups", func(t *testing.T) {
+		t.Parallel()
+		runMTLSRejectionCases(t, sourceMTLS, targetMTLS, plainCerts, pems, filepath.Join(certsBaseDir, "rejections"))
 	})
 
 	pathCases := []struct {
@@ -211,8 +223,10 @@ func TestLiveMigrationWithMTLSOnlySourceAndTarget(t *testing.T) {
 	for _, tc := range pathCases {
 		t.Run("cert path with "+tc.name, func(t *testing.T) {
 			t.Parallel()
-			certs := pems.writeTo(t, filepath.Join(certsBaseDir, "variants", tc.dir))
-			runMTLSLiveMigration(t, tc.dbName, sourceMTLS, targetMTLS, certs)
+			// A parent per case: siblings "certs dir" and "certs+dir" would otherwise hold valid
+			// certs at each other's mis-decoded path, so a '+'/space mix-up would still pass.
+			certs := pems.writeTo(t, filepath.Join(certsBaseDir, "variants", tc.dbName, tc.dir))
+			runMTLSLiveMigration(t, tc.dbName, sourceMTLS, targetMTLS, certs, false)
 		})
 	}
 }
@@ -220,7 +234,8 @@ func TestLiveMigrationWithMTLSOnlySourceAndTarget(t *testing.T) {
 // requireOnlyClientCertTLSAccepted proves the server is locked down: a plaintext connection and a
 // TLS connection without a client certificate are both refused at authentication, a verify-full
 // connection with the client certificate succeeds over TLS as the certificate's CN, and the hba
-// rules for network connections are exactly wantNetworkHBA.
+// rules for network connections start with wantNetworkHBA, whose catch-all rules make any later
+// rule unreachable.
 func requireOnlyClientCertTLSAccepted(t *testing.T, container testcontainers.TestContainer, dbName string,
 	rootCert, clientCert, clientKey string, wantNetworkHBA []hbaRule) {
 	t.Helper()
@@ -282,11 +297,16 @@ func requireOnlyClientCertTLSAccepted(t *testing.T, container testcontainers.Tes
 	require.NoError(t, err)
 	// `local` rules govern Unix-socket connections, which are not reachable from outside the container.
 	networkHBA := lo.Filter(allHBA, func(r hbaRule, _ int) bool { return r.Type != "local" })
-	require.Equal(t, wantNetworkHBA, networkHBA, "%s: network hba rules in effect (all rules: %v)", config.DBType, allHBA)
+	// YugabyteDB appends its default "hostssl all all all trust" after ysql_hba_conf_csv; hba is
+	// first-match, so the catch-all cert rule ahead of it shadows it.
+	require.GreaterOrEqual(t, len(networkHBA), len(wantNetworkHBA), "%s: network hba rules in effect (all rules: %v)", config.DBType, allHBA)
+	require.Equal(t, wantNetworkHBA, networkHBA[:len(wantNetworkHBA)], "%s: network hba rules in effect (all rules: %v)", config.DBType, allHBA)
 }
 
-// runMTLSLiveMigration runs one basic live migration with voyager pointed at certs.
-func runMTLSLiveMigration(t *testing.T, dbName string, sourceMTLS, targetMTLS *testcontainers.MTLSConfig, certs mtlsCertFiles) {
+// runMTLSLiveMigration runs one basic live migration with voyager pointed at certs. With
+// fallBack, cutover prepares for fall-back, and target changes stream back to the source
+// before cutover to source.
+func runMTLSLiveMigration(t *testing.T, dbName string, sourceMTLS, targetMTLS *testcontainers.MTLSConfig, certs mtlsCertFiles, fallBack bool) {
 	const (
 		accountsTable = `"mtls_schema"."accounts"`
 		eventsTable   = `"mtls_schema"."events"`
@@ -321,6 +341,11 @@ func runMTLSLiveMigration(t *testing.T, dbName string, sourceMTLS, targetMTLS *t
 			`UPDATE mtls_schema.accounts SET balance = balance + 1 WHERE id <= 3;`,
 			`DELETE FROM mtls_schema.events WHERE id > 25;`,
 			`INSERT INTO mtls_schema.events SELECT i, 1, md5(i::text) FROM generate_series(31, 32) i;`,
+		},
+		TargetDeltaSQL: []string{
+			`INSERT INTO mtls_schema.accounts SELECT i, 'account_' || i, i * 10 FROM generate_series(26, 28) i;`,
+			`UPDATE mtls_schema.accounts SET balance = balance + 1 WHERE id IN (4, 5);`,
+			`DELETE FROM mtls_schema.events WHERE id <= 2;`,
 		},
 		CleanupSQL: []string{
 			`DROP SCHEMA IF EXISTS mtls_schema CASCADE;`,
@@ -359,13 +384,145 @@ func runMTLSLiveMigration(t *testing.T, dbName string, sourceMTLS, targetMTLS *t
 	}, 180, 2), "streaming")
 	require.NoError(t, lm.ValidateDataConsistency([]string{accountsTable, eventsTable}, "id"), "streamed data")
 
-	require.NoError(t, lm.InitiateCutoverToTarget(false, nil), "initiate cutover to target")
+	require.NoError(t, lm.InitiateCutoverToTarget(fallBack, nil), "initiate cutover to target")
 	require.NoError(t, lm.WaitForCutoverComplete(0, 180), "cutover to target")
 
-	require.NoError(t, lm.RunFinalizeSchemaPostDataImport(certs.targetSSLArgs()), "finalize schema post data import")
+	if fallBack {
+		// Export data from target and import data to source are started by voyager itself and
+		// get the SSL settings only from the migration status record, never from the CLI.
+		require.NoError(t, lm.ExecuteTargetDelta(), "target delta")
+		require.NoError(t, lm.WaitForFallbackStreamingComplete(map[string]ChangesCount{
+			accountsTable: {Inserts: 3, Updates: 2, Deletes: 0},
+			eventsTable:   {Inserts: 0, Updates: 0, Deletes: 2},
+		}, 180, 2), "fall-back streaming")
+		require.NoError(t, lm.ValidateDataConsistency([]string{accountsTable, eventsTable}, "id"), "fall-back data")
+
+		require.NoError(t, lm.InitiateCutoverToSource(nil), "initiate cutover to source")
+		require.NoError(t, lm.WaitForCutoverSourceComplete(0, 180), "cutover to source")
+	} else {
+		require.NoError(t, lm.RunFinalizeSchemaPostDataImport(certs.targetSSLArgs()), "finalize schema post data import")
+	}
 	require.NoError(t, lm.ValidateDataConsistency([]string{accountsTable, eventsTable}, "id"), "data after cutover")
 
 	require.NoError(t, lm.EndMigration(nil, false), "end migration")
+}
+
+// runMTLSRejectionCases runs voyager against the mTLS-only source (export schema) and target
+// (import schema) with TLS settings that libpq would also refuse, and checks that voyager fails
+// with the server's or the TLS stack's reason instead of connecting some other way. For a missing
+// file, the error must name the exact path the user passed, which shows the path was decoded back
+// unchanged even when it is full of URI syntax.
+func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.MTLSConfig, goodCerts mtlsCertFiles,
+	pems mtlsClientPEMs, certsDir string) {
+	const dbName = "mtls_rejections"
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB:    ContainerConfig{Type: "postgresql", ForLive: true, DatabaseName: dbName, MTLS: sourceMTLS},
+		TargetDB:    ContainerConfig{Type: "yugabytedb", DatabaseName: dbName, MTLS: targetMTLS},
+		SchemaNames: []string{"mtls_schema"},
+		SourceSetupSchemaSQL: []string{
+			`CREATE SCHEMA mtls_schema;`,
+			`CREATE TABLE mtls_schema.accounts (id INT PRIMARY KEY);`,
+		},
+		CleanupSQL: []string{`DROP SCHEMA IF EXISTS mtls_schema CASCADE;`},
+	})
+	defer lm.Cleanup()
+	require.NoError(t, lm.SetupContainers(context.Background()), "setup containers")
+	require.NoError(t, lm.SetupSchema(), "setup source schema")
+	// import schema needs an exported schema before it connects to the target.
+	require.NoError(t, lm.RunExportSchema(goodCerts.sourceSSLArgs()), "export schema")
+
+	untrustedPKI, err := testutils.NewTestPKI()
+	require.NoError(t, err)
+	untrusted := mtlsClientPEMs{ca: untrustedPKI.CACertPEM}
+	untrusted.sourceCert, untrusted.sourceKey, err = untrustedPKI.IssueClientCert(mtlsSourceUser)
+	require.NoError(t, err)
+	untrusted.targetCert, untrusted.targetKey, err = untrustedPKI.IssueClientCert(mtlsTargetUser)
+	require.NoError(t, err)
+	untrustedCerts := untrusted.writeTo(t, filepath.Join(certsDir, "untrusted"))
+
+	// Signed by the trusted CA, but for the other side's role, so the CN does not match.
+	swappedRoleCerts := goodCerts
+	swappedRoleCerts.SourceCert, swappedRoleCerts.SourceKey = goodCerts.TargetCert, goodCerts.TargetKey
+	swappedRoleCerts.TargetCert, swappedRoleCerts.TargetKey = goodCerts.SourceCert, goodCerts.SourceKey
+
+	// Never created. Unescaped, this path would truncate at '&' or '#', or decode "%41" or '+'.
+	missingRootCert := filepath.Join(certsDir, "missing", "no such+dir%41&sslmode=disable#x", "ca.crt")
+	missingRootCertCerts := goodCerts
+	missingRootCertCerts.RootCert = missingRootCert
+
+	withoutClientCert := func(args map[string]string) map[string]string {
+		return lo.OmitByKeys(args, []string{"--source-ssl-cert", "--source-ssl-key", "--target-ssl-cert", "--target-ssl-key"})
+	}
+
+	cases := []struct {
+		name       string
+		sourceArgs map[string]string
+		targetArgs map[string]string
+		wantOutput string
+	}{
+		{
+			name:       "TLS disabled",
+			sourceArgs: map[string]string{"--source-ssl-mode": "disable"},
+			targetArgs: map[string]string{"--target-ssl-mode": "disable"},
+			wantOutput: "no pg_hba.conf entry",
+		},
+		{
+			name:       "no client certificate",
+			sourceArgs: withoutClientCert(goodCerts.sourceSSLArgs()),
+			targetArgs: withoutClientCert(goodCerts.targetSSLArgs()),
+			wantOutput: "connection requires a valid client certificate",
+		},
+		{
+			name:       "client certificate for another role",
+			sourceArgs: swappedRoleCerts.sourceSSLArgs(),
+			targetArgs: swappedRoleCerts.targetSSLArgs(),
+			wantOutput: "certificate authentication failed for user",
+		},
+		{
+			name:       "server certificate from an untrusted CA",
+			sourceArgs: untrustedCerts.sourceSSLArgs(),
+			targetArgs: untrustedCerts.targetSSLArgs(),
+			wantOutput: "certificate signed by unknown authority",
+		},
+		{
+			name:       "root certificate path that does not exist",
+			sourceArgs: missingRootCertCerts.sourceSSLArgs(),
+			targetArgs: missingRootCertCerts.targetSSLArgs(),
+			wantOutput: missingRootCert,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name+"/source", func(t *testing.T) {
+			args := []string{
+				"--export-dir", testutils.CreateTempExportDir(),
+				"--source-db-schema", "mtls_schema",
+				"--source-db-name", dbName,
+				"--yes",
+			}
+			requireVoyagerRejected(t, lm.sourceContainer, "export schema", args, tc.sourceArgs, tc.wantOutput)
+		})
+		t.Run(tc.name+"/target", func(t *testing.T) {
+			args := []string{
+				"--export-dir", lm.exportDir,
+				"--target-db-name", dbName,
+				"--yes",
+			}
+			requireVoyagerRejected(t, lm.targetContainer, "import schema", args, tc.targetArgs, tc.wantOutput)
+		})
+	}
+}
+
+func requireVoyagerRejected(t *testing.T, container testcontainers.TestContainer, cmdName string, args []string,
+	sslArgs map[string]string, wantOutput string) {
+	t.Helper()
+	for key, value := range sslArgs {
+		args = append(args, key, value)
+	}
+	runner := testutils.NewVoyagerCommandRunner(container, cmdName, args, nil, false).WithT(t)
+	err := runner.Run()
+	output := runner.Stdout() + runner.Stderr()
+	require.Error(t, err, "%s must fail; output:\n%s", cmdName, output)
+	assert.Contains(t, output, wantOutput, "%s failed for a different reason", cmdName)
 }
 
 func readDebeziumSSLProperties(t *testing.T, path string) map[string]string {
