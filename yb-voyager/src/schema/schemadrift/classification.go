@@ -251,7 +251,7 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 			Impact: "`import data` is not affected.",
 			Action: "Add the same primary key on the target to keep the schemas the same."},
 		TimingLiveAfterExportStart: {Severity: SeverityAdvisory,
-			Impact: "On its own, this means the table had no primary key, so it was never part of the live migration. If `PRIMARY_KEY_DROPPED` is also reported in the same interval, the key was replaced, and that entry's Action applies.",
+			Impact: "The live migration is not affected. Either the table had no primary key, so it was not part of the live migration, or it is a partitioned table whose partitions already had keys, which now belong to this one. If `PRIMARY_KEY_DROPPED` is also reported for the table in the same interval, the key was replaced, and that entry's Action applies.",
 			Action: "Add the same primary key on the target."},
 	},
 	schemadiff.PrimaryKeyDropped: {
