@@ -25,6 +25,8 @@ Each such directory carries three entries for the same content: `AGENTS.md` (the
 
 Current scopes: repo root (this file), `debezium-server-voyager/`, `migtests/`, `yb-voyager/`, `yb-voyager/cmd/`, `yb-voyager/src/`, and the `src/` packages `anon`, `callhome`, `errs`, `metadb`, `metrics`, `migassessment`, `query/queryissue`, `srcdb`, `testlivemigration`, `tgtdb`, `utils`.
 
+Reviewing a change: follow `REVIEW.md` at the repo root. It is the one review workflow every review agent (the `branch-review` skill, `pr-review-sweep`, AgentK, others) applies on top of these standards.
+
 ## Key environment requirements
 
 - **Go 1.26.10** — required by `go.mod`.
