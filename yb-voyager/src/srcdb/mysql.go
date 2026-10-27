@@ -295,6 +295,11 @@ func (ms *MySQL) FetchDBID() error {
 	return nil
 }
 
+// go-sql-driver/mysql does not expose the TLS connection, so callhome has only the host domain for MySQL.
+func (ms *MySQL) FetchTLSCertDomainName() error {
+	return nil
+}
+
 func (ms *MySQL) FetchSchemaOids() error {
 	return nil
 }

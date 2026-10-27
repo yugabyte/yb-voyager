@@ -126,10 +126,10 @@ type findingView struct {
 	ObjQ string // qualifier prefix, e.g. "public.orders."
 	ObjS string // the highlighted subject, e.g. "amount"
 
-	HasDef bool // *_ADDED with a non-empty NewValue
+	HasDef bool // OpAdded with a non-empty NewValue
 	ValDef string
 
-	HasChange bool // *_CHANGED
+	HasChange bool // OpChanged
 	ValOld    string
 	ValNew    string
 

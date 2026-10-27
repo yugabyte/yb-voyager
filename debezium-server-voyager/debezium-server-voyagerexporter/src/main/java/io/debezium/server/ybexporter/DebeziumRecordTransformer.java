@@ -13,6 +13,7 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -122,7 +123,7 @@ public class DebeziumRecordTransformer implements RecordTransformer {
      * Use the kafka connect json converter to convert it to a json friendly string
      */
     private String toKafkaConnectJsonConverted(Object fieldValue, Field f){
-        String jsonFriendlyString = new String(jsonConverter.fromConnectData("test", f.schema(), fieldValue));
+        String jsonFriendlyString = new String(jsonConverter.fromConnectData("test", f.schema(), fieldValue), StandardCharsets.UTF_8);
         if (jsonFriendlyString.length() > 0){
             if ((jsonFriendlyString.charAt(0) == '"') && (jsonFriendlyString.charAt(jsonFriendlyString.length()-1) == '"')){
                 jsonFriendlyString = jsonFriendlyString.substring(1, jsonFriendlyString.length() - 1);

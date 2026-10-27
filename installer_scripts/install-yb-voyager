@@ -722,7 +722,7 @@ output() {
 
 
 install_golang() {
-	GO_VERSION="1.24.2"
+	GO_VERSION="1.26.10"
 	if [ -x ${GO} ]; then
 		gov=`go version | { read _ _ v _; echo ${v#go}; }`
 		version_ok=$(version_satisfied ${GO_VERSION} "$gov")

@@ -14,7 +14,11 @@
 
 package schemadrift
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
+import (
+	goerrors "github.com/go-errors/errors"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemadiff"
+)
 
 // Severity is the severity level assigned to a DriftEntry.
 type Severity string
@@ -29,12 +33,8 @@ const (
 // DriftInfo is what enriches a raw schemadiff.Difference into drift: how the
 // migration is affected, and the "Impact & action" note explaining it. Severity and
 // wording have to agree, so they are declared together rather than in parallel maps.
-//
-// getDriftInfo keys on the DiffType alone today, so every entry of a given type carries
-// the same three values. Deriving them per finding -- COLUMN_NULLABILITY_CHANGED
-// reads very differently for an added vs a dropped NOT NULL -- would not change this
-// shape. DriftEntry embeds it; encoding/json flattens an anonymous embed, so the
-// three fields stay top-level in the report.
+// DriftEntry embeds it; encoding/json flattens an anonymous embed, so the three
+// fields stay top-level in the report.
 //
 // `backticks` become inline code in HTML (see codeSpans) and stay literal in JSON.
 type DriftInfo struct {
@@ -43,100 +43,270 @@ type DriftInfo struct {
 	Action   string   `json:"action,omitempty"`
 }
 
+// Timing is when a change happened relative to the migration, as situationFor
+// places it.
+type Timing string
+
+const (
+	TimingBeforeExportData        Timing = "before_export_data"
+	TimingOfflineAfterExportStart Timing = "offline_after_export_start"
+	TimingLiveAfterExportStart    Timing = "live_after_export_start"
+	// Falls back to the TimingLiveAfterExportStart entry when a type has none of its own.
+	TimingChangesOnlyAfterExportStart Timing = "changes_only_after_export_start"
+	TimingAfterCutover                Timing = "after_cutover"
+)
+
+func getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error) {
+	if s.Timing == TimingAfterCutover {
+		return afterCutoverInfo, nil
+	}
+	info, ok := infoByDiffType[t][s.Timing]
+	if !ok && s.Timing == TimingChangesOnlyAfterExportStart {
+		info, ok = infoByDiffType[t][TimingLiveAfterExportStart]
+	}
+	if !ok {
+		return DriftInfo{}, goerrors.Errorf("no Impact and Action for change type %q at timing %q", t, s.Timing)
+	}
+	if risk, ok := fallBackRiskByDiffType[t]; ok && s.FallBackPossible {
+		info.Impact += " " + risk
+	}
+	return info, nil
+}
+
+// ─── Impact and Action per change type and timing ──────────────────────────────
+
 // Severity says what the MIGRATION does about a change, not how alarming the DDL
 // sounds, so it reads backwards in places: an ADDED column is Recoverable because
 // import data can fail on it, while a DROPPED one is only Potential impact.
-var infoByDiffType = map[schemadiff.DiffType]DriftInfo{
-	// Unrecoverable: export data cannot be restarted; restart from scratch.
+var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 	schemadiff.TableDropped: {
-		Severity: SeverityBreaksUnrecoverable,
-		Impact:   "If a table is dropped while `export data` is running, it won't crash `export data`, but any `export data` restart will fail because the migration still expects the dropped table — the migration cannot be resumed.",
-		Action:   "The migration must be restarted from scratch. Avoid dropping migrated tables mid-migration.",
+		TimingBeforeExportData: {Severity: SeverityAdvisory,
+			Impact: "The table was dropped before `export data` started, so it is not part of the migration.",
+			Action: "Drop the table on the target if you don't need it."},
+		TimingOfflineAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "Rows already exported are not affected.",
+			Action: "Drop the table on the target if you don't need it."},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` keeps running, but if it is restarted, the resume fails because the migration still expects this table.",
+			Action: "If `export data` has to restart, restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` keeps running, but if it is restarted, the resume fails because the migration still expects this table.",
+			Action: "If `export data` has to restart, start a new migration in a new export directory."},
 	},
 	schemadiff.TableNameChanged: {
-		Severity: SeverityBreaksUnrecoverable,
-		Impact:   "`export data` keeps running, but any restart fails: the stored table list still holds the old name while the source catalog now has the new one, so the table lookup errors out and the migration cannot be resumed. Rows written under the new name are never exported.",
-		Action:   "Rename the table on the target to match, then restart the migration from scratch. Avoid renaming migrated tables mid-migration.",
+		TimingBeforeExportData:            tableRenamedOrMovedBeforeExportInfo,
+		TimingOfflineAfterExportStart:     tableRenamedOrMovedOfflineInfo,
+		TimingLiveAfterExportStart:        tableRenamedOrMovedLiveInfo,
+		TimingChangesOnlyAfterExportStart: tableRenamedOrMovedChangesOnlyInfo,
 	},
 	schemadiff.TableSchemaChanged: {
-		Severity: SeverityBreaksUnrecoverable,
-		Impact:   "Moving a captured table to another schema has the same effect as renaming it: `export data` keeps running, but a restart fails because the stored table list still points at the old schema, so the migration cannot be resumed.",
-		Action:   "Move the table on the target to match, then restart the migration from scratch.",
+		TimingBeforeExportData:            tableRenamedOrMovedBeforeExportInfo,
+		TimingOfflineAfterExportStart:     tableRenamedOrMovedOfflineInfo,
+		TimingLiveAfterExportStart:        tableRenamedOrMovedLiveInfo,
+		TimingChangesOnlyAfterExportStart: tableRenamedOrMovedChangesOnlyInfo,
 	},
-
-	// Recoverable: import data can fail until the DDL is applied on the target.
-	schemadiff.ColumnAdded: {
-		Severity: SeverityBreaksRecoverable,
-		Impact:   "`import data` can fail if a column added on the source is not applied on the target.",
-		Action:   "Add the column on the target. If `import data` has failed, re-run `import data` once the column is added.",
-	},
-	schemadiff.ColumnNameChanged: {
-		Severity: SeverityBreaksRecoverable,
-		Impact:   "`import data` can fail if a column renamed on the source is still under its old name on the target, since incoming events carry the new name.",
-		Action:   "Rename the column on the target. If `import data` has failed, re-run `import data` once the names match.",
-	},
-	schemadiff.ColumnTypeChanged: {
-		Severity: SeverityBreaksRecoverable,
-		Impact:   "`import data` can fail if this column's type change on the source is not applied on the target.",
-		Action:   "Apply a compatible type change on the target. If `import data` has failed, re-run `import data` once the types are aligned.",
-	},
-	schemadiff.ColumnNullabilityChanged: {
-		Severity: SeverityBreaksRecoverable,
-		Impact:   "`import data` can fail if the source now permits values the target column still rejects — for example rows with NULLs arriving after a `DROP NOT NULL` on the source.",
-		Action:   "Apply the same nullability on the target. If `import data` has failed, re-run `import data` once the constraints match.",
-	},
-
-	// Potential impact: migration unaffected, but the schemas diverge.
 	schemadiff.TableAdded: {
-		Severity: SeverityPotentialImpact,
-		Impact:   "If a table is added while `export data` is running, the migration does not pick up the newly added table — Voyager does not change the scope of a data migration mid-migration, so this table's data is not migrated.",
-		Action:   "Create the table on the target and start a separate supplemental migration to migrate its data: a fresh `export data` in a new export directory listing only the new table in `--table-list`.",
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "If the table is in the export's scope, it is exported, so `import data` fails unless the target already has a table with that name.",
+			Action: "Create the table on the target before running `import data`. If `import data` already failed on it, run it again."},
+		TimingOfflineAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "The table was created after `export data` started, so its rows are not migrated.",
+			Action: "If you need this table, create it on the target and migrate its rows separately: a new export directory with only this table in `--table-list`."},
+		TimingLiveAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "The table was created after `export data` started, so its rows are not migrated, and a resume of `export data` doesn't pick it up. If you cut over with fall-back, changes to this table on the target are not sent back to the source.",
+			Action: "If you need this table, create it on the target, then either migrate its rows separately (a new export directory with only this table in `--table-list`) or restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "The table was created after `export data` started, so its rows are not migrated, and a resume of `export data` doesn't pick it up. If you cut over with fall-back, changes to this table on the target are not sent back to the source.",
+			Action: "If you need this table, create it on the target, then either migrate its rows separately (a new export directory with only this table in `--table-list`) or start a new migration in a new export directory."},
+	},
+	schemadiff.ColumnAdded: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "The export includes the new column, which the target doesn't have, so `import data` fails.",
+			Action: "Add the column on the target before running `import data`. If `import data` already failed on it, run it again."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "Rows already exported are not affected, but the target doesn't have the column.",
+			Action: "Add the column on the target before the application moves to the target."},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksRecoverable,
+			Impact: "`export data` stops at the first change that sets the new column, and `import data` can't apply it until the target has the column.",
+			Action: "Add the column on the target, then restart `export data` and `import data`."},
 	},
 	schemadiff.ColumnDropped: {
-		Severity: SeverityPotentialImpact,
-		Impact:   "The migration is not affected by this, but the target keeps the dropped column, so the schemas diverge. Voyager does not drop it automatically.",
-		Action:   "Drop the column on the target before cutover.",
+		TimingBeforeExportData: {Severity: SeverityPotentialImpact,
+			Impact: "The export doesn't include the column, which the target still has. `import data` fails only if that column is NOT NULL without a default on the target.",
+			Action: "Drop the column on the target, or give it a default, before running `import data`. If `import data` already failed on it, run it again."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "Rows already exported are not affected, but the target still has the column.",
+			Action: "Drop the column on the target before the application moves to the target."},
+		TimingLiveAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "The target keeps the dropped column. `import data` is not affected unless that column is NOT NULL without a default on the target.",
+			Action: "Drop the column on the target before cutover."},
+	},
+	schemadiff.ColumnNameChanged: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "The export uses the new name, which the target doesn't have, so `import data` fails.",
+			Action: "Rename the column on the target before running `import data`. If `import data` already failed on it, run it again."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "Rows already exported are not affected, but the target still has the old name.",
+			Action: "Rename the column on the target before the application moves to the target."},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` stops at the first change written with the new name, and changes already queued under the old name can't be applied once the names differ.",
+			Action: "Rename the column on the target, then restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` stops at the first change written with the new name, and changes already queued under the old name can't be applied once the names differ.",
+			Action: "Rename the column on the target, then start a new migration in a new export directory."},
+	},
+	schemadiff.ColumnTypeChanged: {
+		TimingBeforeExportData: columnTypeChangedInfo,
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "Rows already exported are not affected, but the target column still has the old type.",
+			Action: "Change the column type on the target before the application moves to the target."},
+		TimingLiveAfterExportStart: columnTypeChangedInfo,
+	},
+	schemadiff.ColumnNotNullDropped: {
+		TimingBeforeExportData: notNullDroppedInfo,
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "Rows already exported are not affected, but the target column still rejects NULLs.",
+			Action: "Drop NOT NULL on the target before the application moves to the target."},
+		TimingLiveAfterExportStart: notNullDroppedInfo,
+	},
+	schemadiff.ColumnNotNullSet: {
+		TimingBeforeExportData:        notNullSetInfo,
+		TimingOfflineAfterExportStart: notNullSetInfo,
+		TimingLiveAfterExportStart:    notNullSetInfo,
 	},
 	schemadiff.ColumnDefaultChanged: {
-		Severity: SeverityPotentialImpact,
-		Impact:   "The migration is not affected by this, but inserts relying on the default will diverge between source and target after cutover.",
-		Action:   "Apply the same default on the target before cutover.",
+		TimingBeforeExportData:        columnDefaultChangedInfo,
+		TimingOfflineAfterExportStart: columnDefaultChangedInfo,
+		TimingLiveAfterExportStart:    columnDefaultChangedInfo,
 	},
 	schemadiff.TableKindChanged: {
-		Severity: SeverityPotentialImpact,
-		Impact:   "The migration is not affected mid-flight, but the target still has the table in its original form (ordinary vs partitioned vs foreign), so the schemas diverge and a restart may not reproduce the source layout.",
-		Action:   "Recreate the table on the target with the matching kind before cutover.",
+		TimingBeforeExportData:        tableKindChangedInfo,
+		TimingOfflineAfterExportStart: tableKindChangedInfo,
+		TimingLiveAfterExportStart:    tableKindChangedInfo,
 	},
-	schemadiff.TablePartitionParentChanged: {
-		Severity: SeverityPotentialImpact,
-		Impact:   "The migration is not affected by this, but the target's partitioning layout no longer matches the source, so rows may land in a different partition after cutover.",
-		Action:   "Apply the same partition attachment on the target before cutover.",
+	schemadiff.TablePartitionAttached: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "The export treats the table as a partition, which the target doesn't have, so `import data` fails.",
+			Action: "Attach the partition on the target before running `import data`. If `import data` already failed on it, run it again."},
+		TimingOfflineAfterExportStart: partitionAttachedAfterExportStartInfo,
+		TimingLiveAfterExportStart:    partitionAttachedAfterExportStartInfo,
+	},
+	schemadiff.TablePartitionDetached: {
+		TimingBeforeExportData:        partitionDetachedInfo,
+		TimingOfflineAfterExportStart: partitionDetachedInfo,
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "Rows written to the detached table are still sent to the partitioned table on the target: rows inside the old range land there, and rows outside it make `import data` fail.",
+			Action: "Detach the partition on the target, then restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "Rows written to the detached table are still sent to the partitioned table on the target: rows inside the old range land there, and rows outside it make `import data` fail.",
+			Action: "Detach the partition on the target, then start a new migration in a new export directory."},
 	},
 	schemadiff.TablePartitionChildrenChanged: {
-		Severity: SeverityPotentialImpact,
-		Impact:   "A partition added on the source is outside the migration's scope, exactly like a newly added table, so its data is not migrated; a partition dropped on the source leaves the target with data the source no longer has.",
-		Action:   "Mirror the partition change on the target. For an added partition, migrate its data with a separate supplemental migration.",
+		TimingBeforeExportData:        partitionChildrenChangedInfo,
+		TimingOfflineAfterExportStart: partitionChildrenChangedInfo,
+		TimingLiveAfterExportStart:    partitionChildrenChangedInfo,
 	},
-
-	// Advisory: informational changes unlikely to affect migration mechanics.
-	schemadiff.TableInheritsChanged: {
-		Severity: SeverityAdvisory,
-		Impact:   "The migration is not affected by this, but the target's inheritance relationships no longer match the source, which changes what queries against the parent return after cutover.",
-		Action:   "Apply the same `INHERITS` change on the target before cutover.",
+	schemadiff.TableInheritAdded: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "`export data` does not support tables that use inheritance, so it does not start.",
+			Action: "Exclude the table and its parent with `--exclude-table-list`, and migrate them separately."},
+		TimingOfflineAfterExportStart: inheritanceAddedOfflineInfo,
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` keeps running, but a restart fails because the table now uses inheritance.",
+			Action: "If `export data` has to restart, restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`, with the table and its parent in `--exclude-table-list`. Both then leave the migration, so migrate them separately."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` keeps running, but a restart fails because the table now uses inheritance.",
+			Action: "If `export data` has to restart, start a new migration in a new export directory, with the table and its parent in `--exclude-table-list`. Both then leave the migration, so migrate them separately."},
 	},
-	schemadiff.TableInheritedByChanged: {
-		Severity: SeverityAdvisory,
-		Impact:   "The migration is not affected by this, but the set of tables inheriting from this one differs on the target, which changes what queries against it return after cutover.",
-		Action:   "Apply the same inheritance change on the target before cutover.",
+	schemadiff.TableInheritRemoved: {
+		TimingBeforeExportData:        inheritanceRemovedInfo,
+		TimingOfflineAfterExportStart: inheritanceRemovedInfo,
+		TimingLiveAfterExportStart:    inheritanceRemovedInfo,
+	},
+	schemadiff.TableInheritedByAdded: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "The table now has a child table, and `export data` does not support tables that use inheritance, so it does not start.",
+			Action: "Exclude the table and its child tables with `--exclude-table-list`, and migrate them separately."},
+		TimingOfflineAfterExportStart: inheritanceAddedOfflineInfo,
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` keeps running, but a restart fails because the table now has a child table.",
+			Action: "If `export data` has to restart, restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`, with the table and its child tables in `--exclude-table-list`. They then leave the migration, so migrate them separately."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: "`export data` keeps running, but a restart fails because the table now has a child table.",
+			Action: "If `export data` has to restart, start a new migration in a new export directory, with the table and its child tables in `--exclude-table-list`. They then leave the migration, so migrate them separately."},
+	},
+	schemadiff.TableInheritedByRemoved: {
+		TimingBeforeExportData:        inheritanceRemovedInfo,
+		TimingOfflineAfterExportStart: inheritanceRemovedInfo,
+		TimingLiveAfterExportStart:    inheritanceRemovedInfo,
 	},
 }
 
-// getDriftInfo falls back to SeverityAdvisory for an unmapped DiffType, the zero value
-// included, rather than dropping the change. The zero Impact/Action that comes with
-// it is deliberate: the report omits the note when there is nothing useful to say.
-func getDriftInfo(t schemadiff.DiffType) DriftInfo {
-	if c, ok := infoByDiffType[t]; ok {
-		return c
-	}
-	return DriftInfo{Severity: SeverityAdvisory}
+// Appended to Impact while a cutover with fall-back is still possible.
+var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
+	schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+}
+
+// Shared by several timings or change types.
+var (
+	tableRenamedOrMovedBeforeExportInfo = DriftInfo{Severity: SeverityBreaksRecoverable,
+		Impact: "If the table is in the export's scope, it is exported under its new name, which the target doesn't have, so `import data` fails.",
+		Action: "Rename (or move) the table on the target before running `import data`. If `import data` already failed on it, run it again."}
+
+	tableRenamedOrMovedOfflineInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows already exported are not affected, but the target still has the old name.",
+		Action: "Rename (or move) the table on the target before the application moves to the target."}
+
+	tableRenamedOrMovedLiveInfo = DriftInfo{Severity: SeverityBreaksUnrecoverable,
+		Impact: "Rows written under the new name are not migrated, and a restart of `export data` fails.",
+		Action: "Rename (or move) the table on the target, then restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`."}
+
+	tableRenamedOrMovedChangesOnlyInfo = DriftInfo{Severity: SeverityBreaksUnrecoverable,
+		Impact: "Rows written under the new name are not migrated, and a restart of `export data` fails.",
+		Action: "Rename (or move) the table on the target, then start a new migration in a new export directory."}
+
+	columnTypeChangedInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "`import data` fails on the first value the target's column type can't hold.",
+		Action: "Change the column type on the target. If `import data` already failed, run it again."}
+
+	notNullDroppedInfo = DriftInfo{Severity: SeverityBreaksRecoverable,
+		Impact: "The source now allows NULLs, so `import data` fails on the first NULL in this column.",
+		Action: "Drop NOT NULL on the target. If `import data` already failed, run it again."}
+
+	notNullSetInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected.",
+		Action: "Set NOT NULL on the target to keep the schemas the same."}
+
+	columnDefaultChangedInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "`import data` is not affected, but once the application uses the target, its inserts get the old default.",
+		Action: "Change the default on the target before the application moves to the target."}
+
+	tableKindChangedInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "The migration is not affected mid-flight, but the target still has the table in its original form (ordinary vs partitioned vs foreign), so the schemas diverge and a restart may not reproduce the source layout.",
+		Action: "Recreate the table on the target with the matching kind before cutover."}
+
+	partitionAttachedAfterExportStartInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "The target's partition layout no longer matches the source.",
+		Action: "Attach the partition on the target before the application moves to the target."}
+
+	partitionDetachedInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "The target's partition layout no longer matches the source.",
+		Action: "Detach the partition on the target before the application moves to the target."}
+
+	partitionChildrenChangedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "The partitions of this table changed.",
+		Action: "See the entry for each partition."}
+
+	inheritanceAddedOfflineInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows already exported are not affected, but the target's inheritance no longer matches.",
+		Action: "Apply the same inheritance on the target before the application moves to the target."}
+
+	inheritanceRemovedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`export data` and `import data` are not affected.",
+		Action: "Remove the same inheritance on the target before the application moves to the target."}
+)
+
+var afterCutoverInfo = DriftInfo{
+	Severity: SeverityAdvisory,
+	Impact:   "This change was made after cutover to target. Data already migrated to the target is not affected.",
 }
