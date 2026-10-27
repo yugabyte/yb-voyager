@@ -4382,7 +4382,7 @@ func TestLiveMigrationWithNonASCIIDataUnderCLocaleAndFallback(t *testing.T) {
 // as the OID at the root of the domain chain, so the exporter's converter has to match on the
 // root OID; matching on the name alone left these values as raw bytes that the target accepted
 // as \x hex literals, corrupting them silently (DB-23169). The plain tsvector column is the
-// control, and the hstore domain checks the map path that already handled domains.
+// control, and the hstore domain checks the stringify path as it uses oid approach
 // withTsquery adds the tsquery domain column, which only the forward flow can carry: tsquery is
 // unsupported by the YugabyteDB connector, so export data from target skips it in fall-back.
 func getDomainsOverStringifiedTypesTestConfig(dbName string, withTsquery bool) *TestConfig {
