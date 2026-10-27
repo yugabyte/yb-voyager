@@ -1,6 +1,6 @@
 # Code Review Instructions
 
-How to review a change to this repository. This file is the single source of truth for the review workflow: the `branch-review` skill (`ai/skills/branch-review/`), the `pr-review-sweep` reviewer subagents, AgentK, and any other review agent all apply it as written.
+How to review a change to this repository. This file is the single source of truth for the review workflow: the `branch-review` skill (`ai/skills/branch-review/`), the `pr-review-sweep` reviewer subagents, AgentK, and any other review agent all follow it. Steps 1, 3 and 4 (what to read and what to check) apply to every reviewer. Steps 2, 5 and 6 are the in-chat report format that `post-pr-review` consumes; an agent with its own output contract keeps that contract but should still use the Step 5 severity classes and `file:line` anchors.
 
 Review all changes on the branch under review compared to its base branch. The base is `main` unless the caller supplies another (e.g. a PR's base branch); set `BASE` accordingly before Step 1.
 
@@ -181,7 +181,7 @@ Format:
 ```
 
 #### Question — Needs author input
-Not a defect, but something where intent or necessity is unclear and the author should respond: a design/scope concern (unnecessary abstraction, YAGNI field, layering, naming), an incidental change with no obvious reason, a "why is this nil / why this dedupe / why a separate file" doubt, or a request to confirm untested source paths were manually verified. Many of a human reviewer's most valuable comments are questions — do not suppress them just because they aren't bugs. (Note: Questions are surfaced in this review for the user but are *not* posted to GitHub by the `post-pr-review` skill, which posts Critical/Warning/Suggestion only.)
+Not a defect, but something where intent or necessity is unclear and the author should respond: a design/scope concern (unnecessary abstraction, YAGNI field, layering, naming), an incidental change with no obvious reason, a "why is this nil / why this dedupe / why a separate file" doubt, or a request to confirm untested source paths were manually verified. Many of a human reviewer's most valuable comments are questions — do not suppress them just because they aren't bugs. (Note: when `post-pr-review` posts the review, Questions stay in the in-chat report and are *not* posted to GitHub; it posts Critical/Warning/Suggestion only.)
 
 Format:
 ```
