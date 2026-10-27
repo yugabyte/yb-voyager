@@ -588,11 +588,11 @@ The SSL certificate and key paths in the migration status record are host paths.
 
 | Kind | Catalog | Left out |
 | :---- | :---- | :---- |
-| Primary key, unique, check, foreign key | `pg_constraint`, `contype` `p`, `u`, `c`, `f` | NOT NULL rows (PostgreSQL 18 stores them here; column nullability covers them), exclusion and trigger constraints, domain constraints |
+| Primary key, unique, check, foreign key | `pg_constraint`, `contype` `p`, `u`, `c`, `f` | NOT NULL rows (PostgreSQL 18 stores them here; column nullability covers them), exclusion constraints (YugabyteDB does not support them, so there is nothing to change on the target), trigger constraints, domain constraints, the per-partition clones PostgreSQL adds for a foreign key to a partitioned table (the foreign key itself is captured) |
 | Unique index | `pg_index`, `indisunique`, no constraint behind it | invalid indexes |
-| Index | `pg_index`, not unique | indexes behind a primary key or unique constraint (the constraint reports them), invalid indexes |
+| Index | `pg_index`, not unique | indexes behind a primary key, unique or exclusion constraint (the constraint reports them, or is left out), invalid indexes |
 
-Both queries run in the existing capture transaction with `search_path` empty, so a foreign key's `REFERENCES` text is always schema-qualified. Copies made for partitions and inheritance are captured with `FromParent` set, so the diff can tell them from the table's own objects. A `TABLE_ADDED` finding's definition lists the table's own keys, checks and indexes, because its Action is to create the table on the target.
+The PostgreSQL provider empties `search_path` for the capture transaction before its first query, so every captured text is schema-qualified and never depends on the session: column types and defaults, a foreign key's `REFERENCES`, and index definitions. Copies made for partitions and inheritance are captured with `FromParent` set, so the diff can tell them from the table's own objects. A `TABLE_ADDED` finding's definition lists the table's own keys, checks and indexes, because its Action is to create the table on the target.
 
 **Matching, by OID only.**
 
@@ -608,7 +608,7 @@ The primary key is one slot per table: none to some is `PRIMARY_KEY_ADDED`, some
 
 `Definition` is never compared. PostgreSQL prints it with current names, so renaming a column, a referenced table or a schema changes the text of objects that did not change. In place, PostgreSQL can change only an object's name and flags; a new expression or column list needs a drop and re-create, which gives a new OID.
 
-**Snapshots before the upgrade.** A version 1 snapshot holds no keys or indexes. A pair with a version 1 side compares tables and columns only, so a migration upgraded midway keeps working: key and index changes made in the one interval that spans the upgrade are not reported, and every later interval reports them.
+**Snapshots before the upgrade.** A version 1 snapshot holds no keys or indexes. A pair with a version 1 side compares tables and columns only, so a migration upgraded midway keeps working: key and index changes made in the one interval that spans the upgrade are not reported, and every later interval reports them. A version 1 snapshot also printed column types and defaults with the session's `search_path`, so that interval reports `COLUMN_TYPE_CHANGED` or `COLUMN_DEFAULT_CHANGED` for columns whose type or sequence is in a schema on that path, typically `public`. This is accepted: it happens once, and the finding shows only the added schema name.
 
 **Accepted limitations.** Each overstates rather than hides a change:
 
