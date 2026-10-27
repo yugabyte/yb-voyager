@@ -328,7 +328,7 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 	schemadiff.UniqueIndexAdded: {
 		TimingBeforeExportData:        uniqueAddedInfo,
 		TimingOfflineAfterExportStart: uniqueAddedInfo,
-		TimingLiveAfterExportStart:    uniqueAddedInfo,
+		TimingLiveAfterExportStart:    uniqueIndexAddedLiveInfo,
 	},
 	schemadiff.UniqueIndexDropped: {
 		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
@@ -435,10 +435,16 @@ var (
 		Impact: "`import data` is not affected.",
 		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it."}
 
-	uniqueDroppedImpact = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` fails on the first duplicate."
+	// An expression key has no columns for import data's conflict check, and the tables
+	// that need in-order apply for one are fixed on import data's first run.
+	uniqueIndexAddedLiveInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "`import data` is not affected while the target doesn't have the index. If the index is on an expression, such as `lower(email)`, adding it on the target before cutover can stop `import data` on a unique violation: `import data` can't keep changes to such an index in order, and restarting it does not prevent another stop.",
+		Action: "Add it on the target to keep the schemas the same. If it is on plain columns, add it now, and if `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it is on an expression, add it only after cutover, once `import data` has applied every change and before the application moves to the target. If you already added it and `import data` stopped, drop it on the target, run `import data` again, and add it back after cutover."}
+
+	uniqueDroppedImpact = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` fails on the first duplicate. This is also reported, with an added unique key, unique index or primary key on the same columns, when it was rebuilt (`REINDEX CONCURRENTLY`, a column type change) or turned into a constraint (`ADD CONSTRAINT ... USING INDEX`). The source then still enforces uniqueness, so keep it on the target."
 
 	uniqueDroppedLiveInfo = DriftInfo{Severity: SeverityBreaksRecoverable,
-		Impact: "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` stops at the first duplicate value.",
+		Impact: "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` stops at the first duplicate value. This is also reported, with an added unique key, unique index or primary key on the same columns, when it was rebuilt (`REINDEX CONCURRENTLY`, a column type change) or turned into a constraint (`ADD CONSTRAINT ... USING INDEX`). The source then still enforces uniqueness, so keep it on the target.",
 		Action: "Drop it on the target, then run `import data` again."}
 
 	uniqueAddedFallBackRisk = "If you cut over with fall-back while the target doesn't have it, `import data to source` stops at the first row from the target that breaks it."
