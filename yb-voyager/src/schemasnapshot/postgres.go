@@ -23,6 +23,8 @@ package schemasnapshot
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
@@ -31,6 +33,9 @@ import (
 )
 
 // ─── SQL catalog constants ─────────────────────────────────────────────────────
+
+// sqlClearSearchPath sets search_path to empty for the current transaction only.
+const sqlClearSearchPath = `SELECT set_config('search_path', '', true)`
 
 // sqlServerVersion probes the PostgreSQL server version string.
 const sqlServerVersion = `SHOW server_version`
@@ -93,8 +98,8 @@ ORDER  BY a.attrelid, a.attnum
 `
 
 // sqlLoadConstraintsFmt is the format template for loading primary key, unique, check
-// and foreign key constraints. It expects %s to be replaced with a comma-separated list
-// of $N placeholders (one per schema).
+// and foreign key constraints. The first %s is replaced with a comma-separated list of
+// $N placeholders (one per schema), the second with sqlSkipReferencedPartitionFKs or "".
 // Columns returned: table_oid, name, oid, contype, definition, from_parent
 const sqlLoadConstraintsFmt = `
 SELECT con.conrelid::text                     AS table_oid,
@@ -111,8 +116,15 @@ JOIN   pg_namespace  n ON n.oid = c.relnamespace
 WHERE  con.contype IN ('p','u','c','f')
   AND  c.relkind IN ('r','p','f')
   AND  n.nspname IN (%s)
+  %s
 ORDER  BY con.conrelid, con.conname, con.oid
 `
+
+// sqlSkipReferencedPartitionFKs drops the per-partition clones of a foreign key to a partitioned
+// table: unlike a partition's own copy, a clone's parent is on the same table. Needs PostgreSQL 11+.
+const sqlSkipReferencedPartitionFKs = `AND  NOT EXISTS (SELECT 1 FROM pg_constraint pc
+                   WHERE  pc.oid = con.conparentid
+                     AND  pc.conrelid = con.conrelid)`
 
 // sqlLoadIndexesFmt is the format template for loading indexes that back no constraint.
 // It expects %s to be replaced with a comma-separated list of $N placeholders (one per
@@ -133,11 +145,9 @@ JOIN   pg_class     c  ON c.oid = i.indrelid
 JOIN   pg_namespace n  ON n.oid = c.relnamespace
 -- An invalid index (a failed CREATE INDEX CONCURRENTLY) enforces nothing.
 WHERE  i.indisvalid
-  -- The constraint reports its own index. conrelid must match because a foreign key's
-  -- conindid points at the referenced table's index, which must still be reported there.
+  -- The constraint reports its own index.
   AND  NOT EXISTS (SELECT 1 FROM pg_constraint k
                    WHERE  k.conindid = i.indexrelid
-                     AND  k.conrelid = i.indrelid
                      AND  k.contype IN ('p','u','x'))
   AND  c.relkind IN ('r','p','f')
   AND  n.nspname IN (%s)
@@ -160,7 +170,7 @@ func (p *postgresSnapshotProvider) DatabaseType() string { return constants.POST
 // Returns the schema content, the probed database version string (e.g. "16.4"), and any error.
 // The header fields (Version, DatabaseType, DBMetadata) are stamped by the
 // Capture orchestrator in capture.go after this call returns.
-// Query order: SHOW server_version → pg_class → pg_inherits → pg_attribute →
+// Query order: set_config(search_path) → SHOW server_version → pg_class → pg_inherits → pg_attribute →
 // pg_constraint → pg_index.
 func (p *postgresSnapshotProvider) TakeSnapshot(
 	ctx context.Context,
@@ -170,10 +180,21 @@ func (p *postgresSnapshotProvider) TakeSnapshot(
 
 	placeholders, args := buildInPlaceholders(schemas)
 
-	// Probe database version.
+	// Empty search_path makes format_type, pg_get_expr, pg_get_constraintdef, pg_get_indexdef
+	// and regclass text always schema-qualified, so captured text never depends on the session.
+	// is_local=true scopes it to the transaction Capture runs this in.
+	var ignored string
+	if err := p.db.QueryRowContext(ctx, sqlClearSearchPath).Scan(&ignored); err != nil {
+		return nil, "", fmt.Errorf("postgres: clearing search_path: %w", err)
+	}
+
 	dbVersion, err := detectDatabaseVersion(ctx, p.db)
 	if err != nil {
 		return nil, "", fmt.Errorf("postgres: detecting database version: %w", err)
+	}
+	majorVersion, err := parseMajorVersion(dbVersion)
+	if err != nil {
+		return nil, "", fmt.Errorf("postgres: parsing database version: %w", err)
 	}
 
 	// Load tables (includes partition and inheritance wiring via pg_inherits).
@@ -190,7 +211,7 @@ func (p *postgresSnapshotProvider) TakeSnapshot(
 	}
 	attachColumns(snap.Tables, columns)
 
-	constraints, err := loadConstraints(ctx, p.db, placeholders, args)
+	constraints, err := loadConstraints(ctx, p.db, placeholders, args, majorVersion >= 11)
 	if err != nil {
 		return nil, "", fmt.Errorf("postgres: loading constraints: %w", err)
 	}
@@ -202,7 +223,9 @@ func (p *postgresSnapshotProvider) TakeSnapshot(
 	if err != nil {
 		return nil, "", fmt.Errorf("postgres: loading indexes: %w", err)
 	}
-	attachIndexes(snap.Tables, indexes)
+	if err := attachIndexes(snap.Tables, indexes); err != nil {
+		return nil, "", fmt.Errorf("postgres: attaching indexes: %w", err)
+	}
 
 	return snap, dbVersion, nil
 }
@@ -243,8 +266,7 @@ type indexRow struct {
 }
 
 // attachConstraints routes each constraint to the Table field for its contype, by table
-// OID. Constraints of a table that is not in tables are dropped, as attachColumns does
-// for columns.
+// OID. A constraint whose table is not in tables is an error.
 func attachConstraints(tables []Table, rows []constraintRow) error {
 	oidToIdx := make(map[string]int, len(tables))
 	for i, t := range tables {
@@ -253,7 +275,7 @@ func attachConstraints(tables []Table, rows []constraintRow) error {
 	for _, r := range rows {
 		ti, ok := oidToIdx[r.tableOID]
 		if !ok {
-			continue
+			return goerrors.Errorf("constraint %q belongs to table OID %s, which is not in the snapshot", r.Name, r.tableOID)
 		}
 		tbl := &tables[ti]
 		con := r.Constraint
@@ -279,9 +301,9 @@ func attachConstraints(tables []Table, rows []constraintRow) error {
 	return nil
 }
 
-// attachIndexes routes each index to UniqueIndexes or Indexes by table OID. Indexes of a
-// table that is not in tables are dropped, as attachColumns does for columns.
-func attachIndexes(tables []Table, rows []indexRow) {
+// attachIndexes routes each index to UniqueIndexes or Indexes by table OID. An index
+// whose table is not in tables is an error.
+func attachIndexes(tables []Table, rows []indexRow) error {
 	oidToIdx := make(map[string]int, len(tables))
 	for i, t := range tables {
 		oidToIdx[t.ID] = i
@@ -289,7 +311,7 @@ func attachIndexes(tables []Table, rows []indexRow) {
 	for _, r := range rows {
 		ti, ok := oidToIdx[r.tableOID]
 		if !ok {
-			continue
+			return goerrors.Errorf("index %q belongs to table OID %s, which is not in the snapshot", r.Name, r.tableOID)
 		}
 		tbl := &tables[ti]
 		idx := r.Index
@@ -300,6 +322,7 @@ func attachIndexes(tables []Table, rows []indexRow) {
 			tbl.Indexes = append(tbl.Indexes, idx)
 		}
 	}
+	return nil
 }
 
 // ─── Helper functions ──────────────────────────────────────────────────────────
@@ -330,6 +353,18 @@ func detectDatabaseVersion(ctx context.Context, db QueryExecutor) (string, error
 		version = version[:idx]
 	}
 	return version, nil
+}
+
+var leadingDigitsRegex = regexp.MustCompile(`^\d+`)
+
+// parseMajorVersion returns the leading integer of a server version such as "16.4",
+// "9.6.24", "17beta1" or "11.2-YB-2.20.1.0-b0".
+func parseMajorVersion(version string) (int, error) {
+	digits := leadingDigitsRegex.FindString(version)
+	if digits == "" {
+		return 0, goerrors.Errorf("cannot parse major version from %q", version)
+	}
+	return strconv.Atoi(digits)
 }
 
 // tableLink holds a single row returned by sqlLoadTableLinksFmt.
@@ -492,10 +527,18 @@ func loadColumns(ctx context.Context, db QueryExecutor, placeholders string, arg
 	return columns, nil
 }
 
+func buildConstraintsQuery(placeholders string, skipReferencedPartitionFKs bool) string {
+	extraFilter := ""
+	if skipReferencedPartitionFKs {
+		extraFilter = sqlSkipReferencedPartitionFKs
+	}
+	return fmt.Sprintf(sqlLoadConstraintsFmt, placeholders, extraFilter)
+}
+
 // loadConstraints queries pg_constraint for primary key, unique, check and foreign key
 // constraints of tables in the given schemas.
-func loadConstraints(ctx context.Context, db QueryExecutor, placeholders string, args []interface{}) ([]constraintRow, error) {
-	query := fmt.Sprintf(sqlLoadConstraintsFmt, placeholders)
+func loadConstraints(ctx context.Context, db QueryExecutor, placeholders string, args []interface{}, skipReferencedPartitionFKs bool) ([]constraintRow, error) {
+	query := buildConstraintsQuery(placeholders, skipReferencedPartitionFKs)
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
