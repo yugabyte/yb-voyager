@@ -218,9 +218,19 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 // matches a column by the OID at the root of its domain chain, which is the only way to recognise a
 // domain over one of these types, and extension types like hstore have a different OID per database.
 func getStringifyTypeOids() (map[string]int, error) {
-	typeToOid, err := source.DB().GetTypeToOid([]string{"varbit", "tsvector", "tsquery", "hstore"})
+	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
+		return nil, nil
+	}
+	typeNames := append(slices.Clone(dbzm.StringifiedBuiltInTypeNames), dbzm.StringifiedExtensionTypeNames...)
+	typeToOid, err := source.DB().GetTypeToOid(typeNames)
 	if err != nil {
 		return nil, fmt.Errorf("getting the oids of types to stringify: %w", err)
+	}
+	
+	for _, builtInType := range dbzm.StringifiedBuiltInTypeNames {
+		if _, ok := typeToOid[builtInType]; !ok {
+			return nil, goerrors.Errorf("built-in type %q not found in the %s database", builtInType, source.DBType)
+		}
 	}
 	return typeToOid, nil
 }

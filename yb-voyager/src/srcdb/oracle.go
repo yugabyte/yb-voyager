@@ -629,7 +629,7 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, u
 }
 
 func (ora *Oracle) GetTypeToOid(typeNames []string) (map[string]int, error) {
-	return nil, nil
+	panic("not implemented")
 }
 
 func (ora *Oracle) GetServers() []string {

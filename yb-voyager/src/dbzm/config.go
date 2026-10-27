@@ -39,6 +39,10 @@ const (
 	TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb"
 )
 
+// Types PostgresToYbValueConverter stringifies, matched by root-type OID so domains over them are covered too.
+var StringifiedBuiltInTypeNames = []string{"varbit", "tsvector", "tsquery"}
+var StringifiedExtensionTypeNames = []string{"hstore"}
+
 type Config struct {
 	LogLevel string
 	// LogMaxSizeMB and LogMaxBackups control rotation of debezium-<role>.log, mirroring
