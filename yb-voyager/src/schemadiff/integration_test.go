@@ -94,6 +94,11 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`.pk_part (id int) PARTITION BY RANGE (id)`,
 		`CREATE TABLE `+driftSchema+`.pk_part_a PARTITION OF `+driftSchema+`.pk_part FOR VALUES FROM (1) TO (10) PARTITION BY RANGE (id)`,
 		`CREATE TABLE `+driftSchema+`.pk_part_a1 PARTITION OF `+driftSchema+`.pk_part_a FOR VALUES FROM (1) TO (5)`,
+		`CREATE TABLE `+driftSchema+`.part_root (id int, a int) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.part_mid PARTITION OF `+driftSchema+`.part_root FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.part_leaf PARTITION OF `+driftSchema+`.part_mid FOR VALUES FROM (0) TO (50)`,
+		`CREATE TABLE `+driftSchema+`.inh_base (a int CONSTRAINT inh_ck CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`.inh_kid (b int) INHERITS (`+driftSchema+`.inh_base)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -155,6 +160,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER INDEX `+driftSchema+`.old_ix RENAME TO "New_Ix"`,
 		`ALTER INDEX `+driftSchema+`.old_uix RENAME TO "New_Uix"`,
 		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
+		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_uq UNIQUE (id)`,
+		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_ck CHECK (a > 0)`,
+		`ALTER TABLE `+driftSchema+`.inh_base DROP CONSTRAINT inh_ck`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -354,6 +362,10 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.ForeignKeyNameChanged, Object: driftSchema + `.fk_renamed.old_fk`, Old: "old_fk", New: "New_Fk"},
 		// The key's copies on pk_part_a and pk_part_a1 report nothing.
 		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.pk_part.pk_part_pkey`, New: `PRIMARY KEY (id)`},
+		// The copies on part_mid, part_leaf and inh_kid report nothing.
+		{Type: schemadiff.UniqueAdded, Object: driftSchema + `.part_root.part_root_uq`, New: `UNIQUE (id)`},
+		{Type: schemadiff.CheckAdded, Object: driftSchema + `.part_root.part_root_ck`, New: `CHECK (a > 0)`},
+		{Type: schemadiff.CheckDropped, Object: driftSchema + `.inh_base.inh_ck`, Old: `CHECK (a > 0)`},
 	}, gotConstraints)
 
 	// ── 10c. Index findings ─────────────────────────────────────────────────────
