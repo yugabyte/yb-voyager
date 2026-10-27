@@ -91,6 +91,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`.ix_renamed (a int, b text)`,
 		`CREATE INDEX old_ix ON `+driftSchema+`.ix_renamed (a)`,
 		`CREATE UNIQUE INDEX old_uix ON `+driftSchema+`.ix_renamed (lower(b)) WHERE b IS NOT NULL`,
+		`CREATE TABLE `+driftSchema+`.pk_part (id int) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a PARTITION OF `+driftSchema+`.pk_part FOR VALUES FROM (1) TO (10) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a1 PARTITION OF `+driftSchema+`.pk_part_a FOR VALUES FROM (1) TO (5)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -151,6 +154,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`DROP INDEX `+driftSchema+`.ix_dropped_b_uq`,
 		`ALTER INDEX `+driftSchema+`.old_ix RENAME TO "New_Ix"`,
 		`ALTER INDEX `+driftSchema+`.old_uix RENAME TO "New_Uix"`,
+		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -348,6 +352,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.ForeignKeyAdded, Object: driftSchema + `.Fk_Added.Fk_Added_Fkey`, New: fkDefinition},
 		{Type: schemadiff.ForeignKeyDropped, Object: driftSchema + `.fk_dropped.fk_dropped_fkey`, Old: fkDefinition},
 		{Type: schemadiff.ForeignKeyNameChanged, Object: driftSchema + `.fk_renamed.old_fk`, Old: "old_fk", New: "New_Fk"},
+		// The key's copies on pk_part_a and pk_part_a1 report nothing.
+		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.pk_part.pk_part_pkey`, New: `PRIMARY KEY (id)`},
 	}, gotConstraints)
 
 	// ── 10c. Index findings ─────────────────────────────────────────────────────
