@@ -434,6 +434,11 @@ func assertKeysChecksAndIndexes(t *testing.T, ctx context.Context, db *sql.DB, d
 		`CREATE TABLE "` + mixedSchema + `"."Part Leaf" PARTITION OF "` + mixedSchema + `"."Part Mid"
 			FOR VALUES FROM (0) TO (50)`,
 
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders" (id int PRIMARY KEY) PARTITION BY RANGE (id)`,
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Lo" PARTITION OF "` + mixedSchema + `"."Ref Orders" FOR VALUES FROM (0) TO (100)`,
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Hi" PARTITION OF "` + mixedSchema + `"."Ref Orders" FOR VALUES FROM (100) TO (200)`,
+		`CREATE TABLE "` + mixedSchema + `"."Line Items" (order_id int REFERENCES "` + mixedSchema + `"."Ref Orders" (id))`,
+
 		`CREATE TABLE "` + mixedSchema + `"."Dup Rows" (a int)`,
 		`INSERT INTO "` + mixedSchema + `"."Dup Rows" VALUES (1), (1)`,
 	} {
@@ -495,6 +500,13 @@ func assertKeysChecksAndIndexes(t *testing.T, ctx context.Context, db *sql.DB, d
 	assert.Equal(t, "PRIMARY KEY (id)", ref.PrimaryKey.Definition)
 	assert.Empty(t, ref.Indexes)
 	assert.Empty(t, ref.UniqueIndexes)
+
+	lineItems := byName["Line Items"]
+	require.Len(t, lineItems.ForeignKeys, 1, "PostgreSQL's per-partition clones of a foreign key to a partitioned table must not be captured")
+	assert.False(t, lineItems.ForeignKeys[0].FromParent)
+	assert.Contains(t, lineItems.ForeignKeys[0].Definition, `REFERENCES "`+mixedSchema+`"."Ref Orders"(id)`)
+	assert.NotContains(t, lineItems.ForeignKeys[0].Definition, "Ref Orders Lo")
+	assert.NotContains(t, lineItems.ForeignKeys[0].Definition, "Ref Orders Hi")
 
 	dup := byName["Dup Rows"]
 	assert.Empty(t, dup.UniqueIndexes, "an invalid index must not be captured")
