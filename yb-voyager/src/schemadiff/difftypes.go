@@ -15,9 +15,8 @@
 package schemadiff
 
 // DiffType is a string-typed enumeration of the kinds of schema changes that
-// can be detected between two snapshots. Only the V1-emitted set is declared
-// here: table-level and column-level findings produced by diffTables and
-// diffColumns respectively.
+// can be detected between two snapshots. Only the types the diff engine emits
+// are declared here.
 type DiffType string
 
 const (
@@ -80,9 +79,9 @@ const (
 // ObjectType is the honest object type of the changed object and the user-facing
 // selector matched by --object-type-list. It is the decomposed noun of Type
 // (e.g. COLUMN_TYPE_CHANGED → ObjectTypeColumn), a first-class facet alongside
-// Operation and Attribute. v1 emits and filters TABLE and COLUMN findings, so both
-// are declared; the remaining selectors are re-enabled as the engine starts
-// emitting their findings.
+// Operation and Attribute. Only the object types the engine emits are declared;
+// the remaining selectors are re-enabled as the engine starts emitting their
+// findings.
 //
 // COLUMN is its own selector: a column change is filtered directly by
 // --object-type-list=COLUMN (it is NOT swept in under TABLE). Table-scoping is

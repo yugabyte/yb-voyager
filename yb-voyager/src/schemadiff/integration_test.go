@@ -71,6 +71,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`."Pk_Added" ("Id" int)`,
 		`CREATE TABLE `+driftSchema+`.pk_dropped (id int PRIMARY KEY)`,
 		`CREATE TABLE `+driftSchema+`.pk_renamed (id int CONSTRAINT old_pk PRIMARY KEY)`,
+		`CREATE TABLE `+driftSchema+`.pk_part (id int) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a PARTITION OF `+driftSchema+`.pk_part FOR VALUES FROM (1) TO (10) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a1 PARTITION OF `+driftSchema+`.pk_part_a FOR VALUES FROM (1) TO (5)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -116,6 +119,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`."Pk_Added" ADD CONSTRAINT "Pk_Added_Pkey" PRIMARY KEY ("Id")`,
 		`ALTER TABLE `+driftSchema+`.pk_dropped DROP CONSTRAINT pk_dropped_pkey`,
 		`ALTER TABLE `+driftSchema+`.pk_renamed RENAME CONSTRAINT old_pk TO "New_Pk"`,
+		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -303,6 +307,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.Pk_Added.Pk_Added_Pkey`, New: `PRIMARY KEY ("Id")`},
 		{Type: schemadiff.PrimaryKeyDropped, Object: driftSchema + `.pk_dropped.pk_dropped_pkey`, Old: `PRIMARY KEY (id)`},
 		{Type: schemadiff.PrimaryKeyNameChanged, Object: driftSchema + `.pk_renamed.old_pk`, Old: "old_pk", New: "New_Pk"},
+		// The key's copies on pk_part_a and pk_part_a1 report nothing.
+		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.pk_part.pk_part_pkey`, New: `PRIMARY KEY (id)`},
 	}, gotPKs)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
