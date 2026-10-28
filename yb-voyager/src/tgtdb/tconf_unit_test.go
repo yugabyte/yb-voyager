@@ -26,7 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// pgconn.ParseConfig loads the root cert while parsing, so a missing file surfaces, as an *fs.PathError, the exact path pgx decoded from the URI.
+// Raw paths go in; GetConnectionUri escapes them and pgx decodes them back. pgconn.ParseConfig
+// loads the root cert while parsing, so the *fs.PathError for the missing file carries the decoded path.
 func TestGetConnectionUriSSLPathsRoundTripThroughPgx(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -54,6 +55,7 @@ func TestGetConnectionUriSSLPathsRoundTripThroughPgx(t *testing.T) {
 
 			var pathErr *fs.PathError
 			require.ErrorAs(t, err, &pathErr)
+			// Equal to the raw input, not the escaped form: proves escaping is lossless through pgx's decoder.
 			assert.Equal(t, tt.sslRootCert, pathErr.Path)
 		})
 	}
