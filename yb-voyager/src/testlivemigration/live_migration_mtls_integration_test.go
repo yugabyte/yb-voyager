@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -122,6 +123,7 @@ type hbaRule struct {
 // one of those grammars; a leg that does not escape (or over-escapes) a path fails to open the
 // file or opens a different one.
 func TestLiveMigrationWithMTLSOnlySourceAndTarget(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	pki, err := testutils.NewTestPKI()
@@ -167,6 +169,8 @@ func TestLiveMigrationWithMTLSOnlySourceAndTarget(t *testing.T) {
 	// containers from the registry instead of starting new ones.
 	source := testcontainers.NewTestContainer(testcontainers.POSTGRESQL, &testcontainers.ContainerConfig{ForLive: true, MTLS: sourceMTLS})
 	target := testcontainers.NewTestContainer(testcontainers.YUGABYTEDB, &testcontainers.ContainerConfig{MTLS: targetMTLS})
+	// No other test uses these containers, and the package has no TestMain teardown; this frees
+	// them once every subtest here is done instead of when the test binary exits.
 	t.Cleanup(func() {
 		source.Terminate(ctx)
 		target.Terminate(ctx)
@@ -356,6 +360,7 @@ func runMTLSLiveMigration(t *testing.T, dbName string, sourceMTLS, targetMTLS *t
 	require.NoError(t, lm.SetupContainers(context.Background()), "setup containers")
 	require.NoError(t, lm.SetupSchema(), "setup source schema")
 
+	require.NoError(t, lm.RunAssessMigration(certs.sourceSSLArgs()), "assess migration")
 	require.NoError(t, lm.RunExportSchema(certs.sourceSSLArgs()), "export schema")
 	require.NoError(t, lm.RunImportSchema(certs.targetSSLArgs()), "import schema")
 
@@ -407,8 +412,8 @@ func runMTLSLiveMigration(t *testing.T, dbName string, sourceMTLS, targetMTLS *t
 	require.NoError(t, lm.EndMigration(nil, false), "end migration")
 }
 
-// runMTLSRejectionCases runs voyager against the mTLS-only source (export schema) and target
-// (import schema) with TLS settings that libpq would also refuse, and checks that voyager fails
+// runMTLSRejectionCases runs voyager against the mTLS-only source (export schema, export data) and
+// target (import schema, import data) with TLS settings that libpq would also refuse, and checks that voyager fails
 // with the server's or the TLS stack's reason instead of connecting some other way. For a missing
 // file, the error must name the exact path the user passed, which shows the path was decoded back
 // unchanged even when it is full of URI syntax.
@@ -428,8 +433,21 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 	defer lm.Cleanup()
 	require.NoError(t, lm.SetupContainers(context.Background()), "setup containers")
 	require.NoError(t, lm.SetupSchema(), "setup source schema")
-	// import schema needs an exported schema before it connects to the target.
+	// import schema and import data need exported schema and data before they connect to the target.
+	// Offline export, so import data does not wait for a live snapshot.
 	require.NoError(t, lm.RunExportSchema(goodCerts.sourceSSLArgs()), "export schema")
+	exportDataArgs := func(exportDir string) []string {
+		return []string{
+			"--export-dir", exportDir,
+			"--source-db-schema", "mtls_schema",
+			"--source-db-name", dbName,
+			"--export-type", cmd.SNAPSHOT_ONLY,
+			"--disable-pb", "true",
+			"--yes",
+		}
+	}
+	require.NoError(t, testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data",
+		withFlags(exportDataArgs(lm.exportDir), goodCerts.sourceSSLArgs()), nil, false).WithT(t).Run(), "export data")
 
 	untrustedPKI, err := testutils.NewTestPKI()
 	require.NoError(t, err)
@@ -492,7 +510,7 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 		},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name+"/source", func(t *testing.T) {
+		t.Run(tc.name+"/export schema", func(t *testing.T) {
 			args := []string{
 				"--export-dir", testutils.CreateTempExportDir(),
 				"--source-db-schema", "mtls_schema",
@@ -501,7 +519,11 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 			}
 			requireVoyagerRejected(t, lm.sourceContainer, "export schema", args, tc.sourceArgs, tc.wantOutput)
 		})
-		t.Run(tc.name+"/target", func(t *testing.T) {
+		t.Run(tc.name+"/export data", func(t *testing.T) {
+			requireVoyagerRejected(t, lm.sourceContainer, "export data", exportDataArgs(testutils.CreateTempExportDir()),
+				tc.sourceArgs, tc.wantOutput)
+		})
+		t.Run(tc.name+"/import schema", func(t *testing.T) {
 			args := []string{
 				"--export-dir", lm.exportDir,
 				"--target-db-name", dbName,
@@ -509,20 +531,33 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 			}
 			requireVoyagerRejected(t, lm.targetContainer, "import schema", args, tc.targetArgs, tc.wantOutput)
 		})
+		t.Run(tc.name+"/import data", func(t *testing.T) {
+			args := []string{
+				"--export-dir", lm.exportDir,
+				"--target-db-name", dbName,
+				"--disable-pb", "true",
+				"--yes",
+			}
+			requireVoyagerRejected(t, lm.targetContainer, "import data", args, tc.targetArgs, tc.wantOutput)
+		})
 	}
 }
 
 func requireVoyagerRejected(t *testing.T, container testcontainers.TestContainer, cmdName string, args []string,
 	sslArgs map[string]string, wantOutput string) {
 	t.Helper()
-	for key, value := range sslArgs {
-		args = append(args, key, value)
-	}
-	runner := testutils.NewVoyagerCommandRunner(container, cmdName, args, nil, false).WithT(t)
+	runner := testutils.NewVoyagerCommandRunner(container, cmdName, withFlags(args, sslArgs), nil, false).WithT(t)
 	err := runner.Run()
 	output := runner.Stdout() + runner.Stderr()
 	require.Error(t, err, "%s must fail; output:\n%s", cmdName, output)
 	assert.Contains(t, output, wantOutput, "%s failed for a different reason", cmdName)
+}
+
+func withFlags(args []string, flags map[string]string) []string {
+	for key, value := range flags {
+		args = append(args, key, value)
+	}
+	return args
 }
 
 func readDebeziumSSLProperties(t *testing.T, path string) map[string]string {

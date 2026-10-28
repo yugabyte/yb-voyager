@@ -942,6 +942,9 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 	return columnToSequenceMap
 }
 
+// TODO: merge with tgtdb.generateSSLQueryStringIfNotExists, which differs in empty and invalid sslmode
+// handling. SSLQueryString is only copied between source and target confs since the
+// --ssl-query-string flag was removed (#174), so the early return below never fires.
 func generateSSLQueryStringIfNotExists(s *Source) string {
 	if s.SSLQueryString != "" {
 		return s.SSLQueryString

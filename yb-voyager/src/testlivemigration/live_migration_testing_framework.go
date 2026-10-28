@@ -272,6 +272,18 @@ func (lm *LiveMigrationTest) Cleanup() {
 // MIGRATION COMMANDS
 // ============================================================
 
+// RunAssessMigration runs assess-migration to completion against the source.
+func (lm *LiveMigrationTest) RunAssessMigration(extraArgs map[string]string) error {
+	args := []string{
+		"--export-dir", lm.exportDir,
+		"--source-db-schema", strings.Join(lm.config.SchemaNames, ","),
+		"--source-db-name", lm.config.SourceDB.DatabaseName,
+		"--iops-capture-interval", "0",
+		"--yes",
+	}
+	return lm.runToCompletion(lm.sourceContainer, "assess-migration", args, extraArgs)
+}
+
 // RunExportSchema runs export schema to completion against the source.
 func (lm *LiveMigrationTest) RunExportSchema(extraArgs map[string]string) error {
 	args := []string{
@@ -280,7 +292,7 @@ func (lm *LiveMigrationTest) RunExportSchema(extraArgs map[string]string) error 
 		"--source-db-name", lm.config.SourceDB.DatabaseName,
 		"--yes",
 	}
-	return lm.runSchemaCommand(lm.sourceContainer, "export schema", args, extraArgs)
+	return lm.runToCompletion(lm.sourceContainer, "export schema", args, extraArgs)
 }
 
 // RunImportSchema runs import schema to completion against the target.
@@ -290,7 +302,7 @@ func (lm *LiveMigrationTest) RunImportSchema(extraArgs map[string]string) error 
 		"--target-db-name", lm.config.TargetDB.DatabaseName,
 		"--yes",
 	}
-	return lm.runSchemaCommand(lm.targetContainer, "import schema", args, extraArgs)
+	return lm.runToCompletion(lm.targetContainer, "import schema", args, extraArgs)
 }
 
 // RunFinalizeSchemaPostDataImport runs finalize-schema-post-data-import to completion against the target.
@@ -300,10 +312,10 @@ func (lm *LiveMigrationTest) RunFinalizeSchemaPostDataImport(extraArgs map[strin
 		"--target-db-name", lm.config.TargetDB.DatabaseName,
 		"--yes",
 	}
-	return lm.runSchemaCommand(lm.targetContainer, "finalize-schema-post-data-import", args, extraArgs)
+	return lm.runToCompletion(lm.targetContainer, "finalize-schema-post-data-import", args, extraArgs)
 }
 
-func (lm *LiveMigrationTest) runSchemaCommand(container testcontainers.TestContainer, cmdName string, args []string, extraArgs map[string]string) error {
+func (lm *LiveMigrationTest) runToCompletion(container testcontainers.TestContainer, cmdName string, args []string, extraArgs map[string]string) error {
 	for key, value := range extraArgs {
 		args = append(args, key, value)
 	}

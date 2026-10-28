@@ -141,7 +141,7 @@ func (pg *PostgresContainer) Stop(ctx context.Context) error {
 }
 
 func (pg *PostgresContainer) Terminate(ctx context.Context) {
-	if pg == nil {
+	if pg == nil || pg.container == nil {
 		return
 	}
 
@@ -185,7 +185,7 @@ func (pg *PostgresContainer) GetConnectionString() string {
 	}
 
 	return withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName),
-		config.harnessConnQuery("sslmode=disable"))
+		sslQueryParams(config.MTLS))
 }
 
 func (pg *PostgresContainer) GetConnection() (*sql.DB, error) {
@@ -249,7 +249,7 @@ func (pg *PostgresContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
 		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
 	}
 	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", pg.User, pg.Password, host, port, "postgres"),
-		pg.harnessConnQuery("sslmode=disable"))
+		sslQueryParams(pg.MTLS))
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
@@ -339,7 +339,7 @@ func (pg *PostgresContainer) GetConnectionWithDB(dbName string) (*sql.DB, error)
 		return nil, fmt.Errorf("failed to get host port for postgres connection string: %w", err)
 	}
 	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName),
-		config.harnessConnQuery(""))
+		sslQueryParams(config.MTLS))
 	return sql.Open("pgx", connStr)
 }
 

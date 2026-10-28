@@ -266,7 +266,7 @@ func (yb *YugabyteDBContainer) mtlsReadyWait() wait.Strategy {
 	return wait.ForSQL(nat.Port("5433/tcp"), "pgx",
 		func(host string, port nat.Port) string {
 			return withConnQuery(fmt.Sprintf("postgres://%s@%s:%s/yugabyte", yb.User, host, port.Port()),
-				yb.harnessConnQuery(""))
+				sslQueryParams(yb.MTLS))
 		},
 	).WithQuery("SELECT 1").
 		WithStartupTimeout(4 * time.Minute)
@@ -301,7 +301,7 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 }
 
 func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
-	if yb == nil {
+	if yb == nil || yb.container == nil {
 		return
 	}
 
@@ -354,7 +354,7 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 	}
 
 	return withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName),
-		config.harnessConnQuery(""))
+		sslQueryParams(config.MTLS))
 }
 
 func (yb *YugabyteDBContainer) GetConnection() (*sql.DB, error) {
@@ -396,7 +396,7 @@ func (yb *YugabyteDBContainer) getConnWithDefaultDB() (*pgx.Conn, error) {
 	}
 
 	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", yb.User, yb.Password, host, port, "yugabyte"),
-		yb.harnessConnQuery("sslmode=disable"))
+		sslQueryParams(yb.MTLS))
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to yugabytedb: %w", err)
@@ -522,7 +522,7 @@ func (yb *YugabyteDBContainer) GetConnectionWithDB(dbName string) (*sql.DB, erro
 	}
 
 	connStr := withConnQuery(fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, dbName),
-		config.harnessConnQuery(""))
+		sslQueryParams(config.MTLS))
 	conn, err := sql.Open("pgx", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to yugabytedb with db '%s': %w", dbName, err)

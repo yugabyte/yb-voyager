@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"os"
@@ -75,23 +76,25 @@ type MTLSConfig struct {
 	CACertPEM     []byte
 	ServerCertPEM []byte
 	ServerKeyPEM  []byte
-	// Host paths the harness's own connections (setup SQL, validation, cleanup) authenticate
-	// with; the client certificate's CN must be ContainerConfig.User.
+	// Client-side files for the container's own connections (Start's readiness check, ExecuteSqls,
+	// Query, GetConnectionString): the server accepts no connection without a client certificate,
+	// so the container cannot even be set up without these. The certificate's CN must be
+	// ContainerConfig.User.
 	RootCertPath   string
 	ClientCertPath string
 	ClientKeyPath  string
 }
 
-// harnessConnQuery returns the URI query for the harness's own connections: the mTLS client
-// parameters when the server is locked down, otherwise plainQuery unchanged.
-func (config *ContainerConfig) harnessConnQuery(plainQuery string) string {
-	if config.MTLS == nil {
-		return plainQuery
+// sslQueryParams returns the URI query for the container's own connections: the client
+// certificate for an mTLS container, which accepts nothing else, and plaintext for every other one.
+func sslQueryParams(mtls *MTLSConfig) string {
+	if mtls == nil {
+		return "sslmode=disable"
 	}
 	return fmt.Sprintf("sslmode=verify-full&sslrootcert=%s&sslcert=%s&sslkey=%s",
-		utils.EscapeConnUriQueryValue(config.MTLS.RootCertPath),
-		utils.EscapeConnUriQueryValue(config.MTLS.ClientCertPath),
-		utils.EscapeConnUriQueryValue(config.MTLS.ClientKeyPath))
+		utils.EscapeConnUriQueryValue(mtls.RootCertPath),
+		utils.EscapeConnUriQueryValue(mtls.ClientCertPath),
+		utils.EscapeConnUriQueryValue(mtls.ClientKeyPath))
 }
 
 func withConnQuery(uri string, query string) string {
@@ -110,7 +113,9 @@ func (config *ContainerConfig) buildContainerName(dbType string) string {
 		containerName = fmt.Sprintf("%s-cluster-%d-%s", dbType, config.NodeCount, config.DBVersion)
 	}
 	if config.MTLS != nil {
-		containerName += "-mtls"
+		// Tests with different CAs must not share a container: the second would get the first one's PKI.
+		caHash := sha256.Sum256(config.MTLS.CACertPEM)
+		containerName += fmt.Sprintf("-mtls-%x", caHash[:6])
 	}
 	return containerName
 }
