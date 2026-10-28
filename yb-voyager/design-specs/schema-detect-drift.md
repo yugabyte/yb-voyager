@@ -4,7 +4,7 @@
 | :---- | :---- |
 | **Status** | Draft |
 | **Author** | Shivansh Gahlot |
-| **Tracking** | [\#3617](https://github.com/yugabyte/yb-voyager/issues/3617) · [DB-21962](https://yugabyte.atlassian.net/browse/DB-21962) |
+| **Tracking** | [\#3617](https://github.com/yugabyte/yb-voyager/issues/3617) · [DB-21962](https://yugabyte.atlassian.net/browse/DB-21962) · keys and indexes: [\#3885](https://github.com/yugabyte/yb-voyager/issues/3885) · [DB-24176](https://yugabyte.atlassian.net/browse/DB-24176) |
 | **Implementation** | [\#3811](https://github.com/yugabyte/yb-voyager/pull/3811) → [\#3812](https://github.com/yugabyte/yb-voyager/pull/3812) → [\#3813](https://github.com/yugabyte/yb-voyager/pull/3813) → [\#3814](https://github.com/yugabyte/yb-voyager/pull/3814) → [\#3817](https://github.com/yugabyte/yb-voyager/pull/3817) → [\#3827](https://github.com/yugabyte/yb-voyager/pull/3827) → [\#3873](https://github.com/yugabyte/yb-voyager/pull/3873) → [\#3877](https://github.com/yugabyte/yb-voyager/pull/3877) → [\#3878](https://github.com/yugabyte/yb-voyager/pull/3878) |
 | **Contractual** | §3 public surface, §4 data model, §5 rules, §6 flow matrix. Everything else is advisory. |
 
@@ -16,7 +16,7 @@ This design adds the layer above the diff engine that owns *drift*: which snapsh
 
 **Requirements this design depends on**
 
-- A user can run one read-only command against an export directory and get a report of every table or column change on the source since `export schema`, including changes since the last stored snapshot.  
+- A user can run one read-only command against an export directory and get a report of every change to a table, column, key, check or index on the source since `export schema`, including changes since the last stored snapshot.  
 - Every reported change carries a severity that answers "what does the migration do about this", and a corrective action.  
 - Each change is attributed to the interval between two captures and labelled with what the migration was doing then.  
 - The report is available as HTML for reading and JSON for tooling. The JSON shape is stable across releases.  
@@ -24,7 +24,7 @@ This design adds the layer above the diff engine that owns *drift*: which snapsh
 
 **Non-goals for this version**
 
-- Objects other than tables and columns. Coverage matches what `schemasnapshot` captures.  
+- Objects other than tables, columns, primary keys, unique constraints, unique indexes, checks, foreign keys and indexes. Coverage matches what `schemasnapshot` captures.  
 - Sources other than PostgreSQL.  
 - Detecting drift on the target, or on the source after cutover-to-target.  
 - Applying, suggesting, or generating DDL. The report says what to do; the user does it.  
@@ -60,7 +60,7 @@ Each layer speaks its own vocabulary, and the boundary is where the reframing ha
 
 `schemadrift` does no I/O beyond its embedded HTML template. Reading snapshots and writing report files belong to `cmd`.
 
-**What the given layers provide.** `schemasnapshot` captures a `SchemaSnapshot` (a `SnapshotHeader` stored in metaDB columns plus a `SnapshotContent` blob) under a label from a fixed vocabulary: `export_schema`, `export_data_from_source_start`, `export_data_from_source_periodic`, `export_data_from_source_exit`. A capture that fails writes a placeholder header with no content so the moment still appears on the timeline. `schemadiff.Diff(a, b)` returns a sorted `[]Difference` over tables and columns, each tagged with a `DiffType` such as `COLUMN_TYPE_CHANGED`; `Differ` applies a `Scope` after diffing.
+**What the given layers provide.** `schemasnapshot` captures a `SchemaSnapshot` (a `SnapshotHeader` stored in metaDB columns plus a `SnapshotContent` blob) under a label from a fixed vocabulary: `export_schema`, `export_data_from_source_start`, `export_data_from_source_periodic`, `export_data_from_source_exit`. A capture that fails writes a placeholder header with no content so the moment still appears on the timeline. `schemadiff.Diff(a, b)` returns a sorted `[]Difference` over tables, columns, keys, checks and indexes, each tagged with a `DiffType` such as `COLUMN_TYPE_CHANGED`; `Differ` applies a `Scope` after diffing.
 
 ## 3\. Public surface
 
@@ -107,12 +107,13 @@ type DetectionConfig struct {
 type MigrationInfo struct {
 	ExportType         string    // snapshot-only, snapshot-and-changes, changes-only; "" before export data records it
 	CutoverRequestedAt time.Time // zero until cutover to target is requested
+	FallForwardEnabled bool      // set once import data to source-replica has run
 }
 ```
 
 The complete input to `BuildReport`. Plain data, no connections or handles, so the assembler is testable with fixtures.
 
-`MigrationInfo` is what the report needs from the migration status record to place each change in a timing (§5.3). `cmd` fills it from `ExportTypeFromSource` and `CutoverTimings.ToTargetRequestedAt` of the record in the metaDB the snapshots come from. `ExportType` is empty until `export data` records it, so an empty value means "unknown flow", not "offline".
+`MigrationInfo` is what the report needs from the migration status record to place each change in a timing (§5.3). `cmd` fills it from `ExportTypeFromSource`, `CutoverTimings.ToTargetRequestedAt` and `FallForwardEnabled` of the record in the metaDB the snapshots come from. `ExportType` is empty until `export data` records it, so an empty value means "unknown flow", not "offline".
 
 `Comparing.Tables` and `Comparing.ObjectTypes` are rendered from `Scope`, which holds the exact sets compared, so they are not passed separately. The report does not say whether a list flag narrowed those sets: `Scope` cannot carry that, and the listed sets already tell a reader what "no drift" covers.
 
@@ -156,13 +157,18 @@ const (
 
 var infoByDiffType map[schemadiff.DiffType]map[Timing]DriftInfo
 var fallBackRiskByDiffType map[schemadiff.DiffType]string // appended to Impact while a cutover with fall-back is still possible
+var fallForwardActionByDiffType map[schemadiff.DiffType]string // appended to Action while fall-forward is in use
 var afterCutoverInfo DriftInfo
 
 type situation struct {
 	Timing Timing
-	// A cutover with fall-back can still happen: live or changes-only, before cutover.
+	// A cutover with fall-back can still happen: live or changes-only, before cutover,
+	// and fall-forward not in use, since voyager refuses to enable both.
 	// Adds the type's fall-back sentence to Impact.
 	FallBackPossible bool
+	// Fall-forward is in use and cutover has not happened. Adds the type's
+	// fall-forward sentence to Action.
+	FallForwardPossible bool
 }
 
 func getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)
@@ -170,11 +176,12 @@ func getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error)
 
 Severity and its explanatory note are one value, and each type's values for a timing are one `DriftInfo` in one map. Parallel maps keyed by `DiffType` would let them disagree silently, and an entry with a severity but no note would render a finding the report cannot explain.
 
-The Impact and Action depend on the change type AND on when the change happened (§5.3), so `infoByDiffType` is keyed by both. Every type lists `before_export_data`, `offline_after_export_start` and `live_after_export_start` explicitly; `changes_only_after_export_start` is listed only where its text differs from live. Text shared across timings is one named `DriftInfo` referenced from each timing, never copied. `getDriftInfo` applies three rules:
+The Impact and Action depend on the change type AND on when the change happened (§5.3), so `infoByDiffType` is keyed by both. Every type lists `before_export_data`, `offline_after_export_start` and `live_after_export_start` explicitly; `changes_only_after_export_start` is listed only where its text differs from live. Text shared across timings is one named `DriftInfo` referenced from each timing, never copied. `getDriftInfo` applies four rules:
 
-1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type: "This change was made after cutover to target. Data already migrated to the target is not affected." It has no Action and no fall-back sentence: after cutover the source is the fall-back side, whose drift is not tracked (§1).
+1. `TimingAfterCutover`: `afterCutoverInfo`, the same advisory for every type: "This change was made after cutover to target. Data already migrated to the target is not affected." It has no Action and no fall-back or fall-forward sentence: after cutover the source is the fall-back side, whose drift is not tracked (§1).
 2. Otherwise the type's entry for the timing. `TimingChangesOnlyAfterExportStart` with no entry of its own uses the `TimingLiveAfterExportStart` entry. No entry is an error naming the type and the timing: a new type must come with its guidance, and reporting it as advisory with no note would hide a change the report cannot explain.
 3. When `situation.FallBackPossible`, the type's sentence in `fallBackRiskByDiffType`, if any, is appended to the Impact.
+4. When `situation.FallForwardPossible`, the type's sentence in `fallForwardActionByDiffType`, if any, is appended to the Action. Every type but `TABLE_PARTITION_CHILDREN_CHANGED` has one: make on the source-replica any change the Action asks for on the target, and restart `import data to source-replica` whenever the Action restarts `import data`. It is worded that way so it also reads correctly where the Action is only a restart, a fix on the source, or a table exclusion.
 
 Each type is one `DiffType`, so the type alone says what happened. Changes whose two directions need different guidance are separate types (`COLUMN_NOT_NULL_SET` / `COLUMN_NOT_NULL_DROPPED`, §5.4), not one type plus a direction read from the old and new values.
 
@@ -197,7 +204,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
     [--source-db-host --source-db-port --source-db-password ...] \
     [--output-format html|json] \
     [--table-list <globs> | --exclude-table-list <globs>] \
-    [--object-type-list TABLE,COLUMN | --exclude-object-type-list ...]
+    [--object-type-list TABLE,COLUMN,CONSTRAINT,INDEX | --exclude-object-type-list ...]
 ```
 
 |  |  |
@@ -213,7 +220,7 @@ yb-voyager schema detect-drift --export-dir <dir> \
 | Export dir | must already hold a migration project; the command never creates one |
 | State | read-only; writes only under `reports/` |
 | Lock | takes its own per-command lock on the export dir, so two `detect-drift` runs cannot overwrite each other's report; export and import are not blocked |
-| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.1 (v1.0 before the direction-split types and timing-based severities): the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table or column names — identifiers do not go into this payload. `invoked_by` is `detect-drift` for the command, and `export-data` or `cutover-to-target` for the in-process check (§3.7). Governed by `--send-diagnostics` as everywhere else. |
+| Telemetry | `schema-detect-drift` phase payload, `SchemaDriftPhasePayload` v1.1 (v1.0 before the direction-split types and timing-based severities; the key and index types and the `CONSTRAINT` and `INDEX` object types only add keys and values, so they keep v1.1): the counts, the number of tables and the object types compared (sorted, without duplicates), and the drift-type and severity histograms. Carries the anonymized `SourceDBDetails` too, which already lists the schemas, so the payload does not count them again. Migration type is not reported: the command runs before `export data` records it and after a start-clean clears it, so there is no point at which it is reliably known. No schema, table, column, constraint or index names, and no definitions — identifiers do not go into this payload. `invoked_by` is `detect-drift` for the command, and `export-data` or `cutover-to-target` for the in-process check (§3.7). Governed by `--send-diagnostics` as everywhere else. |
 | Telemetry on failure | A run that fails before it builds a report still reports, as `ERROR` with the counts left zero: that is the population which could not use the feature at all. `error` carries `msg: "schema drift"` and the step that failed (`setup`, `connect_to_source`, `resolve_schemas`, `load_snapshots`, `capture_live_schema`, `resolve_scope`, `build_report`, `nothing_compared`, `write_reports`), never the error text, which can carry table names, patterns and paths. It follows `errs.ImportBatchError`: the run tags each failure with an `errs.SchemaDriftError` step, and callhome adds the `step` key. Callhome sets `msg` itself instead of keeping the text before the first `:`, so the console shows the cause unchanged and no wrapper can push a name into `msg`. The stack trace and any SQLSTATE still go with it. A failure before the export dir's metaDB is opened sends nothing, because the anonymizer is not set up yet. A failure after that, including one in the root pre-run, reports like any other phase, with a nil migration UUID if the UUID was never read. |
 
 ### 3.7 In-process check
@@ -300,12 +307,12 @@ type Diff struct {
 	// What changed, as the diff engine classified it.
 	Type       schemadiff.DiffType   `json:"type"`
 	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
-	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN
+	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN | CONSTRAINT | INDEX
 	Attribute  schemadiff.Attribute  `json:"attribute,omitempty"` // "" for ADDED/DROPPED
 
 	// What it changed on, and to what.
 	Object    schemasnapshot.ObjectRef `json:"object"`               // the table
-	SubObject string                   `json:"sub_object,omitempty"` // the column, when ObjectType is COLUMN
+	SubObject string                   `json:"sub_object,omitempty"` // the column, constraint or index; empty for TABLE
 	OldValue  any                      `json:"old_value,omitempty"`
 	NewValue  any                      `json:"new_value,omitempty"`
 }
@@ -330,7 +337,7 @@ type CapturePoint struct {
 
 ### 4.2 Persisted state
 
-None added. The `schema_snapshots` metaDB table and the `SnapshotContent` blob format are owned by `schemasnapshot` and unchanged. The live read is held in memory and never saved.
+The `schema_snapshots` metaDB table is unchanged. The `SnapshotContent` blob goes from version 1 to version 2, which adds keys, checks and indexes under each table (§5.9). The change is additive: an older voyager rejects a version 2 blob with `ErrSnapshotVersionUnsupported` rather than misreading it, and this voyager still reads version 1 blobs. The live read is held in memory and never saved.
 
 ## 5\. Behaviour
 
@@ -446,6 +453,10 @@ The change types, by object:
 | Inheritance (on the child) | `TABLE_INHERIT_ADDED`, `TABLE_INHERIT_REMOVED`: at most one of each, listing the parents added or removed |
 | Inheritance (on the parent) | `TABLE_INHERITED_BY_ADDED`, `TABLE_INHERITED_BY_REMOVED`: at most one of each, listing the children added or removed |
 | Column | `COLUMN_ADDED`, `COLUMN_DROPPED`, `COLUMN_NAME_CHANGED`, `COLUMN_TYPE_CHANGED`, `COLUMN_NOT_NULL_SET`, `COLUMN_NOT_NULL_DROPPED`, `COLUMN_DEFAULT_CHANGED` |
+| Constraint | `PRIMARY_KEY_`, `UNIQUE_`, `CHECK_`, `FOREIGN_KEY_` each with `ADDED`, `DROPPED`, `NAME_CHANGED` |
+| Index | `UNIQUE_INDEX_`, `INDEX_` each with `ADDED`, `DROPPED`, `NAME_CHANGED` |
+
+Key and index types have object type `CONSTRAINT` or `INDEX`, and `SubObject` is the constraint or index name. `*_NAME_CHANGED` uses attribute `NAME`; `ADDED` and `DROPPED` carry the definition as the new or old value, which the report shows for an addition and omits for a drop. How they are found is in §5.9.
 
 Partition and inheritance links name the other table, but are compared by its OID when tables are matched by OID: renaming or moving a parent or child is reported only on that table, not as a detach and attach on every linked table.
 
@@ -466,8 +477,16 @@ Severity by change and timing (changes-only has the live severity; after cutover
 | `TABLE_PARTITION_ATTACHED` | `breaks_migration_recoverable` | `potential_impact` | `potential_impact` |
 | `TABLE_PARTITION_DETACHED` | `potential_impact` | `potential_impact` | `breaks_migration_unrecoverable` |
 | `TABLE_INHERIT_ADDED`, `TABLE_INHERITED_BY_ADDED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `PRIMARY_KEY_ADDED` | `breaks_migration_recoverable` | `advisory` | `advisory` |
+| `PRIMARY_KEY_DROPPED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_unrecoverable` |
+| `UNIQUE_DROPPED`, `UNIQUE_INDEX_DROPPED`, `CHECK_DROPPED` | `breaks_migration_recoverable` | `potential_impact` | `breaks_migration_recoverable` |
+| `FOREIGN_KEY_DROPPED` | `potential_impact` | `potential_impact` | `potential_impact` |
+| `UNIQUE_INDEX_ADDED` | `advisory` | `advisory` | `potential_impact` |
+| `UNIQUE_ADDED`, `CHECK_ADDED`, `FOREIGN_KEY_ADDED`, `INDEX_ADDED`, `INDEX_DROPPED`, every key and index `*_NAME_CHANGED` | `advisory` | `advisory` | `advisory` |
 
-Recoverable means the target can be fixed within this migration and `import data` run again. Unrecoverable means `--start-clean`, a new migration, or a separate migration for the affected rows is needed; this includes rows that are silently not migrated. `TABLE_KIND_CHANGED` never fires on PostgreSQL (making a table partitioned is a drop plus an add), so its text is not part of the verified set.
+Recoverable means the target can be fixed within this migration and `import data` run again. Unrecoverable means `--start-clean`, a new migration, or a separate migration for the affected rows is needed; this includes rows that are silently not migrated. `TABLE_KIND_CHANGED` never fires on PostgreSQL (making a table partitioned is a drop plus an add), so its text is not part of the verified set. The key and index severities come from runs on a PostgreSQL 17 source and a YugabyteDB 2026.1 target, recorded in the Addendum C design doc (DB-24176). `PRIMARY_KEY_DROPPED` is reported for a changed key too (§5.9), so a key changed in one transaction, which is recoverable, reads as unrecoverable when live. Key changes are rare, and overstating is the safe direction. For the same reason `PRIMARY_KEY_ADDED` before export data takes the live severity: whether the migration will be live or offline is not known until export data starts, and its Impact says an offline migration is not affected. `UNIQUE_INDEX_ADDED` is `potential_impact` when live because an index on an expression can't be added on the target until cutover: import data's conflict check reads only key columns, and the tables it applies in order are fixed on its first run, so adding the index mid-stream can stop import data on a unique violation that a restart does not prevent. Dropping the index on the target and running import data again recovers.
+
+`UNIQUE_ADDED`, `UNIQUE_INDEX_ADDED`, `CHECK_ADDED`, `FOREIGN_KEY_ADDED` and `PRIMARY_KEY_ADDED` have a fall-back sentence for when the target does not get the change. For all but the foreign key, import data to source stops at the first YugabyteDB row that breaks it: `session_replication_role = replica` leaves unique and check constraints enforced. A foreign key is never enforced there: import data to source runs with foreign-key checks off, or refuses to start until they are turned off, so rows that break the key load and the source's key no longer holds for them.
 
 Severity is about what the migration does, not how alarming the DDL is. An added column is more severe than a dropped one because incoming rows carry a value the target cannot store, while a dropped column only leaves the target with an extra column.
 
@@ -490,7 +509,7 @@ A partitioned table matched by either list brings every partition beneath it, at
 | `--exclude-table-list` | resolved and expanded the same way, then complemented against the universe; an empty result is an error, exit 1 (the report would be empty, so the command says so rather than emitting one) |
 | both | error, exit 1 |
 
-`--object-type-list` and `--exclude-object-type-list` follow the same shape over `{TABLE, COLUMN}`.
+`--object-type-list` and `--exclude-object-type-list` follow the same shape over `{TABLE, COLUMN, CONSTRAINT, INDEX}`. `CONSTRAINT` covers primary keys, unique constraints, checks and foreign keys; `INDEX` covers indexes and standalone unique indexes.
 
 All four list flags are normalised before use: a value that is empty once trimmed (`"  "`, `","`) counts as unset. Treated as set, it would resolve to an empty keep-set, and since `Scope` keeps nothing for an empty dimension the run would drop every finding and read as "no drift".
 
@@ -563,6 +582,44 @@ Any change counts, whatever its severity. A pre-check that cannot run fails cuto
 
 The SSL certificate and key paths in the migration status record are host paths. In the Docker install, cutover passes no SSL flags of its own, so `docker/yb-voyager-docker` must mount the paths that earlier commands recorded in `metainfo/docker-metadata-*`, as it already does for `end migration`. Without that, the check cannot read the CA file and fails cutover for every SSL source.
 
+### 5.9 Keys, checks and indexes
+
+**Where:** `schemasnapshot` (capture), `schemadiff.compareMatchedTables` (matching). **In:** two snapshots of one matched table. **Out:** the key and index findings of §5.4. **Decides:** what is captured, and when a change to a key or index is reported.
+
+**Captured.** Each `Table` holds `PrimaryKey *Constraint`, `UniqueKeys`, `Checks` and `ForeignKeys` (`[]Constraint`), and `UniqueIndexes` and `Indexes` (`[]Index`). Both structs embed `TableScopedObjectRef` and carry `ID` (the OID), `Definition` (what PostgreSQL prints) and `FromParent`. The kind is the field that holds the object, so there is no kind field to disagree with it.
+
+| Kind | Catalog | Left out |
+| :---- | :---- | :---- |
+| Primary key, unique, check, foreign key | `pg_constraint`, `contype` `p`, `u`, `c`, `f` | NOT NULL rows (PostgreSQL 18 stores them here; column nullability covers them), exclusion constraints (YugabyteDB does not support them, so there is nothing to change on the target), trigger constraints, domain constraints, the per-partition clones PostgreSQL adds for a foreign key to a partitioned table (the foreign key itself is captured) |
+| Unique index | `pg_index`, `indisunique`, no constraint behind it | invalid indexes |
+| Index | `pg_index`, not unique | indexes behind a primary key, unique or exclusion constraint (the constraint reports them, or is left out), invalid indexes |
+
+The PostgreSQL provider empties `search_path` for the capture transaction before its first query, so every captured text is schema-qualified and never depends on the session: column types and defaults, a foreign key's `REFERENCES`, and index definitions. Copies made for partitions and inheritance are captured with `FromParent` set, so the diff can tell them from the table's own objects. A `TABLE_ADDED` finding's definition lists the table's own keys, checks and indexes, because its Action is to create the table on the target. For a partition or inheritance child it also names `PARTITION OF` or `INHERITS`, since creating the table that way brings the copies the definition leaves out.
+
+**Matching, by OID only.**
+
+| On the two sides | Reported |
+| :---- | :---- |
+| Same OID, a copy on either side | nothing: a parent rename renames its copies, and attach, detach and inheritance have table-level findings |
+| Same OID, name differs | `*_NAME_CHANGED` |
+| Only in the earlier snapshot, not a copy | `*_DROPPED` |
+| Only in the later snapshot, not a copy | `*_ADDED` |
+| Only on one side, a copy | nothing: the parent's finding covers it |
+
+The primary key is one slot per table: none to some is `PRIMARY_KEY_ADDED`, some to none is `PRIMARY_KEY_DROPPED`, and a new OID is both.
+
+`Definition` is never compared. PostgreSQL prints it with current names, so renaming a column, a referenced table or a schema changes the text of objects that did not change. In place, PostgreSQL can change only an object's name and flags; a new expression or column list needs a drop and re-create, which gives a new OID.
+
+**Snapshots before the upgrade.** A version 1 snapshot holds no keys or indexes. A pair with a version 1 side compares tables and columns only, so a migration upgraded midway keeps working: key and index changes made in the one interval that spans the upgrade are not reported, and every later interval reports them. A version 1 snapshot also printed column types and defaults with the session's `search_path`, so that interval reports `COLUMN_TYPE_CHANGED` or `COLUMN_DEFAULT_CHANGED` for columns whose type or sequence is in a schema on that path, typically `public`. This is accepted: it happens once, and the finding shows only the added schema name.
+
+**Accepted limitations.** Each overstates rather than hides a change:
+
+- Anything that gives an object a new OID reads as a drop plus an add, whether or not anything changed: a re-create in one transaction, `REINDEX CONCURRENTLY` on a standalone index, `ALTER COLUMN TYPE` on a column a key, check or index uses, and `ADD … USING INDEX`. The drop's severity and Action apply. The unique drops' Impact says that, next to an added key or index on the same columns, the source still enforces uniqueness and the target should keep it.
+- Keys and indexes dropped together with their column each get a plain `*_DROPPED` next to `COLUMN_DROPPED`.
+- `DEFERRABLE`, `VALIDATE`, and PostgreSQL 18 `NOT ENFORCED` are not reported. A primary key or unique constraint can only become deferrable by being re-created, which is reported as a drop plus an add.
+
+Pairing leftovers by name, which removes the first two, is designed in the Addendum C design doc and left for later.
+
 ## 6\. Migration-flow matrix
 
 Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
@@ -572,7 +629,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | Offline | export schema, export data start / periodic / exit(complete) | covered | `offline_after_export_start` |  |
 | Live, snapshot \+ changes | as offline; periodic continues through streaming; exit reason `cutover` | covered | `live_after_export_start`; `after_cutover` from the exit(cutover) capture or the cutover request | Cutover to target runs the pre-check of §5.8 before its prompt. |
 | Live with fall-back | source side as above; `export data from target` takes no captures | covered for the source, up to cutover | as live; a type's fall-back sentence is appended before cutover | Source-side DDL after cutover-to-target is only visible through the live read. Target-side drift is a non-goal (§1). |
-| Live with fall-forward | same as fall-back | same | as fall-back |  |
+| Live with fall-forward | same as fall-back | same | as live; once import data to source-replica has run, a type's fall-forward sentence is appended to Action before cutover, and no fall-back sentence is added, since fall-back cannot also be enabled |  |
 | Changes-only | export schema, export data start / periodic / exit; no `pg_dump`, but capture is gated on role, not on export type | covered | `changes_only_after_export_start`, which uses the live text where a type has none of its own; `after_cutover` as live |  |
 | Iterative cutover | each iteration's source exporter captures into that iteration's own metaDB | per iteration only | from the migration status record of the metaDB the snapshots come from | `--export-dir` pointed at the main dir sees the main metaDB; pointed at an iteration dir sees only that iteration. No cross-iteration timeline. Open question §9. Cutover to target's pre-check (§5.8) also runs per iteration, against that iteration's metaDB: DDL applied before the iteration's first capture is not reported. The next iteration's exporter is started without the CLI's `--disable-schema-snapshot-capture` and `--schema-snapshot-capture-interval`, so it captures at the defaults unless the config file sets them. |
 | Non-PostgreSQL source | none (capture is a no-op) | error, exit 1 | n/a | Oracle and MySQL are non-goals (§1). |
@@ -585,6 +642,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | A capture fails during export | placeholder header written, export unaffected, warning logged | Capture is best effort and off the data path. It must never fail a migration. |
 | Placeholder in history | bridged (§5.2); appears on the timeline as a failed marker | Dropping it would hide that a capture was attempted; making it a boundary would hide real drift. |
 | Snapshot blob has an unsupported `Version` | error, exit 1 | A newer voyager wrote it. Silently skipping would produce a report that looks complete. |
+| A version 1 snapshot is paired with a version 2 one | tables and columns only for that interval (§5.9) | Rejecting it would fail detect-drift and the cutover pre-check for every migration upgraded midway. Comparing keys would report every key and index as added. |
 | Snapshot header exists but blob cannot be loaded for any other reason | warning, treated like a placeholder | The moment is still on the timeline; the report bridges across it. |
 | A capture did not cover the requested schemas | bridged, and recorded on its `CapturePoint` (§5.2) | A requested table missing from it means nobody looked, not that it was dropped. Treating it as a boundary lost every interval around it. |
 | Live capture fails or the source is unreachable | error, exit 1; no report is written | The live read covers drift since the last stored snapshot. A report without it can show no drift while the source has drifted, and a script reading `summary.change_count` would not notice. |
@@ -613,6 +671,8 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 | Severity semantics | what the migration does | how alarming the DDL is | The user's question is "is my migration broken", not "was this a big change". |
 | Guidance key | change type and timing | change type alone | The right advice depends on when the change happened: a table dropped before `export data` is not part of the migration, one dropped during a live export makes a restart fail. |
 | Direction of a change | one `DiffType` per direction (`COLUMN_NOT_NULL_SET` / `_DROPPED`, attached / detached, added / removed) | one type, with the direction read from the old and new values | The two directions need different guidance, and the type alone then says what happened, in the report and in callhome's `drifts_by_type`. |
+| Matching keys and indexes | by OID only; a new OID is a drop plus an add | also pairing leftovers by name, to report re-creates and definition changes | Pairing needs more captured fields and about 20 more types. OID-only overstates severity in rare cases (§5.9) and never hides a change. |
+| Key and index definitions | captured for display, never compared | compare the text on the same OID | Renaming a column, a referenced table or a schema changes the printed text of objects that did not change, which would give false findings. |
 | Live read identity | new `LabelSourceLive`, never persisted; it IS the timeline identity | reuse an existing label; carry a second identity beside the label | `Capture` validates labels, and a persisted label would file the live read as history. Naming the label for what the snapshot is, not for the command that takes it, removes the need for a parallel identity field. |
 | Live capture failure | error, exit 1 | warn and report history alone | Connecting and listing the source's tables both precede the capture, so a source that is down already fails the run. What is left is a capture that failed on a reachable source, and a report missing the newest interval reads as "no drift". |
 | Report formats | `--output-format` takes one value; unset writes both | a comma-separated list | Matches `analyze-schema`. With both as the default, a list only lets a user spell out the default. |
@@ -631,6 +691,6 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 2. **Iterative cutover.** Each iteration captures into its own metaDB. Should `detect-drift` on the main export dir walk the iteration dirs and present one timeline?  
 3. **Target-side and post-cutover drift.** `SnapshotHeader.Side` exists for this. Is capture from the target exporter roles wanted for fall-back and fall-forward?  
 4. **Default for capture.** It is off. What evidence flips it on by default, and does the 60-minute interval stay?  
-5. **Object coverage.** Indexes, constraints, sequences, and functions are outside `schemasnapshot` today. Which come next, and does the severity vocabulary hold for them?  
+5. **Object coverage.** Sequences, views and functions are outside `schemasnapshot` today. Which come next, and does the severity vocabulary hold for them?  
 6. **ID-based matching across instances.** [\#3672](https://github.com/yugabyte/yb-voyager/issues/3672): OID-based table matching assumes the same PostgreSQL instance across snapshots.
 
