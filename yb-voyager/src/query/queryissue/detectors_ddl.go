@@ -572,7 +572,7 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			baseTypeName,
 			columnName,
 		)
-	case "vector":
+	case "vector", "halfvec", "sparsevec":
 		issue = NewVectorDatatypeIssue(
 			objType,
 			objName,
