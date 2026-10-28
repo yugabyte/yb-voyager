@@ -18,8 +18,6 @@ package queryissue
 import (
 	"strings"
 
-	"github.com/samber/lo"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -33,6 +31,8 @@ const (
 	TypeKindDomain
 	TypeKindComposite
 	TypeKindEnum
+	// a user-defined range type, or the multirange type created with it
+	TypeKindRange
 )
 
 // UnderlyingType is one of the types a column's type is built from.
@@ -79,6 +79,10 @@ func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string) []UnderlyingTy
 				types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindEnum})
 				return
 			}
+			if userDefinedType.IsRange {
+				types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindRange})
+				return
+			}
 			types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindComposite})
 			for _, field := range userDefinedType.CompositeFields {
 				walk(field.GetFullTypeName())
@@ -123,16 +127,15 @@ func (p *ParserIssueDetector) GetColumnDatatypeSupport(typeName string) ColumnDa
 	types := p.GetUnderlyingTypes(typeName)
 	liveWithFFOrFBUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
 	// a composite nested in another is part of the same user-defined value, so only the outermost is reported
-	outermostComposite, _ := lo.Find(types, func(t UnderlyingType) bool { return t.Kind == TypeKindComposite })
 	return ColumnDatatypeSupport{
 		UnsupportedInOffline: filterUnderlyingTypes(types, func(t UnderlyingType) bool {
 			return isListedDatatype(t, srcdb.PostgresUnsupportedDataTypes)
 		}),
 		UnsupportedInLive: filterUnderlyingTypes(types, func(t UnderlyingType) bool {
-			return isListedDatatype(t, srcdb.GetPGLiveMigrationUnsupportedDatatypes())
+			return t.Kind == TypeKindRange || isListedDatatype(t, srcdb.GetPGLiveMigrationUnsupportedDatatypes())
 		}),
 		UnsupportedInLiveWithFFOrFB: filterUnderlyingTypes(types, func(t UnderlyingType) bool {
-			return (t.Kind == TypeKindComposite && t == outermostComposite) || isListedDatatype(t, liveWithFFOrFBUnsupportedDatatypes)
+			return isListedDatatype(t, liveWithFFOrFBUnsupportedDatatypes)
 		}),
 	}
 }

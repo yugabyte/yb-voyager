@@ -33,12 +33,6 @@
                 "ObjectNames": "public.c_i_seq, public.f_c_i_seq, public.f_t_i_seq, public.t_i_seq"
             },
             {
-                "ObjectType": "TABLE",
-                "TotalCount": 2,
-                "InvalidCount": 1,
-                "ObjectNames": "public.c, public.t"
-            },
-            {
                 "ObjectType": "FUNCTION",
                 "TotalCount": 4,
                 "InvalidCount": 0,
@@ -55,6 +49,12 @@
                 "TotalCount": 2,
                 "InvalidCount": 2,
                 "ObjectNames": "public.f_c, public.f_t"
+            },
+            {
+                "ObjectType": "TABLE",
+                "TotalCount": 2,
+                "InvalidCount": 0,
+                "ObjectNames": "public.c, public.t"
             }
         ]
     },
@@ -81,18 +81,6 @@
             "Suggestion": "SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1627",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "public.t",
-            "Reason": "User defined datatype PUBLIC.MYCOMPOSIT not yet supported by voyager in live migration with fall-forward/fallback. Affected column: c. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "SqlStatement": "CREATE TABLE public.t (i int NOT NULL, ts timestamp (0) with time zone DEFAULT now(), j pg_catalog.json, t text, e public.myenum, c public.mycomposit, CONSTRAINT t_pkey PRIMARY KEY (i)) WITH (colocation=false);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
             "MinimumVersionsFixedIn": null
         }
     ]
