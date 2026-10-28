@@ -20,7 +20,7 @@
 - `DriftEntry` embeds `Diff` and `DriftInfo`. Do not embed `schemadiff.Difference`: it has interface identities that cannot be decoded and no JSON tags, so its field set would become the published contract.
 - Names were settled in review; do not reintroduce rejected ones: `DetectionConfig` (not `DetectionInput`/`BuildParams`), `DriftInfo` (not `DiffTypeInfo`), `Severity` (not `Status`), `getDriftInfo` (not `classify`), `CapturePoints` (not `Captures`/`Timeline`), `infoByDiffType` (no stutter). A name must not mean two things in one scope.
 - `ComparedIntervalCount == 0` is not a clean run. Do not infer "nothing compared" from `StoredCaptureCount` (it counts failed captures) or from empty `Drifts`.
-- Mention the live read only when there is one (`Report.HasLiveRead()`); in-process checks skip it.
+- Mention the live read only when there is one (`Report.HasLiveRead()`). `detect-drift` and the cutover pre-check take one; the export-failure check does not.
 
 ## Which snapshots are compared
 
@@ -65,7 +65,7 @@
 
 ## Testing
 
-- `unit` tests here build `SchemaSnapshot`/`Report` literals. Command tests live in `src/testschemadrift`, not `cmd`.
+- `unit` tests here build `SchemaSnapshot`/`Report` literals. Unit tests of the `cmd` drift helpers (`checkSchemaDrift`, the cutover pre-check, the callhome payload) stay in `cmd/detectDrift_test.go`. End-to-end tests that run the built binary go in `src/testschemadrift` (`integration_voyager_command`); add no new `cmd` test files.
 - New guidance: extend `TestGetDriftInfo_SeverityPerTiming` and the completeness tests.
 - Pair selection: cover failed, schema-subset and superset captures, a final live read, and fewer than two usable captures. Rendering: test case-sensitive names (`"Sales"."Orders"`) and each error path.
 - Keep CI lean: one test per rule, no JSON round trips, no per-kind copies of the same render test, and no tautological checks.
