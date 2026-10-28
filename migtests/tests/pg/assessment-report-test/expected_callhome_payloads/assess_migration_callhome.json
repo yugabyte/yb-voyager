@@ -1227,16 +1227,6 @@
         "category": "migration_caveats",
         "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "",
-        "object_type": "TABLE",
-        "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_bcd69afe2545c511 (col_c641f96948ca30c0 schema_d7108fd530c9b1c2.type_39a41bbeebe3ce6a, col_868eea23ebaee448 timestamp with time zone DEFAULT now(), col_92f06efc98aa5937 timestamp with time zone DEFAULT now())",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
         "name": "Unsupported datatype for Live migration - int4multirange",
         "object_name": "",
         "object_type": "TABLE",
@@ -1332,16 +1322,6 @@
         "object_type": "TABLE",
         "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_de51d4ada62f2266 (col_190e9d7fd2ee599f int NOT NULL, col_3a8c1445ec20b7e6 nummultirange)",
         "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_NUMMULTIRANGE"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "",
-        "object_type": "TABLE",
-        "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_6123eed3ba818dfe (col_c641f96948ca30c0 schema_d7108fd530c9b1c2.type_39a41bbeebe3ce6a, col_ba2e6e5a17bc760b int, col_11eea4f2ea24f55d timestamp with time zone DEFAULT now())",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
       },
       {
         "category": "migration_caveats",
@@ -1457,16 +1437,6 @@
         "category": "migration_caveats",
         "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "",
-        "object_type": "TABLE",
-        "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 (col_190e9d7fd2ee599f int NOT NULL, col_f5639e231ca3e603 cidr, col_4bc78c73121b30db macaddr, col_28c504d0021984ec macaddr8, col_adc966a138a40129 type_d53567f1071cc22e, col_1507c377ac817143 interval(0), col_ab16cfabf97fecc5 daterange, col_5f1c76770be9808f pg_catalog.bit('const_fbf66d2b84384217'), col_551003545287bc1e pg_catalog.varbit('const_41da1948d1206960'), col_54159b91a2ae7dfa schema_d7108fd530c9b1c2.type_f5066049504ab865, col_62e951386ea523d7 schema_d7108fd530c9b1c2.type_1d72205e0812ec72, col_a917749a02e9c7a8 schema_d7108fd530c9b1c2.type_35093c61c495b660[] NOT NULL, col_afe436b0d9baf3e0 schema_d7108fd530c9b1c2.type_b3e1802af84e012f, col_be768810d9e2d20a xml[])",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
         "name": "Unsupported datatype for Live migration - lseg",
         "object_name": "",
         "object_type": "TABLE",
@@ -1537,26 +1507,6 @@
         "category": "migration_caveats",
         "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "",
-        "object_type": "TABLE",
-        "sql_statement": "CREATE TABLE schema_a1717e859fc83d39.table_6123eed3ba818dfe (col_c641f96948ca30c0 schema_a1717e859fc83d39.type_39a41bbeebe3ce6a, col_ba2e6e5a17bc760b int, col_11eea4f2ea24f55d timestamp with time zone DEFAULT now())",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "",
-        "object_type": "TABLE",
-        "sql_statement": "CREATE TABLE schema_a1717e859fc83d39.table_bcd69afe2545c511 (col_c641f96948ca30c0 schema_a1717e859fc83d39.type_39a41bbeebe3ce6a, col_868eea23ebaee448 timestamp with time zone DEFAULT now(), col_92f06efc98aa5937 timestamp with time zone DEFAULT now())",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-        "impact": "LEVEL_1",
         "name": "Unsupported datatype for Live migration - xml",
         "object_name": "",
         "object_type": "TABLE",
@@ -1592,6 +1542,16 @@
         "object_type": "TABLE",
         "sql_statement": "CREATE TABLE schema_a1717e859fc83d39.table_72da587ee1dbe1ef (col_190e9d7fd2ee599f int NOT NULL, col_0ceb93caf428eae5 schema_d7108fd530c9b1c2.type_75a8ab5250371acc('const_42f2ebd18e0df8df'))",
         "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_VECTOR"
+      },
+      {
+        "category": "migration_caveats",
+        "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "",
+        "object_type": "TABLE",
+        "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_a84d78d2ae709c44 (col_190e9d7fd2ee599f int NOT NULL, col_f5639e231ca3e603 cidr, col_4bc78c73121b30db macaddr, col_28c504d0021984ec macaddr8, col_adc966a138a40129 type_d53567f1071cc22e, col_1507c377ac817143 interval(0), col_ab16cfabf97fecc5 daterange, col_5f1c76770be9808f pg_catalog.bit('const_fbf66d2b84384217'), col_551003545287bc1e pg_catalog.varbit('const_41da1948d1206960'), col_54159b91a2ae7dfa schema_d7108fd530c9b1c2.type_f5066049504ab865, col_62e951386ea523d7 schema_d7108fd530c9b1c2.type_1d72205e0812ec72, col_a917749a02e9c7a8 schema_d7108fd530c9b1c2.type_35093c61c495b660[] NOT NULL, col_afe436b0d9baf3e0 schema_d7108fd530c9b1c2.type_b3e1802af84e012f, col_be768810d9e2d20a xml[])",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
       }
     ],
     "control_plane_type": "",
@@ -2391,12 +2351,6 @@
           "TotalCount": 30
         },
         {
-          "InvalidCount": 36,
-          "ObjectNames": "",
-          "ObjectType": "TABLE",
-          "TotalCount": 95
-        },
-        {
           "InvalidCount": 3,
           "ObjectNames": "",
           "ObjectType": "TRIGGER",
@@ -2419,6 +2373,12 @@
           "ObjectNames": "",
           "ObjectType": "FUNCTION",
           "TotalCount": 19
+        },
+        {
+          "InvalidCount": 32,
+          "ObjectNames": "",
+          "ObjectType": "TABLE",
+          "TotalCount": 95
         }
       ],
       "DbName": "",

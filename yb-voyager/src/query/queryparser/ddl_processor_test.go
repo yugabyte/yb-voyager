@@ -187,3 +187,41 @@ func TestParsingIndexWhereClausePredicates(t *testing.T) {
 		}
 	}
 }
+
+func TestProcessRangeType(t *testing.T) {
+	testCases := []struct {
+		name     string
+		sql      string
+		expected *CreateType
+	}{
+		{
+			name:     "multirange name derived by inserting multi before range",
+			sql:      `CREATE TYPE public.float_range AS RANGE (subtype = float8);`,
+			expected: &CreateType{TypeName: "float_range", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "float_multirange"},
+		},
+		{
+			name:     "multirange name derived by appending _multirange",
+			sql:      `CREATE TYPE public."Span" AS RANGE (subtype = int4);`,
+			expected: &CreateType{TypeName: "Span", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "Span_multirange"},
+		},
+		{
+			name:     "qualified multirange_type_name",
+			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = other."SpanSet");`,
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "other", MultirangeTypeName: "SpanSet"},
+		},
+		{
+			name:     "unqualified multirange_type_name is in the range type's schema",
+			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = span_set);`,
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "Sch", MultirangeTypeName: "span_set"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tree, err := pg_query.Parse(tc.sql)
+			assert.NoError(t, err)
+			ddlObj, err := ProcessDDL(tree)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, ddlObj)
+		})
+	}
+}
