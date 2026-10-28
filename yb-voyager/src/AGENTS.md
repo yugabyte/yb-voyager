@@ -14,6 +14,9 @@ When adding new code, place it in the appropriate package:
 - `query/queryissue` — Detects DDL/DML compatibility issues and generates fix recommendations for assessment/analyze reports.
 - `query/queryparser` — SQL parsing via pg_query_go and parse-tree traversal helpers.
 - `query/sqltransformer` — Transforms exported schema DDL (e.g., merging constraints into CREATE TABLE).
+- `schemasnapshot` — Captures a source database's catalog (tables, columns, keys, indexes) into a versioned snapshot and stores it in the metaDB.
+- `schemadiff` — Compares two schema snapshots into typed findings, and filters them by scope.
+- `schema/schemadrift` — Builds the `schema detect-drift` report from stored snapshots: pair selection, severity and guidance per change, JSON/HTML rendering.
 - `migassessment` — Migration assessment: metadata gathering, sizing recommendations, replica discovery, permissions.
 - `anon` — SQL anonymizer for diagnostics. Hashes identifiers while preserving SQL structure.
 - `callhome` — Sends anonymized diagnostics and migration metrics to Yugabyte.
