@@ -29,10 +29,9 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	pgconn5 "github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -81,7 +80,7 @@ func (pg *TargetPostgreSQL) Exec(query string) (int64, error) {
 
 	res, err := pg.db.Exec(query)
 	if err != nil {
-		var pgErr *pgconn5.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Hint != "" || pgErr.Detail != "" {
 				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, pg.tconf.Host, err, pgErr.Hint, pgErr.Detail)
@@ -693,12 +692,13 @@ func queryPGUniqueIndexesByCatalog(queryFn func(query string) (*sql.Rows, error)
 	}()
 
 	result := make(map[string][]UniqueIndex)
+	typeMap := pgtype.NewMap()
 	for rows.Next() {
 		var schemaName, tableName, indexKey string
-		var columnsPgTypeArray pgtype.TextArray
+		var columnsPgTypeArray pgtype.Array[pgtype.Text]
 		var nullsNotDistinct bool
 		var isPartialIndex bool
-		err := rows.Scan(&schemaName, &tableName, &indexKey, &columnsPgTypeArray, &nullsNotDistinct, &isPartialIndex)
+		err := rows.Scan(&schemaName, &tableName, &indexKey, typeMap.SQLScanner(&columnsPgTypeArray), &nullsNotDistinct, &isPartialIndex)
 		if err != nil {
 			return nil, fmt.Errorf("scanning row for unique index: %w", err)
 		}
@@ -1149,10 +1149,11 @@ func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTables(tableNameTuples []sq
 	}
 	defer rows.Close()
 
+	typeMap := pgtype.NewMap()
 	for rows.Next() {
 		var schemaName, tableName string
-		var identityColumnsPgTypeArray pgtype.TextArray
-		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
+		var identityColumnsPgTypeArray pgtype.Array[pgtype.Text]
+		err = rows.Scan(&schemaName, &tableName, typeMap.SQLScanner(&identityColumnsPgTypeArray))
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}

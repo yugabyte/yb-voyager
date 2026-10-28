@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pingcap/failpoint"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"

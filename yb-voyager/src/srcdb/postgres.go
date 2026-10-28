@@ -952,17 +952,18 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 				SSLQueryString = "sslmode=" + s.SSLMode
 				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
 					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
+					// File paths are user input and may contain URI syntax (spaces, '%', '&'); see utils.EscapeConnUriQueryValue.
 					if s.SSLCertPath != "" {
-						SSLQueryString += "&sslcert=" + s.SSLCertPath
+						SSLQueryString += "&sslcert=" + utils.EscapeConnUriQueryValue(s.SSLCertPath)
 					}
 					if s.SSLKey != "" {
-						SSLQueryString += "&sslkey=" + s.SSLKey
+						SSLQueryString += "&sslkey=" + utils.EscapeConnUriQueryValue(s.SSLKey)
 					}
 					if s.SSLRootCert != "" {
-						SSLQueryString += "&sslrootcert=" + s.SSLRootCert
+						SSLQueryString += "&sslrootcert=" + utils.EscapeConnUriQueryValue(s.SSLRootCert)
 					}
 					if s.SSLCRL != "" {
-						SSLQueryString += "&sslcrl=" + s.SSLCRL
+						SSLQueryString += "&sslcrl=" + utils.EscapeConnUriQueryValue(s.SSLCRL)
 					}
 				}
 			} else {
