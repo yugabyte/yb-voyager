@@ -36,6 +36,10 @@ Live migration involves multiple concurrent processes (exporter, importer, optio
 - Idempotency checks must happen *before* any side-effecting calls. Do not create directories, update MSR fields, or spawn processes before verifying that the operation has not already been performed.
 - When reading migration status records, always nil-check the result. Lookups return `(nil, nil)` when a record is not yet created, which can happen during concurrent iteration transitions.
 
+## Schema Drift and Snapshot Capture
+
+- Before changing schema-snapshot capture (`exportSchema.go`, `exportData.go`, `export.go`, `sourceCapture()`), read `src/schemasnapshot/AGENTS.md`. Before changing `detectDrift.go` or the cutover drift pre-check, read `src/schema/schemadrift/AGENTS.md`. Those files hold the rules for these call sites.
+
 ## Testing
 
 - Integration tests using the live-migration testing framework must verify that loop bounds and condition checks are consistent.
