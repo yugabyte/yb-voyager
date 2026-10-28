@@ -37,7 +37,7 @@
         "TotalCount": 10
       },
       {
-        "InvalidCount": 9,
+        "InvalidCount": 8,
         "ObjectNames": "",
         "ObjectType": "TABLE",
         "TotalCount": 29
@@ -174,38 +174,6 @@
         "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
       },
       {
-        "category": "migration_caveats",
-        "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "XXXXX",
-        "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "XXXXX",
-        "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "XXXXX",
-        "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
-        "category": "migration_caveats",
-        "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-        "object_name": "XXXXX",
-        "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
-      },
-      {
         "category": "unsupported_datatypes",
         "impact": "LEVEL_3",
         "name": "Unsupported datatype - txid_snapshot",
@@ -236,6 +204,70 @@
         "object_name": "XXXXX",
         "object_type": "TABLE",
         "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
       }
     ],
     "payload_version": 1.1,
