@@ -25,19 +25,23 @@
 - All loader queries run inside `Capture`'s read-only `REPEATABLE READ` transaction, through the `QueryExecutor` they are given. Never take a `*sql.DB` in a loader.
 - The provider clears `search_path` (`set_config('search_path','',true)`) before the first query so every rendered text (types, defaults, constraint and index definitions, `::regclass`) is schema-qualified. New queries run after it and never set it.
 - Placeholders are `$N`, built once by `buildInPlaceholders` and passed to every loader. `?` fails on pgx and sqlmock does not catch it.
-- Version-gate any catalog column newer than the supported floor (PG 9 offline, PG 10 live). Example: the `conparentid` filter runs only on PG 11+.
+- Version-gate any catalog column newer than the supported floor (PG 9 offline, PG 10 live), as the `conparentid` filter does (PG 11+). Known gap: `pg_class.relispartition` (PG 10+) is read ungated in the table-link and index queries, so every capture on a PG 9 source fails and leaves a placeholder. Do not copy that pattern.
 - `CaptureParams.Schemas` are raw unquoted names matched as data against `nspname`. Callers use `GetSchemaListUnquoted`; quoted names capture zero tables and read as "no drift".
 - Providers return content and server version only; `Capture` stamps `Version`, `DatabaseType`, `DBMetadata`.
 
 ## Snapshot model
 
 - `SchemaSnapshot{Header, Content}`: the header goes to metaDB columns, the content to the JSON blob. A fact lives in exactly one of them (`Side` is header-only). Do not mirror a field into both, and do not tag duplicates `json:"-"`.
-- `IsPlaceholder` is decided when the header is built (`newHeader(..., isPlaceholder)`) and stored in its own column. Do not derive it from `snapshot_json IS NULL`. `Name()` is derived from label + second-precision time and never stored.
+- `IsPlaceholder` is decided when the header is built (`newHeader(..., isPlaceholder)`) and stored in its own column. Do not derive it from `snapshot_json IS NULL`.
 - Identity: `ObjectRef` for schema-level objects, `TableScopedObjectRef{Table, Name}` for objects under a table. Keep those names. Render with `ForDisplay`, key maps with `ForKey` (unquoted, dot-joined `sqlname.Key()`); its dot-collision limitation is accepted — do not swap in a quoted key.
 - Every object carries a catalog `ID` that survives rename but not drop+recreate (`pg_class.oid`, `pg_constraint.oid`, `"{tableOID}:{attnum}"`). Columns nest in `Table.Columns`.
 - `Constraint` and `Index` are separate structs holding only `ID`, `Definition`, `FromParent`. Do not merge them, and do not add fields nothing reads yet (`ColumnAttnums`, `Deferrable`, expression trees were all cut). Kind is the `Table` field holding the object; no kind field.
 - `Definition` is display-only. Never compare it.
-- Copies inherited from a parent are captured with `FromParent` set. Deliberate exclusions, each kept as a `-- comment` in the SQL: invalid indexes, indexes behind PK/unique/exclusion constraints, exclusion constraints (YB does not support them), per-partition clones of an FK to a partitioned table, PG 18 NOT NULL rows.
+- Copies inherited from a parent are captured with `FromParent` set. Deliberate exclusions:
+  - invalid indexes and indexes behind PK/unique/exclusion constraints (`--` comments in `sqlLoadIndexesFmt`);
+  - exclusion constraints (YB does not support them) and PG 18 NOT NULL rows, both dropped by the `contype IN ('p','u','c','f')` filter;
+  - per-partition clones of an FK to a partitioned table (`sqlSkipReferencedPartitionFKs`).
+  Do not "fix" any of them back in. Explain a new exclusion with a `-- comment` in the SQL.
 - Fail on catalog surprises instead of skipping or guessing: a constraint or index whose table is not in the snapshot, two primary keys, an unknown `contype`, an index definition without the expected prefix.
 
 ## Stored-state compatibility
@@ -45,6 +49,7 @@
 Snapshots in `meta.db` are read by later binaries after a mid-migration upgrade.
 
 - JSON changes are additive. Never rename or remove a tag, a label, or a reason string.
+- Never change `deriveName`'s format (`{label}_{second-precision UTC time}`). `Header.Name()` is written to the `name` column and `detect-drift` loads each snapshot by `LoadSnapshotByName(h.Name())` from rebuilt headers. A new format makes every older snapshot `ErrSnapshotNotFound`, which is skipped as a gap with only a note.
 - When older snapshots cannot answer a new question, bump `currentSnapshotVersion` with a named constant (`VersionWithKeysAndIndexes`) and make `schemadiff` compare the new data only when both sides are at that version. Do not add a separate "captured" flag — it stores the same fact twice. Do not reject older versions.
 - `DecodeSnapshot` wraps `ErrSnapshotVersionUnsupported` for version 0 and newer-than-binary. Callers treat it as an error, not a gap.
 - The table is created lazily on first write, not in `initMetaDB`. Schemas are stored as JSON, not comma-joined. Two captures in the same second collide on `UNIQUE(name)`; tests sleep one second rather than the product changing.

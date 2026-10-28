@@ -12,11 +12,15 @@
 ## Findings
 
 - `DiffType` is the primary value; `Operation`, `ObjectType`, `Attribute` are its facets, set explicitly at each call to `newDifference`. Every finding goes through `newDifference`. Do not add a registry or table deriving facets from the type.
-- `Operation` is a closed set: ADDED, DROPPED, CHANGED. It decides which sides are set: ADDED sets only `ObjectB`/`SideBValue`, DROPPED only `ObjectA`/`SideAValue`, CHANGED both. `Attribute` is `AttrNone` exactly for ADDED/DROPPED.
+- `Operation` is a closed set: ADDED, DROPPED, CHANGED. It decides which sides are set: ADDED sets only `ObjectB`/`SideBValue`, DROPPED only `ObjectA`/`SideAValue`. CHANGED always sets both identities, but a value side can be nil: `TABLE_PARTITION_DETACHED`/`_ATTACHED` and the `TABLE_INHERIT*` types set only one. Consumers must not assume both values are non-nil. `Attribute` is `AttrNone` exactly for ADDED/DROPPED.
 - One `DiffType` per direction (`COLUMN_NOT_NULL_SET`/`_DROPPED`, `TABLE_PARTITION_ATTACHED`/`_DETACHED`, `TABLE_INHERIT_ADDED`/`_REMOVED`): the directions need different guidance downstream.
 - `Difference` holds identities (`ObjectA`/`ObjectB` as `ObjectIdent`), not a stored anchor table or sub-object. Derive the anchor from the identity (`anchorTableOf`).
 - Never merge a drop and an add of the same name into one finding; the drop may be what broke the migration.
-- `TABLE_ADDED`/`TABLE_DROPPED` carry the whole `Table`, deep-copied by `cloneTable`. Partition/inheritance changes emit at most one ADDED and one REMOVED finding per table, each carrying a sorted `[]ObjectRef`.
+- `TABLE_ADDED`/`TABLE_DROPPED` carry the whole `Table`, deep-copied by `cloneTable`.
+- Link changes, all `OpChanged`:
+  - Inheritance: at most one `*_ADDED` and one `*_REMOVED` finding per table for each of `InheritsFrom` and `InheritedBy` (`diffLinkSet`), each carrying a sorted `[]ObjectRef` of only the changed links.
+  - Partition children: one `TABLE_PARTITION_CHILDREN_CHANGED` carrying the full before and after child lists, in capture (`pg_inherits` OID) order, unsorted.
+  - Partition parent: separate `TABLE_PARTITION_DETACHED` and `TABLE_PARTITION_ATTACHED` findings.
 - Type strings reach the report JSON and callhome `drifts_by_type`; never rename one.
 
 ## Matching
@@ -30,7 +34,7 @@
 
 ## Determinism
 
-- `Diff` sorts with `sort.Slice` on a full key; do not claim stable order in comments. Slices inside findings are sorted too — map order must never reach output.
+- `Diff` sorts with `sort.Slice` on a full key; do not claim stable order in comments. Slices built from maps inside findings are sorted (`diffLinkSet`); slices copied from a snapshot keep the snapshot's order. Map order must never reach output.
 - Findings never share memory with the input. Extend `cloneTable` when `Table` gains a slice or pointer field.
 - The Go type in `SideAValue`/`SideBValue` per type is a contract with `schemadrift`'s `stringifyValue`, which errors on unknown types. A new value type needs a case there.
 
