@@ -110,7 +110,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		return nil, nil, goerrors.Errorf("getting column to sequence mapping %w", err)
 	}
 
-	err = prepareSSLParamsForDebezium(absExportDir)
+	debeziumSSLKey, err := prepareSSLParamsForDebezium(absExportDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
@@ -156,7 +156,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,
-		SSLKey:                source.SSLKey,
+		SSLKey:                debeziumSSLKey,
 		SSLRootCert:           source.SSLRootCert,
 		SSLKeyStore:           source.SSLKeyStore,
 		SSLKeyStorePassword:   source.SSLKeyStorePassword,
@@ -308,17 +308,19 @@ func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {
 	return strings.Join(colToSeqMapSlices, ","), nil
 }
 
-func prepareSSLParamsForDebezium(exportDir string) error {
+// prepareSSLParamsForDebezium returns the client key path for the Debezium config. For PG/YB it is a DER
+// copy that only Debezium needs: source.SSLKey stays the user's key, which pg_dump and pgx read later.
+func prepareSSLParamsForDebezium(exportDir string) (string, error) {
 	switch source.DBType {
 	case "postgresql", "yugabytedb": //TODO test for yugabytedb
 		if source.SSLKey != "" {
 			targetSslKeyPath := filepath.Join(exportDir, "metainfo", "ssl", ".key.der")
 			err := dbzm.WritePKCS8PrivateKeyPEMasDER(source.SSLKey, targetSslKeyPath)
 			if err != nil {
-				return fmt.Errorf("could not write private key PEM as DER: %w", err)
+				return "", fmt.Errorf("could not write private key PEM as DER: %w", err)
 			}
 			utils.PrintAndLogf("Converted SSL key from PEM to DER format. File saved at %s", targetSslKeyPath)
-			source.SSLKey = targetSslKeyPath
+			return targetSslKeyPath, nil
 		}
 	case "mysql":
 		switch source.SSLMode {
@@ -338,7 +340,7 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 			keyStorePassword := utils.GenerateRandomString(8)
 			err := dbzm.WritePKCS8PrivateKeyCertAsJavaKeystore(source.SSLKey, source.SSLCertPath, "mysqlclient", keyStorePassword, keyStorePath)
 			if err != nil {
-				return fmt.Errorf("failed to write java keystore for debezium: %w", err)
+				return "", fmt.Errorf("failed to write java keystore for debezium: %w", err)
 			}
 			utils.PrintAndLogf("Converted SSL key, cert to java keystore. File saved at %s", keyStorePath)
 			source.SSLKeyStore = keyStorePath
@@ -349,7 +351,7 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 			trustStorePassword := utils.GenerateRandomString(8)
 			err := dbzm.WriteRootCertAsJavaTrustStore(source.SSLRootCert, "MySQLCACert", trustStorePassword, trustStorePath)
 			if err != nil {
-				return fmt.Errorf("failed to write java truststore for debezium: %w", err)
+				return "", fmt.Errorf("failed to write java truststore for debezium: %w", err)
 			}
 			utils.PrintAndLogf("Converted SSL root cert to java truststore. File saved at %s", trustStorePath)
 			source.SSLTrustStore = trustStorePath
@@ -357,7 +359,7 @@ func prepareSSLParamsForDebezium(exportDir string) error {
 		}
 	case "oracle":
 	}
-	return nil
+	return source.SSLKey, nil
 }
 
 // oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as

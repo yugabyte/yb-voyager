@@ -316,14 +316,18 @@ func (lm *LiveMigrationTest) RunFinalizeSchemaPostDataImport(extraArgs map[strin
 }
 
 func (lm *LiveMigrationTest) runToCompletion(container testcontainers.TestContainer, cmdName string, args []string, extraArgs map[string]string) error {
-	for key, value := range extraArgs {
-		args = append(args, key, value)
-	}
-	err := testutils.NewVoyagerCommandRunner(container, cmdName, args, nil, false).WithT(lm.t).Run()
+	err := testutils.NewVoyagerCommandRunner(container, cmdName, withFlags(args, extraArgs), nil, false).WithT(lm.t).Run()
 	if err != nil {
 		return goerrors.Errorf("%s: %w", cmdName, err)
 	}
 	return nil
+}
+
+func withFlags(args []string, flags map[string]string) []string {
+	for key, value := range flags {
+		args = append(args, key, value)
+	}
+	return args
 }
 
 // StartExportData starts export data command

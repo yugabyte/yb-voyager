@@ -436,6 +436,8 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 	// import schema and import data need exported schema and data before they connect to the target.
 	// Offline export, so import data does not wait for a live snapshot.
 	require.NoError(t, lm.RunExportSchema(goodCerts.sourceSSLArgs()), "export schema")
+	require.NoError(t, lm.startExportData(false, goodCerts.sourceSSLArgs(), cmd.SNAPSHOT_ONLY, nil), "export data")
+
 	exportDataArgs := func(exportDir string) []string {
 		return []string{
 			"--export-dir", exportDir,
@@ -446,8 +448,6 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 			"--yes",
 		}
 	}
-	require.NoError(t, testutils.NewVoyagerCommandRunner(lm.sourceContainer, "export data",
-		withFlags(exportDataArgs(lm.exportDir), goodCerts.sourceSSLArgs()), nil, false).WithT(t).Run(), "export data")
 
 	untrustedPKI, err := testutils.NewTestPKI()
 	require.NoError(t, err)
@@ -512,7 +512,7 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 	for _, tc := range cases {
 		t.Run(tc.name+"/export schema", func(t *testing.T) {
 			args := []string{
-				"--export-dir", testutils.CreateTempExportDir(),
+				"--export-dir", t.TempDir(),
 				"--source-db-schema", "mtls_schema",
 				"--source-db-name", dbName,
 				"--yes",
@@ -520,7 +520,7 @@ func runMTLSRejectionCases(t *testing.T, sourceMTLS, targetMTLS *testcontainers.
 			requireVoyagerRejected(t, lm.sourceContainer, "export schema", args, tc.sourceArgs, tc.wantOutput)
 		})
 		t.Run(tc.name+"/export data", func(t *testing.T) {
-			requireVoyagerRejected(t, lm.sourceContainer, "export data", exportDataArgs(testutils.CreateTempExportDir()),
+			requireVoyagerRejected(t, lm.sourceContainer, "export data", exportDataArgs(t.TempDir()),
 				tc.sourceArgs, tc.wantOutput)
 		})
 		t.Run(tc.name+"/import schema", func(t *testing.T) {
@@ -551,13 +551,6 @@ func requireVoyagerRejected(t *testing.T, container testcontainers.TestContainer
 	output := runner.Stdout() + runner.Stderr()
 	require.Error(t, err, "%s must fail; output:\n%s", cmdName, output)
 	assert.Contains(t, output, wantOutput, "%s failed for a different reason", cmdName)
-}
-
-func withFlags(args []string, flags map[string]string) []string {
-	for key, value := range flags {
-		args = append(args, key, value)
-	}
-	return args
 }
 
 func readDebeziumSSLProperties(t *testing.T, path string) map[string]string {
