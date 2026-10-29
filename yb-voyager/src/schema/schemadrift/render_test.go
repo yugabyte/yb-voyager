@@ -18,6 +18,7 @@ package schemadrift
 
 import (
 	"encoding/json"
+	"html"
 	"strings"
 	"testing"
 	"time"
@@ -403,6 +404,75 @@ func TestRenderHTML_AddedTableColumnsAreMinQuoted(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, string(out), "&#34;InvoiceNo&#34; text NOT NULL, amount numeric")
+}
+
+// The Action for an added table is to create it on the target, so its definition
+// lists the table's own keys, checks and indexes, and the parent link that brings
+// the copies it leaves out.
+func TestRenderHTML_AddedTableShowsOwnKeysAndParentLink(t *testing.T) {
+	orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
+	refunds := schemasnapshot.ObjectRef{Schema: "public", Name: "refunds"}
+	ref := func(name string) schemasnapshot.TableScopedObjectRef {
+		return schemasnapshot.TableScopedObjectRef{Table: refunds, Name: name}
+	}
+	columns := []schemasnapshot.Column{
+		{TableScopedObjectRef: ref("id"), DataType: "integer", NotNull: true},
+		{TableScopedObjectRef: ref("order_id"), DataType: "integer"},
+	}
+	ownKeys := schemasnapshot.Table{
+		ObjectRef:     refunds,
+		Columns:       columns,
+		PrimaryKey:    &schemasnapshot.Constraint{TableScopedObjectRef: ref("refunds_pkey"), ID: "1", Definition: "PRIMARY KEY (id)"},
+		UniqueKeys:    []schemasnapshot.Constraint{{TableScopedObjectRef: ref("Refunds Order Key"), ID: "4", Definition: "UNIQUE (order_id)"}},
+		Checks:        []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_id_check"), ID: "2", Definition: "CHECK (id > 0)"}},
+		ForeignKeys:   []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_order_fk"), ID: "3", Definition: "FOREIGN KEY (order_id) REFERENCES public.orders(id)"}},
+		UniqueIndexes: []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_order_uq"), ID: "5", Definition: "USING btree (order_id)"}},
+		Indexes:       []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_id_idx"), ID: "6", Definition: "USING btree (id)"}},
+	}
+	partition := schemasnapshot.Table{
+		ObjectRef:       refunds,
+		Columns:         columns,
+		PartitionParent: &orders,
+		PrimaryKey:      &schemasnapshot.Constraint{TableScopedObjectRef: ref("refunds_pkey"), ID: "1", Definition: "PRIMARY KEY (id)", FromParent: true},
+		Indexes: []schemasnapshot.Index{
+			{TableScopedObjectRef: ref("refunds_id_idx"), ID: "6", Definition: "USING btree (id)", FromParent: true},
+			{TableScopedObjectRef: ref("refunds_order_idx"), ID: "7", Definition: "USING btree (order_id)"},
+		},
+	}
+	child := schemasnapshot.Table{
+		ObjectRef:    refunds,
+		Columns:      columns,
+		InheritsFrom: []schemasnapshot.ObjectRef{orders, {Schema: "public", Name: "Audited"}},
+		Checks:       []schemasnapshot.Constraint{{TableScopedObjectRef: ref("orders_id_check"), ID: "2", Definition: "CHECK (id > 0)", FromParent: true}},
+	}
+
+	tests := []struct {
+		name  string
+		table schemasnapshot.Table
+		want  string
+	}{
+		{"own keys, checks and indexes", ownKeys, "id integer NOT NULL, order_id integer; CONSTRAINT refunds_pkey PRIMARY KEY (id); " +
+			`CONSTRAINT "Refunds Order Key" UNIQUE (order_id); CONSTRAINT refunds_id_check CHECK (id > 0); ` +
+			"CONSTRAINT refunds_order_fk FOREIGN KEY (order_id) REFERENCES public.orders(id); " +
+			"UNIQUE INDEX refunds_order_uq USING btree (order_id); INDEX refunds_id_idx USING btree (id)"},
+		{"a partition shows its parent instead of the parent's copies", partition,
+			"id integer NOT NULL, order_id integer; PARTITION OF public.orders; INDEX refunds_order_idx USING btree (order_id)"},
+		{"an inheritance child shows its parents instead of their copies", child, `id integer NOT NULL, order_id integer; INHERITS (public.orders, public."Audited")`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := fixtureReport()
+			r.Drifts = r.Drifts[:1]
+			r.Drifts[0].NewValue = tc.table
+			r.Summary.ChangeCount = 1
+
+			out, err := RenderHTML(r)
+			require.NoError(t, err)
+
+			// The whole chiplet, so nothing the filtering should have left out can follow.
+			assert.Contains(t, html.UnescapeString(string(out)), `<span class="chiplet v-def">`+tc.want+`</span>`)
+		})
+	}
 }
 
 // An empty dimension compared nothing, so the dropdown must agree with the
