@@ -18,6 +18,9 @@ package queryissue
 import (
 	"strings"
 
+	"github.com/samber/lo"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -49,24 +52,25 @@ func (t UnderlyingType) BaseName() string {
 // is followed to its base type, an array to its element type, and a composite to the types of
 // its fields, through the domains and types defined in the exported schema.
 //
-// typeName may be qualified or not and may carry a "[]" suffix. An unqualified name is looked
-// up as written, then in defaultSchema.
-func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string, defaultSchema string) []UnderlyingType {
+// typeName may carry a "[]" suffix. It is looked up exactly as written, never qualified with a
+// schema: pg_dump qualifies every user type, and an unqualified name is a built-in, since PG
+// searches pg_catalog first.
+func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string) []UnderlyingType {
 	var types []UnderlyingType
 	visited := make(map[string]bool)
-	var walk func(name string, defaultSchema string)
-	walk = func(name string, defaultSchema string) {
+	var walk func(name string)
+	walk = func(name string) {
 		name = strings.TrimSuffix(name, "[]")
-		if domain, ok := lookupSchemaObject(p.domains, name, defaultSchema); ok {
+		if domain, ok := p.domains[name]; ok {
 			if visited[domain.GetObjectName()] {
 				return
 			}
 			visited[domain.GetObjectName()] = true
 			types = append(types, UnderlyingType{Name: domain.GetObjectName(), Kind: TypeKindDomain})
-			walk(domain.GetFullBaseTypeName(), domain.SchemaName)
+			walk(domain.GetFullBaseTypeName())
 			return
 		}
-		if userDefinedType, ok := lookupSchemaObject(p.userDefinedTypes, name, defaultSchema); ok {
+		if userDefinedType, ok := p.userDefinedTypes[name]; ok {
 			if visited[userDefinedType.GetObjectName()] {
 				return
 			}
@@ -77,7 +81,7 @@ func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string, defaultSchema 
 			}
 			types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindComposite})
 			for _, field := range userDefinedType.CompositeFields {
-				walk(field.GetFullTypeName(), userDefinedType.SchemaName)
+				walk(field.GetFullTypeName())
 			}
 			return
 		}
@@ -87,47 +91,48 @@ func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string, defaultSchema 
 		visited[name] = true
 		types = append(types, UnderlyingType{Name: name, Kind: TypeKindOther})
 	}
-	walk(typeName, defaultSchema)
+	walk(typeName)
 	return types
 }
 
-func lookupSchemaObject[T any](objects map[string]T, name string, defaultSchema string) (T, bool) {
-	if object, ok := objects[name]; ok {
-		return object, true
+// getColumnsWithTypes returns table's columns with their types. A typed table takes its columns
+// from the fields of its composite type. If that type is not in the exported schema, only the
+// column options from the DDL are returned.
+func (p *ParserIssueDetector) getColumnsWithTypes(table *queryparser.Table) []queryparser.TableColumn {
+	if table.OfTypeName == "" {
+		return table.Columns
 	}
-	var none T
-	if strings.Contains(name, ".") {
-		return none, false
+	compositeType, ok := p.userDefinedTypes[table.OfTypeName]
+	if !ok {
+		return table.Columns
 	}
-	if defaultSchema == "" {
-		return none, false
-	}
-	object, ok := objects[utils.BuildObjectName(defaultSchema, name)]
-	return object, ok
+	return compositeType.CompositeFields
 }
 
-// ColumnDatatypeSupport holds, for each migration flow, the type that makes a column
-// unsupported in that flow, or nil when the flow supports every type the column is built from.
+// ColumnDatatypeSupport holds, for each migration flow, every distinct type that makes a column
+// unsupported in that flow, or none when the flow supports every type the column is built from.
 type ColumnDatatypeSupport struct {
-	UnsupportedInOffline        *UnderlyingType
-	UnsupportedInLive           *UnderlyingType
-	UnsupportedInLiveWithFFOrFB *UnderlyingType
+	UnsupportedInOffline        []UnderlyingType
+	UnsupportedInLive           []UnderlyingType
+	UnsupportedInLiveWithFFOrFB []UnderlyingType
 }
 
 // GetColumnDatatypeSupport checks every type a PostgreSQL column of type typeName is built
 // from against the unsupported datatypes of each migration flow.
-func (p *ParserIssueDetector) GetColumnDatatypeSupport(typeName string, defaultSchema string) ColumnDatatypeSupport {
-	types := p.GetUnderlyingTypes(typeName, defaultSchema)
+func (p *ParserIssueDetector) GetColumnDatatypeSupport(typeName string) ColumnDatatypeSupport {
+	types := p.GetUnderlyingTypes(typeName)
 	liveWithFFOrFBUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
+	// a composite nested in another is part of the same user-defined value, so only the outermost is reported
+	outermostComposite, _ := lo.Find(types, func(t UnderlyingType) bool { return t.Kind == TypeKindComposite })
 	return ColumnDatatypeSupport{
-		UnsupportedInOffline: findUnderlyingType(types, func(t UnderlyingType) bool {
+		UnsupportedInOffline: filterUnderlyingTypes(types, func(t UnderlyingType) bool {
 			return isListedDatatype(t, srcdb.PostgresUnsupportedDataTypes)
 		}),
-		UnsupportedInLive: findUnderlyingType(types, func(t UnderlyingType) bool {
+		UnsupportedInLive: filterUnderlyingTypes(types, func(t UnderlyingType) bool {
 			return isListedDatatype(t, srcdb.GetPGLiveMigrationUnsupportedDatatypes())
 		}),
-		UnsupportedInLiveWithFFOrFB: findUnderlyingType(types, func(t UnderlyingType) bool {
-			return t.Kind == TypeKindComposite || isListedDatatype(t, liveWithFFOrFBUnsupportedDatatypes)
+		UnsupportedInLiveWithFFOrFB: filterUnderlyingTypes(types, func(t UnderlyingType) bool {
+			return (t.Kind == TypeKindComposite && t == outermostComposite) || isListedDatatype(t, liveWithFFOrFBUnsupportedDatatypes)
 		}),
 	}
 }
@@ -138,11 +143,21 @@ func isListedDatatype(t UnderlyingType, datatypes []string) bool {
 	return t.Kind == TypeKindOther && utils.ContainsAnyStringFromSlice(datatypes, t.BaseName())
 }
 
-func findUnderlyingType(types []UnderlyingType, matches func(UnderlyingType) bool) *UnderlyingType {
-	for i := range types {
-		if matches(types[i]) {
-			return &types[i]
+// filterUnderlyingTypes keeps one entry per base name for types not defined in the exported
+// schema, since the walk keeps xml and pg_catalog.xml apart but both raise the same issue.
+func filterUnderlyingTypes(types []UnderlyingType, matches func(UnderlyingType) bool) []UnderlyingType {
+	var matched []UnderlyingType
+	seen := make(map[string]bool)
+	for _, t := range types {
+		key := t.Name
+		if t.Kind == TypeKindOther {
+			key = t.BaseName()
 		}
+		if !matches(t) || seen[key] {
+			continue
+		}
+		seen[key] = true
+		matched = append(matched, t)
 	}
-	return nil
+	return matched
 }

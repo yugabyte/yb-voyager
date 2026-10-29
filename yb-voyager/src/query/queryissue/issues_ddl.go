@@ -386,7 +386,10 @@ func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement stri
 	issue := xmlDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var xidDatatypeIssue = issue.Issue{
@@ -403,7 +406,10 @@ func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement stri
 	issue := xidDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var xid8DatatypeIssue = issue.Issue{
@@ -420,7 +426,10 @@ func NewXID8DatatypeIssue(objectType string, objectName string, sqlStatement str
 	issue := xid8DatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var geometryDatatypeIssue = issue.Issue{
@@ -436,7 +445,10 @@ func NewGeometryDatatypeIssue(objectType string, objectName string, sqlStatement
 	issue := geometryDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var geographyDatatypeIssue = issue.Issue{
@@ -452,7 +464,10 @@ func NewGeographyDatatypeIssue(objectType string, objectName string, sqlStatemen
 	issue := geographyDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var box2dDatatypeIssue = issue.Issue{
@@ -468,7 +483,10 @@ func NewBox2DDatatypeIssue(objectType string, objectName string, sqlStatement st
 	issue := box2dDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var box3dDatatypeIssue = issue.Issue{
@@ -484,7 +502,10 @@ func NewBox3DDatatypeIssue(objectType string, objectName string, sqlStatement st
 	issue := box3dDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var topogeometryDatatypeIssue = issue.Issue{
@@ -500,7 +521,10 @@ func NewTopogeometryDatatypeIssue(objectType string, objectName string, sqlState
 	issue := topogeometryDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var loDatatypeIssue = issue.Issue{
@@ -516,7 +540,10 @@ func NewLODatatypeIssue(objectType string, objectName string, SqlStatement strin
 	issue := loDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, details, map[string]interface{}{})
 }
 
 var rasterDatatypeIssue = issue.Issue{
@@ -532,7 +559,10 @@ func NewRasterDatatypeIssue(objectType string, objectName string, sqlStatement s
 	issue := rasterDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var pgLsnDatatypeIssue = issue.Issue{
@@ -548,7 +578,10 @@ func NewPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement st
 	issue := pgLsnDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var txidSnapshotDatatypeIssue = issue.Issue{
@@ -564,7 +597,10 @@ func NewTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlState
 	issue := txidSnapshotDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var int8MultirangeDatatypeIssue = issue.Issue{
@@ -586,7 +622,10 @@ func NewInt8MultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := int8MultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var int4MultirangeDatatypeIssue = issue.Issue{
@@ -608,7 +647,10 @@ func NewInt4MultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := int4MultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var dateMultirangeDatatypeIssue = issue.Issue{
@@ -630,7 +672,10 @@ func NewDateMultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := dateMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var numMultirangeDatatypeIssue = issue.Issue{
@@ -652,7 +697,10 @@ func NewNumMultiRangeDatatypeIssue(objectType string, objectName string, sqlStat
 	issue := numMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var tsMultirangeDatatypeIssue = issue.Issue{
@@ -674,7 +722,10 @@ func NewTSMultiRangeDatatypeIssue(objectType string, objectName string, sqlState
 	issue := tsMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 var tstzMultirangeDatatypeIssue = issue.Issue{
@@ -696,7 +747,10 @@ func NewTSTZMultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 	issue := tstzMultirangeDatatypeIssue
 	typeName = strings.ToUpper(typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{}, map[string]interface{}{})
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details, map[string]interface{}{})
 }
 
 // ============================= PK and UK Constraints on Unsupported Datatypes Issues =================

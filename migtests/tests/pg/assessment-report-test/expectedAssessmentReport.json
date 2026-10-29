@@ -1211,7 +1211,10 @@
             "ObjectName": "schema2.mixed_data_types_table2",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table2 (\n    id integer NOT NULL,\n    lsn_data pg_lsn,\n    lseg_data lseg,\n    path_data path\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lsn_data"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -1224,7 +1227,10 @@
             "ObjectName": "public.combined_tbl",
             "SqlStatement": "CREATE TABLE public.combined_tbl (\n    id integer NOT NULL,\n    c cidr,\n    maddr macaddr,\n    maddr8 macaddr8,\n    lsn pg_lsn,\n    inds3 interval day to second(3),\n    d daterange,\n    bitt bit(13),\n    bittv bit varying(15),\n    address public.address_type,\n    raster public.lo,\n    arr_enum public.enum_kind[] NOT NULL,\n    data public.hstore,\n    xml_data xml[]\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lsn"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -1237,7 +1243,10 @@
             "ObjectName": "public.combined_tbl",
             "SqlStatement": "CREATE TABLE public.combined_tbl (\n    id integer NOT NULL,\n    c cidr,\n    maddr macaddr,\n    maddr8 macaddr8,\n    lsn pg_lsn,\n    inds3 interval day to second(3),\n    d daterange,\n    bitt bit(13),\n    bittv bit varying(15),\n    address public.address_type,\n    raster public.lo,\n    arr_enum public.enum_kind[] NOT NULL,\n    data public.hstore,\n    xml_data xml[]\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "raster"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -1250,7 +1259,10 @@
             "ObjectName": "public.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "snapshot_data"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -1263,7 +1275,10 @@
             "ObjectName": "public.mixed_data_types_table2",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table2 (\n    id integer NOT NULL,\n    lsn_data pg_lsn,\n    lseg_data lseg,\n    path_data path\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lsn_data"
+            }
         },
         {
             "Category": "unsupported_datatypes",
@@ -1276,7 +1291,10 @@
             "ObjectName": "schema2.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "snapshot_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1289,7 +1307,10 @@
             "ObjectName": "public.products",
             "SqlStatement": "CREATE TABLE public.products (\n    item public.item_details,\n    added_at timestamp with time zone DEFAULT now(),\n    updated_at timestamp with time zone DEFAULT now()\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "item"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1302,7 +1323,10 @@
             "ObjectName": "schema2.int_multirange_table",
             "SqlStatement": "CREATE TABLE schema2.int_multirange_table (\n    id integer NOT NULL,\n    value_ranges int4multirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "value_ranges"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1315,7 +1339,10 @@
             "ObjectName": "public.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "point_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1328,7 +1355,10 @@
             "ObjectName": "public.int_multirange_table",
             "SqlStatement": "CREATE TABLE public.int_multirange_table (\n    id integer NOT NULL,\n    value_ranges int4multirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "value_ranges"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1341,7 +1371,10 @@
             "ObjectName": "public.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lseg_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1354,7 +1387,10 @@
             "ObjectName": "public.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "box_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1367,7 +1403,10 @@
             "ObjectName": "public.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "time_with_tz"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1380,7 +1419,10 @@
             "ObjectName": "public.date_multirange_table",
             "SqlStatement": "CREATE TABLE public.date_multirange_table (\n    id integer NOT NULL,\n    project_dates datemultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "project_dates"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1393,7 +1435,10 @@
             "ObjectName": "public.mixed_data_types_table2",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table2 (\n    id integer NOT NULL,\n    lsn_data pg_lsn,\n    lseg_data lseg,\n    path_data path\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lseg_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1406,7 +1451,10 @@
             "ObjectName": "public.mixed_data_types_table2",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table2 (\n    id integer NOT NULL,\n    lsn_data pg_lsn,\n    lseg_data lseg,\n    path_data path\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "path_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1419,7 +1467,10 @@
             "ObjectName": "public.numeric_multirange_table",
             "SqlStatement": "CREATE TABLE public.numeric_multirange_table (\n    id integer NOT NULL,\n    price_ranges nummultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "price_ranges"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1432,7 +1483,10 @@
             "ObjectName": "public.orders",
             "SqlStatement": "CREATE TABLE public.orders (\n    item public.item_details,\n    number_of_items integer,\n    created_at timestamp with time zone DEFAULT now()\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "item"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1445,7 +1499,10 @@
             "ObjectName": "public.orders_lateral",
             "SqlStatement": "CREATE TABLE public.orders_lateral (\n    order_id integer,\n    customer_id integer,\n    order_details xml\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "order_details"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1458,7 +1515,10 @@
             "ObjectName": "public.combined_tbl",
             "SqlStatement": "CREATE TABLE public.combined_tbl (\n    id integer NOT NULL,\n    c cidr,\n    maddr macaddr,\n    maddr8 macaddr8,\n    lsn pg_lsn,\n    inds3 interval day to second(3),\n    d daterange,\n    bitt bit(13),\n    bittv bit varying(15),\n    address public.address_type,\n    raster public.lo,\n    arr_enum public.enum_kind[] NOT NULL,\n    data public.hstore,\n    xml_data xml[]\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "xml_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1471,7 +1531,10 @@
             "ObjectName": "public.test_xml_type",
             "SqlStatement": "CREATE TABLE public.test_xml_type (\n    id integer,\n    data xml\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1484,7 +1547,10 @@
             "ObjectName": "public.timestamp_multirange_table",
             "SqlStatement": "CREATE TABLE public.timestamp_multirange_table (\n    id integer NOT NULL,\n    event_times tsmultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "event_times"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1497,7 +1563,10 @@
             "ObjectName": "public.timestamptz_multirange_table",
             "SqlStatement": "CREATE TABLE public.timestamptz_multirange_table (\n    id integer NOT NULL,\n    global_event_times tstzmultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "global_event_times"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1510,7 +1579,10 @@
             "ObjectName": "public.ts_query_table",
             "SqlStatement": "CREATE TABLE public.ts_query_table (\n    id integer NOT NULL,\n    query tsquery\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "query"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1523,7 +1595,10 @@
             "ObjectName": "public.vector_table",
             "SqlStatement": "CREATE TABLE public.vector_table (\n    id integer NOT NULL,\n    vector_data public.vector(10)\n);",
             "DocsLink": "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "vector_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1536,7 +1611,10 @@
             "ObjectName": "schema2.bigint_multirange_table",
             "SqlStatement": "CREATE TABLE schema2.bigint_multirange_table (\n    id integer NOT NULL,\n    value_ranges int8multirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "value_ranges"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1549,7 +1627,10 @@
             "ObjectName": "schema2.date_multirange_table",
             "SqlStatement": "CREATE TABLE schema2.date_multirange_table (\n    id integer NOT NULL,\n    project_dates datemultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "project_dates"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1562,7 +1643,10 @@
             "ObjectName": "public.library_nested",
             "SqlStatement": "CREATE TABLE public.library_nested (\n    lib_id integer,\n    lib_data xml\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lib_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1575,7 +1659,10 @@
             "ObjectName": "schema2.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "point_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1588,7 +1675,10 @@
             "ObjectName": "public.combined_tbl",
             "SqlStatement": "CREATE TABLE public.combined_tbl (\n    id integer NOT NULL,\n    c cidr,\n    maddr macaddr,\n    maddr8 macaddr8,\n    lsn pg_lsn,\n    inds3 interval day to second(3),\n    d daterange,\n    bitt bit(13),\n    bittv bit varying(15),\n    address public.address_type,\n    raster public.lo,\n    arr_enum public.enum_kind[] NOT NULL,\n    data public.hstore,\n    xml_data xml[]\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "address"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1601,7 +1691,10 @@
             "ObjectName": "schema2.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lseg_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1614,7 +1707,10 @@
             "ObjectName": "schema2.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "box_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1627,7 +1723,10 @@
             "ObjectName": "schema2.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table1 (\n    id integer NOT NULL,\n    point_data point,\n    snapshot_data txid_snapshot,\n    lseg_data lseg,\n    box_data box,\n    time_with_tz time with time zone\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "time_with_tz"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1640,7 +1739,10 @@
             "ObjectName": "public.bigint_multirange_table",
             "SqlStatement": "CREATE TABLE public.bigint_multirange_table (\n    id integer NOT NULL,\n    value_ranges int8multirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "value_ranges"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1653,7 +1755,10 @@
             "ObjectName": "schema2.mixed_data_types_table2",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table2 (\n    id integer NOT NULL,\n    lsn_data pg_lsn,\n    lseg_data lseg,\n    path_data path\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lseg_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1666,7 +1771,10 @@
             "ObjectName": "schema2.mixed_data_types_table2",
             "SqlStatement": "CREATE TABLE schema2.mixed_data_types_table2 (\n    id integer NOT NULL,\n    lsn_data pg_lsn,\n    lseg_data lseg,\n    path_data path\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "path_data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1679,7 +1787,10 @@
             "ObjectName": "schema2.numeric_multirange_table",
             "SqlStatement": "CREATE TABLE schema2.numeric_multirange_table (\n    id integer NOT NULL,\n    price_ranges nummultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "price_ranges"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1692,7 +1803,10 @@
             "ObjectName": "schema2.orders",
             "SqlStatement": "CREATE TABLE schema2.orders (\n    item schema2.item_details,\n    number_of_items integer,\n    created_at timestamp with time zone DEFAULT now()\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "item"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1705,7 +1819,10 @@
             "ObjectName": "schema2.products",
             "SqlStatement": "CREATE TABLE schema2.products (\n    item schema2.item_details,\n    added_at timestamp with time zone DEFAULT now(),\n    updated_at timestamp with time zone DEFAULT now()\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "item"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1718,7 +1835,10 @@
             "ObjectName": "schema2.test_xml_type",
             "SqlStatement": "CREATE TABLE schema2.test_xml_type (\n    id integer,\n    data xml\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "data"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1731,7 +1851,10 @@
             "ObjectName": "schema2.timestamp_multirange_table",
             "SqlStatement": "CREATE TABLE schema2.timestamp_multirange_table (\n    id integer NOT NULL,\n    event_times tsmultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "event_times"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1744,7 +1867,10 @@
             "ObjectName": "schema2.timestamptz_multirange_table",
             "SqlStatement": "CREATE TABLE schema2.timestamptz_multirange_table (\n    id integer NOT NULL,\n    global_event_times tstzmultirange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "global_event_times"
+            }
         },
         {
             "Category": "migration_caveats",
@@ -1757,7 +1883,10 @@
             "ObjectName": "schema2.vector_table",
             "SqlStatement": "CREATE TABLE schema2.vector_table (\n    id integer NOT NULL,\n    vector_data public.vector(10)\n);",
             "DocsLink": "https://docs.yugabyte.com/stable/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "vector_data"
+            }
         }
     ],
     "TableIndexStats": [

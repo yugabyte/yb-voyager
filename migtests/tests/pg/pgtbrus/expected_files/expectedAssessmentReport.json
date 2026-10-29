@@ -134,7 +134,10 @@
             "ObjectName": "public.t",
             "SqlStatement": "CREATE TABLE public.t (\n    i integer NOT NULL,\n    ts timestamp(0) with time zone DEFAULT now(),\n    j json,\n    t text,\n    e public.myenum,\n    c public.mycomposit\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "c"
+            }
         }
     ],
     "TableIndexStats": [

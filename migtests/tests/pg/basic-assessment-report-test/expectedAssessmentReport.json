@@ -223,7 +223,10 @@
             "ObjectName": "public.mixed_data_types_table1",
             "SqlStatement": "CREATE TABLE public.mixed_data_types_table1 (\n    id integer NOT NULL,\n    data jsonb,\n    snapshot_data txid_snapshot\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "snapshot_data"
+            }
         }
     ],
     "TableIndexStats": [

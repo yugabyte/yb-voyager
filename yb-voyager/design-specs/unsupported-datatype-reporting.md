@@ -33,13 +33,13 @@ Before this work each phase decided "unsupported" differently. Only the declared
 - A column is unsupported in a flow if any type in its type tree is unsupported in that flow. The tree follows domains to their base type, arrays to their element type and composites to their fields, recursively.
 - `analyze-schema` and `assess-migration` agree exactly for PostgreSQL: assessment shows what analyze reports and nothing else.
 - `export data` skips exactly the columns that the earlier phases warned about for that flow, with the exceptions listed in §6.2.
-- Each column is reported once, on the table that declares it.
+- Each column is reported on the table that declares it, once for every distinct unsupported type it is built from.
 - Case-sensitive schema, table, column and type names work in every phase.
 
 **Non-goals**
 
 - Changing which types are unsupported. The per-flow lists in `srcdb` stay as they are.
-- Oracle and MySQL. Oracle keeps its own catalog path in assessment and export (§5.2.3). MySQL is unchanged.
+- Oracle and MySQL catalog paths. Oracle keeps its own catalog path in assessment and export (§5.2.3). The analyze-schema detectors are source-agnostic, though, so Oracle and MySQL analyze-schema also pick up the new walk (§5.1.4).
 - Import-side value conversion. §6.2 lists where it constrains export, but this design does not change it.
 - The deprecated `UnsupportedDataTypes` and datatype `MigrationCaveats` fields of the assessment report. For PG they are no longer filled (§8).
 
@@ -94,7 +94,7 @@ A column's type tree is its declared type plus every type it is built from:
 | Enum | none |
 | Base, extension or range type | none |
 
-The walk is depth-first and keeps a visited set, so a type reached twice is listed once, and a cycle through composites terminates. The declared type comes first. A flow reports the first type in the tree that it does not support (§4), so a domain over `pg_lsn` is reported as `pg_lsn`, not as the domain.
+The walk is depth-first and keeps a visited set, so a type reached twice is listed once, and a cycle through composites terminates. The declared type comes first. A flow reports every distinct type in the tree that it does not support (§4). A domain over `pg_lsn` is reported as `pg_lsn`, not as the domain. A composite with an `xml` and a `pg_lsn` field gets both issues, so one run shows every blocker.
 
 ### 3.2 Parser walk (`queryissue.GetUnderlyingTypes`)
 
@@ -106,12 +106,12 @@ type UnderlyingType struct {
     Kind TypeKind
 }
 
-func (p *ParserIssueDetector) GetUnderlyingTypes(typeName, defaultSchema string) []UnderlyingType
+func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string) []UnderlyingType
 func (t UnderlyingType) BaseName() string // unqualified, no "[]", canonical spelling
 ```
 
 - **Inputs.** `ParseAndProcessDDL` records every `CREATE DOMAIN` and `CREATE TYPE` before any `CREATE TABLE` is checked. The object-type order of the first pass guarantees this: SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, ....
-- **Name lookup.** A name is looked up as written. If that fails and the name is unqualified, it is looked up again in `defaultSchema`. For a column this is the table's schema; for a domain's base type or a composite's field, it is the schema of that domain or type. There is no `search_path` emulation and no cross-schema guess.
+- **Name lookup.** A name is looked up exactly as written and is never qualified with a schema. pg_dump sets `search_path` to empty and qualifies every user type, and PG searches `pg_catalog` first. So an unqualified name is a built-in, even when the table's schema defines a domain or type of that name. For example, `x xml` next to `CREATE DOMAIN public.xml` is the built-in XML.
 - **Types not in the schema.** Built-ins, extension types (`geometry`, `lo`, `hstore`) and types from schemas that were not exported come out as `TypeKindOther`, named as written. They are never walked further.
 - **List matching.** Only `TypeKindOther` types are matched against the lists, by `BaseName()`. A domain, composite or enum defined in the schema never matches by its own name, so `public.point` or `public.xml` is judged by what it is built from.
 
@@ -124,7 +124,7 @@ One recursive CTE per export, over every table in the export list:
 - Composite: `typtype = 'c'` → `atttypid` of each live field of `typrelid`.
 - A `visited` array stops cycles. `MIN(depth)` per type removes duplicates.
 
-Each row carries `typname` and `typtype`. Composite and range names are schema-qualified, so a user type cannot collide with a built-in name. A column is unsupported if any row matches the name list (case-insensitively) or the flow's `typtype` list (§4.2).
+Each row carries `typname` and `typtype`. Composite and range names are schema-qualified, so those user types cannot collide with a built-in name. Domains, enums and user base types come back as a bare `typname` and can collide (§6.2 D5). A column is unsupported if any row matches the name list (case-insensitively) or the flow's `typtype` list (§4.2).
 
 ## 4\. Unsupported type sets
 
@@ -136,7 +136,7 @@ All lists live in `src/srcdb` and are the single source of truth for both walks.
 | :---- | :---- | :---- |
 | Offline | `PostgresUnsupportedDataTypes` | Types YugabyteDB cannot store, e.g. `pg_lsn`, `xml`, `geometry`, `lo`, multiranges. |
 | Live (PG source, Debezium) | `PostgresUnsupportedDataTypesForDbzm` (`GetPGLiveMigrationUnsupportedDatatypes`) | Superset of offline. Adds geometric types, `vector`, `timetz`, `cid`, `refcursor`. |
-| Live with fall-forward / fall-back | `GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes` | `YugabyteUnsupportedDataTypesForDbzmLogical` minus the live list, i.e. today `tsquery`. Plus every composite type (§4.2), to be dropped per D2. |
+| Live with fall-forward / fall-back | `GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes` | `YugabyteUnsupportedDataTypesForDbzmLogical` minus the live list, i.e. today `tsquery`. Plus the outermost composite type of a column (§4.2), to be dropped per D2. |
 | Export from YB (logical connector) | `YugabyteUnsupportedDataTypesForDbzmLogical` | Used by the FF/FB exporter. |
 | Export from YB (gRPC connector) | `YugabyteUnsupportedDataTypesForDbzmGrpc` | Adds `hstore`, `citext`, `ltree`, `tsvector`. |
 
@@ -146,7 +146,7 @@ Some types are unsupported by kind rather than by name:
 
 | Kind | analyze / assess | export data |
 | :---- | :---- | :---- |
-| Composite | Unsupported under FF/FB (`UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED`). To change: only its fields are checked (D2). | Skipped only by the YB gRPC exporter (`typtype = 'c'`). |
+| Composite | Unsupported under FF/FB (`UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED`), for the outermost composite only. A composite nested in it is part of the same value. To change: only its fields are checked (D2). | Skipped only by the YB gRPC exporter (`typtype = 'c'`). |
 | Range (`typtype = 'r'`) | Not reported. | Skipped by every Debezium export (PG and YB): the importer's value converter cannot handle ranges. |
 | Multirange (`typtype = 'm'`) | Reported by name (built-in multiranges are in the lists). | Skipped by `typtype`, which also covers user-defined multiranges. |
 | Enum | Leaf. Never unsupported by itself. | Same. gRPC: tables with arrays of enums or UDTs are dropped whole by `FilterUnsupportedTables`. |
@@ -159,18 +159,20 @@ The differences in this table are deliberate in the current code but not all are
 
 #### 5.1.1 Detection
 
-`TableIssueDetector.DetectIssues` checks each column of a `CREATE TABLE`:
+`TableIssueDetector.DetectIssues` checks each column of a `CREATE TABLE`. For a typed table (`CREATE TABLE t OF type`), the columns are the fields of that composite:
 
 ```go
-support := d.GetColumnDatatypeSupport(col.GetFullTypeName(), table.SchemaName)
-// support.UnsupportedInOffline        → ReportUnsupportedDatatypes(...)
-// support.UnsupportedInLive           → ReportUnsupportedDatatypesInLive(...)
-// else support.UnsupportedInLiveWithFFOrFB
-//      Kind == Composite              → NewUserDefinedDatatypeIssue(..., type name, column)
-//      otherwise                      → ReportUnsupportedDatatypesInLiveWithFFOrFB(...)
+for _, col := range d.getColumnsWithTypes(table) {
+    support := d.GetColumnDatatypeSupport(col.GetFullTypeName())
+    // each of support.UnsupportedInOffline → ReportUnsupportedDatatypes(...)
+    // each of support.UnsupportedInLive    → ReportUnsupportedDatatypesInLive(...)
+    // if UnsupportedInLive is empty, each of support.UnsupportedInLiveWithFFOrFB:
+    //      Kind == Composite               → NewUserDefinedDatatypeIssue(..., type name, column)
+    //      otherwise                       → ReportUnsupportedDatatypesInLiveWithFFOrFB(...)
+}
 ```
 
-`GetColumnDatatypeSupport` returns, for each flow, the first type in the tree that the flow does not support, or nil. The FF/FB issue is raised only when the column is supported in plain live migration, because an unsupported live column already blocks FF/FB.
+`GetColumnDatatypeSupport` returns, for each flow, every distinct type in the tree that the flow does not support. Types not defined in the exported schema are deduplicated by base name, so `xml` and `pg_catalog.xml` in one tree raise one issue. Under FF/FB only the outermost composite is reported: a composite nested in it is part of the same value. The FF/FB issue is raised only when the column is supported in plain live migration, because an unsupported live column already blocks FF/FB.
 
 `ForeignTableIssueDetector` checks offline support only, since live migration does not stream foreign tables.
 
@@ -181,15 +183,17 @@ support := d.GetColumnDatatypeSupport(col.GetFullTypeName(), table.SchemaName)
 | Object | Reported? | Reason |
 | :---- | :---- | :---- |
 | Regular table | Yes, per column. | |
-| Partitioned table (root) | Yes, per column. | Partitions declare no columns, so the root carries the issue for the whole hierarchy. |
-| Intermediate or leaf partition (`PARTITION OF`) | No. | No column list in the DDL. Reported once on the root. |
+| Partitioned table (root) | Yes, per column. | |
+| Intermediate or leaf partition, as pg_dump writes it | Yes, per column. | pg_dump writes `CREATE TABLE` with the full column list, then `ALTER TABLE ONLY root ATTACH PARTITION`. The issue repeats on every partition. |
+| Partition written as `PARTITION OF` | No. | No column list in the DDL. Only seen in hand-written schemas, not in pg_dump output. |
+| Typed table (`CREATE TABLE t OF type`) | Yes, per field of the composite. | pg_dump keeps the `OF` form, whose DDL lists only column options. A composite outside the exported schema reports nothing (D4). |
 | Inheritance parent | Yes, per column. | |
 | Inheritance child | Only for columns it declares itself. | Inherited columns are reported on the parent. The table also gets the separate `INHERITANCE` issue. |
 | Foreign table | Offline issues only. | §5.1.1. |
 | View, materialized view | No. | A view stores no data. Its source tables carry the issue. |
 | Function arguments and return types, `ALTER TABLE ... ADD COLUMN` | No. | Out of scope, unchanged by this design. |
 
-Each issue is a **TABLE**-level issue. `ObjectName` is the qualified table name, `SqlStatement` is the `CREATE TABLE`, and the column name and offending type are in the issue details.
+Each issue is a **TABLE**-level issue. `ObjectName` is the qualified table name and `SqlStatement` is the `CREATE TABLE`. The offending type is in the issue type, name and description. The column is in the description and in `Details.ColumnName`, which every datatype issue constructor (offline, live and FF/FB) sets.
 
 #### 5.1.3 Categories and filtering
 
@@ -202,6 +206,10 @@ Each issue is a **TABLE**-level issue. `ObjectName` is the qualified table name,
 | `queryissue.UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues` | `MIGRATION_CAVEATS_CATEGORY` |
 
 `GetDDLIssues` then removes issues fixed in the target YB version, and `finalizeIssues` drops a live issue when the offline issue for the same type is present on the same object. A `pg_lsn` column therefore shows one issue, not two.
+
+#### 5.1.4 Oracle and MySQL sources
+
+`TableIssueDetector`, `ForeignTableIssueDetector`, the `CREATE DOMAIN` parsing and `CompositeFields` do not check the source type. analyze-schema on the PG DDL that ora2pg produces for Oracle and MySQL therefore also walks domains, arrays and composite fields, and reads the column type with `GetFullTypeName()` instead of `TypeName`. For Oracle this matters because ora2pg writes object types as composites, whose fields are now checked. The lists matched are still the PG lists, as before. There is no Oracle or MySQL analyze test for this yet (§11).
 
 ### 5.2 `assess-migration`
 
@@ -228,8 +236,8 @@ There is no PG catalog query for column types. `table-columns-data-types.psql` i
 #### 5.2.2 Report and callhome
 
 - Issues keep their analyze category. Offline issues are under "Unsupported datatypes", and live and FF/FB issues are under "Migration caveats".
-- `ObjectType` is `TABLE` and `ObjectName` is `schema.table`. The column name is in the description and details.
-- Callhome anonymises `object_name` by object type: `AnonymizeQualifiedTableName` for PG (TABLE), `AnonymizeQualifiedColumnName` for Oracle (COLUMN).
+- `ObjectType` is `TABLE` and `ObjectName` is `schema.table`. The column name is in the description and in `Details.ColumnName`. The HTML report shows it as a "More Information" row.
+- Callhome anonymises `object_name` by object type: `AnonymizeQualifiedTableName` for PG (TABLE), `AnonymizeQualifiedColumnName` for Oracle (COLUMN). PG rows also carry the anonymised `CREATE TABLE` in `sql_statement`, once per affected column. Callhome does not send `Details`, and `ColumnName` is a sensitive key in any case.
 
 #### 5.2.3 Oracle
 
@@ -268,7 +276,7 @@ The export table list is what Debezium streams, so for partitioned tables it hol
 
 For a schema where every type a column uses is defined in the exported schemas, and for the PG source exporter:
 
-> A column appears as a live-migration datatype issue in analyze/assess **if and only if** export data from the source skips it by name, ignoring ranges (§6.2 D1).
+> A column appears as a live-migration datatype issue in analyze/assess **if and only if** export data from the source skips it by name, ignoring ranges (§6.2 D1) and user domains, enums or base types named like a list entry (D5).
 
 Both sides use the same list, both walk domains, arrays and composites, and both stop at enums. Tests that change either walk must keep this true for:
 
@@ -276,7 +284,7 @@ Both sides use the same list, both walk domains, arrays and composites, and both
 - an array of an unsupported type, a domain over that array, and an array of that domain
 - a composite with an unsupported field, and a composite nesting that composite
 - each of the above with case-sensitive schema, type, table and column names
-- a partitioned root with a multi-level hierarchy, where analyze reports it on the root and export skips it on every leaf
+- a partitioned root with a multi-level hierarchy, where analyze reports it on the root and on every partition, and export skips it on every leaf
 
 ### 6.2 Known divergences
 
@@ -285,8 +293,8 @@ Both sides use the same list, both walk domains, arrays and composites, and both
 | D1 | Built-in or user range column (`int4range`, `tsrange`, a `CREATE TYPE ... AS RANGE`) | Not reported. | Skipped in every Debezium export. | Report ranges as live issues, or teach the importer ranges and drop `r` from export. Follow-up. |
 | D2 | Composite column, FF/FB with logical connector | Reported as user-defined type under FF/FB. | Not skipped. | The logical connector is the default and streams composites, so align analyze/assess with export. Stop reporting every composite under FF/FB: drop the `TypeKindComposite` rule from `UnsupportedInLiveWithFFOrFB` and retire `UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED`. A composite is reported only when the walk finds an unsupported type among its fields, as the field type's issue. Separate PR. |
 | D3 | `hstore`, `citext`, `ltree`, `tsvector` with the gRPC connector | Not reported: FF/FB issues assume the logical connector. | Skipped only when the FF/FB target exporter uses the gRPC connector. The PG source exporter and the logical connector stream them. | Acceptable while logical is the default. Document it. |
-| D4 | Domain or composite defined in a schema that was not exported | Missed: the parser cannot walk it and sees only the outer name. | Skipped: the catalog sees every schema. | Accept. Export is the safety net. |
-| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` | Not matched. | Not matched: composite names are qualified. | As its usert defined type and not a base type, its acceptable|
+| D4 | Domain or composite defined in a schema that was not exported, including the type of a typed table | Missed: the parser cannot walk it and sees only the outer name. | Skipped: the catalog sees every schema. | Accept. Export is the safety net. |
+| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` or `CREATE DOMAIN public.xml AS text` | Not matched: only types outside the exported schema are matched by name (§3.2). | Composite or range: not matched, because the name is qualified. Domain, enum or user base type: matched, because the catalog returns a bare `typname`. So a `public.xml` domain over `text` is skipped by export but not reported. | Fix in the catalog walk: match names only for `pg_catalog` and extension-owned types, as `typeOidsQuery` already does, or qualify every user type. Follow-up on #3897. |
 | D6 | Schema drift after `export schema` | Reflects the exported files. | Reflects the live catalog. | By design. Drift is covered by `schema detect-drift`. |
 
 
@@ -307,18 +315,19 @@ analyze-schema and assess-migration cannot know which flow the user will pick, s
 
 | Surface | Change | Compatibility |
 | :---- | :---- | :---- |
-| Assessment report JSON, `Issues[]` for PG datatypes | `ObjectType` `COLUMN` → `TABLE`. `ObjectName` `schema.table.column` → `schema.table`. Fewer rows: views, partitions and inherited columns are gone. | No field added or removed. Consumers that grouped by column must read the column from details. |
+| Assessment report JSON, `Issues[]` for PG datatypes | `ObjectType` `COLUMN` → `TABLE`. `ObjectName` `schema.table.column` → `schema.table`. `Details` now holds `{"ColumnName": ...}`. Rows removed: view columns, inherited columns (the parent still reports them), and live and FF/FB rows on foreign tables (§5.1.1). Rows added: a column built from several unsupported types gets one row per type, and each pg_dump-written partition repeats its root's rows. | No field added or removed; `Details` was already on the struct. Consumers that grouped by column must read it from `Details.ColumnName`. |
+| Analyze-schema report JSON and HTML | Same `Details.ColumnName` on datatype issues. The HTML shows a "More Information" row. | Additive. |
 | `UnsupportedDataTypes` (deprecated) | Empty for PG. Still filled for Oracle. | The field and its JSON tag stay. |
-| `utils.TableColumnsDataTypes` | Loses fields only the PG CSV filled. | Not persisted. In-memory only. |
+| `utils.TableColumnsDataTypes` | Loses fields only the PG CSV filled. | Serialised into the yugabyted payload (`AssessmentReportYugabyteD.UnsupportedDataTypes`). The removed fields were all `json:"-"`, so the wire shape is unchanged. |
 | Assessment SQLite | PG no longer loads `table_columns_data_types`. | Old DBs with the table are read without error. |
-| Callhome `assess_migration` payload | `object_name` for PG datatype issues is an anonymised table name, not a column name. | Shape unchanged. Whether this needs a bump of `ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION` (2.0) is open (§12). |
+| Callhome `assess_migration` payload | For PG datatype issues, `object_type` is `TABLE` instead of `COLUMN`, for the live and FF/FB rows too. `object_name` is an anonymised table name; it was empty before. `sql_statement` is now filled with the anonymised `CREATE TABLE`, repeated once per affected column. | Keys unchanged, values changed. Whether this needs a bump of `ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION` (2.0) is open (§13). |
 | Export data | Unchanged surface. | Column include lists are re-computed every run. |
 
 ## 9\. Failure modes
 
 | Situation | Behaviour |
 | :---- | :---- |
-| Base name in a list but missing from the `ReportUnsupportedDatatypes*` switch | `utils.ErrExit("Unrecognized unsupported data type ...")`. A unit test should iterate every list and assert each name has a constructor, so this fails in CI rather than at a customer. |
+| Base name in a list but missing from the `ReportUnsupportedDatatypes*` switch | `utils.ErrExit("Unrecognized unsupported data type ...")`. A unit test should iterate every list and assert each name has a constructor, so this fails in CI rather than at a customer. That test does not exist yet (§11). |
 | Catalog walk query fails | `export data` exits with `get columns with supported types: ...`. |
 | Catalog returns a table that was not requested | Error. It means the `NameTuple` round-trip is broken, and guessing would skip the wrong columns. |
 | Domain or type referenced but not defined in the exported schema | Treated as `TypeKindOther`. Not an error, because extension and cross-schema types are normal (D4). |
@@ -332,12 +341,15 @@ None of this is on a hot path. The parser walk runs once per column during analy
 
 | Layer | Test | Covers |
 | :---- | :---- | :---- |
-| Type walk | `TestGetUnderlyingTypes` (`queryissue`) | Domains, stacked domains, arrays, nested composites, enums, default-schema resolution, case-sensitive names. No cycle case yet. |
-| Detection | `TestDatatypeIssuesInPartitionAndInheritanceHierarchy` (`queryissue`) | Case-sensitive partitioned root with a cross-schema domain and composite. No issues on intermediate and leaf partitions. Inheritance parent and children. |
+| Type walk | `TestGetUnderlyingTypes` (`queryissue`) | Domains, stacked domains, arrays, nested composites, enums, case-sensitive names. An unqualified name stays a built-in when a schema defines a type of that name. No cycle case yet. |
+| Detection | `TestDatatypeIssuesInPartitionAndInheritanceHierarchy` (`queryissue`) | Case-sensitive partitioned root with a cross-schema domain and composite. A pg_dump-style partition (`CREATE TABLE` plus `ATTACH PARTITION`) is reported. A `PARTITION OF` partition is not. Inheritance parent and children. |
+| Detection | `TestDomainOverUnsupportedDatatypeThroughGetDDLIssues` (`queryissue`) | Unqualified `point`, `xml` and `lo` next to user types of those names get the built-in issues. Typed tables: case-sensitive names with column options, a nested composite, and a composite outside the exported schema. A column built from several unsupported types, including `xml` and `pg_catalog.xml`. A nested composite under FF/FB. |
 | Detection | Existing `parser_issue_detector_test.go` datatype cases | Per-type issue constructors, offline/live/FF-FB split, live issue suppressed by offline. |
-| Assessment | `cmd` unit test for `addPGUnsupportedDatatypeIssuesFromSchemaAnalysisReport` | Selects exactly the three issue groups. Keeps category and object. **Missing on the branch; to add.** |
+| Detection | Unit test that every name in each list has an issue constructor (§9) | **Missing on the branch; to add.** |
+| Detection | Oracle analyze-schema test with an ora2pg object type (§5.1.4) | **Missing on the branch; to add.** |
+| Assessment | `cmd` unit test for `addPGUnsupportedDatatypeIssuesFromSchemaAnalysisReport` | Selects exactly the three issue groups. Keeps category, object and `Details`. **Missing on the branch; to add.** |
 | Export | `srcdb` integration tests for `GetColumnsWithSupportedTypes` (PG and YB) | Domains over arrays, arrays of domains, user-defined ranges, cross-schema domains, case-sensitive names. |
-| End to end | migtests `assessment-report-test`, `basic-assessment-report-test`, `osm`, `omnibus`, `adventureworks`, `pgtbrus`, datatypes callhome | Expected reports regenerated for TABLE-level PG issues. |
+| End to end | migtests `assessment-report-test`, `assessment-report-test-with-tdb`, `basic-assessment-report-test`, `osm`, `omnibus`, `adventureworks`, `pgtbrus`, datatypes callhome | Expected reports regenerated for TABLE-level PG issues with `Details.ColumnName`, including the basic HTML report. |
 
 **Gaps:**
 
@@ -350,11 +362,10 @@ None of this is on a hot path. The parser walk runs once per column during analy
 - **Carry internal per-column details on assessment issues so assessment could rebuild the old per-column lists.** Adds a field only assessment reads, and it feeds the deprecated sections. Rejected.
 - **Use the catalog walk for analyze too.** analyze-schema runs on files with no source connection. Rejected.
 - **Use the parser walk for export data.** The exported schema can be stale or partial (D4, D6), and skipping the wrong columns loses data. Rejected.
-- **Report on every partition.** Repeats one fact per leaf, and partitions have no column DDL to point at. Rejected in favour of the root.
 
 ## 13\. Open questions
 
 1. D1: should range columns be reported as live issues, or should the importer support ranges?
-2. Does changing what `object_name` holds for PG datatype issues require a callhome payload version bump?
+2. Do the new callhome values for PG datatype issues (`object_type` TABLE, table `object_name`, filled `sql_statement`) require a payload version bump?
 3. Should `GetUnderlyingTypes` and `UnderlyingType` stay exported? Today only `queryissue` uses them.
 4. Should views get an informational issue that points at the source table's column? Today they get nothing.
