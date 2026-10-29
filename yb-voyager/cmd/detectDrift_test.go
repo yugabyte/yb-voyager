@@ -178,6 +178,58 @@ func TestResolveDetectDriftFlagDefaultsTrimsSourceSchemas(t *testing.T) {
 	assert.Equal(t, "public,sales", source.SchemaConfig)
 }
 
+func TestValidateDetectDriftFlags(t *testing.T) {
+	savedSource, savedParsed := source, driftParsedFlags
+	savedFormat, savedTL, savedETL, savedOTL, savedEOTL := driftOutputFormat, driftTableList, driftExcludeTableList, driftObjectTypeList, driftExcludeObjectTypeList
+	t.Cleanup(func() {
+		source, driftParsedFlags = savedSource, savedParsed
+		driftOutputFormat, driftTableList, driftExcludeTableList, driftObjectTypeList, driftExcludeObjectTypeList = savedFormat, savedTL, savedETL, savedOTL, savedEOTL
+	})
+
+	tests := []struct {
+		name                                    string
+		dbType, format, tables, excludeTables   string
+		objectTypes, excludeObjectTypes         string
+		wantErr                                 string
+		wantObjectTypes, wantExcludeObjectTypes []schemadiff.ObjectType
+	}{
+		{name: "non-PostgreSQL source", dbType: constants.ORACLE,
+			wantErr: `schema detect-drift currently supports PostgreSQL sources only (got --source-db-type="oracle")`},
+		{name: "both table lists", dbType: constants.POSTGRESQL, tables: "a", excludeTables: "b",
+			wantErr: "--table-list and --exclude-table-list are mutually exclusive. Use only one of them."},
+		{name: "both object-type lists", dbType: constants.POSTGRESQL, objectTypes: "TABLE", excludeObjectTypes: "COLUMN",
+			wantErr: "--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them."},
+		{name: "bad output format", dbType: constants.POSTGRESQL, format: "xml",
+			wantErr: "invalid report output format: xml. Supported formats are [html json]"},
+		{name: "bad object type", dbType: constants.POSTGRESQL, objectTypes: "VIEW",
+			wantErr: "invalid --object-type-list: "},
+		{name: "bad excluded object type", dbType: constants.POSTGRESQL, excludeObjectTypes: "VIEW",
+			wantErr: "invalid --exclude-object-type-list: "},
+		{name: "valid flags store the parsed lists", dbType: constants.POSTGRESQL, format: "json", tables: "public.t",
+			objectTypes: "TABLE", wantObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable}},
+		{name: "valid exclude list", dbType: constants.POSTGRESQL, excludeObjectTypes: "COLUMN",
+			wantExcludeObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeColumn}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			source.DBType = tc.dbType
+			driftOutputFormat, driftTableList, driftExcludeTableList = tc.format, tc.tables, tc.excludeTables
+			driftObjectTypeList, driftExcludeObjectTypeList = tc.objectTypes, tc.excludeObjectTypes
+			driftParsedFlags.objectTypes, driftParsedFlags.excludeObjectTypes = nil, nil
+
+			err := validateDetectDriftFlags()
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantObjectTypes, driftParsedFlags.objectTypes)
+			assert.Equal(t, tc.wantExcludeObjectTypes, driftParsedFlags.excludeObjectTypes)
+		})
+	}
+}
+
 func TestDetectDriftNeedsInitialisedExportDirAndTakesLock(t *testing.T) {
 	require.Equal(t, "yb-voyager schema detect-drift", detectDriftCmd.CommandPath())
 	assert.True(t, shouldRunExportDirInitialisedCheck(detectDriftCmd))

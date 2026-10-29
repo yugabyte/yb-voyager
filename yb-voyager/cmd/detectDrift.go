@@ -112,7 +112,9 @@ unsupported source type, etc.).`,
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		resolveDetectDriftFlagDefaults()
-		validateDetectDriftFlags()
+		if err := validateDetectDriftFlags(); err != nil {
+			utils.ErrExit("%w", err)
+		}
 		// Resolve the source password from the --source-db-password flag, the
 		// SOURCE_DB_PASSWORD env var, or an interactive prompt -- exactly as the
 		// export commands do. Without this, source.Password stays empty and the
@@ -192,29 +194,30 @@ func resolveDetectDriftFlagDefaults() {
 //
 // Table-list validation (whether a pattern actually matches a table) needs the
 // source's table list and so happens later, inside resolveDriftScope.
-func validateDetectDriftFlags() {
+func validateDetectDriftFlags() error {
 	if source.DBType != POSTGRESQL {
-		utils.ErrExit("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
+		return goerrors.Errorf("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
 	}
 
 	if driftTableList != "" && driftExcludeTableList != "" {
-		utils.ErrExit("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
+		return goerrors.Errorf("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
 	}
 	if driftObjectTypeList != "" && driftExcludeObjectTypeList != "" {
-		utils.ErrExit("--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them.")
+		return goerrors.Errorf("--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them.")
 	}
 
 	if err := validateDriftOutputFormat(driftOutputFormat); err != nil {
-		utils.ErrExit("%w", err)
+		return err
 	}
 
 	var err error
 	if driftParsedFlags.objectTypes, err = parseDriftObjectTypeList(driftObjectTypeList); err != nil {
-		utils.ErrExit("invalid --object-type-list: %v", err)
+		return goerrors.Errorf("invalid --object-type-list: %w", err)
 	}
 	if driftParsedFlags.excludeObjectTypes, err = parseDriftObjectTypeList(driftExcludeObjectTypeList); err != nil {
-		utils.ErrExit("invalid --exclude-object-type-list: %v", err)
+		return goerrors.Errorf("invalid --exclude-object-type-list: %w", err)
 	}
+	return nil
 }
 
 // validateDriftOutputFormat accepts "" (both formats) or exactly one of
