@@ -273,10 +273,19 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 // It is the union rather than the live capture alone because a table dropped from
 // the source is gone from the catalog but must still be nameable, to see its own
 // drop reported. Only the stored snapshots still know about it.
-func driftTableUniverse(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) map[string][]string {
+//
+// Only tables in the given schemas (--source-db-schema, unquoted) are kept. History
+// may cover more schemas, and a table in another one would resolve under
+// --table-list while every finding for it is filtered out, so the run would
+// report no drift.
+func driftTableUniverse(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent,
+	schemas []string) map[string][]string {
 	seen := make(map[string]map[string]bool)
 	universe := make(map[string][]string)
 	add := func(schema, name string) {
+		if !lo.Contains(schemas, schema) {
+			return
+		}
 		if seen[schema] == nil {
 			seen[schema] = make(map[string]bool)
 		}
@@ -452,7 +461,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	universe := driftTableUniverse(snapshotContents, liveContent)
+	universe := driftTableUniverse(snapshotContents, liveContent, schemas)
 	reg, err := namereg.NewInMemorySourceNameRegistry(source.DBType, schemas, universe)
 	if err != nil {
 		return schemadiff.Scope{}, err

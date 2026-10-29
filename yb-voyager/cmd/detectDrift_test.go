@@ -320,6 +320,8 @@ func snapContent(refs ...schemasnapshot.ObjectRef) *schemasnapshot.SnapshotConte
 }
 
 func TestDriftTableUniverse(t *testing.T) {
+	publicOnly := []string{"public"}
+
 	t.Run("snapshot-only (dropped) table is still in the universe; dedup across snapshots", func(t *testing.T) {
 		// Headline universe-fix case: products is present ONLY in an older snapshot
 		// (dropped from the source since) yet must still be nameable. orders appears
@@ -330,20 +332,20 @@ func TestDriftTableUniverse(t *testing.T) {
 				schemasnapshot.ObjectRef{Schema: "public", Name: "products"},
 			),
 			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}),
-		}, nil)
+		}, nil, publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"orders", "products"}}, got)
 	})
 
 	t.Run("live capture contributes an extra table", func(t *testing.T) {
 		got := driftTableUniverse(
 			[]*schemasnapshot.SnapshotContent{snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})},
-			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "audit"}))
+			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "audit"}), publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"products", "audit"}}, got)
 	})
 
 	t.Run("same table in a snapshot and the live capture yields a single entry", func(t *testing.T) {
 		orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
-		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{snapContent(orders)}, snapContent(orders))
+		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{snapContent(orders)}, snapContent(orders), publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"orders"}}, got)
 	})
 
@@ -351,14 +353,55 @@ func TestDriftTableUniverse(t *testing.T) {
 		got := driftTableUniverse(nil, snapContent(
 			schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
 			schemasnapshot.ObjectRef{Schema: "Sales", Name: "Invoices"},
-		))
+		), []string{"public", "Sales"})
 		assert.Equal(t, map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}, got)
 	})
 
 	t.Run("nil snapshot content is skipped", func(t *testing.T) {
 		got := driftTableUniverse(
-			[]*schemasnapshot.SnapshotContent{nil, snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})}, nil)
+			[]*schemasnapshot.SnapshotContent{nil, snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})}, nil, publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"products"}}, got)
+	})
+
+	t.Run("tables of a schema outside the requested ones are left out, from snapshots and live alike", func(t *testing.T) {
+		// A table in another schema would resolve under --table-list, yet every
+		// finding for it is filtered out, so the run would read as "no drift".
+		got := driftTableUniverse(
+			[]*schemasnapshot.SnapshotContent{snapContent(
+				schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+				schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+			)},
+			snapContent(schemasnapshot.ObjectRef{Schema: "sales", Name: "audit"}),
+			publicOnly)
+		assert.Equal(t, map[string][]string{"public": {"orders"}}, got)
+	})
+}
+
+// A table named by --table-list must be one the run can report on. History
+// captured for more schemas than --source-db-schema selects must not widen what
+// the flag can name.
+func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
+	savedSource := source
+	t.Cleanup(func() { source = savedSource })
+	source.DBType = constants.POSTGRESQL
+
+	history := []schemasnapshot.SchemaSnapshot{{Content: snapContent(
+		schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+		schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+	)}}
+	schemas := []string{"public"}
+
+	t.Run("table-list naming an out-of-scope schema is an unknown table", func(t *testing.T) {
+		_, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{tableList: "sales.orders"})
+		require.Error(t, err)
+		var unknownErr *errs.UnknownTableErr
+		assert.True(t, errors.As(err, &unknownErr))
+	})
+
+	t.Run("unfiltered scope holds only the requested schemas' tables", func(t *testing.T) {
+		scope, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{})
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "orders"}}, scope.Tables)
 	})
 }
 

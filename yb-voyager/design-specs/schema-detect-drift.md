@@ -350,7 +350,7 @@ cmd.detectDrift()
  │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelSourceLive})        cmd → schemasnapshot
  │         its Header.Label IS the timeline identity; appended as the last input
  │
- ├─ cmd.driftTableUniverse(contents, live)                    → table universe                                §5.5
+ ├─ cmd.driftTableUniverse(contents, live, schemas)           → table universe                                §5.5
  ├─ namereg.NewInMemorySourceNameRegistry(universe)           → []NameTuple, cmd.extractTableListFromString,
  │      cmd.expandDriftPartitions / complementDriftTableRefs  → []ObjectRef, then schemadiff.Scope            §5.5
  │
@@ -477,7 +477,7 @@ Every entry in `infoByDiffType` carries a non-empty Severity, Impact and Action.
 
 **Where:** `cmd.driftTableUniverse`, `namereg.NewInMemorySourceNameRegistry`, export data's `cmd.extractTableListFromString`, `cmd.expandDriftPartitions`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
-The set of tables a pattern can match is the union of every loadable stored snapshot and the live read. The live read already holds every table in the catalog, so the catalog is not listed separately. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing the live read is an error (exit 1).
+The set of tables a pattern can match is the union of every loadable stored snapshot and the live read, restricted to the schemas selected by `--source-db-schema`: a table in another schema would resolve, but every finding for it would be dropped, so the run would read as "no drift". The live read already holds every table in the catalog, so the catalog is not listed separately. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing the live read is an error (exit 1).
 
 Names resolve the way export data resolves them. The universe is loaded into an in-memory name registry, which turns it into `NameTuple`s. The flags then go through export data's `extractTableListFromString`, so the glob matching and the unknown-table error are export's own. The registry is never written: the migration's `name_registry.json` lists only the tables present at export data's first run, so it cannot name a table created since.
 
