@@ -270,11 +270,53 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 		TimingOfflineAfterExportStart: keyNameChangedInfo,
 		TimingLiveAfterExportStart:    keyNameChangedInfo,
 	},
+	schemadiff.UniqueAdded: {
+		TimingBeforeExportData:        uniqueAddedInfo,
+		TimingOfflineAfterExportStart: uniqueAddedInfo,
+		TimingLiveAfterExportStart:    uniqueAddedInfo,
+	},
+	schemadiff.UniqueDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: uniqueDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingLiveAfterExportStart: uniqueDroppedLiveInfo,
+	},
+	schemadiff.UniqueNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
+	schemadiff.CheckAdded: {
+		TimingBeforeExportData:        checkAddedInfo,
+		TimingOfflineAfterExportStart: checkAddedInfo,
+		TimingLiveAfterExportStart:    checkAddedInfo,
+	},
+	schemadiff.CheckDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: checkDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: checkDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksRecoverable,
+			Impact: "The source now allows rows the target's check rejects, so `import data` stops on the first one.",
+			Action: "Drop it on the target, then run `import data` again."},
+	},
+	schemadiff.CheckNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
 }
 
 // Appended to Impact while a cutover with fall-back is still possible.
 var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
 	schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+	schemadiff.UniqueAdded:   uniqueAddedFallBackRisk,
+	schemadiff.CheckAdded:    "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
 }
 
 // Shared by several timings or change types.
@@ -336,6 +378,24 @@ var (
 		Action: "Remove the same inheritance on the target before the application moves to the target."}
 
 	primaryKeyDroppedLiveImpact = "Every later change to this table reaches `import data` with an empty key, so it stops, and it fails again on every restart. A restart of `export data` refuses the table. This is also reported, with `PRIMARY_KEY_ADDED`, when the key was changed or re-created: if it was changed in one transaction, changing it on the target and running `import data` again recovers."
+
+	uniqueAddedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected.",
+		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique constraints only when it starts, so with the new one missing, the first write that frees and reuses a value stops it."}
+
+	uniqueDroppedImpact = "The source now allows duplicate values, and the target still has the constraint, so `import data` fails on the first duplicate."
+
+	uniqueDroppedLiveInfo = DriftInfo{Severity: SeverityBreaksRecoverable,
+		Impact: "The source now allows duplicate values, and the target still has the constraint, so `import data` stops at the first duplicate value.",
+		Action: "Drop it on the target, then run `import data` again."}
+
+	uniqueAddedFallBackRisk = "If you cut over with fall-back while the target doesn't have this constraint, `import data to source` stops at the first row from the target that breaks it."
+
+	checkAddedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected.",
+		Action: "Add it on the target to keep the schemas the same."}
+
+	checkDroppedImpact = "The source now allows rows the target's check rejects, so `import data` fails on the first one."
 
 	keyNameChangedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`export data` and `import data` are not affected.",

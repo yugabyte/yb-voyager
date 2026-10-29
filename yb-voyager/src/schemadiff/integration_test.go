@@ -71,9 +71,20 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`."Pk_Added" ("Id" int)`,
 		`CREATE TABLE `+driftSchema+`.pk_dropped (id int PRIMARY KEY)`,
 		`CREATE TABLE `+driftSchema+`.pk_renamed (id int CONSTRAINT old_pk PRIMARY KEY)`,
+		`CREATE TABLE `+driftSchema+`."Uq_Added" (a int)`,
+		`CREATE TABLE `+driftSchema+`.uq_dropped (a int CONSTRAINT uq_dropped_key UNIQUE)`,
+		`CREATE TABLE `+driftSchema+`.uq_renamed (a int CONSTRAINT old_uq UNIQUE)`,
+		`CREATE TABLE `+driftSchema+`."Ck_Added" (a int)`,
+		`CREATE TABLE `+driftSchema+`.ck_dropped (a int CONSTRAINT ck_dropped_check CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`.ck_renamed (a int CONSTRAINT old_ck CHECK (a > 0))`,
 		`CREATE TABLE `+driftSchema+`.pk_part (id int) PARTITION BY RANGE (id)`,
 		`CREATE TABLE `+driftSchema+`.pk_part_a PARTITION OF `+driftSchema+`.pk_part FOR VALUES FROM (1) TO (10) PARTITION BY RANGE (id)`,
 		`CREATE TABLE `+driftSchema+`.pk_part_a1 PARTITION OF `+driftSchema+`.pk_part_a FOR VALUES FROM (1) TO (5)`,
+		`CREATE TABLE `+driftSchema+`.part_root (id int, a int) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.part_mid PARTITION OF `+driftSchema+`.part_root FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.part_leaf PARTITION OF `+driftSchema+`.part_mid FOR VALUES FROM (0) TO (50)`,
+		`CREATE TABLE `+driftSchema+`.inh_base (a int CONSTRAINT inh_ck CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`.inh_kid (b int) INHERITS (`+driftSchema+`.inh_base)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -119,7 +130,16 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`."Pk_Added" ADD CONSTRAINT "Pk_Added_Pkey" PRIMARY KEY ("Id")`,
 		`ALTER TABLE `+driftSchema+`.pk_dropped DROP CONSTRAINT pk_dropped_pkey`,
 		`ALTER TABLE `+driftSchema+`.pk_renamed RENAME CONSTRAINT old_pk TO "New_Pk"`,
+		`ALTER TABLE `+driftSchema+`."Uq_Added" ADD CONSTRAINT "Uq_Added_Key" UNIQUE (a)`,
+		`ALTER TABLE `+driftSchema+`.uq_dropped DROP CONSTRAINT uq_dropped_key`,
+		`ALTER TABLE `+driftSchema+`.uq_renamed RENAME CONSTRAINT old_uq TO "New_Uq"`,
+		`ALTER TABLE `+driftSchema+`."Ck_Added" ADD CONSTRAINT "Ck_Added_Check" CHECK (a > 0)`,
+		`ALTER TABLE `+driftSchema+`.ck_dropped DROP CONSTRAINT ck_dropped_check`,
+		`ALTER TABLE `+driftSchema+`.ck_renamed RENAME CONSTRAINT old_ck TO "New_Ck"`,
 		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
+		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_uq UNIQUE (id)`,
+		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_ck CHECK (a > 0)`,
+		`ALTER TABLE `+driftSchema+`.inh_base DROP CONSTRAINT inh_ck`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -291,25 +311,35 @@ func TestDiff_EndToEnd(t *testing.T) {
 	})
 	require.Len(t, partChanged, 1, "expected exactly one TablePartitionChildrenChanged for diff_it.events")
 
-	// ── 10b. Primary key findings ────────────────────────────────────────────────
-	pkFindings := findDiffs(func(d schemadiff.Difference) bool { return d.ObjectType == schemadiff.ObjectTypeConstraint })
-	type pkFinding struct {
+	// ── 10b. Constraint findings ────────────────────────────────────────────────
+	constraintFindings := findDiffs(func(d schemadiff.Difference) bool { return d.ObjectType == schemadiff.ObjectTypeConstraint })
+	type constraintFinding struct {
 		Type   schemadiff.DiffType
 		Object string
 		Old    any
 		New    any
 	}
-	gotPKs := make([]pkFinding, len(pkFindings))
-	for i, d := range pkFindings {
-		gotPKs[i] = pkFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
+	gotConstraints := make([]constraintFinding, len(constraintFindings))
+	for i, d := range constraintFindings {
+		gotConstraints[i] = constraintFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
 	}
-	assert.ElementsMatch(t, []pkFinding{
+	assert.ElementsMatch(t, []constraintFinding{
 		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.Pk_Added.Pk_Added_Pkey`, New: `PRIMARY KEY ("Id")`},
 		{Type: schemadiff.PrimaryKeyDropped, Object: driftSchema + `.pk_dropped.pk_dropped_pkey`, Old: `PRIMARY KEY (id)`},
 		{Type: schemadiff.PrimaryKeyNameChanged, Object: driftSchema + `.pk_renamed.old_pk`, Old: "old_pk", New: "New_Pk"},
+		{Type: schemadiff.UniqueAdded, Object: driftSchema + `.Uq_Added.Uq_Added_Key`, New: `UNIQUE (a)`},
+		{Type: schemadiff.UniqueDropped, Object: driftSchema + `.uq_dropped.uq_dropped_key`, Old: `UNIQUE (a)`},
+		{Type: schemadiff.UniqueNameChanged, Object: driftSchema + `.uq_renamed.old_uq`, Old: "old_uq", New: "New_Uq"},
+		{Type: schemadiff.CheckAdded, Object: driftSchema + `.Ck_Added.Ck_Added_Check`, New: `CHECK (a > 0)`},
+		{Type: schemadiff.CheckDropped, Object: driftSchema + `.ck_dropped.ck_dropped_check`, Old: `CHECK (a > 0)`},
+		{Type: schemadiff.CheckNameChanged, Object: driftSchema + `.ck_renamed.old_ck`, Old: "old_ck", New: "New_Ck"},
 		// The key's copies on pk_part_a and pk_part_a1 report nothing.
 		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.pk_part.pk_part_pkey`, New: `PRIMARY KEY (id)`},
-	}, gotPKs)
+		// The copies on part_mid, part_leaf and inh_kid report nothing.
+		{Type: schemadiff.UniqueAdded, Object: driftSchema + `.part_root.part_root_uq`, New: `UNIQUE (id)`},
+		{Type: schemadiff.CheckAdded, Object: driftSchema + `.part_root.part_root_ck`, New: `CHECK (a > 0)`},
+		{Type: schemadiff.CheckDropped, Object: driftSchema + `.inh_base.inh_ck`, Old: `CHECK (a > 0)`},
+	}, gotConstraints)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
 	// Rename/move alias handling is TEMPORARILY DISABLED in FilterByScope (see
