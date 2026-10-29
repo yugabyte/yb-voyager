@@ -317,7 +317,7 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 	},
 	schemadiff.ForeignKeyDropped: {
 		TimingBeforeExportData:        foreignKeyDroppedInfo,
-		TimingOfflineAfterExportStart: foreignKeyDroppedInfo,
+		TimingOfflineAfterExportStart: foreignKeyDroppedOfflineInfo,
 		TimingLiveAfterExportStart:    foreignKeyDroppedInfo,
 	},
 	schemadiff.ForeignKeyNameChanged: {
@@ -418,8 +418,13 @@ var (
 		Action: "Add it on the target to keep the schemas the same."}
 
 	foreignKeyDroppedInfo = DriftInfo{Severity: SeverityPotentialImpact,
-		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first row that breaks it, and an `ON DELETE` or `ON UPDATE` action such as `CASCADE` removes or changes rows the source keeps.",
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first change that breaks it (an orphan child row, or a delete or update of a parent row the key protects), and an `ON DELETE` or `ON UPDATE` action such as `CASCADE` removes or changes rows the source keeps.",
 		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped. Restore from the source any rows the key's action removed or changed on the target, because running `import data` again does not bring them back."}
+
+	// Offline import data only inserts snapshot rows, so a referential action never fires on the target.
+	foreignKeyDroppedOfflineInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first row that breaks it.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped."}
 
 	keyNameChangedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`export data` and `import data` are not affected.",
