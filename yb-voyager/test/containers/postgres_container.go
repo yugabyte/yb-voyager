@@ -409,7 +409,7 @@ func (pg *PostgresContainer) startWithMTLS(ctx context.Context) (err error) {
 		"-c", "hba_file=" + pgMTLSServingDir + "/pg_hba.conf",
 	}
 	if pg.ForLive {
-		cmd = append(cmd, "-c", "wal_level=logical", "-c", "max_replication_slots=20")
+		cmd = append(cmd, "-c", "wal_level=logical", "-c", "max_replication_slots=20", "-c", "max_wal_senders=40")
 	}
 
 	req := testcontainers.ContainerRequest{

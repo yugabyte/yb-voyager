@@ -133,6 +133,10 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 		containerConfig = &ContainerConfig{}
 	}
 	setContainerConfigDefaultsIfNotProvided(dbType, containerConfig)
+	if containerConfig.MTLS != nil && dbType != POSTGRESQL && !(dbType == YUGABYTEDB && containerConfig.NodeCount <= 1) {
+		panic(fmt.Sprintf("MTLS is supported only for postgresql and single-node yugabytedb containers, not %q",
+			containerConfig.buildContainerName(dbType)))
+	}
 
 	// check if container is already created after fetching default configs
 	containerName := containerConfig.buildContainerName(dbType)
