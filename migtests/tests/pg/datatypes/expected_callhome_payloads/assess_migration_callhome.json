@@ -49,7 +49,7 @@
             "estimated_time_in_min_for_import_without_redundant_indexes": 1
         },
         "migration_complexity": "MEDIUM",
-        "migration_complexity_explanation": "Found 17 Level 1 issue(s), 0 Level 2 issue(s) and 4 Level 3 issue(s), resulting in MEDIUM migration complexity",
+        "migration_complexity_explanation": "Found 20 Level 1 issue(s), 0 Level 2 issue(s) and 4 Level 3 issue(s), resulting in MEDIUM migration complexity",
         "schema_summary": {
             "DatabaseObjects": [
                 {
@@ -96,22 +96,44 @@
         },
         "assessment_issues": [
             {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - box",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX"
+                "category": "unsupported_datatypes",
+                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+                "impact": "LEVEL_3",
+                "name": "Unsupported datatype - pg_lsn",
+                "object_name": "schema_d7108fd530c9b1c2.table_eecb7e0d8b9e1e14",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_eecb7e0d8b9e1e14 (col_190e9d7fd2ee599f int NOT NULL, col_7a1c01dd8f1e38d7 type_d53567f1071cc22e[], col_6723f254ea7d4067 type_1c907083d865a26b[])",
+                "type": "UNSUPPORTED_DATATYPE_PG_LSN"
             },
             {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - box",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX"
+                "category": "unsupported_datatypes",
+                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+                "impact": "LEVEL_3",
+                "name": "Unsupported datatype - txid_snapshot",
+                "object_name": "schema_d7108fd530c9b1c2.table_fa93b2ffc6d89d90",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa93b2ffc6d89d90 (col_190e9d7fd2ee599f int NOT NULL, col_7a1c01dd8f1e38d7 type_d53567f1071cc22e, col_6723f254ea7d4067 type_1c907083d865a26b)",
+                "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT"
+            },
+            {
+                "category": "unsupported_datatypes",
+                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+                "impact": "LEVEL_3",
+                "name": "Unsupported datatype - pg_lsn",
+                "object_name": "schema_d7108fd530c9b1c2.table_fa93b2ffc6d89d90",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa93b2ffc6d89d90 (col_190e9d7fd2ee599f int NOT NULL, col_7a1c01dd8f1e38d7 type_d53567f1071cc22e, col_6723f254ea7d4067 type_1c907083d865a26b)",
+                "type": "UNSUPPORTED_DATATYPE_PG_LSN"
+            },
+            {
+                "category": "unsupported_datatypes",
+                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
+                "impact": "LEVEL_3",
+                "name": "Unsupported datatype - txid_snapshot",
+                "object_name": "schema_d7108fd530c9b1c2.table_eecb7e0d8b9e1e14",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_eecb7e0d8b9e1e14 (col_190e9d7fd2ee599f int NOT NULL, col_7a1c01dd8f1e38d7 type_d53567f1071cc22e[], col_6723f254ea7d4067 type_1c907083d865a26b[])",
+                "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT"
             },
             {
                 "category": "migration_caveats",
@@ -119,71 +141,9 @@
                 "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration - circle",
                 "object_name": "",
-                "object_type": "COLUMN",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_389f2c70486bdebb (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point[], col_f02380989e49e763 line[], col_3c21d0e7dbb9ab58 lseg[], col_14a02fc73a2a53ad box[], col_6e4913ce7f7b76d1 path[], col_df60af4a6ce62ecf polygon[], col_421663f77ba4666f circle[])",
                 "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE"
-            },
-            {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - circle",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE"
-            },
-            {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - line",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE"
-            },
-            {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - line",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE"
-            },
-            {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - lseg",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
-            },
-            {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - lseg",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
-            },
-            {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - path",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH"
-            },
-            {
-                "category": "migration_caveats",
-                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
-                "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - path",
-                "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH"
             },
             {
                 "category": "migration_caveats",
@@ -191,7 +151,8 @@
                 "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration - point",
                 "object_name": "",
-                "object_type": "COLUMN",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa935f6eedb036ab (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point, col_f02380989e49e763 line, col_3c21d0e7dbb9ab58 lseg, col_14a02fc73a2a53ad box, col_6e4913ce7f7b76d1 path, col_df60af4a6ce62ecf polygon, col_421663f77ba4666f circle)",
                 "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT"
             },
             {
@@ -200,17 +161,49 @@
                 "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration - point",
                 "object_name": "",
-                "object_type": "COLUMN",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_389f2c70486bdebb (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point[], col_f02380989e49e763 line[], col_3c21d0e7dbb9ab58 lseg[], col_14a02fc73a2a53ad box[], col_6e4913ce7f7b76d1 path[], col_df60af4a6ce62ecf polygon[], col_421663f77ba4666f circle[])",
                 "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT"
             },
             {
                 "category": "migration_caveats",
                 "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
                 "impact": "LEVEL_1",
-                "name": "Unsupported datatype for Live migration - polygon",
+                "name": "Unsupported datatype for Live migration - line",
                 "object_name": "",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON"
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_389f2c70486bdebb (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point[], col_f02380989e49e763 line[], col_3c21d0e7dbb9ab58 lseg[], col_14a02fc73a2a53ad box[], col_6e4913ce7f7b76d1 path[], col_df60af4a6ce62ecf polygon[], col_421663f77ba4666f circle[])",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - lseg",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_389f2c70486bdebb (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point[], col_f02380989e49e763 line[], col_3c21d0e7dbb9ab58 lseg[], col_14a02fc73a2a53ad box[], col_6e4913ce7f7b76d1 path[], col_df60af4a6ce62ecf polygon[], col_421663f77ba4666f circle[])",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - box",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_389f2c70486bdebb (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point[], col_f02380989e49e763 line[], col_3c21d0e7dbb9ab58 lseg[], col_14a02fc73a2a53ad box[], col_6e4913ce7f7b76d1 path[], col_df60af4a6ce62ecf polygon[], col_421663f77ba4666f circle[])",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - path",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_389f2c70486bdebb (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point[], col_f02380989e49e763 line[], col_3c21d0e7dbb9ab58 lseg[], col_14a02fc73a2a53ad box[], col_6e4913ce7f7b76d1 path[], col_df60af4a6ce62ecf polygon[], col_421663f77ba4666f circle[])",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH"
             },
             {
                 "category": "migration_caveats",
@@ -218,8 +211,19 @@
                 "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration - polygon",
                 "object_name": "",
-                "object_type": "COLUMN",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_389f2c70486bdebb (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point[], col_f02380989e49e763 line[], col_3c21d0e7dbb9ab58 lseg[], col_14a02fc73a2a53ad box[], col_6e4913ce7f7b76d1 path[], col_df60af4a6ce62ecf polygon[], col_421663f77ba4666f circle[])",
                 "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_f1f375b4eec267a1 (col_190e9d7fd2ee599f int NOT NULL, col_cd915f6cc7ffad53 schema_d7108fd530c9b1c2.type_d1e849149bd3f2c6[], col_fb3b127506a6331c schema_d7108fd530c9b1c2.type_5a1ea375817e9252[], col_b496ad6d7d8f430e int[], col_11eea4f2ea24f55d timestamp DEFAULT now())",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
             },
             {
                 "category": "migration_caveats",
@@ -227,16 +231,78 @@
                 "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration - timetz",
                 "object_name": "",
-                "object_type": "COLUMN",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_4c4ebcbbfb551555 (col_190e9d7fd2ee599f int NOT NULL, col_4b6cac4d6e76f310 timestamp with time zone, col_8104ab555ae35234 time with time zone, col_8ccc0aaed2d2ac5a interval)",
                 "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
             },
             {
                 "category": "migration_caveats",
                 "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
                 "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - line",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa935f6eedb036ab (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point, col_f02380989e49e763 line, col_3c21d0e7dbb9ab58 lseg, col_14a02fc73a2a53ad box, col_6e4913ce7f7b76d1 path, col_df60af4a6ce62ecf polygon, col_421663f77ba4666f circle)",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - lseg",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa935f6eedb036ab (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point, col_f02380989e49e763 line, col_3c21d0e7dbb9ab58 lseg, col_14a02fc73a2a53ad box, col_6e4913ce7f7b76d1 path, col_df60af4a6ce62ecf polygon, col_421663f77ba4666f circle)",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - box",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa935f6eedb036ab (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point, col_f02380989e49e763 line, col_3c21d0e7dbb9ab58 lseg, col_14a02fc73a2a53ad box, col_6e4913ce7f7b76d1 path, col_df60af4a6ce62ecf polygon, col_421663f77ba4666f circle)",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - path",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa935f6eedb036ab (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point, col_f02380989e49e763 line, col_3c21d0e7dbb9ab58 lseg, col_14a02fc73a2a53ad box, col_6e4913ce7f7b76d1 path, col_df60af4a6ce62ecf polygon, col_421663f77ba4666f circle)",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - polygon",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa935f6eedb036ab (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point, col_f02380989e49e763 line, col_3c21d0e7dbb9ab58 lseg, col_14a02fc73a2a53ad box, col_6e4913ce7f7b76d1 path, col_df60af4a6ce62ecf polygon, col_421663f77ba4666f circle)",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration - circle",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_fa935f6eedb036ab (col_190e9d7fd2ee599f int NOT NULL, col_e8dde1e335f4af16 point, col_f02380989e49e763 line, col_3c21d0e7dbb9ab58 lseg, col_14a02fc73a2a53ad box, col_6e4913ce7f7b76d1 path, col_df60af4a6ce62ecf polygon, col_421663f77ba4666f circle)",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE"
+            },
+            {
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration - timetz",
                 "object_name": "",
-                "object_type": "COLUMN",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_3f92b85dd6743d89 (col_190e9d7fd2ee599f int NOT NULL, col_4b6cac4d6e76f310 timestamp with time zone[], col_8104ab555ae35234 time with time zone[], col_8ccc0aaed2d2ac5a interval[])",
                 "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ"
             },
             {
@@ -245,44 +311,29 @@
                 "impact": "LEVEL_1",
                 "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
                 "object_name": "",
-                "object_type": "COLUMN",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_2630b4d4cdcb79a2 (col_190e9d7fd2ee599f int NOT NULL, col_54159b91a2ae7dfa schema_d7108fd530c9b1c2.type_3abd0249e38581d5)",
                 "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
             },
             {
-                "category": "unsupported_datatypes",
-                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-                "impact": "LEVEL_3",
-                "name": "Unsupported datatype - pg_lsn",
-                "object_name": "schema_d7108fd530c9b1c2.table_eecb7e0d8b9e1e14.col_7a1c01dd8f1e38d7",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_PG_LSN"
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_a86278e587314a4a (col_190e9d7fd2ee599f int NOT NULL, col_2f3aa4999db03aa1 schema_d7108fd530c9b1c2.type_3abd0249e38581d5[])",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
             },
             {
-                "category": "unsupported_datatypes",
-                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-                "impact": "LEVEL_3",
-                "name": "Unsupported datatype - pg_lsn",
-                "object_name": "schema_d7108fd530c9b1c2.table_fa93b2ffc6d89d90.col_7a1c01dd8f1e38d7",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_PG_LSN"
-            },
-            {
-                "category": "unsupported_datatypes",
-                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-                "impact": "LEVEL_3",
-                "name": "Unsupported datatype - txid_snapshot",
-                "object_name": "schema_d7108fd530c9b1c2.table_eecb7e0d8b9e1e14.col_6723f254ea7d4067",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT"
-            },
-            {
-                "category": "unsupported_datatypes",
-                "category_description": "Data types of the source database that are not supported on the target YugabyteDB.",
-                "impact": "LEVEL_3",
-                "name": "Unsupported datatype - txid_snapshot",
-                "object_name": "schema_d7108fd530c9b1c2.table_fa93b2ffc6d89d90.col_6723f254ea7d4067",
-                "object_type": "COLUMN",
-                "type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT"
+                "category": "migration_caveats",
+                "category_description": "Migration Caveats highlights the current limitations with the migration workflow.",
+                "impact": "LEVEL_1",
+                "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+                "object_name": "",
+                "object_type": "TABLE",
+                "sql_statement": "CREATE TABLE schema_d7108fd530c9b1c2.table_f1f375b4eec267a1 (col_190e9d7fd2ee599f int NOT NULL, col_cd915f6cc7ffad53 schema_d7108fd530c9b1c2.type_d1e849149bd3f2c6[], col_fb3b127506a6331c schema_d7108fd530c9b1c2.type_5a1ea375817e9252[], col_b496ad6d7d8f430e int[], col_11eea4f2ea24f55d timestamp DEFAULT now())",
+                "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
             }
         ],
         "error": "",

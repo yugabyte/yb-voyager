@@ -247,11 +247,11 @@ type ParserIssueDetector struct {
 	*/
 	columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string
 
-	// list of composite types with fully qualified typename in the exported schema
-	compositeTypes []string
+	// composite and enum types in the exported schema, keyed by the type name as written in its CREATE TYPE
+	userDefinedTypes map[string]*queryparser.CreateType
 
-	// list of enum types with fully qualified typename in the exported schema
-	enumTypes []string
+	// domains in the exported schema, keyed by the domain name as written in its CREATE DOMAIN
+	domains map[string]*queryparser.CreateDomain
 
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
@@ -285,8 +285,8 @@ type ParserIssueDetector struct {
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
 
-		compositeTypes:                          make([]string, 0),
-		enumTypes:                               make([]string, 0),
+		userDefinedTypes:                        make(map[string]*queryparser.CreateType),
+		domains:                                 make(map[string]*queryparser.CreateDomain),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 		columnStatistics:                        make(map[string]utils.ColumnStatistics),
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
@@ -363,12 +363,9 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-func (p *ParserIssueDetector) GetCompositeTypes() []string {
-	return p.compositeTypes
-}
-
-func (p *ParserIssueDetector) GetEnumTypes() []string {
-	return p.enumTypes
+func (p *ParserIssueDetector) isCompositeType(typeName string) bool {
+	userDefinedType, ok := p.userDefinedTypes[typeName]
+	return ok && !userDefinedType.IsEnum
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
@@ -974,7 +971,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			meta.DataTypeMods = col.TypeMods
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
-			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
+			isUDTType := p.isCompositeType(col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
 
 			switch {
@@ -1021,12 +1018,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// Process primary keys and unique constraints as indexes for foreign key detection
 		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
-		typeObj := ddlObj
-		if typeObj.IsEnum {
-			p.enumTypes = append(p.enumTypes, typeObj.GetObjectName())
-		} else {
-			p.compositeTypes = append(p.compositeTypes, typeObj.GetObjectName())
-		}
+		p.userDefinedTypes[ddlObj.GetObjectName()] = ddlObj
+	case *queryparser.CreateDomain:
+		p.domains[ddlObj.GetObjectName()] = ddlObj
 	case *queryparser.Index:
 		index := ddlObj
 		if index.AccessMethod == queryparser.GIN_ACCESS_METHOD {
