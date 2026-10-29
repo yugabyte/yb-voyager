@@ -371,7 +371,6 @@ var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
 	schemadiff.UniqueIndexAdded: uniqueAddedFallBackRisk,
 	schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
 	schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
-	schemadiff.PrimaryKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
 }
 
 const fallForwardAction = "Fall-forward is in use: make on the source-replica any change this asks you to make on the target, and when it restarts `import data`, restart `import data to source-replica` the same way."
