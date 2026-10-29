@@ -64,7 +64,7 @@ const SideSource = "source"
 
 // SnapshotContent is the schema CONTENT — this is what gets serialized to the metadb blob.
 // The per-object lists are flat; each record keys back to its parent via an ObjectRef field.
-// v1 carries tables and columns only.
+// v1 carries tables and columns; v2 adds keys, checks and indexes under each table.
 type SnapshotContent struct {
 	Version      int        `json:"version"`          // format/compat gate
 	DatabaseType string     `json:"database_type"`    // engine; the diff reads this
@@ -127,18 +127,24 @@ const (
 
 // Table represents a table (ordinary, partitioned, or foreign).
 type Table struct {
-	ObjectRef                     // embedded (schema, name) identity of the table.
-	ID                string      `json:"id"`                           // pg_class.oid as a decimal string; used to match the table across snapshots (rename detection).
-	Kind              TableKind   `json:"kind"`                         // relation kind: ordinary, partitioned, or foreign.
-	PartitionParent   *ObjectRef  `json:"partition_parent,omitempty"`   // set on a partition child: the table it is a partition of; nil for non-partitions
-	PartitionChildren []ObjectRef `json:"partition_children,omitempty"` // set on a partitioned parent: its immediate partition children; nil otherwise
-	InheritsFrom      []ObjectRef `json:"inherits_from,omitempty"`      // legacy table inheritance (INHERITS): parent table(s) this table inherits from; can be multiple. Distinct from declarative partitioning.
-	InheritedBy       []ObjectRef `json:"inherited_by,omitempty"`       // legacy table inheritance (INHERITS): tables that inherit from this one.
-	Columns           []Column    `json:"columns,omitempty"`            // columns of this table, in attnum order.
+	ObjectRef                      // embedded (schema, name) identity of the table.
+	ID                string       `json:"id"`                           // pg_class.oid as a decimal string; used to match the table across snapshots (rename detection).
+	Kind              TableKind    `json:"kind"`                         // relation kind: ordinary, partitioned, or foreign.
+	PartitionParent   *ObjectRef   `json:"partition_parent,omitempty"`   // set on a partition child: the table it is a partition of; nil for non-partitions
+	PartitionChildren []ObjectRef  `json:"partition_children,omitempty"` // set on a partitioned parent: its immediate partition children; nil otherwise
+	InheritsFrom      []ObjectRef  `json:"inherits_from,omitempty"`      // legacy table inheritance (INHERITS): parent table(s) this table inherits from; can be multiple. Distinct from declarative partitioning.
+	InheritedBy       []ObjectRef  `json:"inherited_by,omitempty"`       // legacy table inheritance (INHERITS): tables that inherit from this one.
+	Columns           []Column     `json:"columns,omitempty"`            // columns of this table, in attnum order.
+	PrimaryKey        *Constraint  `json:"primary_key,omitempty"`        // the table's primary key; nil when it has none.
+	UniqueKeys        []Constraint `json:"unique_keys,omitempty"`        // UNIQUE constraints, by name.
+	UniqueIndexes     []Index      `json:"unique_indexes,omitempty"`     // unique indexes that back no constraint, by name.
+	Checks            []Constraint `json:"checks,omitempty"`             // CHECK constraints, by name.
+	ForeignKeys       []Constraint `json:"foreign_keys,omitempty"`       // FOREIGN KEY constraints, by name.
+	Indexes           []Index      `json:"indexes,omitempty"`            // non-unique indexes that back no constraint, by name.
 }
 
-// TableScopedObjectRef is the identity of an object that lives under a table — a column
-// today, an index or constraint later. Table is the parent table's (schema, name);
+// TableScopedObjectRef is the identity of an object that lives under a table — a column,
+// constraint or index. Table is the parent table's (schema, name);
 // Name is the object's own name within that table. A table-scoped object has no
 // independent schema — its schema is its table's schema.
 type TableScopedObjectRef struct {
@@ -161,6 +167,24 @@ func (r TableScopedObjectRef) ForKey(dbType string) string { return r.sqlName(db
 // column for reports, logs, and user-facing SQL: public.orders."Col".
 func (r TableScopedObjectRef) ForDisplay(dbType string) string {
 	return r.sqlName(dbType).MinQualified.MinQuoted
+}
+
+// Constraint is a primary key, unique, check or foreign key constraint. Which one is
+// decided by the Table field that holds it.
+type Constraint struct {
+	TableScopedObjectRef
+	ID         string `json:"id"`                    // pg_constraint.oid; matches the constraint across snapshots even after a rename.
+	Definition string `json:"definition"`            // pg_get_constraintdef text, e.g. "PRIMARY KEY (id)"; shown in reports, never compared.
+	FromParent bool   `json:"from_parent,omitempty"` // a copy made for a partition or an inheritance child, not declared on this table.
+}
+
+// Index is an index that backs no constraint: a unique index or a plain one. Which one
+// is decided by the Table field that holds it.
+type Index struct {
+	TableScopedObjectRef
+	ID         string `json:"id"`                    // the index's pg_class.oid; matches the index across snapshots even after a rename.
+	Definition string `json:"definition"`            // pg_get_indexdef text from USING onward, e.g. "USING btree (lower(email)) WHERE (email IS NOT NULL)"; shown in reports, never compared.
+	FromParent bool   `json:"from_parent,omitempty"` // a copy made for a partition of the parent table's index.
 }
 
 // Column represents a single column within a table.

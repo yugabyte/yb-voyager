@@ -27,7 +27,7 @@ import (
 )
 
 // currentSnapshotVersion is the snapshot JSON version this library understands.
-const currentSnapshotVersion = 1
+const currentSnapshotVersion = 2
 
 // Sentinel errors returned by LoadSnapshotByName.
 var (
