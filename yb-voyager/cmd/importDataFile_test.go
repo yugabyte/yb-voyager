@@ -807,7 +807,7 @@ func TestImportDataFile_GeneratedAlwaysAsIdentity(t *testing.T) {
 	assert.Equal(t, 50, maxID, "identity sequence should reach 50")
 
 	// Verify the identity column is still GENERATED ALWAYS
-	assertIdentityColumnIsAlways(t, ybConn, "public", "identity_file_test", "id")
+	testutils.AssertIdentityColumnIsAlways(t, ybConn, "public", "identity_file_test", "id")
 }
 
 func TestImportDataFile_EmptyFile(t *testing.T) {
