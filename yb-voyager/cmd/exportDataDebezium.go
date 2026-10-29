@@ -226,7 +226,7 @@ func getStringifyTypeOids() (map[string]int, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting the oids of types to stringify: %w", err)
 	}
-	
+
 	for _, builtInType := range dbzm.StringifiedBuiltInTypeNames {
 		if _, ok := typeToOid[builtInType]; !ok {
 			return nil, goerrors.Errorf("built-in type %q not found in the %s database", builtInType, source.DBType)
