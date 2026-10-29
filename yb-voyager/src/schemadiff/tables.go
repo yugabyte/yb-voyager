@@ -33,8 +33,9 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType,
 		idOfTable, schemasnapshot.Table.ForKey)
 
+	compareKeys := a.Version >= schemasnapshot.VersionWithKeysAndIndexes && b.Version >= schemasnapshot.VersionWithKeysAndIndexes
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,
-		compareMatchedTables(a.DatabaseType, b.DatabaseType, linkKeyFunc(a, keyA), linkKeyFunc(b, keyB)),
+		compareMatchedTables(a.DatabaseType, b.DatabaseType, compareKeys, linkKeyFunc(a, keyA), linkKeyFunc(b, keyB)),
 		emitTableDropped, emitTableAdded)
 }
 
@@ -74,7 +75,9 @@ func emitTableAdded(t schemasnapshot.Table) []Difference {
 // compareMatchedTables returns the matchByKey onMatch callback for tables: it
 // emits the table's field-level differences and then diffs its nested columns.
 // dbTypeA/dbTypeB select ID- vs name-based column matching (see diffColumnsIn).
-func compareMatchedTables(dbTypeA, dbTypeB string, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string) func(tA, tB schemasnapshot.Table) []Difference {
+// compareKeys is false when either snapshot predates keys and indexes, so a table
+// without captured keys is not read as one that lost them.
+func compareMatchedTables(dbTypeA, dbTypeB string, compareKeys bool, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string) func(tA, tB schemasnapshot.Table) []Difference {
 	return func(tA, tB schemasnapshot.Table) []Difference {
 		var diffs []Difference
 
@@ -107,6 +110,10 @@ func compareMatchedTables(dbTypeA, dbTypeB string, linkKeyA, linkKeyB func(schem
 		diffs = append(diffs, diffLinkSet(tA, tB, tA.InheritedBy, tB.InheritedBy, linkKeyA, linkKeyB, TableInheritedByAdded, TableInheritedByRemoved, AttrInheritedBy)...)
 
 		diffs = append(diffs, diffColumnsIn(tA.Columns, tB.Columns, dbTypeA, dbTypeB)...)
+
+		if compareKeys {
+			diffs = append(diffs, diffConstraintsOrIndexes(primaryKeyAsSlice(tA.PrimaryKey), primaryKeyAsSlice(tB.PrimaryKey), constraintRef, primaryKeyTypes)...)
+		}
 
 		return diffs
 	}
