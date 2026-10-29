@@ -423,16 +423,21 @@ func TestRenderHTML_AddedTableShowsOwnKeysAndParentLink(t *testing.T) {
 		ObjectRef:     refunds,
 		Columns:       columns,
 		PrimaryKey:    &schemasnapshot.Constraint{TableScopedObjectRef: ref("refunds_pkey"), ID: "1", Definition: "PRIMARY KEY (id)"},
+		UniqueKeys:    []schemasnapshot.Constraint{{TableScopedObjectRef: ref("Refunds Order Key"), ID: "4", Definition: "UNIQUE (order_id)"}},
 		Checks:        []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_id_check"), ID: "2", Definition: "CHECK (id > 0)"}},
 		ForeignKeys:   []schemasnapshot.Constraint{{TableScopedObjectRef: ref("refunds_order_fk"), ID: "3", Definition: "FOREIGN KEY (order_id) REFERENCES public.orders(id)"}},
 		UniqueIndexes: []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_order_uq"), ID: "5", Definition: "USING btree (order_id)"}},
+		Indexes:       []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_id_idx"), ID: "6", Definition: "USING btree (id)"}},
 	}
 	partition := schemasnapshot.Table{
 		ObjectRef:       refunds,
 		Columns:         columns,
 		PartitionParent: &orders,
 		PrimaryKey:      &schemasnapshot.Constraint{TableScopedObjectRef: ref("refunds_pkey"), ID: "1", Definition: "PRIMARY KEY (id)", FromParent: true},
-		Indexes:         []schemasnapshot.Index{{TableScopedObjectRef: ref("refunds_id_idx"), ID: "6", Definition: "USING btree (id)", FromParent: true}},
+		Indexes: []schemasnapshot.Index{
+			{TableScopedObjectRef: ref("refunds_id_idx"), ID: "6", Definition: "USING btree (id)", FromParent: true},
+			{TableScopedObjectRef: ref("refunds_order_idx"), ID: "7", Definition: "USING btree (order_id)"},
+		},
 	}
 	child := schemasnapshot.Table{
 		ObjectRef:    refunds,
@@ -446,9 +451,12 @@ func TestRenderHTML_AddedTableShowsOwnKeysAndParentLink(t *testing.T) {
 		table schemasnapshot.Table
 		want  string
 	}{
-		{"own keys, checks and indexes", ownKeys, "id integer NOT NULL, order_id integer; PRIMARY KEY (id); CHECK (id > 0); " +
-			"FOREIGN KEY (order_id) REFERENCES public.orders(id); UNIQUE INDEX USING btree (order_id)"},
-		{"a partition shows its parent instead of the parent's copies", partition, "id integer NOT NULL, order_id integer; PARTITION OF public.orders"},
+		{"own keys, checks and indexes", ownKeys, "id integer NOT NULL, order_id integer; CONSTRAINT refunds_pkey PRIMARY KEY (id); " +
+			`CONSTRAINT "Refunds Order Key" UNIQUE (order_id); CONSTRAINT refunds_id_check CHECK (id > 0); ` +
+			"CONSTRAINT refunds_order_fk FOREIGN KEY (order_id) REFERENCES public.orders(id); " +
+			"UNIQUE INDEX refunds_order_uq USING btree (order_id); INDEX refunds_id_idx USING btree (id)"},
+		{"a partition shows its parent instead of the parent's copies", partition,
+			"id integer NOT NULL, order_id integer; PARTITION OF public.orders; INDEX refunds_order_idx USING btree (order_id)"},
 		{"an inheritance child shows its parents instead of their copies", child, `id integer NOT NULL, order_id integer; INHERITS (public.orders, public."Audited")`},
 	}
 	for _, tc := range tests {
@@ -461,7 +469,8 @@ func TestRenderHTML_AddedTableShowsOwnKeysAndParentLink(t *testing.T) {
 			out, err := RenderHTML(r)
 			require.NoError(t, err)
 
-			assert.Contains(t, html.UnescapeString(string(out)), tc.want)
+			// The whole chiplet, so nothing the filtering should have left out can follow.
+			assert.Contains(t, html.UnescapeString(string(out)), `<span class="chiplet v-def">`+tc.want+`</span>`)
 		})
 	}
 }
