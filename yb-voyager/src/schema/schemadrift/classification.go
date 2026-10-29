@@ -280,12 +280,14 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 	},
 	schemadiff.UniqueDropped: {
 		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
-			Impact: uniqueDroppedImpact,
-			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+			Impact: uniqueDroppedImpact + " " + uniqueConstraintRebuiltHint,
+			Action: uniqueDroppedAction},
 		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
-			Impact: uniqueDroppedImpact,
-			Action: "Drop it on the target too, and run `import data` again if it already failed."},
-		TimingLiveAfterExportStart: uniqueDroppedLiveInfo,
+			Impact: uniqueDroppedImpact + " " + uniqueConstraintRebuiltHint,
+			Action: uniqueDroppedAction},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedLiveImpact + " " + uniqueConstraintRebuiltHint,
+			Action: uniqueDroppedLiveAction},
 	},
 	schemadiff.UniqueNameChanged: {
 		TimingBeforeExportData:        keyNameChangedInfo,
@@ -335,12 +337,14 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 	},
 	schemadiff.UniqueIndexDropped: {
 		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
-			Impact: uniqueDroppedImpact,
-			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+			Impact: uniqueDroppedImpact + " " + uniqueIndexRebuiltHint,
+			Action: uniqueDroppedAction},
 		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
-			Impact: uniqueDroppedImpact,
-			Action: "Drop it on the target too, and run `import data` again if it already failed."},
-		TimingLiveAfterExportStart: uniqueDroppedLiveInfo,
+			Impact: uniqueDroppedImpact + " " + uniqueIndexRebuiltHint,
+			Action: uniqueDroppedAction},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedLiveImpact + " " + uniqueIndexRebuiltHint,
+			Action: uniqueDroppedLiveAction},
 	},
 	schemadiff.UniqueIndexNameChanged: {
 		TimingBeforeExportData:        keyNameChangedInfo,
@@ -460,11 +464,16 @@ var (
 		Impact: "`import data` is not affected while the target doesn't have the index. If the index is on an expression, such as `lower(email)`, adding it on the target before cutover can stop `import data` on a unique violation: `import data` can't keep changes to such an index in order, and restarting it does not prevent another stop.",
 		Action: "Add it on the target to keep the schemas the same. If it is on plain columns, add it now, and if `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it is on an expression, add it only after cutover, once `import data` has applied every change and before the application moves to the target. If you already added it and `import data` stopped, drop it on the target, run `import data` again, and add it back after cutover."}
 
-	uniqueDroppedImpact = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` fails on the first duplicate. This is also reported, with an added unique key, unique index or primary key on the same columns, when it was rebuilt (`REINDEX CONCURRENTLY`, a column type change) or turned into a constraint (`ADD CONSTRAINT ... USING INDEX`). The source then still enforces uniqueness, so keep it on the target."
+	uniqueDroppedImpact     = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` fails on the first duplicate."
+	uniqueDroppedLiveImpact = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` stops at the first duplicate value."
 
-	uniqueDroppedLiveInfo = DriftInfo{Severity: SeverityBreaksRecoverable,
-		Impact: "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` stops at the first duplicate value. This is also reported, with an added unique key, unique index or primary key on the same columns, when it was rebuilt (`REINDEX CONCURRENTLY`, a column type change) or turned into a constraint (`ADD CONSTRAINT ... USING INDEX`). The source then still enforces uniqueness, so keep it on the target.",
-		Action: "Drop it on the target, then run `import data` again."}
+	// A unique constraint keeps its OID through REINDEX CONCURRENTLY, and USING INDEX only
+	// turns an index into one, so only a column type change re-creates it.
+	uniqueConstraintRebuiltHint = "This is also reported, with an added unique key on the same columns, when a column type change re-created it. The source then still enforces uniqueness, so keep it on the target."
+	uniqueIndexRebuiltHint      = "This is also reported, with an added unique key, unique index or primary key on the same columns, when it was rebuilt (`REINDEX CONCURRENTLY`, a column type change) or turned into a constraint (`ADD CONSTRAINT ... USING INDEX`). The source then still enforces uniqueness, so keep it on the target."
+
+	uniqueDroppedAction     = "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it on the target too, and run `import data` again if it already failed."
+	uniqueDroppedLiveAction = "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it on the target, then run `import data` again."
 
 	uniqueAddedFallBackRisk = "If you cut over with fall-back while the target doesn't have it, `import data to source` stops at the first row from the target that breaks it."
 

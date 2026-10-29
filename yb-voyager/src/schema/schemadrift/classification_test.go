@@ -179,6 +179,22 @@ func TestGetDriftInfo_FallForwardSentenceOnEveryTypeButPartitionChildren(t *test
 	assert.Equal(t, infoByDiffType[schemadiff.ColumnAdded][TimingLiveAfterExportStart].Action, info.Action)
 }
 
+// A rebuilt unique key or index reads as a drop plus an add, so the drop's Action must not
+// tell the user to drop it unconditionally, and each kind names only the rebuilds it can have.
+func TestGetDriftInfo_UniqueDropKeepsItWhenRebuilt(t *testing.T) {
+	for _, diffType := range []schemadiff.DiffType{schemadiff.UniqueDropped, schemadiff.UniqueIndexDropped} {
+		for _, timing := range []Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+			info, err := getDriftInfo(diffType, situation{Timing: timing})
+			require.NoError(t, err)
+			assert.True(t, strings.HasPrefix(info.Action, "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it"), "%s / %s: %s", diffType, timing, info.Action)
+			assert.Contains(t, info.Impact, "a column type change", "%s / %s", diffType, timing)
+			isIndex := diffType == schemadiff.UniqueIndexDropped
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "REINDEX CONCURRENTLY"), "%s / %s", diffType, timing)
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "USING INDEX"), "%s / %s", diffType, timing)
+		}
+	}
+}
+
 // Offline import data replays no deletes or updates, so only the timings that can be
 // live mention the key's ON DELETE or ON UPDATE action.
 func TestGetDriftInfo_ForeignKeyDroppedActionOnlyWhenChangesReplay(t *testing.T) {
