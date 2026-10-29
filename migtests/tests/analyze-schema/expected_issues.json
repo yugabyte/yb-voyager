@@ -164,28 +164,6 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "test_udt",
-            "Reason": "User defined datatype ADDRESS_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: home_address. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "SqlStatement": "CREATE TABLE test_udt (\n\temployee_id SERIAL PRIMARY KEY,\n\temployee_name VARCHAR(100),\n\thome_address address_type,\n\tsome_field enum_test,\n\thome_address1 non_public.address_type1,\n    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR)\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "migration_caveats",
-            "ObjectType": "TABLE",
-            "ObjectName": "test_udt",
-            "Reason": "User defined datatype NON_PUBLIC.ADDRESS_TYPE1 not yet supported by voyager in live migration with fall-forward/fallback. Affected column: home_address1. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "SqlStatement": "CREATE TABLE test_udt (\n\temployee_id SERIAL PRIMARY KEY,\n\temployee_name VARCHAR(100),\n\thome_address address_type,\n\tsome_field enum_test,\n\thome_address1 non_public.address_type1,\n    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR)\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "abc ON public.example",
@@ -1735,6 +1713,94 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "Test",
+            "Reason": "TSRANGE datatype not yet supported by voyager in live migration. Affected column: timerange. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH &&),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH &&)\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.meeting",
+            "Reason": "TSRANGE datatype not yet supported by voyager in live migration. Affected column: time_range. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE public.meeting (\n    id integer NOT NULL,\n    room_id integer NOT NULL,\n    time_range tsrange NOT NULL\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1",
+            "Reason": "TSRANGE datatype not yet supported by voyager in live migration. Affected column: t. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1",
+            "Reason": "DATERANGE datatype not yet supported by voyager in live migration. Affected column: d. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1",
+            "Reason": "TSTZRANGE datatype not yet supported by voyager in live migration. Affected column: tz. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1",
+            "Reason": "NUMRANGE datatype not yet supported by voyager in live migration. Affected column: n. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1",
+            "Reason": "INT4RANGE datatype not yet supported by voyager in live migration. Affected column: i4. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "combined_tbl1",
+            "Reason": "INT8RANGE datatype not yet supported by voyager in live migration. Affected column: i8. This column will be excluded when exporting and importing data in live migration workflows.",
+            "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "MinimumVersionsFixedIn": null
         }
 ]

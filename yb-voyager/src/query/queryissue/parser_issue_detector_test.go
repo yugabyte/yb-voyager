@@ -355,6 +355,7 @@ func TestAllIssues(t *testing.T) {
 		stmt11: []QueryIssue{
 			NewExclusionConstraintIssue("TABLE", "Test", stmt11, "Test_room_id_time_range_excl"),
 			NewExclusionConstraintIssue("TABLE", "Test", stmt11, "no_time_overlap_constr"),
+			NewRangeLiveMigrationDatatypeIssue("TABLE", "Test", stmt11, "tsrange", "timerange"),
 		},
 		stmt13: []QueryIssue{
 			NewIndexOnDaterangeDatatypeIssue("INDEX", "idx_on_daterange ON test_dt", stmt13),
@@ -411,6 +412,7 @@ func TestDDLIssues(t *testing.T) {
 			NewMultiColumnListPartition("TABLE", "public.xml_data_example", stmt16),
 			NewInsufficientColumnInPKForPartition("TABLE", "public.xml_data_example", stmt16, []string{"name"}),
 			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "XML", "description"),
+			NewRangeLiveMigrationDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "daterange", "d"),
 		},
 		stmt17: []QueryIssue{
 			NewXmlFunctionsIssue("TABLE", "invoices", stmt17),
@@ -3163,6 +3165,10 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 		`CREATE TYPE public.lo AS ENUM ('a', 'b');`,
 		`CREATE TYPE public.audit AS (doc xml, last_seen pg_lsn, txn xid, raw_doc pg_catalog.xml);`,
 		`CREATE TYPE public.contact AS (home public.address, note text);`,
+		`CREATE TYPE public.float_range AS RANGE (subtype = float8);`,
+		`CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = "Sch"."SpanSet");`,
+		`CREATE DOMAIN public.tsrange_dom AS tsrange;`,
+		`CREATE TYPE public.booking AS (room int, during tsrange);`,
 	}
 	newDetector := func(t *testing.T) *ParserIssueDetector {
 		detector := NewParserIssueDetector()
@@ -3220,10 +3226,10 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 			},
 		},
 		{
-			name: "domain over a composite type is a live fall-forward/fall-back issue",
+			name: "domain over a composite of supported fields is not reported",
 			stmt: `CREATE TABLE public.dom_composite (id int PRIMARY KEY, addr public.address_dom);`,
 			expected: func(stmt string) []QueryIssue {
-				return []QueryIssue{NewUserDefinedDatatypeIssue("TABLE", "public.dom_composite", stmt, "public.address", "addr")}
+				return []QueryIssue{}
 			},
 		},
 		{
@@ -3284,12 +3290,10 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 		},
 		{
 			name: "composite of supported fields, and an array of it, are live fall-forward/fall-back issues",
+			name: "composite of supported fields, and an array of it, are not reported",
 			stmt: `CREATE TABLE public.comp_supported (id int PRIMARY KEY, addr public.address, addrs public.address[]);`,
 			expected: func(stmt string) []QueryIssue {
-				return []QueryIssue{
-					NewUserDefinedDatatypeIssue("TABLE", "public.comp_supported", stmt, "public.address", "addr"),
-					NewUserDefinedDatatypeIssue("TABLE", "public.comp_supported", stmt, "public.address", "addrs"),
-				}
+				return []QueryIssue{}
 			},
 		},
 		{
@@ -3303,7 +3307,23 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 			name: "user-defined types named like unsupported datatypes are judged by what they are built from",
 			stmt: `CREATE TABLE public.udt_named_like_builtin (id int PRIMARY KEY, p public.point, x public.xml, l public.lo);`,
 			expected: func(stmt string) []QueryIssue {
-				return []QueryIssue{NewUserDefinedDatatypeIssue("TABLE", "public.udt_named_like_builtin", stmt, "public.point", "p")}
+				return []QueryIssue{}
+			},
+		},
+		{
+			name: "built-in and user-defined range and multirange types are live-migration issues",
+			stmt: `CREATE TABLE public.ranges (id int PRIMARY KEY, during tsrange, days daterange[], tdom public.tsrange_dom, b public.booking, fr public.float_range, frm public.float_multirange, "Spans" "Sch"."Span", "SpanSets" "Sch"."SpanSet"[]);`,
+			expected: func(stmt string) []QueryIssue {
+				return []QueryIssue{
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "tsrange", "during"),
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "daterange", "days"),
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "tsrange", "tdom"),
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "tsrange", "b"),
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "public.float_range", "fr"),
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "public.float_multirange", "frm"),
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "Sch.Span", "Spans"),
+					NewRangeLiveMigrationDatatypeIssue("TABLE", "public.ranges", stmt, "Sch.SpanSet", "SpanSets"),
+				}
 			},
 		},
 		{
@@ -3333,7 +3353,7 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 // dumped partition is reported along with its root.
 func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 	const (
-		ordersRoot        = `CREATE TABLE sales."Orders" (id int, "Region" text, "Lsn" types.lsn_dom, addr types.address, PRIMARY KEY (id, "Region")) PARTITION BY LIST ("Region");`
+		ordersRoot        = `CREATE TABLE sales."Orders" (id int, "Region" text, "Lsn" types.lsn_dom, addr types.address, "During" types.period, PRIMARY KEY (id, "Region")) PARTITION BY LIST ("Region");`
 		ordersMid         = `CREATE TABLE sales."Orders_EU" PARTITION OF sales."Orders" FOR VALUES IN ('EU') PARTITION BY HASH (id);`
 		ordersLeaf        = `CREATE TABLE sales."Orders_EU_0" PARTITION OF sales."Orders_EU" FOR VALUES WITH (MODULUS 2, REMAINDER 0);`
 		ordersDumpedLeaf  = `CREATE TABLE sales."Orders_US" (id int, "Region" text, "Lsn" types.lsn_dom, addr types.address);`
@@ -3347,6 +3367,7 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 		`CREATE DOMAIN types.lsn_dom AS pg_lsn;`,
 		`CREATE TYPE types.address AS (street text, zip int);`,
 		ordersRoot, ordersMid, ordersLeaf, ordersDumpedLeaf, ordersAttachLeaf, eventsParent, eventsChild, eventsChildOwnCol,
+		`CREATE TYPE types.period AS RANGE (subtype = date);`,
 	} {
 		require.NoError(t, detector.ParseAndProcessDDL(ddl))
 	}
@@ -3359,7 +3380,7 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 	}{
 		{"case-sensitive partitioned root", ordersRoot, []QueryIssue{
 			NewPgLsnDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "pg_lsn", "Lsn"),
-			NewUserDefinedDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "types.address", "addr"),
+			NewRangeLiveMigrationDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "types.period", "During"),
 		}},
 		{"intermediate partition", ordersMid, nil},
 		{"leaf partition", ordersLeaf, nil},
@@ -3389,6 +3410,62 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 	}
 }
 
+func TestIndexOnUserDefinedTypes(t *testing.T) {
+	const (
+		readings         = `CREATE TABLE public.readings (id int, bounds public.float8_range, "Spans" "Sch"."SpanSet", addr public.address, mood public.mood, CONSTRAINT readings_pk PRIMARY KEY (id, bounds));`
+		rangeIdx         = `CREATE INDEX idx_bounds ON public.readings (bounds);`
+		multirangeIdx    = `CREATE INDEX idx_spans ON public.readings ("Spans");`
+		compositeIdx     = `CREATE INDEX idx_addr ON public.readings (addr);`
+		enumIdx          = `CREATE INDEX idx_mood ON public.readings (mood);`
+		rangeCastExprIdx = `CREATE INDEX idx_cast ON public.readings ((id::text::public.float8_range));`
+	)
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{
+		`CREATE TYPE public.float8_range AS RANGE (subtype = float8, subtype_diff = float8mi);`,
+		`CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = "Sch"."SpanSet");`,
+		`CREATE TYPE public.address AS (street text, zip int);`,
+		`CREATE TYPE public.mood AS ENUM ('happy', 'sad');`,
+		readings,
+	} {
+		require.NoError(t, detector.ParseAndProcessDDL(ddl))
+	}
+	detector.FinalizeTablesMetadata()
+
+	testCases := []struct {
+		name     string
+		stmt     string
+		expected []QueryIssue
+	}{
+		{"primary key on a user-defined range", readings, []QueryIssue{
+			NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue("TABLE", "public.readings", readings, "user_defined_type", "readings_pk"),
+		}},
+		{"index on a user-defined range", rangeIdx, []QueryIssue{
+			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_bounds ON public.readings", rangeIdx),
+		}},
+		{"index on a case-sensitive multirange", multirangeIdx, []QueryIssue{
+			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_spans ON public.readings", multirangeIdx),
+		}},
+		{"index on a composite", compositeIdx, []QueryIssue{
+			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_addr ON public.readings", compositeIdx),
+		}},
+		{"index on an enum", enumIdx, nil},
+		{"expression index cast to a user-defined range", rangeCastExprIdx, []QueryIssue{
+			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_cast ON public.readings", rangeCastExprIdx),
+		}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := detector.GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			require.NoError(t, err)
+			udtIssues := lo.Filter(issues, func(issue QueryIssue, _ int) bool {
+				return issue.Type == INDEX_ON_USER_DEFINED_DATATYPE || issue.Type == PK_UK_ON_USER_DEFINED_DATATYPE
+			})
+			assert.True(t, cmp.Equal(tc.expected, udtIssues, cmpopts.EquateEmpty()),
+				"issues mismatch (-expected +actual):\n%s", cmp.Diff(tc.expected, udtIssues, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
 func TestGetUnderlyingTypes(t *testing.T) {
 	detector := NewParserIssueDetector()
 	for _, ddl := range []string{
@@ -3399,12 +3476,15 @@ func TestGetUnderlyingTypes(t *testing.T) {
 		`CREATE TYPE public.wrapper AS (name text, inner_geo public."Geo", geos public."Geo"[]);`,
 		`CREATE TYPE public.status AS ENUM ('active', 'inactive');`,
 		`CREATE DOMAIN public.geo_dom AS public."Geo";`,
+		`CREATE TYPE public."Span" AS RANGE (subtype = int4, multirange_type_name = public."SpanSet");`,
+		`CREATE DOMAIN public.span_dom AS public."Span";`,
 	} {
 		assert.NoError(t, detector.ParseAndProcessDDL(ddl))
 	}
 	domain := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindDomain} }
 	composite := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindComposite} }
 	other := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindOther} }
+	rangeType := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindRange} }
 
 	testCases := []struct {
 		name     string
@@ -3424,6 +3504,23 @@ func TestGetUnderlyingTypes(t *testing.T) {
 		{"composite nesting a composite and an array of it", "public.wrapper", []UnderlyingType{composite("public.wrapper"), other("text"), composite("public.Geo"), other("pg_lsn")}},
 		{"domain over a composite", "public.geo_dom", []UnderlyingType{domain("public.geo_dom"), composite("public.Geo"), other("text"), other("pg_lsn")}},
 		{"enum", "public.status", []UnderlyingType{{Name: "public.status", Kind: TypeKindEnum}}},
+		{"qualified domain", "public.xid8_dom", "", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
+		{"stacked domain", "public.xid8_dom_nested", "", []UnderlyingType{domain("public.xid8_dom_nested"), domain("public.xid8_dom"), other("xid8")}},
+		{"array of a domain", "public.xid8_dom[]", "", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
+		{"unqualified, resolved in the default schema", "xid8_dom", "public", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
+		{"unqualified and ambiguous, default schema decides", "shared_dom", "sales", []UnderlyingType{domain("sales.shared_dom"), other("text")}},
+		{"unqualified and ambiguous without a match in the default schema", "shared_dom", "other", []UnderlyingType{other("shared_dom")}},
+		{"built-in", "xid8", "public", []UnderlyingType{other("xid8")}},
+		{"built-in reported by its SQL name", "time with time zone", "public", []UnderlyingType{other("time with time zone")}},
+		{"case-sensitive composite and its fields", "public.Geo", "", []UnderlyingType{composite("public.Geo"), other("text"), other("pg_lsn")}},
+		{"array of a composite", "public.Geo[]", "", []UnderlyingType{composite("public.Geo"), other("text"), other("pg_lsn")}},
+		{"composite nesting a composite and an array of it", "public.wrapper", "", []UnderlyingType{composite("public.wrapper"), other("text"), composite("public.Geo"), other("pg_lsn")}},
+		{"domain over a composite", "public.geo_dom", "", []UnderlyingType{domain("public.geo_dom"), composite("public.Geo"), other("text"), other("pg_lsn")}},
+		{"enum", "public.status", "", []UnderlyingType{{Name: "public.status", Kind: TypeKindEnum}}},
+		{"case-sensitive range", "public.Span", "", []UnderlyingType{rangeType("public.Span")}},
+		{"multirange of a range", "public.SpanSet", "", []UnderlyingType{rangeType("public.SpanSet")}},
+		{"domain over a range", "public.span_dom", "", []UnderlyingType{domain("public.span_dom"), rangeType("public.Span")}},
+		{"built-in range", "tsrange", "public", []UnderlyingType{other("tsrange")}},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
