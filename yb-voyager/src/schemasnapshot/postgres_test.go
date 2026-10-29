@@ -19,6 +19,7 @@ package schemasnapshot
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -62,8 +63,7 @@ func TestTakeSnapshotLoadsTablesAndColumns(t *testing.T) {
 
 	expectEmptySearchPath(mock)
 	// Expect the database version query.
-	mock.ExpectQuery(`SHOW server_version`).
-		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("16.4 (Ubuntu 16.4-0ubuntu0.24.04.2)"))
+	expectServerVersion(mock, "16.4 (Ubuntu 16.4-0ubuntu0.24.04.2)", 160004)
 
 	// Expect the tables query (pg_class).
 	tableRows := sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}).
@@ -130,10 +130,9 @@ func TestTakeSnapshotDatabaseVersionReturned(t *testing.T) {
 	p, err := newProvider(constants.POSTGRESQL, db)
 	require.NoError(t, err)
 
-	// Query order: set_config(search_path) → SHOW server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
+	// Query order: set_config(search_path) → server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
 	expectEmptySearchPath(mock)
-	mock.ExpectQuery(`SHOW server_version`).
-		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("14.11"))
+	expectServerVersion(mock, "14.11", 140011)
 
 	mock.ExpectQuery(`pg_class`).WillReturnRows(sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}))
 	mock.ExpectQuery(`pg_inherits`).WillReturnRows(sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
@@ -158,12 +157,11 @@ func TestTakeSnapshotPartitionLinkage(t *testing.T) {
 	p, err := newProvider("postgresql", db)
 	require.NoError(t, err)
 
-	// Query order: set_config(search_path) → SHOW server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
+	// Query order: set_config(search_path) → server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
 
 	// version
 	expectEmptySearchPath(mock)
-	mock.ExpectQuery(`SHOW server_version`).
-		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("16.4"))
+	expectServerVersion(mock, "16.4", 160004)
 
 	// tables: one partitioned parent + one ordinary child
 	tableRows := sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}).
@@ -220,12 +218,11 @@ func TestTakeSnapshotInheritanceLinkage(t *testing.T) {
 	p, err := newProvider("postgresql", db)
 	require.NoError(t, err)
 
-	// Query order: set_config(search_path) → SHOW server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
+	// Query order: set_config(search_path) → server_version → pg_class → pg_inherits → pg_attribute → pg_constraint → pg_index.
 
 	// version
 	expectEmptySearchPath(mock)
-	mock.ExpectQuery(`SHOW server_version`).
-		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("16.4"))
+	expectServerVersion(mock, "16.4", 160004)
 
 	// tables: parent "animals" (ordinary) and child "dogs" (ordinary)
 	tableRows := sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}).
@@ -282,6 +279,11 @@ func expectEmptySearchPath(mock sqlmock.Sqlmock) {
 	mock.ExpectQuery(`set_config`).WillReturnRows(sqlmock.NewRows([]string{"set_config"}).AddRow(""))
 }
 
+func expectServerVersion(mock sqlmock.Sqlmock, version string, versionNum int) {
+	mock.ExpectQuery(`server_version_num`).
+		WillReturnRows(sqlmock.NewRows([]string{"current_setting", "current_setting"}).AddRow(version, versionNum))
+}
+
 func expectEmptyConstraintsAndIndexes(mock sqlmock.Sqlmock) {
 	mock.ExpectQuery(`pg_get_constraintdef`).WillReturnRows(sqlmock.NewRows(constraintColumns))
 	mock.ExpectQuery(`pg_get_indexdef`).WillReturnRows(sqlmock.NewRows(indexColumns))
@@ -291,8 +293,7 @@ func expectEmptyConstraintsAndIndexes(mock sqlmock.Sqlmock) {
 // given tables, each as (oid, schema, name).
 func expectTables(mock sqlmock.Sqlmock, tables ...[3]string) {
 	expectEmptySearchPath(mock)
-	mock.ExpectQuery(`SHOW server_version`).
-		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("17.2"))
+	expectServerVersion(mock, "17.2", 170002)
 	tableRows := sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"})
 	for _, tb := range tables {
 		tableRows.AddRow(tb[0], tb[1], tb[2], "r")
@@ -433,35 +434,51 @@ func TestTakeSnapshotOrphanRowsAreErrors(t *testing.T) {
 	}
 }
 
-func TestParseMajorVersion(t *testing.T) {
+// TestTakeSnapshotSkipsReferencedPartitionFKClonesFromPG11 verifies that the constraints
+// query filters the clones of a foreign key to a partitioned table only on servers that
+// have pg_constraint.conparentid (PostgreSQL 11+); PostgreSQL 10 would fail the query.
+func TestTakeSnapshotSkipsReferencedPartitionFKClonesFromPG11(t *testing.T) {
 	tests := []struct {
-		version string
-		want    int
+		version    string
+		versionNum int
+		wantFilter bool
 	}{
-		{"16.4", 16},
-		{"10.23", 10},
-		{"9.6.24", 9},
-		{"17beta1", 17},
-		{"11.2-YB-2.20.1.0-b0", 11},
+		{"10.23", 100023, false},
+		{"11.0", 110000, true},
+		{"11.2-YB-2.20.1.0-b0", 110002, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
-			got, err := parseMajorVersion(tc.version)
+			wantConstraintsQuery := buildConstraintsQuery("$1", tc.wantFilter)
+			// Match the constraints query exactly; every other query by regexp as usual.
+			matcher := sqlmock.QueryMatcherFunc(func(expectedSQL, actualSQL string) error {
+				if expectedSQL != wantConstraintsQuery {
+					return sqlmock.QueryMatcherRegexp.Match(expectedSQL, actualSQL)
+				}
+				if actualSQL != wantConstraintsQuery {
+					return fmt.Errorf("constraints query: got\n%s\nwant\n%s", actualSQL, wantConstraintsQuery)
+				}
+				return nil
+			})
+			db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(matcher))
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
+			defer db.Close()
+			p, err := newProvider(constants.POSTGRESQL, db)
+			require.NoError(t, err)
+
+			expectEmptySearchPath(mock)
+			expectServerVersion(mock, tc.version, tc.versionNum)
+			mock.ExpectQuery(`pg_class`).WillReturnRows(sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}))
+			mock.ExpectQuery(`pg_inherits`).WillReturnRows(sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
+			mock.ExpectQuery(`pg_attribute`).WillReturnRows(sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}))
+			mock.ExpectQuery(wantConstraintsQuery).WillReturnRows(sqlmock.NewRows(constraintColumns))
+			mock.ExpectQuery(`pg_get_indexdef`).WillReturnRows(sqlmock.NewRows(indexColumns))
+
+			_, _, err = p.TakeSnapshot(context.Background(), []string{"public"})
+			require.NoError(t, err)
+			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
-
-	t.Run("invalid", func(t *testing.T) {
-		_, err := parseMajorVersion("devel")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `cannot parse major version from "devel"`)
-	})
-}
-
-func TestBuildConstraintsQuerySkipsReferencedPartitionFKsOnlyWhenSupported(t *testing.T) {
-	assert.Contains(t, buildConstraintsQuery("$1", true), "conparentid")
-	assert.NotContains(t, buildConstraintsQuery("$1", false), "conparentid")
 }
 
 func TestStripIndexDefPrefix(t *testing.T) {

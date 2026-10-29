@@ -141,10 +141,9 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 
 func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	sentences := map[schemadiff.DiffType]string{
-		schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table",
-		schemadiff.PrimaryKeyAdded: "If you cut over with fall-back while the target doesn't have this key, `import data to source` stops at the first change on this table it can't apply.",
-		schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
-		schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+		schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table",
+		schemadiff.UniqueAdded:   uniqueAddedFallBackRisk,
+		schemadiff.CheckAdded:    "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
 	}
 	for _, diffType := range schemadiff.AllDiffTypes() {
 		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
