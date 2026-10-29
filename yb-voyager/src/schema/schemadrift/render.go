@@ -524,27 +524,28 @@ func severityLabel(sev Severity) (string, error) {
 }
 
 // Partition and inheritance copies are left out: creating the table with its
-// PARTITION OF or INHERITS link brings them.
-func ownKeyAndIndexDefs(t schemasnapshot.Table) []string {
+// PARTITION OF or INHERITS link brings them. Each one is named, so the target can
+// get the same names.
+func ownKeyAndIndexDefs(t schemasnapshot.Table, dbType string) []string {
 	var defs []string
 	if t.PrimaryKey != nil && !t.PrimaryKey.FromParent {
-		defs = append(defs, t.PrimaryKey.Definition)
+		defs = append(defs, "CONSTRAINT "+minQuoted(t.PrimaryKey.Name, dbType)+" "+t.PrimaryKey.Definition)
 	}
 	for _, constraints := range [][]schemasnapshot.Constraint{t.UniqueKeys, t.Checks, t.ForeignKeys} {
 		for _, c := range constraints {
 			if !c.FromParent {
-				defs = append(defs, c.Definition)
+				defs = append(defs, "CONSTRAINT "+minQuoted(c.Name, dbType)+" "+c.Definition)
 			}
 		}
 	}
 	for _, idx := range t.UniqueIndexes {
 		if !idx.FromParent {
-			defs = append(defs, "UNIQUE INDEX "+idx.Definition)
+			defs = append(defs, "UNIQUE INDEX "+minQuoted(idx.Name, dbType)+" "+idx.Definition)
 		}
 	}
 	for _, idx := range t.Indexes {
 		if !idx.FromParent {
-			defs = append(defs, "INDEX "+idx.Definition)
+			defs = append(defs, "INDEX "+minQuoted(idx.Name, dbType)+" "+idx.Definition)
 		}
 	}
 	return defs
@@ -614,7 +615,7 @@ func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (s
 			}
 			parts = append(parts, "INHERITS ("+strings.Join(parents, ", ")+")")
 		}
-		return strings.Join(append(parts, ownKeyAndIndexDefs(v)...), "; "), nil
+		return strings.Join(append(parts, ownKeyAndIndexDefs(v, dbType)...), "; "), nil
 	default:
 		return "", goerrors.Errorf("unexpected value type %T for attribute %q", value, attribute)
 	}
