@@ -116,7 +116,7 @@ type Diff struct {
 	// What changed, as the diff engine classified it.
 	Type       schemadiff.DiffType   `json:"type"`
 	Operation  schemadiff.Operation  `json:"operation"`           // ADDED | DROPPED | CHANGED
-	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN | CONSTRAINT
+	ObjectType schemadiff.ObjectType `json:"object_type"`         // TABLE | COLUMN | CONSTRAINT | INDEX
 	Attribute  schemadiff.Attribute  `json:"attribute,omitempty"` // "" when operation is ADDED or DROPPED
 
 	// What it changed on, and to what. Object/SubObject are the display side: the

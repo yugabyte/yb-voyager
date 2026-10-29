@@ -96,6 +96,8 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 	withKey.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "11", "Orders_Email_key", `UNIQUE ("Email")`)}
 	withKey.Checks = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Qty_check", `CHECK ("Qty" > 0)`)}
 	withKey.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "13", "Orders_Cust_fkey", `FOREIGN KEY ("Cust") REFERENCES "Sales"."Customers"(id)`)}
+	withKey.UniqueIndexes = []schemasnapshot.Index{{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: "Orders_Email_uq"}, ID: "14", Definition: `USING btree (lower("Email"))`}}
+	withKey.Indexes = []schemasnapshot.Index{{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: "Orders_Qty_idx"}, ID: "15", Definition: `USING btree ("Qty")`}}
 	withoutKey := tableWithPrimaryKey(nil)
 
 	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
@@ -120,6 +122,8 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 			{UniqueAdded, "public.Orders.Orders_Email_key"},
 			{CheckAdded, "public.Orders.Orders_Qty_check"},
 			{ForeignKeyAdded, "public.Orders.Orders_Cust_fkey"},
+			{UniqueIndexAdded, "public.Orders.Orders_Email_uq"},
+			{IndexAdded, "public.Orders.Orders_Qty_idx"},
 		}},
 	}
 	for _, tc := range tests {
@@ -231,4 +235,52 @@ func TestDiffConstraintsOrIndexes_ForeignKeys(t *testing.T) {
 		want := []Difference{{Type: ForeignKeyAdded, Operation: OpAdded, ObjectType: ObjectTypeConstraint, ObjectB: ownFK.TableScopedObjectRef, SideBValue: ownFK.Definition}}
 		assert.Equal(t, want, got)
 	})
+}
+
+func TestDiffConstraintsOrIndexes_Indexes(t *testing.T) {
+	newIndex := func(id, name, definition string) schemasnapshot.Index {
+		return schemasnapshot.Index{
+			TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("public", "Orders"), Name: name},
+			ID:                   id,
+			Definition:           definition,
+		}
+	}
+	emailIdx := newIndex("10", "Orders_Email_idx", `USING btree ("Email")`)
+	renamedEmailIdx := newIndex("10", "orders_email_ix", `USING btree ("Email")`)
+	reindexedEmailIdx := newIndex("20", "Orders_Email_idx", `USING btree ("Email")`)
+
+	kinds := []struct {
+		name                       string
+		types                      kindTypes
+		addedT, droppedT, renamedT DiffType
+	}{
+		{"unique index", uniqueIndexTypes, UniqueIndexAdded, UniqueIndexDropped, UniqueIndexNameChanged},
+		{"index", indexTypes, IndexAdded, IndexDropped, IndexNameChanged},
+	}
+	for _, k := range kinds {
+		dropped := func(i schemasnapshot.Index) Difference {
+			return Difference{Type: k.droppedT, Operation: OpDropped, ObjectType: ObjectTypeIndex, ObjectA: i.TableScopedObjectRef, SideAValue: i.Definition}
+		}
+		added := func(i schemasnapshot.Index) Difference {
+			return Difference{Type: k.addedT, Operation: OpAdded, ObjectType: ObjectTypeIndex, ObjectB: i.TableScopedObjectRef, SideBValue: i.Definition}
+		}
+		renamed := Difference{Type: k.renamedT, Operation: OpChanged, ObjectType: ObjectTypeIndex, Attribute: AttrName,
+			ObjectA: emailIdx.TableScopedObjectRef, ObjectB: renamedEmailIdx.TableScopedObjectRef, SideAValue: "Orders_Email_idx", SideBValue: "orders_email_ix"}
+
+		tests := []struct {
+			name           string
+			earlier, later []schemasnapshot.Index
+			want           []Difference
+		}{
+			{"renamed", []schemasnapshot.Index{emailIdx}, []schemasnapshot.Index{renamedEmailIdx}, []Difference{renamed}},
+			{"REINDEX CONCURRENTLY shape: same name, new OID, reports a drop and an add",
+				[]schemasnapshot.Index{emailIdx}, []schemasnapshot.Index{reindexedEmailIdx},
+				[]Difference{dropped(emailIdx), added(reindexedEmailIdx)}},
+		}
+		for _, tc := range tests {
+			t.Run(k.name+"/"+tc.name, func(t *testing.T) {
+				assert.Equal(t, tc.want, diffConstraintsOrIndexes(tc.earlier, tc.later, indexRef, k.types))
+			})
+		}
+	}
 }

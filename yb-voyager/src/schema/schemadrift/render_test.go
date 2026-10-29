@@ -468,6 +468,11 @@ func TestRenderHTML_RejectsReportsItCannotDisplay(t *testing.T) {
 			wantErr: "CONSTRAINT finding on public.orders has no object name",
 		},
 		{
+			name:    "an index finding without an index",
+			breakIt: func(r *Report) { r.Drifts[1].ObjectType = schemadiff.ObjectTypeIndex; r.Drifts[1].SubObject = "" },
+			wantErr: "INDEX finding on public.orders has no object name",
+		},
+		{
 			name:    "a finding without an object name",
 			breakIt: func(r *Report) { r.Drifts[0].Object.Name = "" },
 			wantErr: "has an empty schema or name",

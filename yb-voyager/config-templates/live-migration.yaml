@@ -624,9 +624,9 @@ finalize-schema-post-data-import:
   # table-list: <table-list>
   # exclude-table-list: <exclude-table-list>
 
-  ### Comma-separated list of object types to compare: (TABLE, COLUMN, CONSTRAINT).
+  ### Comma-separated list of object types to compare: (TABLE, COLUMN, CONSTRAINT, INDEX).
   ### Only one of object-type-list and exclude-object-type-list can be specified.
-  # object-type-list: TABLE,COLUMN,CONSTRAINT
+  # object-type-list: TABLE,COLUMN,CONSTRAINT,INDEX
   # exclude-object-type-list: <exclude-object-type-list>
 
   ### Log level for the command

@@ -614,7 +614,7 @@ The primary key is one slot per table: none to some is `PRIMARY_KEY_ADDED`, some
 
 **Accepted limitations.** Each overstates rather than hides a change:
 
-- Anything that gives an object a new OID reads as a drop plus an add, whether or not anything changed: a re-create in one transaction, `REINDEX CONCURRENTLY` on a standalone index, `ALTER COLUMN TYPE` on a column a key, check or index uses, and `ADD … USING INDEX`. The drop's severity and Action apply. The unique drops' Impact says that, next to an added key or index on the same columns, the source still enforces uniqueness and the target should keep it.
+- Anything that gives an object a new OID reads as a drop plus an add, whether or not anything changed: a re-create in one transaction, `REINDEX CONCURRENTLY` on a standalone index, `ALTER COLUMN TYPE` on a column a key, check or index uses, and `ADD … USING INDEX`. The drop's severity applies. The unique drops' Impact says that, next to an added key or index on the same columns, it was rebuilt, the source still enforces uniqueness, and the target should keep it; their Action says to keep it on the target when it was rebuilt, and to drop it otherwise. The Impact names only the causes that apply to each kind: a column type change for a unique constraint, whose OID `REINDEX CONCURRENTLY` keeps; `REINDEX CONCURRENTLY`, a column type change or `ADD CONSTRAINT … USING INDEX` for a unique index.
 - Keys and indexes dropped together with their column each get a plain `*_DROPPED` next to `COLUMN_DROPPED`.
 - `DEFERRABLE`, `VALIDATE`, and PostgreSQL 18 `NOT ENFORCED` are not reported. A primary key or unique constraint can only become deferrable by being re-created, which is reported as a drop plus an add.
 

@@ -111,6 +111,12 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.ForeignKeyAdded:               {adv, adv, adv, adv},
 		schemadiff.ForeignKeyDropped:             {pot, pot, pot, pot},
 		schemadiff.ForeignKeyNameChanged:         {adv, adv, adv, adv},
+		schemadiff.UniqueIndexAdded:              {adv, adv, pot, pot},
+		schemadiff.UniqueIndexDropped:            {rec, pot, rec, rec},
+		schemadiff.UniqueIndexNameChanged:        {adv, adv, adv, adv},
+		schemadiff.IndexAdded:                    {adv, adv, adv, adv},
+		schemadiff.IndexDropped:                  {adv, adv, adv, adv},
+		schemadiff.IndexNameChanged:              {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -144,21 +150,38 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 
 func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	sentences := map[schemadiff.DiffType]string{
-		schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table",
-		schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
-		schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
-		schemadiff.ForeignKeyAdded: "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
+		schemadiff.ColumnDropped:    "If you cut over with fall-back, `import data to source` stops at the first insert on this table",
+		schemadiff.UniqueAdded:      uniqueAddedFallBackRisk,
+		schemadiff.UniqueIndexAdded: uniqueAddedFallBackRisk,
+		schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+		schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
 	}
 	for _, diffType := range schemadiff.AllDiffTypes() {
 		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
 		require.NoError(t, err)
 		for sentenceType, sentence := range sentences {
-			assert.Equal(t, diffType == sentenceType, strings.Contains(info.Impact, sentence), "%s / %s", diffType, sentenceType)
+			assert.Equal(t, sentences[diffType] == sentence, strings.Contains(info.Impact, sentence), "%s / %s", diffType, sentenceType)
 		}
 	}
 	info, err := getDriftInfo(schemadiff.ColumnDropped, situation{Timing: TimingLiveAfterExportStart})
 	require.NoError(t, err)
 	assert.NotContains(t, info.Impact, "fall-back")
+}
+
+// A rebuilt unique key or index reads as a drop plus an add, so the drop's Action must not
+// tell the user to drop it unconditionally, and each kind names only the rebuilds it can have.
+func TestGetDriftInfo_UniqueDropKeepsItWhenRebuilt(t *testing.T) {
+	for _, diffType := range []schemadiff.DiffType{schemadiff.UniqueDropped, schemadiff.UniqueIndexDropped} {
+		for _, timing := range []Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+			info, err := getDriftInfo(diffType, situation{Timing: timing})
+			require.NoError(t, err)
+			assert.True(t, strings.HasPrefix(info.Action, "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it"), "%s / %s: %s", diffType, timing, info.Action)
+			assert.Contains(t, info.Impact, "a column type change", "%s / %s", diffType, timing)
+			isIndex := diffType == schemadiff.UniqueIndexDropped
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "REINDEX CONCURRENTLY"), "%s / %s", diffType, timing)
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "USING INDEX"), "%s / %s", diffType, timing)
+		}
+	}
 }
 
 // Offline import data replays no deletes or updates, so only the timings that can be
