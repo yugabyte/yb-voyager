@@ -791,7 +791,7 @@ func nothingComparedError(r schemadrift.Report) error {
 	}
 
 	switch {
-	case len(r.CapturePoints) == 0:
+	case r.Summary.StoredCaptureCount == 0:
 		return goerrors.Errorf("this export directory holds no schema snapshots, so there is nothing to compare. " +
 			"Snapshots are recorded while `export schema` and `export data` run, unless they ran with " +
 			"--disable-schema-snapshot-capture=true or on a voyager version that did not capture by default")

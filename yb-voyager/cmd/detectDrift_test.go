@@ -535,12 +535,16 @@ func TestNothingComparedError(t *testing.T) {
 	tests := []struct {
 		name   string
 		points []schemadrift.CapturePoint
+		stored int
 		want   string
 		absent string
 	}{
 		{
+			// Production always puts the live read in CapturePoints, so "no history"
+			// is a single live point with zero stored captures, never an empty slice.
 			name:   "no captures stored at all",
-			points: nil,
+			points: []schemadrift.CapturePoint{{Label: schemasnapshot.LabelSourceLive}},
+			stored: 0,
 			want:   "holds no schema snapshots",
 			// Capture cannot be enabled retroactively, so the message must not
 			// suggest re-running the export as a fix for this run.
@@ -551,6 +555,7 @@ func TestNothingComparedError(t *testing.T) {
 			points: []schemadrift.CapturePoint{
 				{Label: schemasnapshot.LabelExportSchema},
 			},
+			stored: 1,
 			want:   "a single capture forms no interval",
 			absent: "skipped because",
 		},
@@ -560,6 +565,7 @@ func TestNothingComparedError(t *testing.T) {
 				{Label: schemasnapshot.LabelExportSchema, Excluded: "the capture failed, so this point holds no schema"},
 				{Label: schemasnapshot.LabelExportDataFromSourceStart, Excluded: "captured only sales, so it cannot answer for public"},
 			},
+			stored: 2,
 			want:   "captured only sales, so it cannot answer for public",
 			absent: "single capture",
 		},
@@ -567,7 +573,10 @@ func TestNothingComparedError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := nothingComparedError(schemadrift.Report{CapturePoints: tt.points})
+			err := nothingComparedError(schemadrift.Report{
+				CapturePoints: tt.points,
+				Summary:       schemadrift.Summary{StoredCaptureCount: tt.stored},
+			})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.want)
 			assert.NotContains(t, err.Error(), tt.absent)
