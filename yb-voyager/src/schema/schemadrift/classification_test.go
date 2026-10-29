@@ -179,6 +179,22 @@ func TestGetDriftInfo_FallForwardSentenceOnEveryTypeButPartitionChildren(t *test
 	assert.Equal(t, infoByDiffType[schemadiff.ColumnAdded][TimingLiveAfterExportStart].Action, info.Action)
 }
 
+// Offline import data replays no deletes or updates, so only the timings that can be
+// live mention the key's ON DELETE or ON UPDATE action.
+func TestGetDriftInfo_ForeignKeyDroppedActionOnlyWhenChangesReplay(t *testing.T) {
+	for timing, wantAction := range map[Timing]bool{
+		TimingBeforeExportData:            true,
+		TimingOfflineAfterExportStart:     false,
+		TimingLiveAfterExportStart:        true,
+		TimingChangesOnlyAfterExportStart: true,
+	} {
+		info, err := getDriftInfo(schemadiff.ForeignKeyDropped, situation{Timing: timing})
+		require.NoError(t, err)
+		assert.Equal(t, wantAction, strings.Contains(info.Impact, "`CASCADE`"), "%s Impact", timing)
+		assert.Equal(t, wantAction, strings.Contains(info.Action, "Restore from the source"), "%s Action", timing)
+	}
+}
+
 func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {
 	for diffType, byTiming := range infoByDiffType {
 		live := byTiming[TimingLiveAfterExportStart]
