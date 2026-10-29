@@ -58,7 +58,7 @@ const PG_STAT_STATEMENTS = "pg_stat_statements"
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
-var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ", "REFCURSOR"}
+var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "HALFVEC", "SPARSEVEC", "TIMETZ", "REFCURSOR"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
 	return PostgresUnsupportedDataTypesForDbzm
@@ -801,6 +801,10 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	}
 	// range and multirange values are not handled by the importer's value converter
 	return getColumnsWithSupportedTypes(pg.db, tableList, PostgresUnsupportedDataTypesForDbzm, []string{pgTypTypeRange, pgTypTypeMultirange})
+}
+
+func (pg *PostgreSQL) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	return getTypeToOid(pg.db, typeNames)
 }
 
 // GetGeneratedStoredColumns returns, per table in tableList, the names of its STORED

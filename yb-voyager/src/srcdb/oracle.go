@@ -628,6 +628,10 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, u
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
+func (ora *Oracle) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	panic("not implemented")
+}
+
 func (ora *Oracle) GetServers() []string {
 	return []string{ora.source.Host}
 }

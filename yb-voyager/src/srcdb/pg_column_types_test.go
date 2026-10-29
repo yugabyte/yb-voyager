@@ -1,4 +1,4 @@
-//go:build unit
+//go:build integration
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -18,9 +18,11 @@ limitations under the License.
 package srcdb
 
 import (
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsColumnTypeUnsupported(t *testing.T) {
@@ -46,4 +48,53 @@ func TestIsColumnTypeUnsupported(t *testing.T) {
 			assert.Equal(t, tc.expected, isColumnTypeUnsupported(tc.columnTypes, unsupportedTypeNames, unsupportedTypTypes))
 		})
 	}
+}
+
+// Built-in types resolve to their fixed OIDs, an extension type only once its extension is
+// installed, and a user-defined type that merely shares the extension type's name never resolves.
+// The extension lives in a non-public schema so a search_path-based lookup would miss it.
+func runTypeToOidTest(t *testing.T, sourceDB SourceDB, db *sql.DB, executeSqls func(...string)) {
+	executeSqls(
+		`DROP EXTENSION IF EXISTS hstore CASCADE;`,
+		`CREATE SCHEMA user_types;`,
+		`CREATE TYPE user_types.hstore AS (k text, v text);`,
+	)
+	defer executeSqls(
+		`DROP SCHEMA IF EXISTS user_types CASCADE;`,
+		`DROP SCHEMA IF EXISTS ext_schema CASCADE;`,
+	)
+	typeNames := []string{"varbit", "tsvector", "tsquery", "hstore"}
+
+	t.Run("extension not installed", func(t *testing.T) {
+		typeToOid, err := sourceDB.GetTypeToOid(typeNames)
+		require.NoError(t, err)
+		require.Equal(t, map[string]int{"varbit": 1562, "tsvector": 3614, "tsquery": 3615}, typeToOid)
+	})
+
+	t.Run("extension installed in a non-public schema", func(t *testing.T) {
+		executeSqls(
+			`CREATE SCHEMA ext_schema;`,
+			`CREATE EXTENSION hstore WITH SCHEMA ext_schema;`,
+		)
+		var hstoreOid int
+		require.NoError(t, db.QueryRow(`SELECT 'ext_schema.hstore'::regtype::oid::bigint`).Scan(&hstoreOid))
+
+		typeToOid, err := sourceDB.GetTypeToOid(typeNames)
+		require.NoError(t, err)
+		require.Equal(t, map[string]int{"varbit": 1562, "tsvector": 3614, "tsquery": 3615, "hstore": hstoreOid}, typeToOid)
+	})
+}
+
+func TestPostgresGetTypeToOid(t *testing.T) {
+	err := testPostgresSource.DB().Connect()
+	require.NoError(t, err)
+	defer testPostgresSource.DB().Disconnect()
+
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+	runTypeToOidTest(t, pgDB, pgDB.db, testPostgresSource.TestContainer.ExecuteSqls)
+}
+
+func TestYugabyteGetTypeToOid(t *testing.T) {
+	ybDB := testYugabyteDBSource.DB().(*YugabyteDB)
+	runTypeToOidTest(t, ybDB, ybDB.db, testYugabyteDBSource.TestContainer.ExecuteSqls)
 }
