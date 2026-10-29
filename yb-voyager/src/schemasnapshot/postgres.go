@@ -22,9 +22,8 @@ package schemasnapshot
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
@@ -37,8 +36,12 @@ import (
 // sqlClearSearchPath sets search_path to empty for the current transaction only.
 const sqlClearSearchPath = `SELECT set_config('search_path', '', true)`
 
-// sqlServerVersion probes the PostgreSQL server version string.
-const sqlServerVersion = `SHOW server_version`
+// sqlServerVersion probes the PostgreSQL server version: the display string for the
+// snapshot header, and the integer form (e.g. 160004) for feature gates.
+const sqlServerVersion = `SELECT current_setting('server_version'), current_setting('server_version_num')::int`
+
+// minVersionNumConparentid is the first server_version_num with pg_constraint.conparentid (PostgreSQL 11).
+const minVersionNumConparentid = 110000
 
 // sqlLoadTablesFmt is the format template for loading tables. It expects %s to be
 // replaced with a comma-separated list of $N placeholders (one per schema).
@@ -170,7 +173,7 @@ func (p *postgresSnapshotProvider) DatabaseType() string { return constants.POST
 // Returns the schema content, the probed database version string (e.g. "16.4"), and any error.
 // The header fields (Version, DatabaseType, DBMetadata) are stamped by the
 // Capture orchestrator in capture.go after this call returns.
-// Query order: set_config(search_path) → SHOW server_version → pg_class → pg_inherits → pg_attribute →
+// Query order: set_config(search_path) → server_version → pg_class → pg_inherits → pg_attribute →
 // pg_constraint → pg_index.
 func (p *postgresSnapshotProvider) TakeSnapshot(
 	ctx context.Context,
@@ -188,13 +191,9 @@ func (p *postgresSnapshotProvider) TakeSnapshot(
 		return nil, "", fmt.Errorf("postgres: clearing search_path: %w", err)
 	}
 
-	dbVersion, err := detectDatabaseVersion(ctx, p.db)
+	dbVersion, versionNum, err := detectDatabaseVersion(ctx, p.db)
 	if err != nil {
 		return nil, "", fmt.Errorf("postgres: detecting database version: %w", err)
-	}
-	majorVersion, err := parseMajorVersion(dbVersion)
-	if err != nil {
-		return nil, "", fmt.Errorf("postgres: parsing database version: %w", err)
 	}
 
 	// Load tables (includes partition and inheritance wiring via pg_inherits).
@@ -211,7 +210,7 @@ func (p *postgresSnapshotProvider) TakeSnapshot(
 	}
 	attachColumns(snap.Tables, columns)
 
-	constraints, err := loadConstraints(ctx, p.db, placeholders, args, majorVersion >= 11)
+	constraints, err := loadConstraints(ctx, p.db, placeholders, args, versionNum >= minVersionNumConparentid)
 	if err != nil {
 		return nil, "", fmt.Errorf("postgres: loading constraints: %w", err)
 	}
@@ -340,31 +339,20 @@ func buildInPlaceholders(schemas []string) (string, []interface{}) {
 	return strings.Join(placeholders, ","), args
 }
 
-// detectDatabaseVersion probes the PostgreSQL server_version and returns just
-// the version number (truncated at the first space).
-func detectDatabaseVersion(ctx context.Context, db QueryExecutor) (string, error) {
+// detectDatabaseVersion probes the PostgreSQL server version and returns the
+// version string (truncated at the first space) and server_version_num.
+func detectDatabaseVersion(ctx context.Context, db QueryExecutor) (string, int, error) {
 	row := db.QueryRowContext(ctx, sqlServerVersion)
 	var version string
-	if err := row.Scan(&version); err != nil {
-		return "", fmt.Errorf("SHOW server_version: %w", err)
+	var versionNum int
+	if err := row.Scan(&version, &versionNum); err != nil {
+		return "", 0, fmt.Errorf("reading server_version: %w", err)
 	}
 	// Truncate at first space: "16.4 (Ubuntu ...)" → "16.4"
 	if idx := strings.Index(version, " "); idx >= 0 {
 		version = version[:idx]
 	}
-	return version, nil
-}
-
-var leadingDigitsRegex = regexp.MustCompile(`^\d+`)
-
-// parseMajorVersion returns the leading integer of a server version such as "16.4",
-// "9.6.24", "17beta1" or "11.2-YB-2.20.1.0-b0".
-func parseMajorVersion(version string) (int, error) {
-	digits := leadingDigitsRegex.FindString(version)
-	if digits == "" {
-		return 0, goerrors.Errorf("cannot parse major version from %q", version)
-	}
-	return strconv.Atoi(digits)
+	return version, versionNum, nil
 }
 
 // tableLink holds a single row returned by sqlLoadTableLinksFmt.
@@ -574,11 +562,17 @@ func loadIndexes(ctx context.Context, db QueryExecutor, placeholders string, arg
 	var out []indexRow
 	for rows.Next() {
 		var r indexRow
-		var quotedName, indexDef, tableRegclass string
+		var quotedName, tableRegclass string
+		var indexDef sql.NullString
 		if err := rows.Scan(&r.tableOID, &r.Name, &r.ID, &r.isUnique, &quotedName, &indexDef, &tableRegclass, &r.FromParent); err != nil {
 			return nil, fmt.Errorf("scan index row: %w", err)
 		}
-		r.Definition, err = stripIndexDefPrefix(indexDef, quotedName, tableRegclass, r.isUnique)
+		// pg_get_indexdef reads the latest committed catalog, not the transaction's snapshot,
+		// so it returns NULL for an index dropped after the capture started.
+		if !indexDef.Valid {
+			return nil, goerrors.Errorf("index %s was dropped while the schema was being captured; run the capture again", quotedName)
+		}
+		r.Definition, err = stripIndexDefPrefix(indexDef.String, quotedName, tableRegclass, r.isUnique)
 		if err != nil {
 			return nil, err
 		}
@@ -592,8 +586,10 @@ func loadIndexes(ctx context.Context, db QueryExecutor, placeholders string, arg
 
 // stripIndexDefPrefix removes "CREATE [UNIQUE] INDEX <name> ON [ONLY ]<table> " from a
 // pg_get_indexdef result, leaving "USING ..." onward. The prefix is rebuilt from the
-// quoted name and the table text the same query returned, so a mismatch means the
-// output format changed and is an error rather than a guess.
+// quoted name and the table text the same query returned. A mismatch is an error rather
+// than a guess. It means either the output format changed, or the index, its table or its
+// schema was renamed during the capture: quoted_name comes from the transaction's snapshot,
+// while pg_get_indexdef and regclass text read the latest committed catalog.
 func stripIndexDefPrefix(indexDef, quotedName, tableRegclass string, isUnique bool) (string, error) {
 	create := "CREATE INDEX "
 	if isUnique {
@@ -607,7 +603,8 @@ func stripIndexDefPrefix(indexDef, quotedName, tableRegclass string, isUnique bo
 	if rest, ok := strings.CutPrefix(indexDef, onlyPrefix); ok {
 		return rest, nil
 	}
-	return "", goerrors.Errorf("index %s: definition %q does not start with %q or %q",
+	return "", goerrors.Errorf("index %s: definition %q does not start with %q or %q; "+
+		"if the index, its table or its schema was renamed during the capture, run the capture again",
 		quotedName, indexDef, prefix, onlyPrefix)
 }
 
