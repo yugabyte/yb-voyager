@@ -475,6 +475,10 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 	return result
 }
 
+// func yugabyteDObjectType(issue AssessmentIssue) string {
+
+// }
+
 // convertAssessmentIssueToYBMAssessmentIssue converts common AssessmentIssue to YBM format
 func convertAssessmentIssueToYBMAssessmentIssue(ar AssessmentReport) []AssessmentIssueYBM {
 	var result []AssessmentIssueYBM
@@ -600,7 +604,7 @@ func generateAssessmentReport(replicaDiscoveryInfoForCallhome *migassessment.Rep
 		assessmentReport.UnsupportedDataTypes = unsupportedDataTypes
 		addOracleAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 	default:
-		panic(fmt.Sprintf("invalid source db type %q", source.DBType))
+		return goerrors.Errorf("invalid source db type %q", source.DBType)
 	}
 	assessmentReport.UnsupportedDataTypesDesc = DATATYPE_CATEGORY_DESCRIPTION
 

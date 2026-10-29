@@ -196,25 +196,29 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		}
 	}
-	for _, col := range table.Columns {
-		support := d.GetColumnDatatypeSupport(col.GetFullTypeName(), table.SchemaName)
-		if support.UnsupportedInOffline != nil {
-			issues = append(issues, ReportUnsupportedDatatypes(support.UnsupportedInOffline.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+	for _, col := range d.getColumnsWithTypes(table) {
+		support := d.GetColumnDatatypeSupport(col.GetFullTypeName())
+		for _, unsupportedType := range support.UnsupportedInOffline {
+			issues = append(issues, ReportUnsupportedDatatypes(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		}
-		if support.UnsupportedInLive != nil {
-			issues = append(issues, ReportUnsupportedDatatypesInLive(support.UnsupportedInLive.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
-		} else if unsupportedType := support.UnsupportedInLiveWithFFOrFB; unsupportedType != nil {
+		for _, unsupportedType := range support.UnsupportedInLive {
+			issues = append(issues, ReportUnsupportedDatatypesInLive(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+		}
+		// a column already excluded from live migration needs no fall-forward/fall-back issue
+		if len(support.UnsupportedInLive) == 0 {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
-			if unsupportedType.Kind == TypeKindComposite {
-				issues = append(issues, NewUserDefinedDatatypeIssue(
-					obj.GetObjectType(),
-					table.GetObjectName(),
-					"",
-					unsupportedType.Name,
-					col.ColumnName,
-				))
-			} else {
-				issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+			for _, unsupportedType := range support.UnsupportedInLiveWithFFOrFB {
+				if unsupportedType.Kind == TypeKindComposite {
+					issues = append(issues, NewUserDefinedDatatypeIssue(
+						obj.GetObjectType(),
+						table.GetObjectName(),
+						"",
+						unsupportedType.Name,
+						col.ColumnName,
+					))
+				} else {
+					issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+				}
 			}
 		}
 
@@ -790,7 +794,7 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	))
 
 	for _, col := range foreignTable.Columns {
-		if unsupportedType := f.GetColumnDatatypeSupport(col.GetFullTypeName(), foreignTable.SchemaName).UnsupportedInOffline; unsupportedType != nil {
+		for _, unsupportedType := range f.GetColumnDatatypeSupport(col.GetFullTypeName()).UnsupportedInOffline {
 			issues = append(issues, ReportUnsupportedDatatypes(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
 		}
 	}

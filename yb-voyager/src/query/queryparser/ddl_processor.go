@@ -125,6 +125,10 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 		PartitionColumns: make([]string, 0),
 	}
 
+	if ofType := createTableNode.CreateStmt.GetOfTypename(); ofType != nil {
+		table.OfTypeName = utils.BuildObjectName(getSchemaAndObjectName(ofType.GetNames()))
+	}
+
 	// Populate IsInherited, IsPartitionOf, InheritedFrom, PartitionedFrom
 	tableProcessor.detectInheritanceAndPartition(table, createTableNode)
 
@@ -331,6 +335,7 @@ type Table struct {
 	IsPartitioned         bool     // true if this table is a partitioned table
 	IsPartitionOf         bool     // true if this table is a partition of a parent table
 	PartitionedFrom       string   // Name of the parent partitioned table if this is a partition
+	OfTypeName            string   // set for a typed table, CREATE TABLE t OF type; Columns then hold only column options, without types
 	Columns               []TableColumn
 	IsExpressionPartition bool
 	PartitionStrategy     pg_query.PartitionStrategy
