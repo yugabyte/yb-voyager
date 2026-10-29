@@ -29,7 +29,7 @@ type TypeKind int
 
 const (
 	// a type not defined in the exported schema: a built-in or an extension's type
-	TypeKindOther TypeKind = iota
+	TypeKindBuiltIn TypeKind = iota
 	TypeKindDomain
 	TypeKindComposite
 	TypeKindEnum
@@ -89,7 +89,7 @@ func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string) []UnderlyingTy
 			return
 		}
 		visited[name] = true
-		types = append(types, UnderlyingType{Name: name, Kind: TypeKindOther})
+		types = append(types, UnderlyingType{Name: name, Kind: TypeKindBuiltIn})
 	}
 	walk(typeName)
 	return types
@@ -140,7 +140,7 @@ func (p *ParserIssueDetector) GetColumnDatatypeSupport(typeName string) ColumnDa
 // isListedDatatype matches only types not defined in the exported schema, since the lists name
 // built-in and extension types and a user-defined type such as public.point merely shares a name.
 func isListedDatatype(t UnderlyingType, datatypes []string) bool {
-	return t.Kind == TypeKindOther && utils.ContainsAnyStringFromSlice(datatypes, t.BaseName())
+	return t.Kind == TypeKindBuiltIn && utils.ContainsAnyStringFromSlice(datatypes, t.BaseName())
 }
 
 // filterUnderlyingTypes keeps one entry per base name for types not defined in the exported
@@ -150,7 +150,7 @@ func filterUnderlyingTypes(types []UnderlyingType, matches func(UnderlyingType) 
 	seen := make(map[string]bool)
 	for _, t := range types {
 		key := t.Name
-		if t.Kind == TypeKindOther {
+		if t.Kind == TypeKindBuiltIn {
 			key = t.BaseName()
 		}
 		if !matches(t) || seen[key] {
