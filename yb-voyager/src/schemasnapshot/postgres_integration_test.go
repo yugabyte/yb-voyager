@@ -435,9 +435,13 @@ func assertKeysChecksAndIndexes(t *testing.T, ctx context.Context, db *sql.DB, d
 			FOR VALUES FROM (0) TO (50)`,
 
 		`CREATE TABLE "` + mixedSchema + `"."Ref Orders" (id int PRIMARY KEY) PARTITION BY RANGE (id)`,
-		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Lo" PARTITION OF "` + mixedSchema + `"."Ref Orders" FOR VALUES FROM (0) TO (100)`,
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Lo" PARTITION OF "` + mixedSchema + `"."Ref Orders" FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id)`,
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Lo A" PARTITION OF "` + mixedSchema + `"."Ref Orders Lo" FOR VALUES FROM (0) TO (50)`,
 		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Hi" PARTITION OF "` + mixedSchema + `"."Ref Orders" FOR VALUES FROM (100) TO (200)`,
 		`CREATE TABLE "` + mixedSchema + `"."Line Items" (order_id int REFERENCES "` + mixedSchema + `"."Ref Orders" (id))`,
+		// A partitioned referencing table: each partition's own copy of the foreign key is kept.
+		`CREATE TABLE "` + mixedSchema + `"."Shipments" (order_id int REFERENCES "` + mixedSchema + `"."Ref Orders" (id), k int) PARTITION BY RANGE (k)`,
+		`CREATE TABLE "` + mixedSchema + `"."Shipments 1" PARTITION OF "` + mixedSchema + `"."Shipments" FOR VALUES FROM (0) TO (10)`,
 
 		`CREATE TABLE "` + mixedSchema + `"."Dup Rows" (a int)`,
 		`INSERT INTO "` + mixedSchema + `"."Dup Rows" VALUES (1), (1)`,
@@ -507,6 +511,14 @@ func assertKeysChecksAndIndexes(t *testing.T, ctx context.Context, db *sql.DB, d
 	assert.Contains(t, lineItems.ForeignKeys[0].Definition, `REFERENCES "`+mixedSchema+`"."Ref Orders"(id)`)
 	assert.NotContains(t, lineItems.ForeignKeys[0].Definition, "Ref Orders Lo")
 	assert.NotContains(t, lineItems.ForeignKeys[0].Definition, "Ref Orders Hi")
+
+	shipments := byName["Shipments"]
+	require.Len(t, shipments.ForeignKeys, 1, "PostgreSQL's per-partition clones of a foreign key to a partitioned table must not be captured")
+	assert.False(t, shipments.ForeignKeys[0].FromParent)
+	shipments1 := byName["Shipments 1"]
+	require.Len(t, shipments1.ForeignKeys, 1, "a partition's own copy of its parent's foreign key must be kept")
+	assert.True(t, shipments1.ForeignKeys[0].FromParent)
+	assert.Equal(t, shipments.ForeignKeys[0].Definition, shipments1.ForeignKeys[0].Definition)
 
 	dup := byName["Dup Rows"]
 	assert.Empty(t, dup.UniqueIndexes, "an invalid index must not be captured")
