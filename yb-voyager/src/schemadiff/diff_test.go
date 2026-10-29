@@ -238,10 +238,12 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 	uniqueA := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
 		tbl.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "21", "uq_old", "UNIQUE (a)"), *makePrimaryKey("s1", "uq", "22", "uq_dropped", "UNIQUE (b)")}
 		tbl.Checks = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "31", "ck_old", "CHECK (a > 0)"), *makePrimaryKey("s1", "uq", "32", "ck_dropped", "CHECK (b > 0)")}
+		tbl.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "41", "fk_old", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makePrimaryKey("s1", "uq", "42", "fk_dropped", "FOREIGN KEY (b) REFERENCES s1.p(id)")}
 	})
 	uniqueB := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
 		tbl.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "21", "uq_new", "UNIQUE (a)"), *makePrimaryKey("s1", "uq", "23", "uq_added", "UNIQUE (c)")}
 		tbl.Checks = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "31", "ck_new", "CHECK (a > 0)"), *makePrimaryKey("s1", "uq", "33", "ck_added", "CHECK (c > 0)")}
+		tbl.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "41", "fk_new", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makePrimaryKey("s1", "uq", "43", "fk_added", "FOREIGN KEY (c) REFERENCES s1.p(id)")}
 	})
 
 	a := snapWithTables(tA, uniqueA, pkDroppedA, pkAddedA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
@@ -327,6 +329,7 @@ func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute
 		{"PRIMARY_KEY_", ObjectTypeConstraint},
 		{"UNIQUE_", ObjectTypeConstraint},
 		{"CHECK_", ObjectTypeConstraint},
+		{"FOREIGN_KEY_", ObjectTypeConstraint},
 	}
 	var ot ObjectType
 	rest := ""

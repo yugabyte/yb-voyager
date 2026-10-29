@@ -310,13 +310,29 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 		TimingOfflineAfterExportStart: keyNameChangedInfo,
 		TimingLiveAfterExportStart:    keyNameChangedInfo,
 	},
+	schemadiff.ForeignKeyAdded: {
+		TimingBeforeExportData:        foreignKeyAddedInfo,
+		TimingOfflineAfterExportStart: foreignKeyAddedInfo,
+		TimingLiveAfterExportStart:    foreignKeyAddedInfo,
+	},
+	schemadiff.ForeignKeyDropped: {
+		TimingBeforeExportData:        foreignKeyDroppedInfo,
+		TimingOfflineAfterExportStart: foreignKeyDroppedOfflineInfo,
+		TimingLiveAfterExportStart:    foreignKeyDroppedInfo,
+	},
+	schemadiff.ForeignKeyNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
 }
 
 // Appended to Impact while a cutover with fall-back is still possible.
 var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
-	schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
-	schemadiff.UniqueAdded:   uniqueAddedFallBackRisk,
-	schemadiff.CheckAdded:    "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+	schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+	schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
+	schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+	schemadiff.ForeignKeyAdded: "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
 }
 
 // Shared by several timings or change types.
@@ -396,6 +412,19 @@ var (
 		Action: "Add it on the target to keep the schemas the same."}
 
 	checkDroppedImpact = "The source now allows rows the target's check rejects, so `import data` fails on the first one."
+
+	foreignKeyAddedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected, because the target does not have the key.",
+		Action: "Add it on the target to keep the schemas the same."}
+
+	foreignKeyDroppedInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first change that breaks it (an orphan child row, or a delete or update of a parent row the key protects), and an `ON DELETE` or `ON UPDATE` action such as `CASCADE` removes or changes rows the source keeps.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped. Restore from the source any rows the key's action removed or changed on the target, because running `import data` again does not bring them back."}
+
+	// Offline import data only inserts snapshot rows, so a referential action never fires on the target.
+	foreignKeyDroppedOfflineInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first row that breaks it.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped."}
 
 	keyNameChangedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`export data` and `import data` are not affected.",
