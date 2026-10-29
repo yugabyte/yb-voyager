@@ -44,8 +44,8 @@ func TestNewProviderUnknownTypeFromCapture(t *testing.T) {
 func setupSuccessfulPGMock(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
 	expectEmptySearchPath(mock)
-	mock.ExpectQuery(`SHOW server_version`).
-		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("16.4"))
+	mock.ExpectQuery(`server_version_num`).
+		WillReturnRows(sqlmock.NewRows([]string{"current_setting", "current_setting"}).AddRow("16.4", 160004))
 	mock.ExpectQuery(`pg_class`).
 		WillReturnRows(sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}))
 	mock.ExpectQuery(`pg_inherits`).
@@ -70,7 +70,7 @@ func TestCaptureRollbackOnSnapshotError(t *testing.T) {
 	mock.ExpectBegin()
 	expectEmptySearchPath(mock)
 	// Make detectDatabaseVersion fail — this causes TakeSnapshot to return an error.
-	mock.ExpectQuery(`SHOW server_version`).
+	mock.ExpectQuery(`server_version_num`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
@@ -174,7 +174,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 
 	mock.ExpectBegin()
 	expectEmptySearchPath(mock)
-	mock.ExpectQuery(`SHOW server_version`).
+	mock.ExpectQuery(`server_version_num`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
@@ -243,7 +243,7 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
 
 	mock.ExpectBegin()
 	expectEmptySearchPath(mock)
-	mock.ExpectQuery(`SHOW server_version`).
+	mock.ExpectQuery(`server_version_num`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
