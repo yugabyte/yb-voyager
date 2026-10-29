@@ -58,8 +58,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// ─── complementDriftTableRefs ────────────────────────────────────────────────
-
 func TestComplementDriftTableRefs(t *testing.T) {
 	refA := schemasnapshot.ObjectRef{Schema: "public", Name: "a"}
 	refB := schemasnapshot.ObjectRef{Schema: "public", Name: "b"}
@@ -103,8 +101,6 @@ func TestComplementDriftTableRefs(t *testing.T) {
 	}
 }
 
-// ─── complementDriftObjectTypes ──────────────────────────────────────────────
-
 func TestComplementDriftObjectTypes(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -143,8 +139,6 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 		})
 	}
 }
-
-// ─── parseDriftObjectTypeList ────────────────────────────────────────────────
 
 func TestNormalizeDriftListFlag(t *testing.T) {
 	// The point of this helper is that a value which LOOKS set but names nothing
@@ -304,8 +298,6 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 	}
 }
 
-// ─── validateDriftOutputFormat ───────────────────────────────────────────────
-
 func TestValidateDriftOutputFormat(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -358,8 +350,6 @@ func TestValidateDriftOutputFormat(t *testing.T) {
 	}
 }
 
-// ─── driftTableUniverse (the universe fix) ───────────────────────────────────
-
 // snapContent is a tiny helper to build a SnapshotContent whose Tables are the
 // given (schema, name) refs -- only the embedded ObjectRef is set, which is all
 // the union logic reads unless a test also attaches PartitionChildren.
@@ -375,7 +365,7 @@ func TestDriftTableUniverse(t *testing.T) {
 	publicOnly := []string{"public"}
 
 	t.Run("snapshot-only (dropped) table is still in the universe; dedup across snapshots", func(t *testing.T) {
-		// Headline universe-fix case: products is present ONLY in an older snapshot
+		// Headline case: products is present ONLY in an older snapshot
 		// (dropped from the source since) yet must still be nameable. orders appears
 		// in both snapshots => deduped to one.
 		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{
@@ -457,14 +447,11 @@ func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
 	})
 }
 
-// ─── requireDriftTableListQualified ──────────────────────────────────────────
-
 func TestRequireDriftTableListQualified(t *testing.T) {
 	t.Run("unqualified pattern without a default schema is rejected by name", func(t *testing.T) {
 		err := requireDriftTableListQualified("orders", "table-list", false)
 		require.Error(t, err)
-		// The old behaviour reported "unknown table name", which sent the user
-		// looking for a table that does exist.
+		// Must not read as an unknown table: the table exists, only the pattern is wrong.
 		assert.Contains(t, err.Error(), "not schema-qualified")
 		assert.NotContains(t, err.Error(), "unknown table name")
 	})
@@ -483,8 +470,6 @@ func TestRequireDriftTableListQualified(t *testing.T) {
 		assert.Contains(t, err.Error(), `"customers"`)
 	})
 }
-
-// ─── table-list resolution via the in-memory registry + extractTableListFromString ──
 
 func TestDriftTableListResolutionViaRegistry(t *testing.T) {
 	universe := map[string][]string{
@@ -530,8 +515,6 @@ func TestDriftTableListResolutionViaRegistry(t *testing.T) {
 		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "Orders"}}, driftObjectRefs(refs))
 	})
 }
-
-// ─── partition expansion ─────────────────────────────────────────────────────
 
 var (
 	driftPartRoot  = schemasnapshot.ObjectRef{Schema: "public", Name: "events"}
@@ -624,8 +607,6 @@ func TestExpandDriftPartitionsCaseSensitive(t *testing.T) {
 	assert.Equal(t, []schemasnapshot.ObjectRef{root, leaf}, expandDriftPartitions([]schemasnapshot.ObjectRef{root}, children))
 }
 
-// ─── nothingComparedError ────────────────────────────────────────────────────
-
 func TestNothingComparedError(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -678,8 +659,6 @@ func TestNothingComparedError(t *testing.T) {
 		})
 	}
 }
-
-// ─── buildSchemaDriftPayload ─────────────────────────────────────────────────
 
 func TestBuildSchemaDriftPayload(t *testing.T) {
 	report := schemadrift.Report{
@@ -960,8 +939,6 @@ func TestPackAndSendSchemaDriftPayloadSentGuard(t *testing.T) {
 		})
 	}
 }
-
-// ─── checkSchemaDrift (the in-process entry point) ────────────────────────────
 
 func TestDriftReportBaseName(t *testing.T) {
 	assert.Equal(t, "drift_analysis_report", driftReportBaseName(driftInvokerDetectDrift))

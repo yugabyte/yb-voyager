@@ -45,8 +45,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
-// ─── Command definition ──────────────────────────────────────────────────────
-
 // DRIFT_REPORT_FILE_NAME is the basename (without extension) of the report
 // files written under <export-dir>/reports/ by `schema detect-drift`.
 const DRIFT_REPORT_FILE_NAME = "drift_analysis_report"
@@ -60,8 +58,7 @@ var (
 )
 
 // driftParsedFlags holds what validateDetectDriftFlags resolved from the raw flag
-// strings, so the scope step reads a value instead of re-parsing and discarding
-// the error on the strength of "validation already ran".
+// strings, so the scope step reads a value instead of re-parsing it.
 var driftParsedFlags struct {
 	objectTypes        []schemadiff.ObjectType
 	excludeObjectTypes []schemadiff.ObjectType
@@ -116,10 +113,8 @@ unsupported source type, etc.).`,
 			utils.ErrExit("%w", err)
 		}
 		// Resolve the source password from the --source-db-password flag, the
-		// SOURCE_DB_PASSWORD env var, or an interactive prompt -- exactly as the
-		// export commands do. Without this, source.Password stays empty and the
-		// connect in detectDrift() fails SASL auth against any password-protected
-		// source.
+		// SOURCE_DB_PASSWORD env var, or an interactive prompt, as the export commands
+		// do; detectDrift() connects with source.Password.
 		getAndStoreSourceDBPasswordInSourceConf(cmd)
 	},
 
@@ -165,8 +160,6 @@ func init() {
 		"comma-separated list of object types to exclude from comparison: (TABLE, COLUMN). Only one of --object-type-list and --exclude-object-type-list can be specified.")
 }
 
-// ─── Flags: defaults, validation, parsing ────────────────────────────────────
-
 // resolveDetectDriftFlagDefaults fills in what the user did not pass and rewrites
 // the list flags into their canonical form. It is the only place that WRITES flag
 // state; validateDetectDriftFlags below only reads.
@@ -189,8 +182,7 @@ func resolveDetectDriftFlagDefaults() {
 }
 
 // validateDetectDriftFlags runs all flag-only validation (no DB connection
-// required) and stores the parsed object-type lists for detectDrift to use, so
-// the parse is not repeated later with its error discarded.
+// required) and stores the parsed object-type lists for detectDrift to use.
 //
 // Table-list validation (whether a pattern actually matches a table) needs the
 // source's table list and so happens later, inside resolveDriftScope.
@@ -267,8 +259,6 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 	}
 	return lo.Uniq(out), nil
 }
-
-// ─── Scope resolution ────────────────────────────────────────────────────────
 
 // driftTableUniverse builds the --table-list / --exclude-table-list matching
 // universe, deduped per schema, in the order snapshots -> live capture.
@@ -527,8 +517,6 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	return schemadiff.Scope{Schemas: schemas, Tables: includeTables, ObjectTypes: objectTypes}, nil
 }
 
-// ─── The run ─────────────────────────────────────────────────────────────────
-
 // detectDrift runs the command. It returns rather than exits, so its defers
 // unwind before the caller exits.
 func detectDrift() error {
@@ -661,7 +649,6 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, goerrors.Errorf("migration status record not found"))
 	}
 
-	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
 	// Must precede Scope resolution: the candidate table universe is built from
 	// each snapshot's Content, which is the only place a table already dropped
 	// from the live catalog still appears.
@@ -818,8 +805,6 @@ func nothingComparedError(r schemadrift.Report) error {
 	}
 }
 
-// ─── Telemetry ───────────────────────────────────────────────────────────────
-
 // Untagged errors come from flag validation, the password read and the root
 // pre-run. Their text can carry --table-list patterns, so tag them too.
 func sanitizeDriftError(err error) string {
@@ -887,8 +872,6 @@ func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report, invoker
 	})
 	return driftPayload
 }
-
-// ─── Output: report files and terminal summary ───────────────────────────────
 
 // writeDriftReports renders and writes report to <export-dir>/reports/<baseName>
 // in each of formats, creating the reports directory if necessary. Returns the
