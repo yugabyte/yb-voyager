@@ -45,8 +45,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ux"
 )
 
-// ─── Command definition ──────────────────────────────────────────────────────
-
 // DRIFT_REPORT_FILE_NAME is the basename (without extension) of the report
 // files written under <export-dir>/reports/ by `schema detect-drift`.
 const DRIFT_REPORT_FILE_NAME = "drift_analysis_report"
@@ -60,8 +58,7 @@ var (
 )
 
 // driftParsedFlags holds what validateDetectDriftFlags resolved from the raw flag
-// strings, so the scope step reads a value instead of re-parsing and discarding
-// the error on the strength of "validation already ran".
+// strings, so the scope step reads a value instead of re-parsing it.
 var driftParsedFlags struct {
 	objectTypes        []schemadiff.ObjectType
 	excludeObjectTypes []schemadiff.ObjectType
@@ -112,12 +109,12 @@ unsupported source type, etc.).`,
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		resolveDetectDriftFlagDefaults()
-		validateDetectDriftFlags()
+		if err := validateDetectDriftFlags(); err != nil {
+			utils.ErrExit("%w", err)
+		}
 		// Resolve the source password from the --source-db-password flag, the
-		// SOURCE_DB_PASSWORD env var, or an interactive prompt -- exactly as the
-		// export commands do. Without this, source.Password stays empty and the
-		// connect in detectDrift() fails SASL auth against any password-protected
-		// source.
+		// SOURCE_DB_PASSWORD env var, or an interactive prompt, as the export commands
+		// do; detectDrift() connects with source.Password.
 		getAndStoreSourceDBPasswordInSourceConf(cmd)
 	},
 
@@ -163,8 +160,6 @@ func init() {
 		"comma-separated list of object types to exclude from comparison: (TABLE, COLUMN). Only one of --object-type-list and --exclude-object-type-list can be specified.")
 }
 
-// ─── Flags: defaults, validation, parsing ────────────────────────────────────
-
 // resolveDetectDriftFlagDefaults fills in what the user did not pass and rewrites
 // the list flags into their canonical form. It is the only place that WRITES flag
 // state; validateDetectDriftFlags below only reads.
@@ -187,34 +182,34 @@ func resolveDetectDriftFlagDefaults() {
 }
 
 // validateDetectDriftFlags runs all flag-only validation (no DB connection
-// required) and stores the parsed object-type lists for detectDrift to use, so
-// the parse is not repeated later with its error discarded.
+// required) and stores the parsed object-type lists for detectDrift to use.
 //
 // Table-list validation (whether a pattern actually matches a table) needs the
 // source's table list and so happens later, inside resolveDriftScope.
-func validateDetectDriftFlags() {
+func validateDetectDriftFlags() error {
 	if source.DBType != POSTGRESQL {
-		utils.ErrExit("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
+		return goerrors.Errorf("schema detect-drift currently supports PostgreSQL sources only (got --source-db-type=%q)", source.DBType)
 	}
 
 	if driftTableList != "" && driftExcludeTableList != "" {
-		utils.ErrExit("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
+		return goerrors.Errorf("--table-list and --exclude-table-list are mutually exclusive. Use only one of them.")
 	}
 	if driftObjectTypeList != "" && driftExcludeObjectTypeList != "" {
-		utils.ErrExit("--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them.")
+		return goerrors.Errorf("--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them.")
 	}
 
 	if err := validateDriftOutputFormat(driftOutputFormat); err != nil {
-		utils.ErrExit("%w", err)
+		return err
 	}
 
 	var err error
 	if driftParsedFlags.objectTypes, err = parseDriftObjectTypeList(driftObjectTypeList); err != nil {
-		utils.ErrExit("invalid --object-type-list: %v", err)
+		return goerrors.Errorf("invalid --object-type-list: %w", err)
 	}
 	if driftParsedFlags.excludeObjectTypes, err = parseDriftObjectTypeList(driftExcludeObjectTypeList); err != nil {
-		utils.ErrExit("invalid --exclude-object-type-list: %v", err)
+		return goerrors.Errorf("invalid --exclude-object-type-list: %w", err)
 	}
+	return nil
 }
 
 // validateDriftOutputFormat accepts "" (both formats) or exactly one of
@@ -265,18 +260,25 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 	return lo.Uniq(out), nil
 }
 
-// ─── Scope resolution ────────────────────────────────────────────────────────
-
 // driftTableUniverse builds the --table-list / --exclude-table-list matching
 // universe, deduped per schema, in the order snapshots -> live capture.
 //
 // It is the union rather than the live capture alone because a table dropped from
 // the source is gone from the catalog but must still be nameable, to see its own
 // drop reported. Only the stored snapshots still know about it.
-func driftTableUniverse(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) map[string][]string {
+//
+// Only tables in the given schemas (--source-db-schema, unquoted) are kept. History
+// may cover more schemas, and a table in another one would resolve under
+// --table-list while every finding for it is filtered out, so the run would
+// report no drift.
+func driftTableUniverse(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent,
+	schemas []string) map[string][]string {
 	seen := make(map[string]map[string]bool)
 	universe := make(map[string][]string)
 	add := func(schema, name string) {
+		if !lo.Contains(schemas, schema) {
+			return
+		}
 		if seen[schema] == nil {
 			seen[schema] = make(map[string]bool)
 		}
@@ -452,7 +454,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 
 	// Built even when nothing is filtered: besides being the set --exclude-table-list
 	// subtracts from, it IS the set of tables compared, which the report states.
-	universe := driftTableUniverse(snapshotContents, liveContent)
+	universe := driftTableUniverse(snapshotContents, liveContent, schemas)
 	reg, err := namereg.NewInMemorySourceNameRegistry(source.DBType, schemas, universe)
 	if err != nil {
 		return schemadiff.Scope{}, err
@@ -514,8 +516,6 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	}
 	return schemadiff.Scope{Schemas: schemas, Tables: includeTables, ObjectTypes: objectTypes}, nil
 }
-
-// ─── The run ─────────────────────────────────────────────────────────────────
 
 // detectDrift runs the command. It returns rather than exits, so its defers
 // unwind before the caller exits.
@@ -649,7 +649,6 @@ func checkSchemaDrift(in driftCheckInput) (*schemadrift.Report, []string, error)
 		return nil, nil, errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_SETUP, goerrors.Errorf("migration status record not found"))
 	}
 
-	// ─── Load stored snapshots (oldest-first) ───────────────────────────────────
 	// Must precede Scope resolution: the candidate table universe is built from
 	// each snapshot's Content, which is the only place a table already dropped
 	// from the live catalog still appears.
@@ -791,7 +790,7 @@ func nothingComparedError(r schemadrift.Report) error {
 	}
 
 	switch {
-	case len(r.CapturePoints) == 0:
+	case r.Summary.StoredCaptureCount == 0:
 		return goerrors.Errorf("this export directory holds no schema snapshots, so there is nothing to compare. " +
 			"Snapshots are recorded while `export schema` and `export data` run, unless they ran with " +
 			"--disable-schema-snapshot-capture=true or on a voyager version that did not capture by default")
@@ -805,8 +804,6 @@ func nothingComparedError(r schemadrift.Report) error {
 			usable, len(r.CapturePoints), strings.Join(reasons, "; "))
 	}
 }
-
-// ─── Telemetry ───────────────────────────────────────────────────────────────
 
 // Untagged errors come from flag validation, the password read and the root
 // pre-run. Their text can carry --table-list patterns, so tag them too.
@@ -875,8 +872,6 @@ func buildSchemaDriftPayload(errorMsg error, report *schemadrift.Report, invoker
 	})
 	return driftPayload
 }
-
-// ─── Output: report files and terminal summary ───────────────────────────────
 
 // writeDriftReports renders and writes report to <export-dir>/reports/<baseName>
 // in each of formats, creating the reports directory if necessary. Returns the
