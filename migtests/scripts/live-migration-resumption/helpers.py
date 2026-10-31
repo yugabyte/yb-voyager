@@ -56,6 +56,11 @@ class Context:
         # Set by the `pick_random_custom_key` orchestrator action; consumed by
         # `validate_picked_custom_key_conflicts`.
         self.picked_custom_key: Dict[str, Any] | None = None
+        # Set by `yba_cluster_event`; consumed by `yba_wait_task` and `yba_check_version`.
+        self.yba_task: Dict[str, Any] | None = None
+        # Appended by a Resumer that finds its process already dead; `yba_wait_task`
+        # fails on any entry added while a cluster task ran.
+        self.found_exited_events: list[Dict[str, Any]] = []
 
 
 def apply_effective_export_dir(ctx: Context) -> None:
@@ -154,6 +159,19 @@ def log_resumption_event(ctx: Context, command: str, message: str | None = None,
         log(f"[resumption:{command}] failed to persist event: {exc}")
 
 
+def log_yba_event(ctx: Context, message: str, *, event: str, **fields: Any) -> None:
+    """Log the message to stdout and persist the structured event to artifacts."""
+    log(f"[yba] {message}")
+    record: Dict[str, Any] = {"ts": _ts(), "event": event, "message": message}
+    record.update(fields)
+    try:
+        os.makedirs(ctx.artifacts_dir, exist_ok=True)
+        with open(os.path.join(ctx.artifacts_dir, "yba_events.ndjson"), "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as exc:
+        log(f"[yba] failed to persist event: {exc}")
+
+
 # -------------------------
 # Scenario validation
 # -------------------------
@@ -205,6 +223,14 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
             _ensure(st, "condition", str, sctx)
         if action == "voyager_stop_command":
             _ensure(st, "command", str, sctx)
+        if action == "yba_cluster_event":
+            event = _ensure(st, "event", str, sctx)
+            if event not in ("upgrade", "restart", "finalize"):
+                raise ValueError(f"Key 'event' in {sctx} must be one of upgrade, restart, finalize")
+            if event == "upgrade":
+                _ensure(st, "version", str, sctx)
+        if action == "yba_check_version":
+            _ensure(st, "expected", str, sctx)
 
 # -------------------------
 # Polling / Timeouts / Conditions
@@ -979,12 +1005,25 @@ class Resumer:
                     self._log("stop requested before interrupt; exiting resumer", event="stop_before_interrupt")
                     return
 
-                kill(proc)
-                self._log(
-                    f"killed process pid={proc.pid}",
-                    event="killed",
-                    pid=proc.pid,
-                )
+                exit_code = proc.poll()
+                if exit_code is not None:
+                    self._log(
+                        f"process pid={proc.pid} had already exited with code {exit_code} before the scheduled interrupt",
+                        event="found_exited",
+                        pid=proc.pid,
+                        exit_code=exit_code,
+                    )
+                    with self.ctx.process_lock:
+                        self.ctx.found_exited_events.append(
+                            {"ts": _ts(), "command": self.cmd, "pid": proc.pid, "exit_code": exit_code}
+                        )
+                else:
+                    kill(proc)
+                    self._log(
+                        f"killed process pid={proc.pid}",
+                        event="killed",
+                        pid=proc.pid,
+                    )
 
                 restart_delay = self._rng.randint(
                     self.policy.min_restart_wait_seconds,
@@ -1265,6 +1304,31 @@ def run_psql(
             f"psql failed (role={role}) exit_code={proc.returncode}; "
             f"command={' '.join(cmd)}"
         )
+
+
+def yb_node_server_versions(cfg: Dict[str, Any], hosts: List[str]) -> List[Dict[str, Any]]:
+    """Run `select version()` on each host with the target credentials.
+
+    Returns one record per host: {"host", "output", "error"}; an unreachable host has
+    output None and the connection error text, so the caller decides whether that is fatal.
+    """
+    db = cfg["target"]
+    results: List[Dict[str, Any]] = []
+    for host in hosts:
+        try:
+            with psycopg2.connect(
+                host=host,
+                port=int(db["port"]),
+                dbname=str(db["database"]),
+                user=str(db["user"]),
+                password=str(db.get("password")),
+                connect_timeout=15,
+            ) as conn, conn.cursor() as cur:
+                cur.execute("select version()")
+                results.append({"host": host, "output": cur.fetchone()[0], "error": None})
+        except psycopg2.OperationalError as exc:
+            results.append({"host": host, "output": None, "error": str(exc).strip()})
+    return results
 
 
 def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tuple]:
