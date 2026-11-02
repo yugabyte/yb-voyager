@@ -181,7 +181,10 @@
             "ObjectName": "sales.events",
             "SqlStatement": "CREATE TABLE sales.events (\n    id integer NOT NULL,\n    event_range daterange\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "event_range"
+            }
         }
     ],
     "TableIndexStats": [
