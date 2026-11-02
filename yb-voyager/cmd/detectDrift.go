@@ -880,6 +880,17 @@ func writeDriftReports(report schemadrift.Report, formats []string, baseName str
 		return nil, fmt.Errorf("failed to create reports directory %q: %w", reportsDir, err)
 	}
 
+	var existing []string
+	for _, f := range formats {
+		name := fmt.Sprintf("%s.%s", baseName, f)
+		if utils.FileOrFolderExists(filepath.Join(reportsDir, name)) {
+			existing = append(existing, name)
+		}
+	}
+	if len(existing) > 0 {
+		info("Overwriting existing %s\n", strings.Join(existing, ", "))
+	}
+
 	var written []string
 	for _, f := range formats {
 		var data []byte
@@ -898,9 +909,6 @@ func writeDriftReports(report schemadrift.Report, formats []string, baseName str
 		}
 
 		path := filepath.Join(reportsDir, fmt.Sprintf("%s.%s", baseName, f))
-		if utils.FileOrFolderExists(path) {
-			info("\n%s already exists, overwriting it with a new generated report\n", filepath.Base(path))
-		}
 		if err := os.WriteFile(path, data, 0644); err != nil {
 			return nil, fmt.Errorf("failed to write %s drift report to %q: %w", f, path, err)
 		}

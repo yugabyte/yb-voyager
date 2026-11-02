@@ -988,9 +988,14 @@ func TestWriteDriftReportsRoutesTheOverwriteNote(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, notes, "a first write overwrites nothing")
 
-	_, err = writeDriftReports(schemadrift.Report{}, []string{"json"}, "drift_analysis_report_export_data", info)
+	_, err = writeDriftReports(schemadrift.Report{}, []string{"html", "json"}, "drift_analysis_report_export_data", info)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"\ndrift_analysis_report_export_data.json already exists, overwriting it with a new generated report\n"}, notes)
+	assert.Equal(t, []string{"Overwriting existing drift_analysis_report_export_data.json\n"}, notes)
+
+	notes = nil
+	_, err = writeDriftReports(schemadrift.Report{}, []string{"html", "json"}, "drift_analysis_report_export_data", info)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Overwriting existing drift_analysis_report_export_data.html, drift_analysis_report_export_data.json\n"}, notes)
 }
 
 // The export-data caller's shape: stored snapshots only, no live read.
