@@ -1026,7 +1026,10 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				SchemaName: ddlObj.MultirangeSchemaName,
 				IsRange:    true,
 			}
-			p.userDefinedTypes[multirange.GetObjectName()] = multirange
+			// PG 13 and older create no multirange, so a user type of that name keeps it, whichever comes first
+			if _, exists := p.userDefinedTypes[multirange.GetObjectName()]; !exists {
+				p.userDefinedTypes[multirange.GetObjectName()] = multirange
+			}
 		}
 	case *queryparser.CreateDomain:
 		p.domains[ddlObj.GetObjectName()] = ddlObj

@@ -1147,7 +1147,11 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 			SchemaName: typeSchemaName,
 			IsRange:    true,
 		}
-		createType.MultirangeSchemaName, createType.MultirangeTypeName = getMultirangeTypeName(rangeNode.CreateRangeStmt, typeSchemaName, typeName)
+		multirangeSchemaName, multirangeTypeName, err := getMultirangeTypeName(rangeNode.CreateRangeStmt, typeSchemaName, typeName)
+		if err != nil {
+			return nil, err
+		}
+		createType.MultirangeSchemaName, createType.MultirangeTypeName = multirangeSchemaName, multirangeTypeName
 		return createType, nil
 
 	default:
@@ -1170,22 +1174,32 @@ type CreateType struct {
 // getMultirangeTypeName returns the multirange_type_name option if given, else the name PostgreSQL
 // derives (makeMultirangeTypeName): "multi" inserted before the first "range", or "_multirange"
 // appended. An unqualified name is taken to be in the range type's schema.
-func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName string, rangeTypeName string) (string, string) {
+func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName string, rangeTypeName string) (string, string, error) {
 	for _, param := range stmt.GetParams() {
 		defElem := param.GetDefElem()
 		if defElem == nil || defElem.GetDefname() != "multirange_type_name" {
 			continue
 		}
-		schemaName, typeName := getSchemaAndObjectName(defElem.GetArg().GetTypeName().GetNames())
+		var schemaName, typeName string
+		// mirrors PG's defGetQualifiedName: a string literal or keyword is one unqualified name
+		switch arg := defElem.GetArg(); {
+		case arg.GetTypeName() != nil:
+			schemaName, typeName = getSchemaAndObjectName(arg.GetTypeName().GetNames())
+		case arg.GetString_() != nil:
+			typeName = arg.GetString_().GetSval()
+		}
+		if typeName == "" {
+			return "", "", goerrors.Errorf("unrecognized multirange_type_name of range type %s: %v", utils.BuildObjectName(rangeSchemaName, rangeTypeName), defElem.GetArg())
+		}
 		if schemaName == "" {
 			schemaName = rangeSchemaName
 		}
-		return schemaName, typeName
+		return schemaName, typeName, nil
 	}
 	if idx := strings.Index(rangeTypeName, "range"); idx >= 0 {
-		return rangeSchemaName, rangeTypeName[:idx] + "multi" + rangeTypeName[idx:]
+		return rangeSchemaName, rangeTypeName[:idx] + "multi" + rangeTypeName[idx:], nil
 	}
-	return rangeSchemaName, rangeTypeName + "_multirange"
+	return rangeSchemaName, rangeTypeName + "_multirange", nil
 }
 
 func (c *CreateType) GetObjectName() string {

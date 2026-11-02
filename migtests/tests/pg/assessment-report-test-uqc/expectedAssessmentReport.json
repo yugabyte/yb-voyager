@@ -25,6 +25,12 @@
                 "ObjectNames": "pg_stat_statements"
             },
             {
+                "ObjectType": "TABLE",
+                "TotalCount": 8,
+                "InvalidCount": 2,
+                "ObjectNames": "sales.big_table, analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data, sales.customer_account, sales.recent_transactions"
+            },
+            {
                 "ObjectType": "SEQUENCE",
                 "TotalCount": 1,
                 "InvalidCount": 0,
@@ -41,12 +47,6 @@
                 "TotalCount": 1,
                 "InvalidCount": 0,
                 "ObjectNames": "sales.get_user_info"
-            },
-            {
-                "ObjectType": "TABLE",
-                "TotalCount": 8,
-                "InvalidCount": 2,
-                "ObjectNames": "analytics.metrics, sales.big_table, sales.customer_account, sales.events, sales.json_data, sales.orders, sales.recent_transactions, sales.test_json_chk"
             }
         ]
     },

@@ -99,7 +99,7 @@ The walk is depth-first and keeps a visited set, so a type reached twice is list
 ### 3.2 Parser walk (`queryissue.GetUnderlyingTypes`)
 
 ```go
-type TypeKind int // TypeKindOther, TypeKindDomain, TypeKindComposite, TypeKindEnum, TypeKindRange
+type TypeKind int // TypeKindBuiltIn, TypeKindDomain, TypeKindComposite, TypeKindEnum, TypeKindRange
 
 type UnderlyingType struct {
     Name string   // qualified for types defined in the exported schema
@@ -112,8 +112,8 @@ func (t UnderlyingType) BaseName() string // unqualified, no "[]", canonical spe
 
 - **Inputs.** `ParseAndProcessDDL` records every `CREATE DOMAIN` and `CREATE TYPE` before any `CREATE TABLE` is checked. The object-type order of the first pass guarantees this: SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, ....
 - **Name lookup.** A name is looked up exactly as written and is never qualified with a schema. pg_dump sets `search_path` to empty and qualifies every user type, and PG searches `pg_catalog` first. So an unqualified name is a built-in, even when the table's schema defines a domain or type of that name. For example, `x xml` next to `CREATE DOMAIN public.xml` is the built-in XML.
-- **Types not in the schema.** Built-ins, extension types (`geometry`, `lo`, `hstore`) and types from schemas that were not exported come out as `TypeKindOther`, named as written. They are never walked further.
-- **List matching.** Only `TypeKindOther` types are matched against the lists, by `BaseName()`. A domain, composite or enum defined in the schema never matches by its own name, so `public.point` or `public.xml` is judged by what it is built from.
+- **Types not in the schema.** Built-ins, extension types (`geometry`, `lo`, `hstore`) and types from schemas that were not exported come out as `TypeKindBuiltIn`, named as written. They are never walked further.
+- **List matching.** Only `TypeKindBuiltIn` types are matched against the lists, by `BaseName()`. A domain, composite or enum defined in the schema never matches by its own name, so `public.point` or `public.xml` is judged by what it is built from.
 
 ### 3.3 Catalog walk (`srcdb.columnUnderlyingTypesQuery`)
 
@@ -164,15 +164,18 @@ The parser learns user-defined ranges from `CREATE TYPE ... AS RANGE`. It also r
 `TableIssueDetector.DetectIssues` checks each column of a `CREATE TABLE`. For a typed table (`CREATE TABLE t OF type`), the columns are the fields of that composite:
 
 ```go
-support := d.GetColumnDatatypeSupport(col.GetFullTypeName(), table.SchemaName)
-// support.UnsupportedInOffline        → ReportUnsupportedDatatypes(...)
-// support.UnsupportedInLive
-//      Kind == Range                  → NewRangeLiveMigrationDatatypeIssue(..., type name, column)
-//      otherwise                      → ReportUnsupportedDatatypesInLive(...)
-// else support.UnsupportedInLiveWithFFOrFB → ReportUnsupportedDatatypesInLiveWithFFOrFB(...)
+for _, col := range d.getColumnsWithTypes(table) {
+    support := d.GetColumnDatatypeSupport(col.GetFullTypeName())
+    // support.UnsupportedInOffline        → ReportUnsupportedDatatypes(...)
+    // support.UnsupportedInLive
+    //      Kind == Range                  → NewRangeLiveMigrationDatatypeIssue(..., type name, column)
+    //      otherwise                      → ReportUnsupportedDatatypesInLive(...)
+    // if UnsupportedInLive is empty, each of support.UnsupportedInLiveWithFFOrFB
+    //                                     → ReportUnsupportedDatatypesInLiveWithFFOrFB(...)
+}
 ```
 
-`GetColumnDatatypeSupport` returns, for each flow, every distinct type in the tree that the flow does not support. Types not defined in the exported schema are deduplicated by base name, so `xml` and `pg_catalog.xml` in one tree raise one issue. Under FF/FB only the outermost composite is reported: a composite nested in it is part of the same value. The FF/FB issue is raised only when the column is supported in plain live migration, because an unsupported live column already blocks FF/FB.
+`GetColumnDatatypeSupport` returns, for each flow, every distinct type in the tree that the flow does not support. Types not defined in the exported schema are deduplicated by base name, so `xml` and `pg_catalog.xml` in one tree raise one issue. Under FF/FB: a composite nested in it is part of the same value. The FF/FB issue is raised only when the column is supported in plain live migration, because an unsupported live column already blocks FF/FB.
 
 `ForeignTableIssueDetector` checks offline support only, since live migration does not stream foreign tables.
 
@@ -276,7 +279,7 @@ The export table list is what Debezium streams, so for partitioned tables it hol
 
 For a schema where every type a column uses is defined in the exported schemas, and for the PG source exporter:
 
-> A column appears as a live-migration datatype issue in analyze/assess **if and only if** export data from the source skips it.
+> A column appears as a live-migration datatype issue in analyze/assess **if and only if** export data from the source skips it, except for user domains, enums or base types named like a list entry, such as `public.xml` or `public.daterange` (D5).
 
 Both sides use the same list, both walk domains, arrays and composites, and both stop at enums. Tests that change either walk must keep this true for:
 
@@ -295,7 +298,7 @@ Both sides use the same list, both walk domains, arrays and composites, and both
 | D2 | Composite column, FF/FB with logical connector | Was reported as user-defined type under FF/FB. | Not skipped. | **Fixed.** The logical connector is the default and streams composites. `UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED` is retired. A composite is reported only when the walk finds an unsupported type among its fields, as the field type's issue. |
 | D3 | `hstore`, `citext`, `ltree`, `tsvector` with the gRPC connector | Not reported: FF/FB issues assume the logical connector. | Skipped only when the FF/FB target exporter uses the gRPC connector. The PG source exporter and the logical connector stream them. | Acceptable while logical is the default. Document it. |
 | D4 | Domain or composite defined in a schema that was not exported, including the type of a typed table | Missed: the parser cannot walk it and sees only the outer name. | Skipped: the catalog sees every schema. | Accept. Export is the safety net. |
-| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` or `CREATE DOMAIN public.xml AS text` | Not matched: only types outside the exported schema are matched by name (§3.2). | Composite or range: not matched, because the name is qualified. Domain, enum or user base type: matched, because the catalog returns a bare `typname`. So a `public.xml` domain over `text` is skipped by export but not reported. | Fix in the catalog walk: match names only for `pg_catalog` and extension-owned types, as `typeOidsQuery` already does, or qualify every user type. Follow-up on #3897. |
+| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` or `CREATE DOMAIN public.xml AS text` | Not matched: only types outside the exported schema are matched by name (§3.2). | Composite or range: not matched, because the name is qualified. Domain, enum or user base type: matched, because the catalog returns a bare `typname`. So a `public.xml` or `public.daterange` domain over `text` is skipped by export but not reported. | Fix in the catalog walk: match names only for `pg_catalog` and extension-owned types, as `typeOidsQuery` already does, or qualify every user type. Follow-up on #3897. |
 | D6 | Schema drift after `export schema` | Reflects the exported files. | Reflects the live catalog. | By design. Drift is covered by `schema detect-drift`. |
 
 
@@ -331,7 +334,7 @@ analyze-schema and assess-migration cannot know which flow the user will pick, s
 | Base name in a list but missing from the `ReportUnsupportedDatatypes*` switch | `utils.ErrExit("Unrecognized unsupported data type ...")`. A unit test should iterate every list and assert each name has a constructor, so this fails in CI rather than at a customer. That test does not exist yet (§11). |
 | Catalog walk query fails | `export data` exits with `get columns with supported types: ...`. |
 | Catalog returns a table that was not requested | Error. It means the `NameTuple` round-trip is broken, and guessing would skip the wrong columns. |
-| Domain or type referenced but not defined in the exported schema | Treated as `TypeKindOther`. Not an error, because extension and cross-schema types are normal (D4). |
+| Domain or type referenced but not defined in the exported schema | Treated as `TypeKindBuiltIn`. Not an error, because extension and cross-schema types are normal (D4). |
 | Cyclic or self-referencing composites | Visited set in both walks. Each type is reported once. |
 
 ## 10\. Performance
@@ -342,7 +345,7 @@ None of this is on a hot path. The parser walk runs once per column during analy
 
 | Layer | Test | Covers |
 | :---- | :---- | :---- |
-| Type walk | `TestGetUnderlyingTypes` (`queryissue`) | Domains, stacked domains, arrays, nested composites, enums, ranges and their multiranges, default-schema resolution, case-sensitive names. No cycle case yet. |
+| Type walk | `TestGetUnderlyingTypes` (`queryissue`) | Domains, stacked domains, arrays, nested composites, enums, ranges and their multiranges, unqualified names never qualified with a schema (an unqualified name next to a user type of that name stays a built-in), case-sensitive names. No cycle case yet. |
 | Detection | `TestDatatypeIssuesInPartitionAndInheritanceHierarchy` (`queryissue`) | Case-sensitive partitioned root with a cross-schema domain and composite. A pg_dump-style partition (`CREATE TABLE` plus `ATTACH PARTITION`) is reported. A `PARTITION OF` partition is not. Inheritance parent and children. |
 | Detection | `TestDomainOverUnsupportedDatatypeThroughGetDDLIssues` (`queryissue`) | Unqualified `point`, `xml` and `lo` next to user types of those names get the built-in issues. Typed tables: case-sensitive names with column options, a nested composite, and a composite outside the exported schema. A column built from several unsupported types, including `xml` and `pg_catalog.xml`. A nested composite under FF/FB. |
 | Index on user-defined types | `TestIndexOnUserDefinedTypes` (`queryissue`) | A user-defined range or multirange counts as a user-defined type for index and PK/UK issues, like a composite, since YugabyteDB rejects both as `user_defined_type`. An enum does not. |

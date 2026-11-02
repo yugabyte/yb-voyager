@@ -3145,8 +3145,8 @@ func TestTransactionIDDatatypesAreLiveMigrationIssues(t *testing.T) {
 
 // A column is checked against the unsupported datatype lists using every type it is built from,
 // so it is reported the same way as a column of the unsupported type: through stacked domains,
-// a domain over an array, an array of a domain, composite fields at any depth, a domain over a
-// composite (live migration with fall-forward/fall-back), and an unqualified domain reference
+// a domain over an array, an array of a domain, composite fields at any depth
+// (live migration with fall-forward/fall-back), and an unqualified domain reference
 // resolved in the table's schema. A domain over a supported type is not reported.
 func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 	domainDDLs := []string{
@@ -3353,7 +3353,7 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 		ordersRoot        = `CREATE TABLE sales."Orders" (id int, "Region" text, "Lsn" types.lsn_dom, addr types.address, "During" types.period, PRIMARY KEY (id, "Region")) PARTITION BY LIST ("Region");`
 		ordersMid         = `CREATE TABLE sales."Orders_EU" PARTITION OF sales."Orders" FOR VALUES IN ('EU') PARTITION BY HASH (id);`
 		ordersLeaf        = `CREATE TABLE sales."Orders_EU_0" PARTITION OF sales."Orders_EU" FOR VALUES WITH (MODULUS 2, REMAINDER 0);`
-		ordersDumpedLeaf  = `CREATE TABLE sales."Orders_US" (id int, "Region" text, "Lsn" types.lsn_dom, addr types.address);`
+		ordersDumpedLeaf  = `CREATE TABLE sales."Orders_US" (id int, "Region" text, "Lsn" types.lsn_dom, addr types.address, "During" types.period);`
 		ordersAttachLeaf  = `ALTER TABLE ONLY sales."Orders" ATTACH PARTITION sales."Orders_US" FOR VALUES IN ('US');`
 		eventsParent      = `CREATE TABLE sales.events (id int, "Lsn" types.lsn_dom);`
 		eventsChild       = `CREATE TABLE sales.events_2024 () INHERITS (sales.events);`
@@ -3383,6 +3383,7 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 		{"leaf partition", ordersLeaf, nil},
 		{"leaf partition as pg_dump writes it", ordersDumpedLeaf, []QueryIssue{
 			NewPgLsnDatatypeIssue("TABLE", "sales.Orders_US", ordersDumpedLeaf, "pg_lsn", "Lsn"),
+			NewRangeLiveMigrationDatatypeIssue("TABLE", "sales.Orders_US", ordersDumpedLeaf, "types.period", "During"),
 		}},
 		{"attaching a partition", ordersAttachLeaf, nil},
 		{"inheritance parent", eventsParent, []QueryIssue{
@@ -3402,6 +3403,37 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 			})
 			assert.True(t, cmp.Equal(tc.expected, datatypeIssues, cmpopts.EquateEmpty()),
 				"issues mismatch (-expected +actual):\n%s", cmp.Diff(tc.expected, datatypeIssues, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+func TestUserTypeNamedLikeDerivedMultirange(t *testing.T) {
+	const (
+		rangeType     = `CREATE TYPE public.float_range AS RANGE (subtype = float8);`
+		compositeType = `CREATE TYPE public.float_multirange AS (doc xml, n int);`
+		table         = `CREATE TABLE public.readings (id int, m public.float_multirange);`
+	)
+	for _, tc := range []struct {
+		name string
+		ddls []string
+	}{
+		{"composite before the range", []string{compositeType, rangeType, table}},
+		{"composite after the range", []string{rangeType, compositeType, table}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			detector := NewParserIssueDetector()
+			for _, ddl := range tc.ddls {
+				require.NoError(t, detector.ParseAndProcessDDL(ddl))
+			}
+			detector.FinalizeTablesMetadata()
+			issues, err := detector.GetDDLIssues(table, ybversion.LatestStable)
+			require.NoError(t, err)
+			datatypeIssues := lo.Filter(issues, func(issue QueryIssue, _ int) bool {
+				return strings.HasPrefix(issue.Type, "UNSUPPORTED_DATATYPE")
+			})
+			expected := []QueryIssue{NewXMLLiveMigrationDatatypeIssue("TABLE", "public.readings", table, "xml", "m")}
+			assert.True(t, cmp.Equal(expected, datatypeIssues, cmpopts.EquateEmpty()),
+				"issues mismatch (-expected +actual):\n%s", cmp.Diff(expected, datatypeIssues, cmpopts.EquateEmpty()))
 		})
 	}
 }
