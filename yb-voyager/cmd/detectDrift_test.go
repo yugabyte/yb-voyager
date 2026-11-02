@@ -184,7 +184,7 @@ func TestValidateDetectDriftFlags(t *testing.T) {
 		name                                    string
 		dbType, format, tables, excludeTables   string
 		objectTypes, excludeObjectTypes         string
-		wantErr                                 string
+		wantErr, wantCause                      string
 		wantObjectTypes, wantExcludeObjectTypes []schemadiff.ObjectType
 	}{
 		{name: "non-PostgreSQL source", dbType: constants.ORACLE,
@@ -196,9 +196,11 @@ func TestValidateDetectDriftFlags(t *testing.T) {
 		{name: "bad output format", dbType: constants.POSTGRESQL, format: "xml",
 			wantErr: "invalid report output format: xml. Supported formats are [html json]"},
 		{name: "bad object type", dbType: constants.POSTGRESQL, objectTypes: "VIEW",
-			wantErr: "invalid --object-type-list: "},
+			wantErr:   "invalid --object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN",
+			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN"},
 		{name: "bad excluded object type", dbType: constants.POSTGRESQL, excludeObjectTypes: "VIEW",
-			wantErr: "invalid --exclude-object-type-list: "},
+			wantErr:   "invalid --exclude-object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN",
+			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN"},
 		{name: "valid flags store the parsed lists", dbType: constants.POSTGRESQL, format: "json", tables: "public.t",
 			objectTypes: "TABLE", wantObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable}},
 		{name: "valid exclude list", dbType: constants.POSTGRESQL, excludeObjectTypes: "COLUMN",
@@ -213,8 +215,13 @@ func TestValidateDetectDriftFlags(t *testing.T) {
 
 			err := validateDetectDriftFlags()
 			if tc.wantErr != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.wantErr)
+				require.EqualError(t, err, tc.wantErr)
+				if tc.wantCause != "" {
+					// goerrors.Errorf wraps a fmt.Errorf value, so the parse error sits two levels down.
+					cause := errors.Unwrap(errors.Unwrap(err))
+					require.NotNil(t, cause)
+					assert.EqualError(t, cause, tc.wantCause)
+				}
 				return
 			}
 			require.NoError(t, err)
@@ -406,8 +413,6 @@ func TestDriftTableUniverse(t *testing.T) {
 	})
 
 	t.Run("tables of a schema outside the requested ones are left out, from snapshots and live alike", func(t *testing.T) {
-		// A table in another schema would resolve under --table-list, yet every
-		// finding for it is filtered out, so the run would read as "no drift".
 		got := driftTableUniverse(
 			[]*schemasnapshot.SnapshotContent{snapContent(
 				schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
@@ -417,11 +422,22 @@ func TestDriftTableUniverse(t *testing.T) {
 			publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"orders"}}, got)
 	})
+
+	t.Run("schema match is case-sensitive", func(t *testing.T) {
+		got := driftTableUniverse(nil, snapContent(
+			schemasnapshot.ObjectRef{Schema: "Sales", Name: "Invoices"},
+			schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+		), []string{"sales"})
+		assert.Equal(t, map[string][]string{"sales": {"orders"}}, got)
+
+		got = driftTableUniverse(nil, snapContent(
+			schemasnapshot.ObjectRef{Schema: "Sales", Name: "Invoices"},
+			schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+		), []string{"Sales"})
+		assert.Equal(t, map[string][]string{"Sales": {"Invoices"}}, got)
+	})
 }
 
-// A table named by --table-list must be one the run can report on. History
-// captured for more schemas than --source-db-schema selects must not widen what
-// the flag can name.
 func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
 	savedSource := source
 	t.Cleanup(func() { source = savedSource })
@@ -435,9 +451,9 @@ func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
 
 	t.Run("table-list naming an out-of-scope schema is an unknown table", func(t *testing.T) {
 		_, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{tableList: "sales.orders"})
-		require.Error(t, err)
 		var unknownErr *errs.UnknownTableErr
-		assert.True(t, errors.As(err, &unknownErr))
+		require.True(t, errors.As(err, &unknownErr))
+		assert.EqualError(t, unknownErr, "\nUnknown table names in the include list: [sales.orders]\nValid table names are: [public.orders]")
 	})
 
 	t.Run("unfiltered scope holds only the requested schemas' tables", func(t *testing.T) {
@@ -616,14 +632,19 @@ func TestNothingComparedError(t *testing.T) {
 		absent string
 	}{
 		{
-			// Production always puts the live read in CapturePoints, so "no history"
-			// is a single live point with zero stored captures, never an empty slice.
-			name:   "no captures stored at all",
+			name:   "no captures stored, live read only",
 			points: []schemadrift.CapturePoint{{Label: schemasnapshot.LabelSourceLive}},
 			stored: 0,
 			want:   "holds no schema snapshots",
 			// Capture cannot be enabled retroactively, so the message must not
 			// suggest re-running the export as a fix for this run.
+			absent: "Re-run",
+		},
+		{
+			name:   "no captures stored, no live read",
+			points: nil,
+			stored: 0,
+			want:   "holds no schema snapshots",
 			absent: "Re-run",
 		},
 		{

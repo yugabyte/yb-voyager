@@ -267,10 +267,8 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 // the source is gone from the catalog but must still be nameable, to see its own
 // drop reported. Only the stored snapshots still know about it.
 //
-// Only tables in the given schemas (--source-db-schema, unquoted) are kept. History
-// may cover more schemas, and a table in another one would resolve under
-// --table-list while every finding for it is filtered out, so the run would
-// report no drift.
+// Only tables in schemas (--source-db-schema) are kept: an out-of-scope table would
+// resolve under --table-list, then every finding for it is filtered out as "no drift".
 func driftTableUniverse(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent,
 	schemas []string) map[string][]string {
 	seen := make(map[string]map[string]bool)
