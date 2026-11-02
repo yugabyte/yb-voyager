@@ -52,7 +52,8 @@ func TestIsColumnTypeUnsupported(t *testing.T) {
 
 // Built-in types resolve to their fixed OIDs, an extension type only once its extension is
 // installed, and a user-defined type that merely shares the extension type's name never resolves.
-// The extension lives in a non-public schema so a search_path-based lookup would miss it.
+// The extension lives in a non-public, case-sensitive schema so a lookup that depends on search_path
+// or on unquoted schema names would miss it.
 func runTypeToOidTest(t *testing.T, sourceDB SourceDB, db *sql.DB, executeSqls func(...string)) {
 	executeSqls(
 		`DROP EXTENSION IF EXISTS hstore CASCADE;`,
@@ -61,7 +62,7 @@ func runTypeToOidTest(t *testing.T, sourceDB SourceDB, db *sql.DB, executeSqls f
 	)
 	defer executeSqls(
 		`DROP SCHEMA IF EXISTS user_types CASCADE;`,
-		`DROP SCHEMA IF EXISTS ext_schema CASCADE;`,
+		`DROP SCHEMA IF EXISTS "Ext_Schema" CASCADE;`,
 	)
 	typeNames := []string{"varbit", "tsvector", "tsquery", "hstore"}
 
@@ -71,13 +72,13 @@ func runTypeToOidTest(t *testing.T, sourceDB SourceDB, db *sql.DB, executeSqls f
 		require.Equal(t, map[string]int{"varbit": 1562, "tsvector": 3614, "tsquery": 3615}, typeToOid)
 	})
 
-	t.Run("extension installed in a non-public schema", func(t *testing.T) {
+	t.Run("extension installed in a case-sensitive non-public schema", func(t *testing.T) {
 		executeSqls(
-			`CREATE SCHEMA ext_schema;`,
-			`CREATE EXTENSION hstore WITH SCHEMA ext_schema;`,
+			`CREATE SCHEMA "Ext_Schema";`,
+			`CREATE EXTENSION hstore WITH SCHEMA "Ext_Schema";`,
 		)
 		var hstoreOid int
-		require.NoError(t, db.QueryRow(`SELECT 'ext_schema.hstore'::regtype::oid::bigint`).Scan(&hstoreOid))
+		require.NoError(t, db.QueryRow(`SELECT '"Ext_Schema".hstore'::regtype::oid::bigint`).Scan(&hstoreOid))
 
 		typeToOid, err := sourceDB.GetTypeToOid(typeNames)
 		require.NoError(t, err)
