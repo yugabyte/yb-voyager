@@ -24,6 +24,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var pgLiveServerArgs = []string{"-c", "wal_level=logical", "-c", "max_replication_slots=40", "-c", "max_wal_senders=40"}
+
 type PostgresContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
@@ -93,11 +95,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	}
 
 	if pg.ContainerConfig.ForLive {
-		req.Cmd = []string{
-			"postgres",
-			"-c", "wal_level=logical", // <-- set wal_level for logical replication
-			"-c", "max_replication_slots=20", // <-- increase max replication slots for live migration tests
-		}
+		req.Cmd = append([]string{"postgres"}, pgLiveServerArgs...)
 	}
 
 	pg.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -409,7 +407,7 @@ func (pg *PostgresContainer) startWithMTLS(ctx context.Context) (err error) {
 		"-c", "hba_file=" + pgMTLSServingDir + "/pg_hba.conf",
 	}
 	if pg.ForLive {
-		cmd = append(cmd, "-c", "wal_level=logical", "-c", "max_replication_slots=20", "-c", "max_wal_senders=40")
+		cmd = append(cmd, pgLiveServerArgs...)
 	}
 
 	req := testcontainers.ContainerRequest{
