@@ -126,7 +126,6 @@ type ColumnDatatypeSupport struct {
 func (p *ParserIssueDetector) GetColumnDatatypeSupport(typeName string) ColumnDatatypeSupport {
 	types := p.GetUnderlyingTypes(typeName)
 	liveWithFFOrFBUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
-	// a composite nested in another is part of the same user-defined value, so only the outermost is reported
 	return ColumnDatatypeSupport{
 		UnsupportedInOffline: filterUnderlyingTypes(types, func(t UnderlyingType) bool {
 			return isListedDatatype(t, srcdb.PostgresUnsupportedDataTypes)

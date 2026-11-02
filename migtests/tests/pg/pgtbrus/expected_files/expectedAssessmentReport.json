@@ -35,6 +35,12 @@
                 "ObjectNames": "public.c_i_seq, public.f_c_i_seq, public.f_t_i_seq, public.t_i_seq"
             },
             {
+                "ObjectType": "TABLE",
+                "TotalCount": 2,
+                "InvalidCount": 1,
+                "ObjectNames": "public.c, public.t"
+            },
+            {
                 "ObjectType": "FUNCTION",
                 "TotalCount": 4,
                 "InvalidCount": 0,
@@ -51,12 +57,6 @@
                 "TotalCount": 2,
                 "InvalidCount": 2,
                 "ObjectNames": "public.f_c, public.f_t"
-            },
-            {
-                "ObjectType": "TABLE",
-                "TotalCount": 2,
-                "InvalidCount": 1,
-                "ObjectNames": "public.c, public.t"
             }
         ]
     },
