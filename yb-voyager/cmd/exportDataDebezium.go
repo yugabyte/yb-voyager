@@ -165,6 +165,10 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		SnapshotMode:          snapshotMode,
 		TransactionOrdering:   transactionOrdering,
 	}
+	config.StringifyTypeOids, err = getStringifyTypeOids()
+	if err != nil {
+		return nil, nil, err
+	}
 	if source.DBType == ORACLE {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
 		if source.IsOracleCDBSetup() {
@@ -208,6 +212,27 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 
 	return config, tableNameToApproxRowCountMap, nil
+}
+
+// getStringifyTypeOids looks up the types the exporter's converter must stringify. The converter
+// matches a column by the OID at the root of its domain chain, which is the only way to recognise a
+// domain over one of these types, and extension types like hstore have a different OID per database.
+func getStringifyTypeOids() (map[string]int, error) {
+	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
+		return nil, nil
+	}
+	typeNames := append(slices.Clone(dbzm.StringifiedBuiltInTypeNames), dbzm.StringifiedExtensionTypeNames...)
+	typeToOid, err := source.DB().GetTypeToOid(typeNames)
+	if err != nil {
+		return nil, fmt.Errorf("getting the oids of types to stringify: %w", err)
+	}
+
+	for _, builtInType := range dbzm.StringifiedBuiltInTypeNames {
+		if _, ok := typeToOid[builtInType]; !ok {
+			return nil, goerrors.Errorf("built-in type %q not found in the %s database", builtInType, source.DBType)
+		}
+	}
+	return typeToOid, nil
 }
 
 func generateOrGetStreamIDForYugabyteCDCClient(config *dbzm.Config) error {

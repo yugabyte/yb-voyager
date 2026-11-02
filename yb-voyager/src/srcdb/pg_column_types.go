@@ -194,3 +194,46 @@ func getColumnsWithSupportedTypes(db *sql.DB, tableList []sqlname.NameTuple, uns
 	}
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
+
+// typeOidsQuery considers only built-in types and types an extension owns, so a user-defined type
+// that happens to share a name with one of them is ignored.
+const typeOidsQuery = `
+	SELECT t.typname, t.oid::bigint
+	FROM pg_type AS t
+	JOIN pg_namespace AS n ON n.oid = t.typnamespace
+	WHERE t.typname = ANY($1)
+		AND (
+			n.nspname = 'pg_catalog'
+			-- deptype 'e': t is a member of an extension
+			OR EXISTS (
+				SELECT 1 FROM pg_depend AS d
+				WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype = 'e'
+			)
+		)`
+
+// getTypeToOid maps each of typeNames to its OID in the database. A type that does not exist, such
+// as one from an extension that is not installed, is absent from the result.
+func getTypeToOid(db *sql.DB, typeNames []string) (map[string]int, error) {
+	rows, err := db.Query(typeOidsQuery, typeNames)
+	if err != nil {
+		return nil, goerrors.Errorf("querying type oids for %v: %w", typeNames, err)
+	}
+	defer rows.Close()
+
+	typeToOid := make(map[string]int)
+	for rows.Next() {
+		var typeName string
+		var typeOid int
+		if err := rows.Scan(&typeName, &typeOid); err != nil {
+			return nil, goerrors.Errorf("scanning type oid: %w", err)
+		}
+		if _, ok := typeToOid[typeName]; ok {
+			return nil, goerrors.Errorf("more than one built-in or extension type is named %q", typeName)
+		}
+		typeToOid[typeName] = typeOid
+	}
+	if err := rows.Err(); err != nil {
+		return nil, goerrors.Errorf("iterating type oids: %w", err)
+	}
+	return typeToOid, nil
+}
