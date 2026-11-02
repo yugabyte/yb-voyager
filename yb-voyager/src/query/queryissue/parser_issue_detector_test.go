@@ -3404,7 +3404,7 @@ func TestGetUnderlyingTypes(t *testing.T) {
 	}
 	domain := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindDomain} }
 	composite := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindComposite} }
-	other := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindOther} }
+	other := func(name string) UnderlyingType { return UnderlyingType{Name: name, Kind: TypeKindBuiltIn} }
 
 	testCases := []struct {
 		name     string
