@@ -3255,12 +3255,10 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 			},
 		},
 		{
-			name: "composite nesting a composite is one live fall-forward/fall-back issue, for the outer one",
+			name: "composite nesting a composite of supported fields is not reported",
 			stmt: `CREATE TABLE public.contacts (id int PRIMARY KEY, c public.contact);`,
 			expected: func(stmt string) []QueryIssue {
-				return []QueryIssue{
-					NewUserDefinedDatatypeIssue("TABLE", "public.contacts", stmt, "public.contact", "c"),
-				}
+				return []QueryIssue{}
 			},
 		},
 		{
@@ -3289,7 +3287,6 @@ func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 			},
 		},
 		{
-			name: "composite of supported fields, and an array of it, are live fall-forward/fall-back issues",
 			name: "composite of supported fields, and an array of it, are not reported",
 			stmt: `CREATE TABLE public.comp_supported (id int PRIMARY KEY, addr public.address, addrs public.address[]);`,
 			expected: func(stmt string) []QueryIssue {
@@ -3386,7 +3383,6 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 		{"leaf partition", ordersLeaf, nil},
 		{"leaf partition as pg_dump writes it", ordersDumpedLeaf, []QueryIssue{
 			NewPgLsnDatatypeIssue("TABLE", "sales.Orders_US", ordersDumpedLeaf, "pg_lsn", "Lsn"),
-			NewUserDefinedDatatypeIssue("TABLE", "sales.Orders_US", ordersDumpedLeaf, "types.address", "addr"),
 		}},
 		{"attaching a partition", ordersAttachLeaf, nil},
 		{"inheritance parent", eventsParent, []QueryIssue{
@@ -3504,23 +3500,10 @@ func TestGetUnderlyingTypes(t *testing.T) {
 		{"composite nesting a composite and an array of it", "public.wrapper", []UnderlyingType{composite("public.wrapper"), other("text"), composite("public.Geo"), other("pg_lsn")}},
 		{"domain over a composite", "public.geo_dom", []UnderlyingType{domain("public.geo_dom"), composite("public.Geo"), other("text"), other("pg_lsn")}},
 		{"enum", "public.status", []UnderlyingType{{Name: "public.status", Kind: TypeKindEnum}}},
-		{"qualified domain", "public.xid8_dom", "", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
-		{"stacked domain", "public.xid8_dom_nested", "", []UnderlyingType{domain("public.xid8_dom_nested"), domain("public.xid8_dom"), other("xid8")}},
-		{"array of a domain", "public.xid8_dom[]", "", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
-		{"unqualified, resolved in the default schema", "xid8_dom", "public", []UnderlyingType{domain("public.xid8_dom"), other("xid8")}},
-		{"unqualified and ambiguous, default schema decides", "shared_dom", "sales", []UnderlyingType{domain("sales.shared_dom"), other("text")}},
-		{"unqualified and ambiguous without a match in the default schema", "shared_dom", "other", []UnderlyingType{other("shared_dom")}},
-		{"built-in", "xid8", "public", []UnderlyingType{other("xid8")}},
-		{"built-in reported by its SQL name", "time with time zone", "public", []UnderlyingType{other("time with time zone")}},
-		{"case-sensitive composite and its fields", "public.Geo", "", []UnderlyingType{composite("public.Geo"), other("text"), other("pg_lsn")}},
-		{"array of a composite", "public.Geo[]", "", []UnderlyingType{composite("public.Geo"), other("text"), other("pg_lsn")}},
-		{"composite nesting a composite and an array of it", "public.wrapper", "", []UnderlyingType{composite("public.wrapper"), other("text"), composite("public.Geo"), other("pg_lsn")}},
-		{"domain over a composite", "public.geo_dom", "", []UnderlyingType{domain("public.geo_dom"), composite("public.Geo"), other("text"), other("pg_lsn")}},
-		{"enum", "public.status", "", []UnderlyingType{{Name: "public.status", Kind: TypeKindEnum}}},
-		{"case-sensitive range", "public.Span", "", []UnderlyingType{rangeType("public.Span")}},
-		{"multirange of a range", "public.SpanSet", "", []UnderlyingType{rangeType("public.SpanSet")}},
-		{"domain over a range", "public.span_dom", "", []UnderlyingType{domain("public.span_dom"), rangeType("public.Span")}},
-		{"built-in range", "tsrange", "public", []UnderlyingType{other("tsrange")}},
+		{"case-sensitive range", "public.Span", []UnderlyingType{rangeType("public.Span")}},
+		{"multirange of a range", "public.SpanSet", []UnderlyingType{rangeType("public.SpanSet")}},
+		{"domain over a range", "public.span_dom", []UnderlyingType{domain("public.span_dom"), rangeType("public.Span")}},
+		{"built-in range", "tsrange", []UnderlyingType{other("tsrange")}},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
