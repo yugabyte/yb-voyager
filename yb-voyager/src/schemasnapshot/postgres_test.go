@@ -387,7 +387,9 @@ func TestTakeSnapshotUnexpectedContypeIsError(t *testing.T) {
 	assert.Contains(t, err.Error(), `unexpected contype "x"`)
 }
 
-func TestTakeSnapshotOrphanRowsAreErrors(t *testing.T) {
+// A NULL definition means the object was dropped after the capture's snapshot was taken:
+// pg_get_constraintdef and pg_get_indexdef read the latest committed catalog.
+func TestTakeSnapshotOrphanOrDroppedRowsAreErrors(t *testing.T) {
 	tests := []struct {
 		name        string
 		constraints [][]driver.Value
@@ -403,6 +405,16 @@ func TestTakeSnapshotOrphanRowsAreErrors(t *testing.T) {
 			name:    "index",
 			indexes: [][]driver.Value{{"999", "ghost_idx", "2", false, "ghost_idx", "CREATE INDEX ghost_idx ON other.t USING btree (a)", "other.t", false}},
 			wantErr: `index "ghost_idx" belongs to table OID 999, which is not in the snapshot`,
+		},
+		{
+			name:        "constraint dropped during the capture",
+			constraints: [][]driver.Value{{"100", "orders_pkey", "1", "p", nil, false}},
+			wantErr:     "constraint orders_pkey was dropped while the schema was being captured; run the capture again",
+		},
+		{
+			name:    "index dropped during the capture",
+			indexes: [][]driver.Value{{"100", "orders_idx", "2", false, "orders_idx", nil, "public.orders", false}},
+			wantErr: "index orders_idx on public.orders was dropped while the schema was being captured; run the capture again",
 		},
 	}
 	for _, tc := range tests {
@@ -521,6 +533,7 @@ func TestStripIndexDefPrefix(t *testing.T) {
 			if tc.wantError {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), "index "+tc.quoted))
+				assert.Contains(t, err.Error(), "renamed during the capture, run the capture again")
 				return
 			}
 			require.NoError(t, err)
