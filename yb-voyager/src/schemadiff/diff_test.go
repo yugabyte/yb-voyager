@@ -221,14 +221,14 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		},
 	}
 
-	tA.PrimaryKey = makePrimaryKey("s1", "t_old", "10", "pk_old", "PRIMARY KEY (col_keep)")
-	tB.PrimaryKey = makePrimaryKey("s2", "t_new", "10", "pk_new", "PRIMARY KEY (col_renamed)")
+	tA.PrimaryKey = makeConstraint("s1", "t_old", "10", "pk_old", "PRIMARY KEY (col_keep)")
+	tB.PrimaryKey = makeConstraint("s2", "t_new", "10", "pk_new", "PRIMARY KEY (col_renamed)")
 	pkDroppedA := makeTable("4", "s1", "pk_dropped", schemasnapshot.TableKindOrdinary)
-	pkDroppedA.PrimaryKey = makePrimaryKey("s1", "pk_dropped", "11", "pk_dropped_pkey", "PRIMARY KEY (id)")
+	pkDroppedA.PrimaryKey = makeConstraint("s1", "pk_dropped", "11", "pk_dropped_pkey", "PRIMARY KEY (id)")
 	pkDroppedB := makeTable("4", "s1", "pk_dropped", schemasnapshot.TableKindOrdinary)
 	pkAddedA := makeTable("5", "s1", "pk_added", schemasnapshot.TableKindOrdinary)
 	pkAddedB := makeTable("5", "s1", "pk_added", schemasnapshot.TableKindOrdinary)
-	pkAddedB.PrimaryKey = makePrimaryKey("s1", "pk_added", "12", "pk_added_pkey", "PRIMARY KEY (id)")
+	pkAddedB.PrimaryKey = makeConstraint("s1", "pk_added", "12", "pk_added_pkey", "PRIMARY KEY (id)")
 
 	withKeys := func(id, table string, mutate func(*schemasnapshot.Table)) schemasnapshot.Table {
 		tbl := makeTable(id, "s1", table, schemasnapshot.TableKindOrdinary)
@@ -236,14 +236,14 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		return tbl
 	}
 	uniqueA := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
-		tbl.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "21", "uq_old", "UNIQUE (a)"), *makePrimaryKey("s1", "uq", "22", "uq_dropped", "UNIQUE (b)")}
-		tbl.Checks = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "31", "ck_old", "CHECK (a > 0)"), *makePrimaryKey("s1", "uq", "32", "ck_dropped", "CHECK (b > 0)")}
-		tbl.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "41", "fk_old", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makePrimaryKey("s1", "uq", "42", "fk_dropped", "FOREIGN KEY (b) REFERENCES s1.p(id)")}
+		tbl.UniqueKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "21", "uq_old", "UNIQUE (a)"), *makeConstraint("s1", "uq", "22", "uq_dropped", "UNIQUE (b)")}
+		tbl.Checks = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "31", "ck_old", "CHECK (a > 0)"), *makeConstraint("s1", "uq", "32", "ck_dropped", "CHECK (b > 0)")}
+		tbl.ForeignKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "41", "fk_old", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makeConstraint("s1", "uq", "42", "fk_dropped", "FOREIGN KEY (b) REFERENCES s1.p(id)")}
 	})
 	uniqueB := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
-		tbl.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "21", "uq_new", "UNIQUE (a)"), *makePrimaryKey("s1", "uq", "23", "uq_added", "UNIQUE (c)")}
-		tbl.Checks = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "31", "ck_new", "CHECK (a > 0)"), *makePrimaryKey("s1", "uq", "33", "ck_added", "CHECK (c > 0)")}
-		tbl.ForeignKeys = []schemasnapshot.Constraint{*makePrimaryKey("s1", "uq", "41", "fk_new", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makePrimaryKey("s1", "uq", "43", "fk_added", "FOREIGN KEY (c) REFERENCES s1.p(id)")}
+		tbl.UniqueKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "21", "uq_new", "UNIQUE (a)"), *makeConstraint("s1", "uq", "23", "uq_added", "UNIQUE (c)")}
+		tbl.Checks = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "31", "ck_new", "CHECK (a > 0)"), *makeConstraint("s1", "uq", "33", "ck_added", "CHECK (c > 0)")}
+		tbl.ForeignKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "41", "fk_new", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makeConstraint("s1", "uq", "43", "fk_added", "FOREIGN KEY (c) REFERENCES s1.p(id)")}
 	})
 
 	mkIndex := func(table, id, name, definition string) schemasnapshot.Index {
