@@ -135,18 +135,21 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 
 func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	sentences := map[schemadiff.DiffType]string{
-		schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table",
+		schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
 	}
+	// A type without a sentence must read the same with and without fall-back, so new
+	// fall-back text on it fails here whatever its wording.
 	for _, diffType := range schemadiff.AllDiffTypes() {
-		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
+		withFallBack, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
 		require.NoError(t, err)
-		for sentenceType, sentence := range sentences {
-			assert.Equal(t, diffType == sentenceType, strings.Contains(info.Impact, sentence), "%s / %s", diffType, sentenceType)
+		withoutFallBack, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart})
+		require.NoError(t, err)
+		want := withoutFallBack.Impact
+		if sentence, ok := sentences[diffType]; ok {
+			want += " " + sentence
 		}
+		assert.Equal(t, want, withFallBack.Impact, string(diffType))
 	}
-	info, err := getDriftInfo(schemadiff.ColumnDropped, situation{Timing: TimingLiveAfterExportStart})
-	require.NoError(t, err)
-	assert.NotContains(t, info.Impact, "fall-back")
 }
 
 func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {
