@@ -198,19 +198,33 @@ func TestGetDriftInfo_UniqueDropKeepsItWhenRebuilt(t *testing.T) {
 	}
 }
 
-// Offline import data replays no deletes or updates, so only the timings that can be
-// live mention the key's ON DELETE or ON UPDATE action.
+// Offline import data replays no deletes or updates, so the key's ON DELETE or ON UPDATE
+// action is mentioned only for live, and before export data only scoped to live.
 func TestGetDriftInfo_ForeignKeyDroppedActionOnlyWhenChangesReplay(t *testing.T) {
-	for timing, wantAction := range map[Timing]bool{
-		TimingBeforeExportData:            true,
-		TimingOfflineAfterExportStart:     false,
-		TimingLiveAfterExportStart:        true,
-		TimingChangesOnlyAfterExportStart: true,
+	type want struct{ impact, action string }
+	liveOnly := want{
+		impact: "In a live migration, a delete or update of a parent row",
+		action: "In a live migration, restore from the source",
+	}
+	live := want{
+		impact: "A delete or update of a parent row",
+		action: "Restore from the source",
+	}
+	for timing, w := range map[Timing]want{
+		TimingBeforeExportData:            liveOnly,
+		TimingOfflineAfterExportStart:     {},
+		TimingLiveAfterExportStart:        live,
+		TimingChangesOnlyAfterExportStart: live,
 	} {
 		info, err := getDriftInfo(schemadiff.ForeignKeyDropped, situation{Timing: timing})
 		require.NoError(t, err)
-		assert.Equal(t, wantAction, strings.Contains(info.Impact, "`CASCADE`"), "%s Impact", timing)
-		assert.Equal(t, wantAction, strings.Contains(info.Action, "Restore from the source"), "%s Action", timing)
+		if w == (want{}) {
+			assert.NotContains(t, info.Impact, "`CASCADE`", "%s Impact", timing)
+			assert.NotContains(t, strings.ToLower(info.Action), "restore from the source", "%s Action", timing)
+			continue
+		}
+		assert.Contains(t, info.Impact, w.impact, "%s Impact", timing)
+		assert.Contains(t, info.Action, w.action, "%s Action", timing)
 	}
 }
 
