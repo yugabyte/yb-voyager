@@ -980,7 +980,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		for i := 0; i < len(batch.Events); i++ {
 			res, err := br.Exec()
 			if err != nil {
-				errorMsg := describeBatchExecError(err, &ybBatch, batch, i)
+				errorMsg := describeBatchExecError(err, batch, i, nil)
 				log.Errorf("%s : %v", errorMsg, err)
 				_ = closeBatch() // best-effort; the original error below takes precedence
 				return false, fmt.Errorf("%s: %w", errorMsg, err)

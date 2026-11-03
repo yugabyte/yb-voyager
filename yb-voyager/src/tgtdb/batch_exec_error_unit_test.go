@@ -21,24 +21,19 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// The pgx.ErrPreprocessingBatch branch is covered by TestExecuteBatchNamesEventOfUnpreparableStatement
-// (integration), since only pgx can construct that error.
+// The pgx.ErrPreprocessingBatch branch is covered by the integration tests in batch_exec_error_test.go, since only pgx
+// can construct that error with a statement in it.
 func TestDescribeBatchExecErrorNonPreprocessing(t *testing.T) {
 	o := sqlname.NewObjectName(constants.YUGABYTEDB, "public", "public", "t")
 	tableTup := sqlname.NameTuple{SourceName: o, TargetName: o, CurrentName: o}
 	events := []*Event{{Vsn: 11, Op: "c", TableNameTup: tableTup}, {Vsn: 12, Op: "c", TableNameTup: tableTup}, {Vsn: 13, Op: "c", TableNameTup: tableTup}}
 	batch := NewEventBatch(events, 4)
-	pgxBatch := &pgx.Batch{}
-	for range events {
-		pgxBatch.Queue("SELECT 1")
-	}
 	dbErr := errors.New("duplicate key value violates unique constraint")
 
 	tests := []struct {
@@ -51,7 +46,7 @@ func TestDescribeBatchExecErrorNonPreprocessing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, describeBatchExecError(dbErr, pgxBatch, batch, tt.i))
+			assert.Equal(t, tt.expected, describeBatchExecError(dbErr, batch, tt.i, nil))
 		})
 	}
 }

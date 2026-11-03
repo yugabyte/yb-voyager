@@ -1133,20 +1133,16 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal *utils.StructMap[s
 	return err
 }
 
-// describeBatchExecError names the event behind a failed br.Exec() for the i-th event of an EventBatch queued
-// one query per event into pgxBatch. pgx reports a failure to prepare or encode any queued query on the first
-// br.Exec(), as pgx.ErrPreprocessingBatch carrying that query's SQL; DB execution errors surface on the
-// failing event's own br.Exec().
-func describeBatchExecError(err error, pgxBatch *pgx.Batch, batch *EventBatch, i int) string {
+// describeBatchExecError describes a failed br.Exec() for the i-th event of batch. preparedStmts maps a prepared-statement
+// name to its SQL, since a query queued by name is reported by pgx under that name.
+func describeBatchExecError(err error, batch *EventBatch, i int, preparedStmts map[string]string) string {
 	var preprocessingErr pgx.ErrPreprocessingBatch
 	if errors.As(err, &preprocessingErr) {
-		// Prepared statements are shared by name across events, so this is the first event that queued the failing statement.
-		for idx, queued := range pgxBatch.QueuedQueries {
-			if queued.SQL == preprocessingErr.SQL() {
-				return fmt.Sprintf("error preprocessing statement first queued by event with vsn(%d) in batch(%s)", batch.Events[idx].Vsn, batch.ID())
-			}
+		stmt := preprocessingErr.SQL()
+		if preparedStmt, ok := preparedStmts[stmt]; ok {
+			stmt = preparedStmt
 		}
-		return fmt.Sprintf("error preprocessing statements for events in batch(%s)", batch.ID())
+		return fmt.Sprintf("error preprocessing stmt [%s] in batch(%s)", stmt, batch.ID())
 	}
 	if i == 0 {
 		// Errors sending the whole batch (e.g. a broken connection) also surface on the first br.Exec().
@@ -1255,7 +1251,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				err = fpErr
 			}
 			if err != nil {
-				errorMsg := describeBatchExecError(err, &ybBatch, batch, i)
+				errorMsg := describeBatchExecError(err, batch, i, stmtToPrepare)
 				if i == 0 {
 					log.Errorf("Event VSNs in batch(%s): %v", batch.ID(), batch.GetAllVsns())
 				}
