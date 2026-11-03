@@ -25,7 +25,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
 )
 
-func makePrimaryKey(schema, table, id, name, definition string) *schemasnapshot.Constraint {
+func makeConstraint(schema, table, id, name, definition string) *schemasnapshot.Constraint {
 	return &schemasnapshot.Constraint{
 		TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref(schema, table), Name: name},
 		ID:                   id,
@@ -49,9 +49,9 @@ func tableWithPrimaryKey(key *schemasnapshot.Constraint) schemasnapshot.Table {
 }
 
 func TestDiffPrimaryKey(t *testing.T) {
-	pk := makePrimaryKey("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
-	renamed := makePrimaryKey("public", "Orders", "10", "Orders_pk2", `PRIMARY KEY ("Id")`)
-	recreated := makePrimaryKey("public", "Orders", "20", "Orders_pkey", `PRIMARY KEY ("Id")`)
+	pk := makeConstraint("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
+	renamed := makeConstraint("public", "Orders", "10", "Orders_pk2", `PRIMARY KEY ("Id")`)
+	recreated := makeConstraint("public", "Orders", "20", "Orders_pkey", `PRIMARY KEY ("Id")`)
 
 	dropped := func(key *schemasnapshot.Constraint) Difference {
 		return Difference{Type: PrimaryKeyDropped, Operation: OpDropped, ObjectType: ObjectTypeConstraint, ObjectA: key.TableScopedObjectRef, SideAValue: key.Definition}
@@ -91,10 +91,10 @@ func TestDiffPrimaryKey(t *testing.T) {
 }
 
 func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
-	pk := makePrimaryKey("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
+	pk := makeConstraint("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
 	withKey := tableWithPrimaryKey(pk)
-	withKey.UniqueKeys = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "11", "Orders_Email_key", `UNIQUE ("Email")`)}
-	withKey.Checks = []schemasnapshot.Constraint{*makePrimaryKey("public", "Orders", "12", "Orders_Qty_check", `CHECK ("Qty" > 0)`)}
+	withKey.UniqueKeys = []schemasnapshot.Constraint{*makeConstraint("public", "Orders", "11", "Orders_Email_key", `UNIQUE ("Email")`)}
+	withKey.Checks = []schemasnapshot.Constraint{*makeConstraint("public", "Orders", "12", "Orders_Qty_check", `CHECK ("Qty" > 0)`)}
 	withoutKey := tableWithPrimaryKey(nil)
 
 	snapshot := func(version int, table schemasnapshot.Table) *schemasnapshot.SnapshotContent {
@@ -132,7 +132,7 @@ func TestDiff_KeysCompareOnlyWhenBothSnapshotsHaveKeys(t *testing.T) {
 }
 
 func TestFilterByScope_PrimaryKeyFindingAnchorsToItsTable(t *testing.T) {
-	pk := makePrimaryKey("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
+	pk := makeConstraint("public", "Orders", "10", "Orders_pkey", `PRIMARY KEY ("Id")`)
 	a := snapWithTables(tableWithPrimaryKey(nil))
 	b := snapWithTables(tableWithPrimaryKey(pk))
 	a.Version = schemasnapshot.VersionWithKeysAndIndexes
@@ -149,7 +149,7 @@ func TestFilterByScope_PrimaryKeyFindingAnchorsToItsTable(t *testing.T) {
 
 func TestDiffConstraintsOrIndexes(t *testing.T) {
 	newKey := func(id, name, definition string) schemasnapshot.Constraint {
-		return *makePrimaryKey("public", "Orders", id, name, definition)
+		return *makeConstraint("public", "Orders", id, name, definition)
 	}
 	parentCopy := func(c schemasnapshot.Constraint) schemasnapshot.Constraint {
 		c.FromParent = true

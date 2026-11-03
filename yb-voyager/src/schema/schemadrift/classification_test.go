@@ -160,6 +160,23 @@ func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	}
 }
 
+// Only a streaming import data reads the target's unique keys, so only the timings that
+// can be live tell the user to restart it, and they carve out stored generated columns.
+func TestGetDriftInfo_UniqueAddedRestartOnlyWhenLive(t *testing.T) {
+	for timing, wantRestart := range map[Timing]bool{
+		TimingBeforeExportData:            false,
+		TimingOfflineAfterExportStart:     false,
+		TimingLiveAfterExportStart:        true,
+		TimingChangesOnlyAfterExportStart: true,
+	} {
+		info, err := getDriftInfo(schemadiff.UniqueAdded, situation{Timing: timing})
+		require.NoError(t, err)
+		assert.Equal(t, SeverityAdvisory, info.Severity, string(timing))
+		assert.Equal(t, wantRestart, strings.Contains(info.Action, "restart it afterwards"), string(timing))
+		assert.Equal(t, wantRestart, strings.Contains(info.Action, "If it covers a stored generated column, add it on the target only after cutover"), string(timing))
+	}
+}
+
 func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {
 	for diffType, byTiming := range infoByDiffType {
 		live := byTiming[TimingLiveAfterExportStart]
