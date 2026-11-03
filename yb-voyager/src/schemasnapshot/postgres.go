@@ -537,9 +537,15 @@ func loadConstraints(ctx context.Context, db QueryExecutor, placeholders string,
 	var out []constraintRow
 	for rows.Next() {
 		var r constraintRow
-		if err := rows.Scan(&r.tableOID, &r.Name, &r.ID, &r.contype, &r.Definition, &r.FromParent); err != nil {
+		var definition sql.NullString
+		if err := rows.Scan(&r.tableOID, &r.Name, &r.ID, &r.contype, &definition, &r.FromParent); err != nil {
 			return nil, fmt.Errorf("scan constraint row: %w", err)
 		}
+		// Like pg_get_indexdef, pg_get_constraintdef reads the latest committed catalog.
+		if !definition.Valid {
+			return nil, goerrors.Errorf("constraint %s was dropped while the schema was being captured; run the capture again", r.Name)
+		}
+		r.Definition = definition.String
 		out = append(out, r)
 	}
 	if err := rows.Err(); err != nil {
@@ -570,7 +576,7 @@ func loadIndexes(ctx context.Context, db QueryExecutor, placeholders string, arg
 		// pg_get_indexdef reads the latest committed catalog, not the transaction's snapshot,
 		// so it returns NULL for an index dropped after the capture started.
 		if !indexDef.Valid {
-			return nil, goerrors.Errorf("index %s was dropped while the schema was being captured; run the capture again", quotedName)
+			return nil, goerrors.Errorf("index %s on %s was dropped while the schema was being captured; run the capture again", quotedName, tableRegclass)
 		}
 		r.Definition, err = stripIndexDefPrefix(indexDef.String, quotedName, tableRegclass, r.isUnique)
 		if err != nil {
