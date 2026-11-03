@@ -332,8 +332,10 @@ func requireDriftTableListQualified(patternList, flagName string, hasDefaultSche
 // driftPartitionChildren maps a partitioned table to every partition child recorded
 // against it in any content, live or historical. It is a union across sources: a
 // partition dropped since a given snapshot must still expand, so its parent's
-// children list from every content is merged and deduped.
-func driftPartitionChildren(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
+// children list from every content is merged and deduped. A partition can live in
+// another schema than its parent; one outside schemas is dropped, as in driftTableUniverse.
+func driftPartitionChildren(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent,
+	schemas []string) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
 	children := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
 	seen := make(map[schemasnapshot.ObjectRef]map[schemasnapshot.ObjectRef]bool)
 	add := func(c *schemasnapshot.SnapshotContent) {
@@ -342,6 +344,9 @@ func driftPartitionChildren(snapshotContents []*schemasnapshot.SnapshotContent, 
 		}
 		for _, t := range c.Tables {
 			for _, child := range t.PartitionChildren {
+				if !lo.Contains(schemas, child.Schema) {
+					continue
+				}
 				if seen[t.ObjectRef] == nil {
 					seen[t.ObjectRef] = make(map[schemasnapshot.ObjectRef]bool)
 				}
@@ -467,7 +472,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	sort.Slice(allTuples, func(i, j int) bool { return allTuples[i].ForKey() < allTuples[j].ForKey() })
 	allRefs := driftObjectRefs(allTuples)
 	hasDefaultSchema := reg.DefaultSourceDBSchemaName != ""
-	partitionChildren := driftPartitionChildren(snapshotContents, liveContent)
+	partitionChildren := driftPartitionChildren(snapshotContents, liveContent, schemas)
 
 	var includeTables []schemasnapshot.ObjectRef
 	switch {
@@ -880,6 +885,25 @@ func writeDriftReports(report schemadrift.Report, formats []string, baseName str
 		return nil, fmt.Errorf("failed to create reports directory %q: %w", reportsDir, err)
 	}
 
+	// Render everything before the notice, so a render failure overwrites nothing
+	// and announces nothing.
+	rendered := make([][]byte, len(formats))
+	for i, f := range formats {
+		var err error
+		switch f {
+		case "json":
+			rendered[i], err = schemadrift.RenderJSON(report)
+		case "html":
+			rendered[i], err = schemadrift.RenderHTML(report)
+		default:
+			// Unreachable: already validated in validateDriftOutputFormat.
+			return nil, goerrors.Errorf("unsupported output format %q", f)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to render %s drift report: %w", f, err)
+		}
+	}
+
 	var existing []string
 	for _, f := range formats {
 		name := fmt.Sprintf("%s.%s", baseName, f)
@@ -892,24 +916,9 @@ func writeDriftReports(report schemadrift.Report, formats []string, baseName str
 	}
 
 	var written []string
-	for _, f := range formats {
-		var data []byte
-		var err error
-		switch f {
-		case "json":
-			data, err = schemadrift.RenderJSON(report)
-		case "html":
-			data, err = schemadrift.RenderHTML(report)
-		default:
-			// Unreachable: already validated in validateDriftOutputFormat.
-			return nil, goerrors.Errorf("unsupported output format %q", f)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to render %s drift report: %w", f, err)
-		}
-
+	for i, f := range formats {
 		path := filepath.Join(reportsDir, fmt.Sprintf("%s.%s", baseName, f))
-		if err := os.WriteFile(path, data, 0644); err != nil {
+		if err := os.WriteFile(path, rendered[i], 0644); err != nil {
 			return nil, fmt.Errorf("failed to write %s drift report to %q: %w", f, path, err)
 		}
 		written = append(written, path)

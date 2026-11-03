@@ -456,10 +456,32 @@ func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
 		assert.EqualError(t, unknownErr, "\nUnknown table names in the include list: [sales.orders]\nValid table names are: [public.orders]")
 	})
 
+	t.Run("exclude-table-list naming an out-of-scope schema is an unknown table", func(t *testing.T) {
+		_, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{excludeTableList: "sales.orders"})
+		var unknownErr *errs.UnknownTableErr
+		require.True(t, errors.As(err, &unknownErr))
+		assert.EqualError(t, unknownErr, "\nUnknown table names in the exclude list: [sales.orders]\nValid table names are: [public.orders]")
+	})
+
 	t.Run("unfiltered scope holds only the requested schemas' tables", func(t *testing.T) {
 		scope, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{})
 		require.NoError(t, err)
 		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "orders"}}, scope.Tables)
+	})
+
+	t.Run("a partition in an out-of-scope schema is not expanded into scope", func(t *testing.T) {
+		root := schemasnapshot.ObjectRef{Schema: "public", Name: "events"}
+		inScope := schemasnapshot.ObjectRef{Schema: "public", Name: "events_2024"}
+		outOfScope := schemasnapshot.ObjectRef{Schema: "archive", Name: "events_2020"}
+		partitioned := []schemasnapshot.SchemaSnapshot{{Content: &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+			{ObjectRef: root, PartitionChildren: []schemasnapshot.ObjectRef{inScope, outOfScope}},
+			{ObjectRef: inScope},
+			{ObjectRef: outOfScope},
+		}}}}
+
+		scope, err := resolveDriftScope(partitioned, nil, schemas, driftScopeFilters{tableList: "public.events"})
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{root, inScope}, scope.Tables)
 	})
 }
 
@@ -553,7 +575,7 @@ func driftPartitionContent() *schemasnapshot.SnapshotContent {
 }
 
 func TestExpandDriftPartitions(t *testing.T) {
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil)
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil, []string{"public"})
 
 	tests := []struct {
 		name string
@@ -588,7 +610,7 @@ func TestExpandDriftPartitionsThenComplement(t *testing.T) {
 	// expanded to their full partition subtree before complementing against the
 	// universe, so excluding a root removes every partition beneath it too.
 	universe := []schemasnapshot.ObjectRef{driftPartRoot, driftPartMid, driftPartLeaf1, driftPartLeaf2, driftPartOther}
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil)
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil, []string{"public"})
 
 	excludeExpanded := expandDriftPartitions([]schemasnapshot.ObjectRef{driftPartRoot}, children)
 	got := complementDriftTableRefs(universe, excludeExpanded)
@@ -607,7 +629,7 @@ func TestDriftPartitionChildrenUnionAcrossSnapshots(t *testing.T) {
 		{ObjectRef: driftPartRoot, PartitionChildren: []schemasnapshot.ObjectRef{driftPartMid}},
 	}}
 
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{older, newer}, nil)
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{older, newer}, nil, []string{"public"})
 	got := expandDriftPartitions([]schemasnapshot.ObjectRef{driftPartRoot}, children)
 	assert.Contains(t, got, droppedLeaf)
 }
@@ -618,43 +640,41 @@ func TestExpandDriftPartitionsCaseSensitive(t *testing.T) {
 	content := &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
 		{ObjectRef: root, PartitionChildren: []schemasnapshot.ObjectRef{leaf}},
 	}}
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{content}, nil)
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{content}, nil, []string{"Sales"})
 
 	assert.Equal(t, []schemasnapshot.ObjectRef{root, leaf}, expandDriftPartitions([]schemasnapshot.ObjectRef{root}, children))
 }
 
 func TestNothingComparedError(t *testing.T) {
+	const noSnapshots = "this export directory holds no schema snapshots, so there is nothing to compare. " +
+		"Snapshots are recorded while `export schema` and `export data` run, unless they ran with " +
+		"--disable-schema-snapshot-capture=true or on a voyager version that did not capture by default"
+
 	tests := []struct {
-		name   string
-		points []schemadrift.CapturePoint
-		stored int
-		want   string
-		absent string
+		name    string
+		points  []schemadrift.CapturePoint
+		stored  int
+		wantErr string
 	}{
 		{
-			name:   "no captures stored, live read only",
-			points: []schemadrift.CapturePoint{{Label: schemasnapshot.LabelSourceLive}},
-			stored: 0,
-			want:   "holds no schema snapshots",
-			// Capture cannot be enabled retroactively, so the message must not
-			// suggest re-running the export as a fix for this run.
-			absent: "Re-run",
+			name:    "no captures stored, live read only",
+			points:  []schemadrift.CapturePoint{{Label: schemasnapshot.LabelSourceLive}},
+			stored:  0,
+			wantErr: noSnapshots,
 		},
 		{
-			name:   "no captures stored, no live read",
-			points: nil,
-			stored: 0,
-			want:   "holds no schema snapshots",
-			absent: "Re-run",
+			name:    "no captures stored, no live read",
+			points:  nil,
+			stored:  0,
+			wantErr: noSnapshots,
 		},
 		{
 			name: "one usable capture forms no interval",
 			points: []schemadrift.CapturePoint{
 				{Label: schemasnapshot.LabelExportSchema},
 			},
-			stored: 1,
-			want:   "a single capture forms no interval",
-			absent: "skipped because",
+			stored:  1,
+			wantErr: "only 1 of 1 captures is usable, and a single capture forms no interval, so there was nothing to compare",
 		},
 		{
 			name: "every capture excluded, reasons named",
@@ -663,8 +683,10 @@ func TestNothingComparedError(t *testing.T) {
 				{Label: schemasnapshot.LabelExportDataFromSourceStart, Excluded: "captured only sales, so it cannot answer for public"},
 			},
 			stored: 2,
-			want:   "captured only sales, so it cannot answer for public",
-			absent: "single capture",
+			wantErr: "no two comparable schema snapshots in this export directory, so there was nothing to compare: " +
+				"0 of 2 captures usable; the rest were skipped because: the capture failed, so this point holds no schema; " +
+				"captured only sales, so it cannot answer for public. " +
+				"If the schemas named there are not the ones you expected, check --source-db-schema",
 		},
 	}
 
@@ -674,9 +696,7 @@ func TestNothingComparedError(t *testing.T) {
 				CapturePoints: tt.points,
 				Summary:       schemadrift.Summary{StoredCaptureCount: tt.stored},
 			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
-			assert.NotContains(t, err.Error(), tt.absent)
+			require.EqualError(t, err, tt.wantErr)
 		})
 	}
 }
