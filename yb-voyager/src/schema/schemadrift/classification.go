@@ -273,7 +273,7 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 	schemadiff.UniqueAdded: {
 		TimingBeforeExportData:        uniqueAddedInfo,
 		TimingOfflineAfterExportStart: uniqueAddedInfo,
-		TimingLiveAfterExportStart:    uniqueAddedInfo,
+		TimingLiveAfterExportStart:    uniqueAddedLiveInfo,
 	},
 	schemadiff.UniqueDropped: {
 		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
@@ -395,9 +395,16 @@ var (
 
 	primaryKeyDroppedLiveImpact = "Every later change to this table reaches `import data` with an empty key, so it stops, and it fails again on every restart. A restart of `export data` refuses the table. This is also reported, with `PRIMARY_KEY_ADDED`, when the key was changed or re-created: if it was changed in one transaction, changing it on the target and running `import data` again recovers."
 
+	// Only a streaming import data reads the target's unique keys, so only live needs the restart.
 	uniqueAddedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`import data` is not affected.",
-		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique constraints only when it starts, so with the new one missing, the first write that frees and reuses a value stops it."}
+		Action: "Add it on the target to keep the schemas the same."}
+
+	// A stored generated column has no value in a change event, and the tables import data
+	// applies in order are fixed on its first run, so a restart can't make such a key safe.
+	uniqueAddedLiveInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected.",
+		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique constraints only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it covers a stored generated column, add it on the target only after cutover, once `import data` has applied every change: `import data` can't keep changes to such a key in order, and restarting it does not change that."}
 
 	uniqueDroppedImpact = "The source now allows duplicate values, and the target still has the constraint, so `import data` fails on the first duplicate."
 
