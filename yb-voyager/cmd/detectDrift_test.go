@@ -483,6 +483,24 @@ func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []schemasnapshot.ObjectRef{root, inScope}, scope.Tables)
 	})
+
+	t.Run("expansion walks through an out-of-scope partition to in-scope ones below it", func(t *testing.T) {
+		root := schemasnapshot.ObjectRef{Schema: "public", Name: "events"}
+		mid := schemasnapshot.ObjectRef{Schema: "archive", Name: "events_old"}
+		leaf := schemasnapshot.ObjectRef{Schema: "public", Name: "events_2019"}
+		partitioned := []schemasnapshot.SchemaSnapshot{{Content: &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+			{ObjectRef: root, PartitionChildren: []schemasnapshot.ObjectRef{mid}},
+			{ObjectRef: mid, PartitionChildren: []schemasnapshot.ObjectRef{leaf}},
+			{ObjectRef: leaf},
+		}}}}
+
+		scope, err := resolveDriftScope(partitioned, nil, schemas, driftScopeFilters{tableList: "public.events"})
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{root, leaf}, scope.Tables)
+
+		_, err = resolveDriftScope(partitioned, nil, schemas, driftScopeFilters{excludeTableList: "public.events"})
+		require.EqualError(t, err, `--exclude-table-list "public.events" excludes every table in the comparison; nothing left to compare`)
+	})
 }
 
 func TestRequireDriftTableListQualified(t *testing.T) {
@@ -575,7 +593,7 @@ func driftPartitionContent() *schemasnapshot.SnapshotContent {
 }
 
 func TestExpandDriftPartitions(t *testing.T) {
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil, []string{"public"})
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil)
 
 	tests := []struct {
 		name string
@@ -610,7 +628,7 @@ func TestExpandDriftPartitionsThenComplement(t *testing.T) {
 	// expanded to their full partition subtree before complementing against the
 	// universe, so excluding a root removes every partition beneath it too.
 	universe := []schemasnapshot.ObjectRef{driftPartRoot, driftPartMid, driftPartLeaf1, driftPartLeaf2, driftPartOther}
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil, []string{"public"})
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{driftPartitionContent()}, nil)
 
 	excludeExpanded := expandDriftPartitions([]schemasnapshot.ObjectRef{driftPartRoot}, children)
 	got := complementDriftTableRefs(universe, excludeExpanded)
@@ -629,7 +647,7 @@ func TestDriftPartitionChildrenUnionAcrossSnapshots(t *testing.T) {
 		{ObjectRef: driftPartRoot, PartitionChildren: []schemasnapshot.ObjectRef{driftPartMid}},
 	}}
 
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{older, newer}, nil, []string{"public"})
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{older, newer}, nil)
 	got := expandDriftPartitions([]schemasnapshot.ObjectRef{driftPartRoot}, children)
 	assert.Contains(t, got, droppedLeaf)
 }
@@ -640,7 +658,7 @@ func TestExpandDriftPartitionsCaseSensitive(t *testing.T) {
 	content := &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
 		{ObjectRef: root, PartitionChildren: []schemasnapshot.ObjectRef{leaf}},
 	}}
-	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{content}, nil, []string{"Sales"})
+	children := driftPartitionChildren([]*schemasnapshot.SnapshotContent{content}, nil)
 
 	assert.Equal(t, []schemasnapshot.ObjectRef{root, leaf}, expandDriftPartitions([]schemasnapshot.ObjectRef{root}, children))
 }

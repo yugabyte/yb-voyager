@@ -332,10 +332,8 @@ func requireDriftTableListQualified(patternList, flagName string, hasDefaultSche
 // driftPartitionChildren maps a partitioned table to every partition child recorded
 // against it in any content, live or historical. It is a union across sources: a
 // partition dropped since a given snapshot must still expand, so its parent's
-// children list from every content is merged and deduped. A partition can live in
-// another schema than its parent; one outside schemas is dropped, as in driftTableUniverse.
-func driftPartitionChildren(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent,
-	schemas []string) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
+// children list from every content is merged and deduped.
+func driftPartitionChildren(snapshotContents []*schemasnapshot.SnapshotContent, liveContent *schemasnapshot.SnapshotContent) map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef {
 	children := make(map[schemasnapshot.ObjectRef][]schemasnapshot.ObjectRef)
 	seen := make(map[schemasnapshot.ObjectRef]map[schemasnapshot.ObjectRef]bool)
 	add := func(c *schemasnapshot.SnapshotContent) {
@@ -344,9 +342,6 @@ func driftPartitionChildren(snapshotContents []*schemasnapshot.SnapshotContent, 
 		}
 		for _, t := range c.Tables {
 			for _, child := range t.PartitionChildren {
-				if !lo.Contains(schemas, child.Schema) {
-					continue
-				}
 				if seen[t.ObjectRef] == nil {
 					seen[t.ObjectRef] = make(map[schemasnapshot.ObjectRef]bool)
 				}
@@ -472,7 +467,7 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 	sort.Slice(allTuples, func(i, j int) bool { return allTuples[i].ForKey() < allTuples[j].ForKey() })
 	allRefs := driftObjectRefs(allTuples)
 	hasDefaultSchema := reg.DefaultSourceDBSchemaName != ""
-	partitionChildren := driftPartitionChildren(snapshotContents, liveContent, schemas)
+	partitionChildren := driftPartitionChildren(snapshotContents, liveContent)
 
 	var includeTables []schemasnapshot.ObjectRef
 	switch {
@@ -484,7 +479,10 @@ func resolveDriftScope(snapshots []schemasnapshot.SchemaSnapshot, live *schemasn
 		if err != nil {
 			return schemadiff.Scope{}, err
 		}
-		includeTables = expandDriftPartitions(driftObjectRefs(includeTuples), partitionChildren)
+		// The expansion walks through partitions in other schemas to reach in-scope
+		// ones below them; only the walk's output is limited to schemas.
+		includeTables = lo.Filter(expandDriftPartitions(driftObjectRefs(includeTuples), partitionChildren),
+			func(ref schemasnapshot.ObjectRef, _ int) bool { return lo.Contains(schemas, ref.Schema) })
 	case filters.excludeTableList != "":
 		if err := requireDriftTableListQualified(filters.excludeTableList, "exclude-table-list", hasDefaultSchema); err != nil {
 			return schemadiff.Scope{}, err
