@@ -167,6 +167,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
 		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_uq UNIQUE (id)`,
 		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_ck CHECK (a > 0)`,
+		`CREATE INDEX part_root_a_idx ON `+driftSchema+`.part_root (a)`,
+		`CREATE UNIQUE INDEX part_root_id_a_uix ON `+driftSchema+`.part_root (id, a)`,
 		`ALTER TABLE `+driftSchema+`.inh_base DROP CONSTRAINT inh_ck`,
 		`CREATE TABLE `+refSchema+`.pparent_p2 PARTITION OF `+refSchema+`.pparent FOR VALUES FROM (100) TO (200)`,
 		`CREATE TABLE `+driftSchema+`.fk_from_partitioned_p2 PARTITION OF `+driftSchema+`.fk_from_partitioned FOR VALUES FROM (100) TO (200)`,
@@ -393,6 +395,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.UniqueIndexAdded, Object: driftSchema + `.Ix_Added.Ix_Added_B_Uq`, New: uniqueIndexDefinition},
 		{Type: schemadiff.UniqueIndexDropped, Object: driftSchema + `.ix_dropped.ix_dropped_b_uq`, Old: uniqueIndexDefinition},
 		{Type: schemadiff.UniqueIndexNameChanged, Object: driftSchema + `.ix_renamed.old_uix`, Old: "old_uix", New: "New_Uix"},
+		// The indexes' copies on part_mid and part_leaf report nothing.
+		{Type: schemadiff.IndexAdded, Object: driftSchema + `.part_root.part_root_a_idx`, New: plainIndexDefinition},
+		{Type: schemadiff.UniqueIndexAdded, Object: driftSchema + `.part_root.part_root_id_a_uix`, New: `USING btree (id, a)`},
 	}, gotIndexes)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
