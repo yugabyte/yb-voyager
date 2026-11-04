@@ -185,6 +185,26 @@ func TestGetDriftInfo_UniqueDropKeepsItWhenRebuilt(t *testing.T) {
 			assert.Equal(t, isIndex, strings.Contains(info.Impact, "USING INDEX"), "%s / %s", diffType, timing)
 		}
 	}
+	for _, diffType := range []schemadiff.DiffType{schemadiff.UniqueAdded, schemadiff.UniqueIndexAdded} {
+		for _, timing := range []Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+			info, err := getDriftInfo(diffType, situation{Timing: timing})
+			require.NoError(t, err)
+			assert.Contains(t, info.Impact, uniqueAddedRebuiltHint, "%s / %s", diffType, timing)
+		}
+	}
+}
+
+// A unique index on an expression or a stored generated column forces in-order apply only
+// from import data's first run, so live never tells the user to add one and restart.
+func TestGetDriftInfo_UniqueIndexAddedLiveDefersUnorderableKeys(t *testing.T) {
+	for _, timing := range []Timing{TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+		info, err := getDriftInfo(schemadiff.UniqueIndexAdded, situation{Timing: timing})
+		require.NoError(t, err)
+		assert.Equal(t, SeverityPotentialImpact, info.Severity, string(timing))
+		assert.Contains(t, info.Impact, "If the index is on an expression, such as `lower(email)`, or covers a stored generated column, adding it on the target before cutover can stop `import data`", string(timing))
+		assert.Contains(t, info.Action, "If it is on plain columns and covers no stored generated column, add it now", string(timing))
+		assert.Contains(t, info.Action, "If it is on an expression or covers a stored generated column, add it only after cutover", string(timing))
+	}
 }
 
 // Offline import data replays no deletes or updates, so the key's ON DELETE or ON UPDATE
