@@ -454,22 +454,26 @@ var (
 
 	primaryKeyDroppedLiveImpact = "Every later change to this table reaches `import data` with an empty key, so it stops, and it fails again on every restart. A restart of `export data` refuses the table. This is also reported, with `PRIMARY_KEY_ADDED`, when the key was changed or re-created: if it was changed in one transaction, changing it on the target and running `import data` again recovers."
 
+	// A rebuild reads as a drop plus an add, and the drop's Action already says to keep it.
+	uniqueAddedRebuiltHint = "If a unique key or unique index on the same columns is also reported as dropped for this table, it was rebuilt: the target already has it, and that entry's Action applies."
+
 	// Only a streaming import data reads the target's unique keys, so only live needs the restart.
 	uniqueAddedInfo = DriftInfo{Severity: SeverityAdvisory,
-		Impact: "`import data` is not affected.",
+		Impact: "`import data` is not affected. " + uniqueAddedRebuiltHint,
 		Action: "Add it on the target to keep the schemas the same."}
 
 	// A stored generated column has no value in a change event, and the tables import data
 	// applies in order are fixed on its first run, so a restart can't make such a key safe.
 	uniqueAddedLiveInfo = DriftInfo{Severity: SeverityAdvisory,
-		Impact: "`import data` is not affected.",
+		Impact: "`import data` is not affected. " + uniqueAddedRebuiltHint,
 		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it covers a stored generated column, add it on the target only after cutover, once `import data` has applied every change: `import data` can't keep changes to such a key in order, and restarting it does not change that."}
 
-	// An expression key has no columns for import data's conflict check, and the tables
-	// that need in-order apply for one are fixed on import data's first run.
+	// An expression key has no columns for import data's conflict check, a stored generated
+	// column has no value in a change event, and the tables that need in-order apply for
+	// either are fixed on import data's first run.
 	uniqueIndexAddedLiveInfo = DriftInfo{Severity: SeverityPotentialImpact,
-		Impact: "`import data` is not affected while the target doesn't have the index. If the index is on an expression, such as `lower(email)`, adding it on the target before cutover can stop `import data` on a unique violation: `import data` can't keep changes to such an index in order, and restarting it does not prevent another stop.",
-		Action: "Add it on the target to keep the schemas the same. If it is on plain columns, add it now, and if `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it is on an expression, add it only after cutover, once `import data` has applied every change and before the application moves to the target. If you already added it and `import data` stopped, drop it on the target, run `import data` again, and add it back after cutover."}
+		Impact: "`import data` is not affected while the target doesn't have the index. If the index is on an expression, such as `lower(email)`, or covers a stored generated column, adding it on the target before cutover can stop `import data` on a unique violation: `import data` can't keep changes to such an index in order, and restarting it does not prevent another stop. " + uniqueAddedRebuiltHint,
+		Action: "Add it on the target to keep the schemas the same. If it is on plain columns and covers no stored generated column, add it now, and if `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it is on an expression or covers a stored generated column, add it only after cutover, once `import data` has applied every change and before the application moves to the target. If you already added it and `import data` stopped, drop it on the target, run `import data` again, and add it back after cutover."}
 
 	uniqueDroppedImpact     = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` fails on the first duplicate."
 	uniqueDroppedLiveImpact = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` stops at the first duplicate value."
