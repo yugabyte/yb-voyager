@@ -58,7 +58,7 @@ const PG_STAT_STATEMENTS = "pg_stat_statements"
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
-var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ", "REFCURSOR"}
+var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "HALFVEC", "SPARSEVEC", "TIMETZ", "REFCURSOR"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
 	return PostgresUnsupportedDataTypesForDbzm
@@ -807,6 +807,10 @@ func (pg *PostgreSQL) GetTableColumnsWithTypes(tableList []sqlname.NameTuple) (*
 	return getTablesColumnsWithTypes(pg.db, tableList)
 }
 
+func (pg *PostgreSQL) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	return getTypeToOid(pg.db, typeNames)
+}
+
 // GetGeneratedStoredColumns returns, per table in tableList, the names of its STORED
 // generated columns (pg_attribute.attgenerated = 's').
 //
@@ -946,37 +950,34 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 	return columnToSequenceMap
 }
 
+// TODO: merge with tgtdb.generateSSLQueryStringIfNotExists, which differs in empty and invalid sslmode
+// handling. SSLQueryString is only copied between source and target confs since the
+// --ssl-query-string flag was removed (#174), so the early return below never fires.
 func generateSSLQueryStringIfNotExists(s *Source) string {
-
-	if s.Uri == "" {
-		SSLQueryString := ""
-		if s.SSLQueryString == "" {
-
-			if s.SSLMode == "disable" || s.SSLMode == "allow" || s.SSLMode == "prefer" || s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-				SSLQueryString = "sslmode=" + s.SSLMode
-				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
-					if s.SSLCertPath != "" {
-						SSLQueryString += "&sslcert=" + s.SSLCertPath
-					}
-					if s.SSLKey != "" {
-						SSLQueryString += "&sslkey=" + s.SSLKey
-					}
-					if s.SSLRootCert != "" {
-						SSLQueryString += "&sslrootcert=" + s.SSLRootCert
-					}
-					if s.SSLCRL != "" {
-						SSLQueryString += "&sslcrl=" + s.SSLCRL
-					}
-				}
-			} else {
-				utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
-			}
-		} else {
-			SSLQueryString = s.SSLQueryString
+	if s.SSLQueryString != "" {
+		return s.SSLQueryString
+	}
+	switch s.SSLMode {
+	case "disable", "allow", "prefer":
+		return "sslmode=" + s.SSLMode
+	case "require", "verify-ca", "verify-full":
+		query := "sslmode=" + s.SSLMode
+		// File paths are user input and may contain URI syntax (spaces, '%', '&'); see utils.EscapeConnUriQueryValue.
+		if s.SSLCertPath != "" {
+			query += "&sslcert=" + utils.EscapeConnUriQueryValue(s.SSLCertPath)
 		}
-		return SSLQueryString
-	} else {
+		if s.SSLKey != "" {
+			query += "&sslkey=" + utils.EscapeConnUriQueryValue(s.SSLKey)
+		}
+		if s.SSLRootCert != "" {
+			query += "&sslrootcert=" + utils.EscapeConnUriQueryValue(s.SSLRootCert)
+		}
+		if s.SSLCRL != "" {
+			query += "&sslcrl=" + utils.EscapeConnUriQueryValue(s.SSLCRL)
+		}
+		return query
+	default:
+		utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
 		return ""
 	}
 }

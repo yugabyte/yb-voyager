@@ -80,15 +80,14 @@ linters:
       # flag must not silently no-op — see the mustMarkFlag* helpers), and
       # os.WriteFile/Remove/RemoveAll.
       exclude-functions:
-        # sql/pgx teardown closes, matched by exact receiver type (pgx v4,
-        # v5, and pgconn are all in use). Close releases resources and never
+        # sql/pgx teardown closes, matched by exact receiver type (pgx v5
+        # and pgconn are both in use). Close releases resources and never
         # flushes user writes: SQL writes are durable at Exec/Commit (both
         # checked), and read failures surface via rows.Err()/Scan.
         - (*database/sql.Rows).Close
         - (*database/sql.DB).Close
         - (*database/sql.Conn).Close
         - (*database/sql.Stmt).Close
-        - (*github.com/jackc/pgx/v4.Conn).Close
         - (*github.com/jackc/pgx/v5.Conn).Close
         - (*github.com/jackc/pgx/v5/pgconn.PgConn).Close
         # Deferred rollback-after-commit idiom: returns sql.ErrTxDone on the

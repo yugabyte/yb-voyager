@@ -5,9 +5,9 @@ description: Sweep recently updated open GitHub PRs that need an AI review — n
 
 # PR Review Sweep
 
-Orchestrates the `branch-review` and `post-pr-review` skills across open PRs that need a review — never reviewed, or carrying new commits since the last AI review. Designed to run unattended (e.g. from a daily scheduled routine), so it never pauses for confirmation.
+Reviews open PRs with `REVIEW.md` and posts the findings with the `post-pr-review` skill, covering PRs that need a review — never reviewed, or carrying new commits since the last AI review. Designed to run unattended (e.g. from a daily scheduled routine), so it never pauses for confirmation.
 
-This skill does not duplicate the review logic — it selects PRs, then delegates each one to a reviewer subagent and a poster subagent that apply the two existing skills with a small set of documented overrides. `ai/skills/branch-review/SKILL.md` and `ai/skills/post-pr-review/SKILL.md` are the source of truth for how a review is produced and posted.
+This skill does not duplicate the review logic — it selects PRs, then delegates each one to a reviewer subagent and a poster subagent. The reviewer applies `REVIEW.md` (repo root, also what the `branch-review` skill points to). The poster applies `post-pr-review` with one documented override. `REVIEW.md` and `ai/skills/post-pr-review/SKILL.md` are the source of truth for how a review is produced and posted.
 
 ## Defaults
 
@@ -118,14 +118,12 @@ Repo root: <REPO_ROOT>. Base branch: <BASE>.
      git fetch origin <BASE>
    Then work inside /tmp/pr-review-sweep-<N>.
 
-2. Read <REPO_ROOT>/ai/skills/branch-review/SKILL.md and apply it fully and
-   exhaustively to this worktree, with ONE override: the comparison base is
-   the PR's base branch, not main — use
+2. Read <REPO_ROOT>/REVIEW.md and apply it fully and exhaustively to this
+   worktree, with BASE=origin/<BASE> (the PR's base branch, not main), i.e.
    MERGE_BASE=$(git merge-base "origin/<BASE>" HEAD).
    HEAD is detached here; use "PR #<N>" as the branch name in the summary.
-   If the `sem` tool is unavailable, omit the entity-modification tables.
    Depth matters more than speed: read the full changed files, run the
-   skill's mechanical checks, and apply every lens. Do not stop at the
+   REVIEW.md's mandatory mechanical checks, and apply every lens. Do not stop at the
    first few findings.
 
 [Incremental mode only — include when Step 2 chose incremental re-review:]

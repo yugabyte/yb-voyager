@@ -3,6 +3,7 @@
 package utils
 
 import (
+	"net/url"
 	"testing"
 
 	"gotest.tools/assert"
@@ -90,6 +91,31 @@ func TestInstanceQualifiedDomain(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, InstanceQualifiedDomain(tt.input))
+		})
+	}
+}
+
+func TestEscapeConnUriQueryValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "plain path", input: "/certs/root.crt", expected: "%2Fcerts%2Froot.crt"},
+		{name: "space", input: "/my certs/root.crt", expected: "%2Fmy%20certs%2Froot.crt"},
+		{name: "plus", input: "/c++/root.crt", expected: "%2Fc%2B%2B%2Froot.crt"},
+		{name: "percent", input: "/100%/root.crt", expected: "%2F100%25%2Froot.crt"},
+		{name: "query delimiters", input: "/a&b=c/root.crt", expected: "%2Fa%26b%3Dc%2Froot.crt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			escaped := EscapeConnUriQueryValue(tt.input)
+			assert.Equal(t, tt.expected, escaped)
+
+			// libpq and pgx (>= v5.11) decode URI query values with "+" as a literal plus, as url.PathUnescape does.
+			decoded, err := url.PathUnescape(escaped)
+			assert.NilError(t, err)
+			assert.Equal(t, tt.input, decoded)
 		})
 	}
 }

@@ -25,7 +25,7 @@ import (
 
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"

@@ -52,6 +52,9 @@ type SourceDB interface {
 	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error)
 	// Only for PostgreSQL and YugabyteDB, whose live migration exports apply --exclude-column-list.
 	GetTableColumnsWithTypes(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []ColumnWithType], error)
+	// GetTypeToOid maps each of typeNames to the OID of the built-in or extension type with that name,
+	// leaving out types that do not exist. Only PostgreSQL and YugabyteDB implement it.
+	GetTypeToOid(typeNames []string) (map[string]int, error)
 	ParentTableOfPartition(table sqlname.NameTuple) string
 	GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string
 	GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error)

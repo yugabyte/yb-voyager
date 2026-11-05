@@ -30,8 +30,7 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -717,13 +716,6 @@ func addPostgreSQLErrorContext(err error, context map[string]string) {
 		// If the error is a pgconn.PgError, we can return a more
 		// specific error message that includes the SQLSTATE code
 		context["pg_error_code"] = pgErr.Code
-	}
-
-	var pgErrV5 *pgconnv5.PgError
-	if errors.As(err, &pgErrV5) {
-		// If the error is a pgconnv5.PgError, we can return
-		// a more specific error message that includes the SQLSTATE code
-		context["pg_error_code"] = pgErrV5.Code
 	}
 }
 

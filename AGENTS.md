@@ -10,7 +10,7 @@ YugabyteDB Voyager (`yb-voyager`) is a database migration CLI tool. It supports 
 
 This repo ships two artifacts that together form YugabyteDB Voyager:
 
-- `yb-voyager/` — the Go CLI module (`module github.com/yugabyte/yb-voyager/yb-voyager`, Go 1.24.2). `main.go` is a thin entrypoint; all command wiring and migration logic lives under `yb-voyager/cmd/` and `yb-voyager/src/`.
+- `yb-voyager/` — the Go CLI module (`module github.com/yugabyte/yb-voyager/yb-voyager`, Go 1.26.10). `main.go` is a thin entrypoint; all command wiring and migration logic lives under `yb-voyager/cmd/` and `yb-voyager/src/`.
 - `debezium-server-voyager/` — Java/Maven sources for the Debezium CDC plugin used by live migration. Built and installed separately by the installer.
 
 Supporting trees:
@@ -25,9 +25,11 @@ Each such directory carries three entries for the same content: `AGENTS.md` (the
 
 Current scopes: repo root (this file), `debezium-server-voyager/`, `migtests/`, `yb-voyager/`, `yb-voyager/cmd/`, `yb-voyager/src/`, and the `src/` packages `anon`, `callhome`, `errs`, `metadb`, `metrics`, `migassessment`, `query/queryissue`, `srcdb`, `testlivemigration`, `tgtdb`, `utils`.
 
+Reviewing a change: follow `REVIEW.md` at the repo root. It is the one review workflow every review agent (the `branch-review` skill, `pr-review-sweep`, AgentK, others) applies on top of these standards.
+
 ## Key environment requirements
 
-- **Go 1.24.2** — required by `go.mod`.
+- **Go 1.26.10** — required by `go.mod`.
 - **JDK 17** (not 21+) — the installer script enforces Java 17–19 for the Debezium build. Set `JAVA_HOME` accordingly.
 - **Maven 3.9.16** — auto-installed by the installer and always used for the Debezium build (pinned; the system Maven is ignored).
 - **PostgreSQL client 18** — provides `pg_dump`/`pg_restore`.
@@ -67,7 +69,7 @@ The Go module uses build tags to separate test tiers. From `yb-voyager/`:
 | `integration_live_migration` | Live migration end-to-end with Debezium. |
 | `failpoint_export` / `failpoint_import` / `failpoint_cutover` | Failpoint-injected tests. Requires `failpoint-ctl enable` (from `github.com/pingcap/failpoint`) to rewrite source before building. |
 | `yb_version_latest_stable` | Version-gated issue tests run against the latest stable YB. |
-| `cdc_benchmark` | CDC ingest benchmarks (`test/cdcbench/`, shim in `cmd/`): replay real export-data queue segments through the import streaming path with `ExecuteBatch` mocked. Artifact generation needs Docker + installed `yb-voyager`/Debezium; cached artifacts replay with neither. Run: `go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/`. See `test/cdcbench/README.md`. |
+| `cdc_benchmark` | CDC ingest benchmarks (`test/cdcbench/`, shim in `cmd/`): replay real export-data queue segments through the import streaming path with `ExecuteBatch` mocked. Artifact generation needs Docker + installed `yb-voyager`/Debezium; cached artifacts replay with neither. Run: `go test -tags cdc_benchmark -run '^$' -bench CDCIngest -benchtime 1x -count 5 ./cmd/`. See `test/cdcbench/README.md`. Also `BenchmarkExecuteBatch` in `src/tgtdb/`: the real `ExecuteBatch` against a YugabyteDB testcontainer (needs Docker only): `go test -tags cdc_benchmark -run '^$' -bench ExecuteBatch -benchtime 20x -count 6 ./src/tgtdb/`. |
 | `manual` | Local-only experiments, not run in CI. |
 
 Single test: `go test -tags unit -run TestName ./yb-voyager/cmd/...`

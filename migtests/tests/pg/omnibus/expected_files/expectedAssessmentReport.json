@@ -1,7 +1,7 @@
 {
     "VoyagerVersion": "IGNORED",
     "MigrationComplexity": "MEDIUM",
-    "MigrationComplexityExplanation": "Found 58 Level 1 issue(s), 0 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity",
+    "MigrationComplexityExplanation": "Found 45 Level 1 issue(s), 0 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity",
     "SchemaSummary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "test_omnibus",
@@ -834,370 +834,6 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE",
-            "Name": "Unsupported datatype for Live migration - line",
-            "Description": "LINE datatype not yet supported by voyager in live migration. Affected column: line_example. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.geometric_examples.line_example",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX",
-            "Name": "Unsupported datatype for Live migration - box",
-            "Description": "BOX datatype not yet supported by voyager in live migration. Affected column: home_base. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "am_examples.fast_emp4000.home_base",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH",
-            "Name": "Unsupported datatype for Live migration - path",
-            "Description": "PATH datatype not yet supported by voyager in live migration. Affected column: path_example. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.geometric_examples.path_example",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT",
-            "Name": "Unsupported datatype for Live migration - point",
-            "Description": "POINT datatype not yet supported by voyager in live migration. Affected column: point_example. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.geometric_examples.point_example",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX",
-            "Name": "Unsupported datatype for Live migration - box",
-            "Description": "BOX datatype not yet supported by voyager in live migration. Affected column: box_example. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.geometric_examples.box_example",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG",
-            "Name": "Unsupported datatype for Live migration - lseg",
-            "Description": "LSEG datatype not yet supported by voyager in live migration. Affected column: lseg_example. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.geometric_examples.lseg_example",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON",
-            "Name": "Unsupported datatype for Live migration - polygon",
-            "Description": "POLYGON datatype not yet supported by voyager in live migration. Affected column: polygon_example. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.geometric_examples.polygon_example",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE",
-            "Name": "Unsupported datatype for Live migration - circle",
-            "Description": "CIRCLE datatype not yet supported by voyager in live migration. Affected column: circle_example. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.geometric_examples.circle_example",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
-            "Name": "Unsupported datatype for Live migration - timetz",
-            "Description": "TIMETZ datatype not yet supported by voyager in live migration. Affected column: t_with_tz. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.time.t_with_tz",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
-            "Name": "Unsupported datatype for Live migration - timetz",
-            "Description": "TIMETZ datatype not yet supported by voyager in live migration. Affected column: t_with_tz_precision. This column will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "ordinary_tables.time.t_with_tz_precision",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BUG_INFO not yet supported by voyager in live migration with fall-forward/fallback. Affected column: info. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "enum_example.bugs.info",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _basic. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.basic_view._basic",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _nested. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.basic_view._nested",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: basic_. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.basic_view.basic_",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: nested. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.basic_view.nested",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype EXAMPLE_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _uses_type. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "foreign_db_example.technically_doesnt_exist._uses_type",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _basic. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.ordinary_table._basic",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: basic_. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.inherited_table.basic_",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _nested. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.inherited_table._nested",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype EXAMPLE_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: uses_type. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.foreign_db_example.uses_type",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: nested. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.inherited_table.nested",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype EXAMPLE_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _uses_type. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.foreign_db_example._uses_type",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _basic. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.inherited_table._basic",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: basic_. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.ordinary_table.basic_",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _nested. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.ordinary_table._nested",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype EXAMPLE_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: uses_type. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "foreign_db_example.technically_doesnt_exist.uses_type",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype BUG_INFO not yet supported by voyager in live migration with fall-forward/fallback. Affected column: info. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "enum_example.bugs_clone.info",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "Category": "migration_caveats",
-            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
-            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-            "Description": "User defined datatype NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: nested. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Impact": "LEVEL_1",
-            "ObjectType": "COLUMN",
-            "ObjectName": "composite_type_examples.ordinary_table.nested",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
             "Category": "performance_optimizations",
             "CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
             "Type": "MISSING_FOREIGN_KEY_INDEX",
@@ -1285,6 +921,246 @@
             "Details": {
                 "ForeignKeyColumnNames": "regress_rls_schema.r2_3.a",
                 "ReferencedTableName": "regress_rls_schema.r1"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
+            "Name": "Unsupported datatype for Live migration - timetz",
+            "Description": "TIMETZ datatype not yet supported by voyager in live migration. Affected column: t_with_tz. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.time",
+            "SqlStatement": "CREATE TABLE ordinary_tables.\"time\" (\n    ts_with_tz timestamp with time zone,\n    ts_with_tz_precision timestamp(2) with time zone,\n    ts_with_ntz timestamp without time zone,\n    ts_with_ntz_precision timestamp(3) without time zone,\n    t_with_tz time with time zone,\n    t_with_tz_precision time(4) with time zone,\n    t_with_ntz time without time zone,\n    t_with_ntz_precision time(5) without time zone,\n    date date,\n    interval_year interval year,\n    interval_month interval month,\n    interval_day interval day,\n    interval_hour interval hour,\n    interval_minute interval minute,\n    interval_second interval second,\n    interval_year_to_month interval year to month,\n    interval_day_to_hour interval day to hour,\n    interval_day_to_minute interval day to minute,\n    interval_day_to_second interval day to second,\n    interval_hour_to_minute interval hour to minute,\n    interval_hour_to_second interval hour to second,\n    interval_minute_to_second interval minute to second\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "t_with_tz"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX",
+            "Name": "Unsupported datatype for Live migration - box",
+            "Description": "BOX datatype not yet supported by voyager in live migration. Affected column: home_base. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "am_examples.fast_emp4000",
+            "SqlStatement": "CREATE TABLE am_examples.fast_emp4000 (\n    home_base box\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "home_base"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
+            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+            "Description": "User defined datatype COMPOSITE_TYPE_EXAMPLES.BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: basic_. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "composite_type_examples.ordinary_table",
+            "SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (\n    basic_ composite_type_examples.basic_comp_type,\n    _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED,\n    nested composite_type_examples.nested,\n    _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED,\n    CONSTRAINT check_f1_gt_1 CHECK (((basic_).f1 > 1)),\n    CONSTRAINT check_f1_gt_1_again CHECK (((_basic).f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1 CHECK (((nested).foo.f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1_again CHECK (((_nested).foo.f1 > 1))\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "basic_"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
+            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+            "Description": "User defined datatype COMPOSITE_TYPE_EXAMPLES.BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _basic. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "composite_type_examples.ordinary_table",
+            "SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (\n    basic_ composite_type_examples.basic_comp_type,\n    _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED,\n    nested composite_type_examples.nested,\n    _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED,\n    CONSTRAINT check_f1_gt_1 CHECK (((basic_).f1 > 1)),\n    CONSTRAINT check_f1_gt_1_again CHECK (((_basic).f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1 CHECK (((nested).foo.f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1_again CHECK (((_nested).foo.f1 > 1))\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "_basic"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
+            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+            "Description": "User defined datatype COMPOSITE_TYPE_EXAMPLES.NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: nested. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "composite_type_examples.ordinary_table",
+            "SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (\n    basic_ composite_type_examples.basic_comp_type,\n    _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED,\n    nested composite_type_examples.nested,\n    _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED,\n    CONSTRAINT check_f1_gt_1 CHECK (((basic_).f1 > 1)),\n    CONSTRAINT check_f1_gt_1_again CHECK (((_basic).f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1 CHECK (((nested).foo.f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1_again CHECK (((_nested).foo.f1 > 1))\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "nested"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
+            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+            "Description": "User defined datatype COMPOSITE_TYPE_EXAMPLES.NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _nested. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "composite_type_examples.ordinary_table",
+            "SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (\n    basic_ composite_type_examples.basic_comp_type,\n    _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED,\n    nested composite_type_examples.nested,\n    _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED,\n    CONSTRAINT check_f1_gt_1 CHECK (((basic_).f1 > 1)),\n    CONSTRAINT check_f1_gt_1_again CHECK (((_basic).f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1 CHECK (((nested).foo.f1 > 1)),\n    CONSTRAINT check_nested_f1_gt_1_again CHECK (((_nested).foo.f1 > 1))\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "_nested"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
+            "Name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+            "Description": "User defined datatype ENUM_EXAMPLE.BUG_INFO not yet supported by voyager in live migration with fall-forward/fallback. Affected column: info. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "enum_example.bugs",
+            "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "info"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT",
+            "Name": "Unsupported datatype for Live migration - point",
+            "Description": "POINT datatype not yet supported by voyager in live migration. Affected column: point_example. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.geometric_examples",
+            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "point_example"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE",
+            "Name": "Unsupported datatype for Live migration - line",
+            "Description": "LINE datatype not yet supported by voyager in live migration. Affected column: line_example. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.geometric_examples",
+            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "line_example"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG",
+            "Name": "Unsupported datatype for Live migration - lseg",
+            "Description": "LSEG datatype not yet supported by voyager in live migration. Affected column: lseg_example. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.geometric_examples",
+            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "lseg_example"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX",
+            "Name": "Unsupported datatype for Live migration - box",
+            "Description": "BOX datatype not yet supported by voyager in live migration. Affected column: box_example. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.geometric_examples",
+            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "box_example"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH",
+            "Name": "Unsupported datatype for Live migration - path",
+            "Description": "PATH datatype not yet supported by voyager in live migration. Affected column: path_example. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.geometric_examples",
+            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "path_example"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON",
+            "Name": "Unsupported datatype for Live migration - polygon",
+            "Description": "POLYGON datatype not yet supported by voyager in live migration. Affected column: polygon_example. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.geometric_examples",
+            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "polygon_example"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE",
+            "Name": "Unsupported datatype for Live migration - circle",
+            "Description": "CIRCLE datatype not yet supported by voyager in live migration. Affected column: circle_example. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.geometric_examples",
+            "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "circle_example"
+            }
+        },
+        {
+            "Category": "migration_caveats",
+            "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+            "Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ",
+            "Name": "Unsupported datatype for Live migration - timetz",
+            "Description": "TIMETZ datatype not yet supported by voyager in live migration. Affected column: t_with_tz_precision. This column will be excluded when exporting and importing data in live migration workflows.",
+            "Impact": "LEVEL_1",
+            "ObjectType": "TABLE",
+            "ObjectName": "ordinary_tables.time",
+            "SqlStatement": "CREATE TABLE ordinary_tables.\"time\" (\n    ts_with_tz timestamp with time zone,\n    ts_with_tz_precision timestamp(2) with time zone,\n    ts_with_ntz timestamp without time zone,\n    ts_with_ntz_precision timestamp(3) without time zone,\n    t_with_tz time with time zone,\n    t_with_tz_precision time(4) with time zone,\n    t_with_ntz time without time zone,\n    t_with_ntz_precision time(5) without time zone,\n    date date,\n    interval_year interval year,\n    interval_month interval month,\n    interval_day interval day,\n    interval_hour interval hour,\n    interval_minute interval minute,\n    interval_second interval second,\n    interval_year_to_month interval year to month,\n    interval_day_to_hour interval day to hour,\n    interval_day_to_minute interval day to minute,\n    interval_day_to_second interval day to second,\n    interval_hour_to_minute interval hour to minute,\n    interval_hour_to_second interval hour to second,\n    interval_minute_to_second interval minute to second\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "t_with_tz_precision"
             }
         }
     ],

@@ -38,7 +38,7 @@ import (
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
-	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -687,7 +687,7 @@ func TestSanitizeDriftError(t *testing.T) {
 		},
 		{
 			name: "the SQLSTATE survives",
-			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("failed to connect to source database: %w", &pgconnv5.PgError{Code: "28P01", Message: `password authentication failed for user "alice"`})),
+			err:  errs.NewSchemaDriftError(errs.SCHEMA_DRIFT_STEP_CONNECT_TO_SOURCE, fmt.Errorf("failed to connect to source database: %w", &pgconn.PgError{Code: "28P01", Message: `password authentication failed for user "alice"`})),
 			want: `{"msg":"schema drift","pg_error_code":"28P01","step":"connect_to_source"}`,
 		},
 	}

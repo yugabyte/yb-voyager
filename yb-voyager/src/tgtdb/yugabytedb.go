@@ -33,10 +33,9 @@ import (
 	goerrors "github.com/go-errors/errors"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	pgconn5 "github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
@@ -98,7 +97,7 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 
 	res, err := yb.db.Exec(query)
 	if err != nil {
-		var pgErr *pgconn5.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.Hint != "" || pgErr.Detail != "" {
 				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, yb.Tconf.Host, err, pgErr.Hint, pgErr.Detail)
@@ -412,7 +411,6 @@ func IsPgErrorCodeNonRetryable(err error) bool {
 		return false
 	}
 
-	// Check pgx v4 errors
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		code := pgErr.Code
@@ -745,7 +743,7 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 		if _, err = yb.Exec(query); err == nil {
 			return nil
 		}
-		var pgErr *pgconn5.PgError
+		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "40001" && attempt < maxAttempts {
 			sleepSec := attempt * 2
 			log.Infof("TRUNCATE got SQLSTATE 40001 (read restart), retrying in %ds (attempt %d/%d): %v",
@@ -1857,10 +1855,11 @@ func (yb *TargetYugabyteDB) GetIdentityColumnNamesForTables(tableNameTuples []sq
 	}
 	defer rows.Close()
 
+	typeMap := pgtype.NewMap()
 	for rows.Next() {
 		var schemaName, tableName string
-		var identityColumnsPgTypeArray pgtype.TextArray
-		err = rows.Scan(&schemaName, &tableName, &identityColumnsPgTypeArray)
+		var identityColumnsPgTypeArray pgtype.Array[pgtype.Text]
+		err = rows.Scan(&schemaName, &tableName, typeMap.SQLScanner(&identityColumnsPgTypeArray))
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning row for identity(%s) columns: %w", identityType, err)
 		}

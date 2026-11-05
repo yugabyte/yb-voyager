@@ -99,18 +99,18 @@ func generateSSLQueryStringIfNotExists(t *TargetConf) string {
 		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
 			SSLQueryString = "sslmode=" + t.SSLMode
 			if t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
-
+				// File paths are user input and may contain URI syntax (spaces, '%', '&'); see utils.EscapeConnUriQueryValue.
 				if t.SSLCertPath != "" {
-					SSLQueryString += "&sslcert=" + t.SSLCertPath
+					SSLQueryString += "&sslcert=" + utils.EscapeConnUriQueryValue(t.SSLCertPath)
 				}
 				if t.SSLKey != "" {
-					SSLQueryString += "&sslkey=" + t.SSLKey
+					SSLQueryString += "&sslkey=" + utils.EscapeConnUriQueryValue(t.SSLKey)
 				}
 				if t.SSLRootCert != "" {
-					SSLQueryString += "&sslrootcert=" + t.SSLRootCert
+					SSLQueryString += "&sslrootcert=" + utils.EscapeConnUriQueryValue(t.SSLRootCert)
 				}
 				if t.SSLCRL != "" {
-					SSLQueryString += "&sslcrl=" + t.SSLCRL
+					SSLQueryString += "&sslcrl=" + utils.EscapeConnUriQueryValue(t.SSLCRL)
 				}
 			}
 		} else {
