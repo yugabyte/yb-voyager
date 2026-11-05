@@ -363,10 +363,12 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-// YugabyteDB indexes enums, but rejects composite and range types as 'user_defined_type'.
+// YugabyteDB indexes enums, but rejects composite and range types as 'user_defined_type', also
+// through a domain over one.
 func (p *ParserIssueDetector) isUserDefinedTypeUnsupportedForIndex(typeName string) bool {
-	userDefinedType, ok := p.userDefinedTypes[typeName]
-	return ok && !userDefinedType.IsEnum
+	return slices.ContainsFunc(p.GetUnderlyingTypes(typeName), func(t UnderlyingType) bool {
+		return t.Kind == TypeKindComposite || t.Kind == TypeKindRange
+	})
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {

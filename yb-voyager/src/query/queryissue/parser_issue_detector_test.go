@@ -2979,6 +2979,7 @@ func TestShouldFilterOutIssue(t *testing.T) {
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_TIMETZ,
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CID,
 		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_REFCURSOR,
+		UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE,
 	}
 	for _, liveOnlyType := range liveOnlyTypes {
 		assert.False(t, ShouldFilterOutIssue(issueOfType(liveOnlyType), allOffline),
@@ -3440,8 +3441,12 @@ func TestUserTypeNamedLikeDerivedMultirange(t *testing.T) {
 
 func TestIndexOnUserDefinedTypes(t *testing.T) {
 	const (
-		readings         = `CREATE TABLE public.readings (id int, bounds public.float8_range, "Spans" "Sch"."SpanSet", addr public.address, mood public.mood, CONSTRAINT readings_pk PRIMARY KEY (id, bounds));`
+		readings         = `CREATE TABLE public.readings (id int, bounds public.float8_range, "Spans" "Sch"."SpanSet", addr public.address, mood public.mood, "Bounds_Dom" public.range_dom, addr_dom public.address_dom, mood_dom public.mood_dom, CONSTRAINT readings_pk PRIMARY KEY (id, bounds));`
 		rangeIdx         = `CREATE INDEX idx_bounds ON public.readings (bounds);`
+		rangeDomainIdx   = `CREATE INDEX idx_bounds_dom ON public.readings ("Bounds_Dom");`
+		compositeDomIdx  = `CREATE INDEX idx_addr_dom ON public.readings (addr_dom);`
+		enumDomainIdx    = `CREATE INDEX idx_mood_dom ON public.readings (mood_dom);`
+		domainCastIdx    = `CREATE INDEX idx_dom_cast ON public.readings ((id::text::public.range_dom));`
 		multirangeIdx    = `CREATE INDEX idx_spans ON public.readings ("Spans");`
 		compositeIdx     = `CREATE INDEX idx_addr ON public.readings (addr);`
 		enumIdx          = `CREATE INDEX idx_mood ON public.readings (mood);`
@@ -3453,6 +3458,10 @@ func TestIndexOnUserDefinedTypes(t *testing.T) {
 		`CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = "Sch"."SpanSet");`,
 		`CREATE TYPE public.address AS (street text, zip int);`,
 		`CREATE TYPE public.mood AS ENUM ('happy', 'sad');`,
+		`CREATE DOMAIN public.range_base_dom AS public.float8_range;`,
+		`CREATE DOMAIN public.range_dom AS public.range_base_dom;`,
+		`CREATE DOMAIN public.address_dom AS public.address;`,
+		`CREATE DOMAIN public.mood_dom AS public.mood;`,
 		readings,
 	} {
 		require.NoError(t, detector.ParseAndProcessDDL(ddl))
@@ -3479,6 +3488,16 @@ func TestIndexOnUserDefinedTypes(t *testing.T) {
 		{"index on an enum", enumIdx, nil},
 		{"expression index cast to a user-defined range", rangeCastExprIdx, []QueryIssue{
 			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_cast ON public.readings", rangeCastExprIdx),
+		}},
+		{"index on a case-sensitive domain over a domain over a range", rangeDomainIdx, []QueryIssue{
+			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_bounds_dom ON public.readings", rangeDomainIdx),
+		}},
+		{"index on a domain over a composite", compositeDomIdx, []QueryIssue{
+			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_addr_dom ON public.readings", compositeDomIdx),
+		}},
+		{"index on a domain over an enum", enumDomainIdx, nil},
+		{"expression index cast to a domain over a range", domainCastIdx, []QueryIssue{
+			NewIndexOnUserDefinedTypeIssue("INDEX", "idx_dom_cast ON public.readings", domainCastIdx),
 		}},
 	}
 	for _, tc := range testCases {
