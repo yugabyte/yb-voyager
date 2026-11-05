@@ -289,11 +289,9 @@ func TestGetDriftInfo_ResolvesPerTiming(t *testing.T) {
 		TimingLiveAfterExportStart:    liveInfo,
 	}
 	fallBackRiskByDiffType[testType] = "fall-back risk."
-	fallForwardActionByDiffType[testType] = "fall-forward action."
 	t.Cleanup(func() {
 		delete(infoByDiffType, testType)
 		delete(fallBackRiskByDiffType, testType)
-		delete(fallForwardActionByDiffType, testType)
 	})
 
 	withRisk := func(info DriftInfo) DriftInfo {
@@ -301,7 +299,7 @@ func TestGetDriftInfo_ResolvesPerTiming(t *testing.T) {
 		return info
 	}
 	withFallForward := func(info DriftInfo) DriftInfo {
-		info.Action += " fall-forward action."
+		info.Action += " " + fallForwardAction
 		return info
 	}
 	wantAfterCutover := DriftInfo{
