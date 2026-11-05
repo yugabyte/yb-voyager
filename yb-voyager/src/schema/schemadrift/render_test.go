@@ -179,6 +179,7 @@ func TestRenderHTML(t *testing.T) {
 	assert.Contains(t, html, `<span class="s">amount</span>`, "object subject should appear")
 	assert.Contains(t, html, "export data: running", "phase label should appear")
 	assert.Contains(t, html, "does not apply any of these changes", "standing disclaimer banner should appear")
+	assert.Contains(t, html, `<div class="scope-note">Sequences, views, functions, types, triggers and other object types are not checked.</div>`, "the object types detect-drift never checks should be named")
 }
 
 func TestRender_EntryWithoutActionOmitsIt(t *testing.T) {
