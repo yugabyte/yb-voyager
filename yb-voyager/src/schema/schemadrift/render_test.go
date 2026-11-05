@@ -386,7 +386,7 @@ func TestComparingSummary(t *testing.T) {
 }
 
 // An added table's definition names its columns, and a case-sensitive one must
-// stay quoted there too, or the printed definition is not valid SQL.
+// stay quoted there too, or the user creates it folded to lower case.
 func TestRenderHTML_AddedTableColumnsAreMinQuoted(t *testing.T) {
 	r := fixtureReport()
 	r.Drifts = r.Drifts[:1]
@@ -403,7 +403,9 @@ func TestRenderHTML_AddedTableColumnsAreMinQuoted(t *testing.T) {
 	out, err := RenderHTML(r)
 	require.NoError(t, err)
 
-	assert.Contains(t, string(out), "&#34;InvoiceNo&#34; text NOT NULL, amount numeric")
+	assert.Contains(t, html.UnescapeString(string(out)), "Columns\n"+
+		`  "InvoiceNo"  text NOT NULL`+"\n"+
+		"  amount       numeric</span>")
 }
 
 // The Action for an added table is to create it on the target, so its definition
@@ -446,18 +448,39 @@ func TestRenderHTML_AddedTableShowsOwnKeysAndParentLink(t *testing.T) {
 		Checks:       []schemasnapshot.Constraint{{TableScopedObjectRef: ref("orders_id_check"), ID: "2", Definition: "CHECK (id > 0)", FromParent: true}},
 	}
 
+	columnLines := []string{
+		"Columns",
+		"  id        integer NOT NULL",
+		"  order_id  integer",
+	}
+	lines := func(more ...string) string { return strings.Join(append(columnLines, more...), "\n") }
+
 	tests := []struct {
 		name  string
 		table schemasnapshot.Table
 		want  string
 	}{
-		{"own keys, checks and indexes", ownKeys, "id integer NOT NULL, order_id integer; CONSTRAINT refunds_pkey PRIMARY KEY (id); " +
-			`CONSTRAINT "Refunds Order Key" UNIQUE (order_id); CONSTRAINT refunds_id_check CHECK (id > 0); ` +
-			"CONSTRAINT refunds_order_fk FOREIGN KEY (order_id) REFERENCES public.orders(id); " +
-			"UNIQUE INDEX refunds_order_uq USING btree (order_id); INDEX refunds_id_idx USING btree (id)"},
-		{"a partition shows its parent instead of the parent's copies", partition,
-			"id integer NOT NULL, order_id integer; PARTITION OF public.orders; INDEX refunds_order_idx USING btree (order_id)"},
-		{"an inheritance child shows its parents instead of their copies", child, `id integer NOT NULL, order_id integer; INHERITS (public.orders, public."Audited")`},
+		{"own keys, checks and indexes", ownKeys, lines(
+			"Keys and checks",
+			"  refunds_pkey         PRIMARY KEY (id)",
+			`  "Refunds Order Key"  UNIQUE (order_id)`,
+			"  refunds_id_check     CHECK (id > 0)",
+			"  refunds_order_fk     FOREIGN KEY (order_id) REFERENCES public.orders(id)",
+			"Indexes",
+			"  refunds_order_uq  UNIQUE USING btree (order_id)",
+			"  refunds_id_idx    USING btree (id)",
+		)},
+		{"a partition shows its parent instead of the parent's copies", partition, lines(
+			"Partition of",
+			"  public.orders",
+			"Indexes",
+			"  refunds_order_idx  USING btree (order_id)",
+		)},
+		{"an inheritance child shows its parents instead of their copies", child, lines(
+			"Inherits from",
+			"  public.orders",
+			`  public."Audited"`,
+		)},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
