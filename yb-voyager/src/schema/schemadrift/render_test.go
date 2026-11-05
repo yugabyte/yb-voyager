@@ -461,7 +461,7 @@ func TestRenderHTML_AddedTableShowsOwnKeysAndParentLink(t *testing.T) {
 		want  string
 	}{
 		{"own keys, checks and indexes", ownKeys, lines(
-			"Keys and checks",
+			"Constraints",
 			"  refunds_pkey         PRIMARY KEY (id)",
 			`  "Refunds Order Key"  UNIQUE (order_id)`,
 			"  refunds_id_check     CHECK (id > 0)",

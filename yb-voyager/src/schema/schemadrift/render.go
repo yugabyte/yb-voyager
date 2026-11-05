@@ -592,9 +592,9 @@ func writeDefSection(b *strings.Builder, heading string, rows []namedDef) {
 //   - schemasnapshot.Column                    -> the column's definition
 //     (COLUMN_ADDED's whole added column), e.g. "integer NOT NULL DEFAULT 0"
 //   - schemasnapshot.Table                     -> TABLE_ADDED's whole added table, one
-//     item per line under "Columns", "Partition of", "Inherits from", "Keys and checks"
+//     item per line under "Columns", "Partition of", "Inherits from", "Constraints"
 //     and "Indexes", each name followed by its definition, e.g.
-//     "Columns\n  id     integer NOT NULL\n  email  text\nKeys and checks\n  users_pkey  PRIMARY KEY (id)"
+//     "Columns\n  id     integer NOT NULL\n  email  text\nConstraints\n  users_pkey  PRIMARY KEY (id)"
 //   - anything else                          -> an error
 func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (string, error) {
 	switch v := value.(type) {
@@ -642,7 +642,7 @@ func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (s
 		}
 		writeDefSection(&b, "Inherits from", parents)
 		keys, indexes := ownKeyAndIndexDefs(v, dbType)
-		writeDefSection(&b, "Keys and checks", keys)
+		writeDefSection(&b, "Constraints", keys)
 		writeDefSection(&b, "Indexes", indexes)
 		return b.String(), nil
 	default:
