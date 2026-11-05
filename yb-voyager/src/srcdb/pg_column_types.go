@@ -171,7 +171,10 @@ func getTablesColumnsWithTypes(db *sql.DB, tableList []sqlname.NameTuple) (*util
 	}
 	result := utils.NewStructMap[sqlname.NameTuple, []ColumnWithType]()
 	for _, tableName := range tableList {
-		info := tablesColumnTypes[tableName]
+		info, ok := tablesColumnTypes[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("no columns found for table %s", tableName.ForOutput())
+		}
 		columns := make([]ColumnWithType, 0, len(info.Columns))
 		for i, column := range info.Columns {
 			columns = append(columns, ColumnWithType{Name: column, Type: info.DeclaredTypes[i]})

@@ -68,8 +68,8 @@ func parsePerTableFlag(flagName, flagValue, entryFormat string) ([]perTableFlagE
 	return entries, nil
 }
 
-// parseColumnNameList splits a ','-separated column list. normalize maps each raw name to the form
-// it is compared and returned in, so that two spellings of one column count as a duplicate.
+// parseColumnNameList splits a ','-separated column list outside double quotes, rejecting empty and
+// repeated names. Names are returned as written; callers match them to table columns later.
 func parseColumnNameList(columnList string) ([]string, error) {
 	var columns []string
 	for _, rawColumn := range splitOutsideQuotes(columnList, ',') {

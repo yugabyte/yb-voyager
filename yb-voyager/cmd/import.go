@@ -230,11 +230,11 @@ type cdcPartitionKeyOverride struct {
 	Columns  []string
 }
 
+const cdcPartitionKeyOverridesFlagName = "cdc-partition-key-overrides"
+
 // parseCdcPartitionKeyOverrides parses "schema.table:pk;schema.other:(col1,col2)".
 // Each value is either pk, table, or a parenthesized comma-separated custom column
 // list (custom key), e.g. (col1,col2).
-const cdcPartitionKeyOverridesFlagName = "cdc-partition-key-overrides"
-
 func parseCdcPartitionKeyOverrides(overrides string) (map[string]cdcPartitionKeyOverride, error) {
 	entries, err := parsePerTableFlag(cdcPartitionKeyOverridesFlagName, overrides, "schema.table:pk|table|(col1,col2,...)")
 	if err != nil {

@@ -392,7 +392,7 @@ Oracle and MySQL are unchanged.
 | MSR missing when recording or reading the source set | Error. It should exist by this point in export; continuing would lose the resume guard. |
 | Partition attached after the first run | Gets its root's exclusions on the next run, because leaves are recomputed every run. |
 | Column renamed or dropped on the source between runs | The saved name no longer matches; the check reports "does not exist". The user must restart with `--start-clean`. |
-| Column name with an escaped quote (`"x""y"`) | Currently not matched: the parser keeps the quoted text, and the matcher strips the outer quotes without un-escaping `""`. See §14. |
+| Column name containing `"` (written `"x""y"`) | Not supported. The matcher strips the outer quotes but does not un-escape `""`, so the name is reported as not existing. Live migration already fails on such columns: the importer quotes column names with Go's `%q` (`AttributeNameRegistry.QuoteAttributeName`), producing `"x\"y"`, which PostgreSQL rejects. |
 
 ## 11\. Performance
 
@@ -402,12 +402,14 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 
 | Layer | Test | Covers |
 | :---- | :---- | :---- |
-| Parsing | `TestParseExcludeColumnList` (`cmd`, unit) | Qualified and bare tables; quoted names containing `;`, `:`, `,` and `""`; missing or extra `:`; empty table, column or list; duplicate columns; unbalanced quotes; separator-only values. |
+| Parsing | `TestParseExcludeColumnList` (`cmd`, unit) | Qualified and bare tables; quoted names containing `;`, `:` and `,`, kept as typed; missing or extra `:`; empty table, column or list; duplicate columns; unbalanced quotes; separator-only values. |
 | Round trip | `TestExcludeColumnListFlagValueRoundTrips` (`cmd`, unit) | A recorded map renders to flag syntax and parses back to the same entries. |
 | Resolution | `TestResolveExcludeColumnList` (`cmd`, unit) | Missing table; same table under two spellings. |
 | Checks | `TestValidateExcludedColumns` (`cmd`, unit) | Missing column, leaf partition named, table not exported, primary key with and without unsupported type, case-insensitive matching, lowercase preference, ambiguous name, duplicate after matching. |
 | Apply | `TestApplyExcludedColumns` (`cmd`, unit) | Excluded unsupported columns pass; root exclusions reach leaves; `*` becomes an explicit list; all columns excluded; key-column and other leftovers. |
 | Error text | `TestBuildUnsupportedColumnsError` (`cmd`, unit) | Exact messages for source and target roles, merged suggestions. |
+| Resume guard | `TestRecordExcludedColumns` (`cmd`, unit, temp metaDB) | First run saves the set sorted; same set in another order passes; a different set fails with the exact message and leaves the record unchanged; a run without the flag saves an empty set; the target exporter saves `FromTarget` without touching `FromSource`. |
+| Target merge | `TestWithExcludedColumnsFromSource` (`cmd`, unit, temp metaDB) | Source role uses its own set; target role adds `FromSource` per root table and skips leaves; after the merge only a `tsquery` column the source did not exclude is left as unsupported. |
 | Matcher | `TestFindBestMatchingColumnName` (`sqlname`, unit) | Exact, quoted, case-insensitive, lowercase (PG/YB) and uppercase (Oracle) preference, ambiguous, not found. |
 | Shared guardrails | `TestParseCdcPartitionKeyOverrides`, `TestResolveCdcPartitionKeyOverrides` (`cmd`, unit) | Shared parser and lookup through the import flag, including quoted separators and aggregated table problems. |
 | Catalog | `TestPostgresGetTableColumnsWithTypes` (`srcdb`, integration) | Case-sensitive schema and table, dropped column, reserved-word column, domain, `point[]`, `character varying(20)`, partition root and leaf. |
@@ -422,7 +424,6 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
   - the resume guard on the target exporter
 - **No migtest asserts the streaming outcome:** excluded columns keeping their snapshot values, and NULL on inserted rows.
 - **gRPC-connector migtests:** the `pg/datatypes` fall-back and fall-forward jobs run in CLI mode with `USE_YB_GRPC_CONNECTOR=true`. They need a target-side exclusion that cannot be passed today (§14).
-- **Two `TestParseExcludeColumnList` cases currently fail** after the change that keeps quotes on parsed column names (§10, §14).
 
 ## 13\. Alternatives considered
 
@@ -441,7 +442,7 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
    - **Cutover-time check (proposed).** `initiate cutover to target` with fall-back or fall-forward fails early with the suggested target value, and can take a value for CLI users to save in the MSR and pass to the spawned command.
    - **Keep the manual restart in CLI mode.** The target exporter fails at startup with the exact value, and the user restarts it with the flag.
    - **For CI now:** run the gRPC `pg/datatypes` fall-back and fall-forward migtests in config-file mode with `EXPORT_FROM_TARGET_EX_COLUMN_LIST` set. This needs no product change.
-2. **Escaped quotes in column names.** Bring back an unquote step in `parseExcludeColumnList` (strip outer quotes, turn `""` into `"`, no lowercasing), or change the matcher? Today `"x""y"` never matches, which also breaks the next-iteration round trip for such a column.
+2. **Column names containing `"`.** Treated as unsupported (§10). Fixing it needs both the matcher to un-escape `""` and the importer's `%q` quoting in `QuoteAttributeName` to double the quote instead; the latter is a separate, pre-existing import bug.
 3. **Entries for tables voyager skipped.** Should they be ignored with a message (the plan) rather than fail as "not part of this export"?
 4. **Status output.** Show the excluded columns in `export data status`.
 5. **Catch it earlier.** `assess-migration` already reports `unsupportedDataTypesForLiveMigrationWithFForFB`. Should it also print suggested `exclude-column-list` values for both exporters?
