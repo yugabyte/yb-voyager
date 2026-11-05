@@ -524,8 +524,7 @@ func severityLabel(sev Severity) (string, error) {
 }
 
 // Partition and inheritance copies are left out: creating the table with its
-// PARTITION OF or INHERITS link brings them. Each one is named, so the target can
-// get the same names.
+// PARTITION OF or INHERITS link brings them.
 func ownKeyAndIndexDefs(t schemasnapshot.Table, dbType string) []string {
 	var defs []string
 	if t.PrimaryKey != nil && !t.PrimaryKey.FromParent {
@@ -561,11 +560,10 @@ func ownKeyAndIndexDefs(t schemasnapshot.Table, dbType string) []string {
 //   - schemasnapshot.ObjectRef                -> "schema.name"
 //   - []schemasnapshot.ObjectRef              -> "schema.name, schema.name, ..."
 //   - schemasnapshot.Column                    -> the column's definition
-//     (COLUMN_ADDED/DROPPED's whole added/dropped column), e.g.
-//     "integer NOT NULL DEFAULT 0"
+//     (COLUMN_ADDED's whole added column), e.g. "integer NOT NULL DEFAULT 0"
 //   - schemasnapshot.Table                     -> the table's full column list, then its
-//     own keys, checks and indexes (TABLE_ADDED/DROPPED's whole added/dropped table),
-//     e.g. "id integer NOT NULL, email text; PRIMARY KEY (id); INDEX USING btree (email)";
+//     own keys, checks and indexes (TABLE_ADDED's whole added table), e.g.
+//     "id integer NOT NULL, email text; CONSTRAINT users_pkey PRIMARY KEY (id); INDEX users_email_idx USING btree (email)";
 //     "no columns" when it has none
 //   - anything else                          -> an error
 func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (string, error) {
