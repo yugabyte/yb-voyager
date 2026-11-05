@@ -1173,7 +1173,7 @@ type CreateType struct {
 
 // getMultirangeTypeName returns the multirange_type_name option if given, else the name PostgreSQL
 // derives (makeMultirangeTypeName): "multi" inserted before the first "range", or "_multirange"
-// appended. An unqualified name is taken to be in the range type's schema.
+// appended. An unqualified name is assumed to be in the range type's schema (pg_dump always qualifies it)
 func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName string, rangeTypeName string) (string, string, error) {
 	for _, param := range stmt.GetParams() {
 		defElem := param.GetDefElem()
