@@ -2781,15 +2781,9 @@ const excludeColumnListFlagHelp = "semicolon-separated list of '<table>:<column1
 	"Column names are matched ignoring case; double-quote a column name only if the table has columns differing just in case. In case the table names are case sensitive, double-quote them.\n" +
 	`For example --exclude-column-list 'public.orders:note,"Meta";"Sales":geom'`
 
-// excludeColumnListEntry is one '<table>:<columns>' entry of --exclude-column-list.
-type excludeColumnListEntry struct {
-	table string
-	// catalog names: quotes stripped and unquoted names lowercased
-	columns []string
-}
-
-// excludedTableColumns pairs a table, as it should be written in the flag value, with its excluded columns.
-type excludedTableColumns struct {
+// tableColumns is a table and some of its columns, both written as in an --exclude-column-list
+// value: as the user typed them when parsed from the flag, or rendered for a suggested value.
+type tableColumns struct {
 	table   string
 	columns []string
 }
@@ -2810,18 +2804,18 @@ func validateExcludeColumnListFlag() error {
 
 const excludeColumnListFlagName = "exclude-column-list"
 
-func parseExcludeColumnList(value string) ([]excludeColumnListEntry, error) {
+func parseExcludeColumnList(value string) ([]tableColumns, error) {
 	tableEntries, err := parsePerTableFlag(excludeColumnListFlagName, value, "'<table>:<column1>,<column2>,...'")
 	if err != nil {
 		return nil, err
 	}
-	var entries []excludeColumnListEntry
+	var entries []tableColumns
 	for _, tableEntry := range tableEntries {
 		columns, err := parseColumnNameList(tableEntry.value)
 		if err != nil {
 			return nil, goerrors.Errorf("invalid --%s entry for table %q: %w", excludeColumnListFlagName, tableEntry.table, err)
 		}
-		entries = append(entries, excludeColumnListEntry{table: tableEntry.table, columns: columns})
+		entries = append(entries, tableColumns{table: tableEntry.table, columns: columns})
 	}
 	return entries, nil
 }
@@ -2832,8 +2826,8 @@ func minQuoteColumnName(column string) string {
 	return `"` + strings.ReplaceAll(column, `"`, `""`) + `"`
 }
 
-func formatExcludeColumnList(tables []excludedTableColumns) string {
-	return strings.Join(lo.Map(tables, func(t excludedTableColumns, _ int) string {
+func formatExcludeColumnList(tables []tableColumns) string {
+	return strings.Join(lo.Map(tables, func(t tableColumns, _ int) string {
 		return t.table + ":" + strings.Join(lo.Map(t.columns, func(c string, _ int) string { return minQuoteColumnName(c) }), ",")
 	}), ";")
 }
@@ -2841,13 +2835,13 @@ func formatExcludeColumnList(tables []excludedTableColumns) string {
 // excludeColumnListFlagValue renders a recorded set (see metadb.ExcludedColumnsRecord) back into a
 // flag value, for passing it on to the exporter of the next iteration.
 func excludeColumnListFlagValue(recorded map[string][]string) string {
-	return formatExcludeColumnList(lo.Map(slices.Sorted(maps.Keys(recorded)), func(table string, _ int) excludedTableColumns {
-		return excludedTableColumns{table: table, columns: recorded[table]}
+	return formatExcludeColumnList(lo.Map(slices.Sorted(maps.Keys(recorded)), func(table string, _ int) tableColumns {
+		return tableColumns{table: table, columns: recorded[table]}
 	}))
 }
 
-func resolveExcludeColumnList(entries []excludeColumnListEntry, lookupTable func(string) (sqlname.NameTuple, error)) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
-	tables, problems := lookupPerTableFlagTables(lo.Map(entries, func(e excludeColumnListEntry, _ int) string { return e.table }), lookupTable)
+func resolveExcludeColumnList(entries []tableColumns, lookupTable func(string) (sqlname.NameTuple, error)) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
+	tables, problems := lookupPerTableFlagTables(lo.Map(entries, func(e tableColumns, _ int) string { return e.table }), lookupTable)
 	resolved := utils.NewStructMap[sqlname.NameTuple, []string]()
 	for _, entry := range entries {
 		if table, ok := tables[entry.table]; ok {
@@ -2911,10 +2905,10 @@ func validateExcludedColumns(excluded *utils.StructMap[sqlname.NameTuple, []stri
 			problems = append(problems, fmt.Sprintf("%s: table is not part of this export; check --table-list and --exclude-table-list", table.ForOutput()))
 			continue
 		}
-		tableColumns, _ := exportTables.tableToColumnsWithType.Get(table)
+		columnsWithTypes, _ := exportTables.tableToColumnsWithType.Get(table)
 		primaryKeyColumns, _ := exportTables.tableToPrimaryKeyColumns.Get(table)
 		unsupportedColumns, _ := exportTables.unsupportedColumns.Get(table)
-		tableColumnNames := lo.Map(tableColumns, func(c srcdb.ColumnWithType, _ int) string { return c.Name })
+		tableColumnNames := lo.Map(columnsWithTypes, func(c srcdb.ColumnWithType, _ int) string { return c.Name })
 		excludedColumns, _ := excluded.Get(table)
 		var matchedColumns []string
 		for _, givenColumn := range excludedColumns {
@@ -2953,8 +2947,8 @@ func validateExcludedColumns(excluded *utils.StructMap[sqlname.NameTuple, []stri
 // unsupportedColumnsReport collects, per root table, the unsupported columns left after the exclusions.
 type unsupportedColumnsReport struct {
 	// tables with an unsupported primary key column; they can only be excluded as a whole
-	primaryKeyTables []excludedTableColumns
-	otherTables      []excludedTableColumns
+	primaryKeyTables []tableColumns
+	otherTables      []tableColumns
 	// tables whose every column is excluded
 	tablesWithNoColumns []sqlname.NameTuple
 }
@@ -3006,15 +3000,15 @@ func applyExcludedColumns(excluded *utils.StructMap[sqlname.NameTuple, []string]
 		reportedRoots[root.ForKey()] = true
 		primaryKeyColumns, _ := exportTables.tableToPrimaryKeyColumns.Get(root)
 		if lo.Some(remainingUnsupported, primaryKeyColumns) {
-			report.primaryKeyTables = append(report.primaryKeyTables, excludedTableColumns{table: root.ForOutput(), columns: lo.Intersect(remainingUnsupported, primaryKeyColumns)})
+			report.primaryKeyTables = append(report.primaryKeyTables, tableColumns{table: root.ForOutput(), columns: lo.Intersect(remainingUnsupported, primaryKeyColumns)})
 		} else {
-			report.otherTables = append(report.otherTables, excludedTableColumns{table: root.ForOutput(), columns: remainingUnsupported})
+			report.otherTables = append(report.otherTables, tableColumns{table: root.ForOutput(), columns: remainingUnsupported})
 		}
 	}
 	return columnList, report, nil
 }
 
-func describeColumnsWithTypes(exportTables exportTableColumnMetadata, tables []excludedTableColumns) string {
+func describeColumnsWithTypes(exportTables exportTableColumnMetadata, tables []tableColumns) string {
 	var b strings.Builder
 	for _, t := range tables {
 		table, _ := lo.Find(exportTables.tableList, func(candidate sqlname.NameTuple) bool { return candidate.ForOutput() == t.table })
@@ -3041,7 +3035,7 @@ func excludedColumnsNote() string {
 
 // buildUnsupportedColumnsError builds the error for the unsupported columns left after the
 // exclusions. userExcluded is the user's own flag value, which the suggested value extends.
-func buildUnsupportedColumnsError(report unsupportedColumnsReport, exportTables exportTableColumnMetadata, userExcluded []excludedTableColumns) error {
+func buildUnsupportedColumnsError(report unsupportedColumnsReport, exportTables exportTableColumnMetadata, userExcluded []tableColumns) error {
 	var msg strings.Builder
 	isTargetExporter := isTargetDBExporter(exporterRole)
 	if len(report.tablesWithNoColumns) > 0 {
@@ -3054,7 +3048,7 @@ func buildUnsupportedColumnsError(report unsupportedColumnsReport, exportTables 
 	if len(report.primaryKeyTables) > 0 {
 		msg.WriteString("The following primary key columns have datatypes not supported for this migration:\n")
 		msg.WriteString(describeColumnsWithTypes(exportTables, report.primaryKeyTables))
-		tableNames := strings.Join(lo.Map(report.primaryKeyTables, func(t excludedTableColumns, _ int) string { return t.table }), ",")
+		tableNames := strings.Join(lo.Map(report.primaryKeyTables, func(t tableColumns, _ int) string { return t.table }), ",")
 		if isTargetExporter {
 			msg.WriteString("A table cannot be migrated without its primary key. These tables had to be excluded with --exclude-table-list " +
 				"on 'export data from source', which requires starting the migration again:\n")
@@ -3066,12 +3060,12 @@ func buildUnsupportedColumnsError(report unsupportedColumnsReport, exportTables 
 	if len(report.otherTables) > 0 {
 		suggested := slices.Clone(userExcluded)
 		for _, t := range report.otherTables {
-			idx := slices.IndexFunc(suggested, func(s excludedTableColumns) bool { return s.table == t.table })
+			idx := slices.IndexFunc(suggested, func(s tableColumns) bool { return s.table == t.table })
 			if idx == -1 {
 				suggested = append(suggested, t)
 				continue
 			}
-			suggested[idx] = excludedTableColumns{table: t.table, columns: append(slices.Clone(suggested[idx].columns), t.columns...)}
+			suggested[idx] = tableColumns{table: t.table, columns: append(slices.Clone(suggested[idx].columns), t.columns...)}
 		}
 		msg.WriteString("The following columns have datatypes not supported for this migration:\n")
 		msg.WriteString(describeColumnsWithTypes(exportTables, report.otherTables))
@@ -3080,7 +3074,7 @@ func buildUnsupportedColumnsError(report unsupportedColumnsReport, exportTables 
 			msg.WriteString(fmt.Sprintf("  --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
 			msg.WriteString(excludedColumnsNote() + "\n")
 		} else {
-			tableNames := strings.Join(lo.Map(report.otherTables, func(t excludedTableColumns, _ int) string { return t.table }), ",")
+			tableNames := strings.Join(lo.Map(report.otherTables, func(t tableColumns, _ int) string { return t.table }), ",")
 			msg.WriteString("To proceed, do one of the following:\n")
 			msg.WriteString("  1. Exclude these columns with --exclude-column-list:\n")
 			msg.WriteString(fmt.Sprintf("       --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
@@ -3134,13 +3128,13 @@ func finalizeColumnListForLiveMigration(finalTableList []sqlname.NameTuple, part
 		return nil, perTableFlagProblemsError(excludeColumnListFlagName, problems)
 	}
 
-	userExcludedInFlagOrder := lo.FilterMap(entries, func(entry excludeColumnListEntry, _ int) (excludedTableColumns, bool) {
+	userExcludedInFlagOrder := lo.FilterMap(entries, func(entry tableColumns, _ int) (tableColumns, bool) {
 		table, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(entry.table)
 		if err != nil {
-			return excludedTableColumns{}, false
+			return tableColumns{}, false
 		}
 		columns, ok := userExcluded.Get(table)
-		return excludedTableColumns{table: table.ForOutput(), columns: columns}, ok
+		return tableColumns{table: table.ForOutput(), columns: columns}, ok
 	})
 
 	excluded, err := withExcludedColumnsFromSource(userExcluded, finalTableList, partitionsToRootTableMap)

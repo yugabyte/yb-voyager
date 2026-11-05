@@ -38,7 +38,7 @@ func TestParseExcludeColumnList(t *testing.T) {
 	tests := []struct {
 		name     string
 		value    string
-		expected []excludeColumnListEntry
+		expected []tableColumns
 		errMsg   string
 	}{
 		{
@@ -49,7 +49,7 @@ func TestParseExcludeColumnList(t *testing.T) {
 		{
 			name:  "qualified and bare tables, columns keep their case",
 			value: "public.orders:Note,meta; items : a , B",
-			expected: []excludeColumnListEntry{
+			expected: []tableColumns{
 				{table: "public.orders", columns: []string{"Note", "meta"}},
 				{table: "items", columns: []string{"a", "B"}},
 			},
@@ -57,7 +57,7 @@ func TestParseExcludeColumnList(t *testing.T) {
 		{
 			name:  "quoted names keep case and may contain separators",
 			value: `"Sales"."Orders;2024":"Geo:Point","a,b","x""y";public.t:"Mixed"`,
-			expected: []excludeColumnListEntry{
+			expected: []tableColumns{
 				{table: `"Sales"."Orders;2024"`, columns: []string{"Geo:Point", "a,b", `x"y`}},
 				{table: "public.t", columns: []string{"Mixed"}},
 			},
@@ -65,7 +65,7 @@ func TestParseExcludeColumnList(t *testing.T) {
 		{
 			name:  "trailing semicolon",
 			value: "public.t:a;",
-			expected: []excludeColumnListEntry{
+			expected: []tableColumns{
 				{table: "public.t", columns: []string{"a"}},
 			},
 		},
@@ -135,7 +135,7 @@ func TestExcludeColumnListFlagValueRoundTrips(t *testing.T) {
 
 	entries, err := parseExcludeColumnList(value)
 	require.NoError(t, err)
-	assert.Equal(t, []excludeColumnListEntry{
+	assert.Equal(t, []tableColumns{
 		{table: `"Sales"."orders:1"`, columns: []string{"geo"}},
 		{table: `"public"."Orders"`, columns: []string{"note", "Meta", "select", `x"y`}},
 		{table: `"public"."t2"`, columns: []string{"b"}},
@@ -151,7 +151,7 @@ func TestResolveExcludeColumnList(t *testing.T) {
 		}
 		return sqlname.NameTuple{}, fmt.Errorf("table %s not found", name)
 	}
-	entries := []excludeColumnListEntry{
+	entries := []tableColumns{
 		{table: "orders", columns: []string{"a"}},
 		{table: "public.missing", columns: []string{"b"}},
 		{table: "public.orders", columns: []string{"c"}},
@@ -354,7 +354,7 @@ func TestApplyExcludedColumns(t *testing.T) {
 		_, report, err := applyExcludedColumns(excludedColumnsMap(nil), e.exportTables)
 		require.NoError(t, err)
 		assert.Equal(t, unsupportedColumnsReport{
-			otherTables: []excludedTableColumns{
+			otherTables: []tableColumns{
 				{table: "public.orders", columns: []string{"doc"}},
 				{table: "public.sales", columns: []string{"Geo"}},
 			},
@@ -367,7 +367,7 @@ func TestApplyExcludedColumns(t *testing.T) {
 		_, report, err := applyExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.sales: {"Geo"}}), e.exportTables)
 		require.NoError(t, err)
 		assert.Equal(t, unsupportedColumnsReport{
-			primaryKeyTables: []excludedTableColumns{{table: "public.orders", columns: []string{"id"}}},
+			primaryKeyTables: []tableColumns{{table: "public.orders", columns: []string{"id"}}},
 		}, report)
 	})
 
@@ -384,10 +384,10 @@ func TestBuildUnsupportedColumnsError(t *testing.T) {
 	e := newExcludeColumnsTestExport()
 	e.exportTables.unsupportedColumns.Put(e.orders, []string{"id"})
 	report := unsupportedColumnsReport{
-		primaryKeyTables: []excludedTableColumns{{table: "public.orders", columns: []string{"id"}}},
-		otherTables:      []excludedTableColumns{{table: "public.sales", columns: []string{"Geo"}}},
+		primaryKeyTables: []tableColumns{{table: "public.orders", columns: []string{"id"}}},
+		otherTables:      []tableColumns{{table: "public.sales", columns: []string{"Geo"}}},
 	}
-	userExcluded := []excludedTableColumns{{table: "public.sales", columns: []string{"region_note"}}, {table: "public.items", columns: []string{"a"}}}
+	userExcluded := []tableColumns{{table: "public.sales", columns: []string{"region_note"}}, {table: "public.items", columns: []string{"a"}}}
 
 	t.Run("source exporter", func(t *testing.T) {
 		err := buildUnsupportedColumnsError(report, e.exportTables, userExcluded)
