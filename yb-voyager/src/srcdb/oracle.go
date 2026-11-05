@@ -636,6 +636,10 @@ func (ora *Oracle) GetPartitions(tableName sqlname.NameTuple) []string {
 	panic("not implemented")
 }
 
+func (ora *Oracle) GetTableColumnsWithTypes(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []ColumnWithType], error) {
+	panic("not implemented")
+}
+
 const DROP_TABLE_IF_EXISTS_QUERY = `BEGIN
 EXECUTE IMMEDIATE 'DROP TABLE %s ';
 EXCEPTION

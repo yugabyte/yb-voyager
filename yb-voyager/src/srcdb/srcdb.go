@@ -50,6 +50,8 @@ type SourceDB interface {
 	FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple)
 	FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple)
 	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error)
+	// Only for PostgreSQL and YugabyteDB, whose live migration exports apply --exclude-column-list.
+	GetTableColumnsWithTypes(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []ColumnWithType], error)
 	ParentTableOfPartition(table sqlname.NameTuple) string
 	GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string
 	GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error)

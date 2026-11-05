@@ -81,6 +81,10 @@ export-data-from-source:
   exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
+  {% if EXPORT_EX_COLUMN_LIST is defined and EXPORT_EX_COLUMN_LIST != "" %}
+  exclude-column-list: '{{ EXPORT_EX_COLUMN_LIST }}'
+  {% endif %}
+
 
 import-data-to-target:
   adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}disabled{% else %}balanced{% endif %}
@@ -99,6 +103,10 @@ initiate-cutover-to-target:
 
 export-data-from-target:
   disable-pb: true
+
+  {% if EXPORT_FROM_TARGET_EX_COLUMN_LIST is defined and EXPORT_FROM_TARGET_EX_COLUMN_LIST != "" %}
+  exclude-column-list: '{{ EXPORT_FROM_TARGET_EX_COLUMN_LIST }}'
+  {% endif %}
 
 import-data-to-source-replica:
   disable-pb: true

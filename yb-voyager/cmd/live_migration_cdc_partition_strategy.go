@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -233,26 +234,21 @@ func resolveCdcPartitionKeyOverrides(rawOverrides map[string]cdcPartitionKeyOver
 		return resolved, nil
 	}
 
-	importTableSet := utils.NewStructMap[sqlname.NameTuple, bool]()
-	for _, t := range importTableList {
-		importTableSet.Put(t, true)
+	tableSpecs := slices.Sorted(maps.Keys(rawOverrides))
+	tables, problems := lookupPerTableFlagTables(tableSpecs, namereg.NameReg.LookupTableName)
+	for _, tableSpec := range tableSpecs {
+		table, ok := tables[tableSpec]
+		if !ok {
+			continue
+		}
+		if !slices.ContainsFunc(importTableList, func(t sqlname.NameTuple) bool { return t.Key() == table.Key() }) {
+			problems = append(problems, fmt.Sprintf("%s: table is not in the import table list", tableSpec))
+			continue
+		}
+		resolved.Put(table, rawOverrides[tableSpec])
 	}
-
-	for tableSpec, override := range rawOverrides {
-		tuple, err := namereg.NameReg.LookupTableName(tableSpec)
-		if err != nil {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q not found in name registry: %w", tableSpec, err)
-		}
-		if _, ok := importTableSet.Get(tuple); !ok {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table '%s' is not in the import table list", tableSpec)
-		}
-		// Detect duplicates on the resolved NameTuple so different spellings of the
-		// same table (casing/quoting/schema-qualification) don't silently overwrite.
-		if _, ok := resolved.Get(tuple); ok {
-			return nil, goerrors.Errorf("cdc-partition-key-overrides: table %q (resolved to %s) specified multiple times",
-				tableSpec, tuple.ForOutput())
-		}
-		resolved.Put(tuple, override)
+	if len(problems) > 0 {
+		return nil, perTableFlagProblemsError(cdcPartitionKeyOverridesFlagName, problems)
 	}
 	return resolved, nil
 }

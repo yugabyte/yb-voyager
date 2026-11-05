@@ -108,6 +108,8 @@ type MigrationStatusRecord struct {
 	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
 	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
 
+	ExcludedColumns ExcludedColumnsRecord `json:"ExcludedColumns"`
+
 	//Common details for per migration
 	RestartDataMigrationSourceTargetNextIteration bool   `json:"RestartDataMigrationSourceTargetNextIteration"`
 	ParentExportDir                               string `json:"ParentExportDir"`
@@ -121,6 +123,18 @@ type MigrationStatusRecord struct {
 	//Iteration specific details
 	ExportDataFromSourceStarted bool `json:"ExportDataFromSourceStarted"`
 	ImportDataToTargetStarted   bool `json:"ImportDataToTargetStarted"`
+}
+
+// ExcludedColumnsRecord holds the --exclude-column-list each exporter resolved on its first run,
+// as root table (NameTuple.ForKey()) -> excluded column names. A nil map means that exporter has
+// not recorded one yet (not started, or started by a voyager version without the flag); an empty
+// map means it ran with no exclusions.
+type ExcludedColumnsRecord struct {
+	// Set by the source exporter (export data from source).
+	FromSource map[string][]string `json:"FromSource"`
+	// Set by the target exporter (export data from target, fall-back / fall-forward). Holds only
+	// the target exporter's own flag; the columns in FromSource are excluded there as well.
+	FromTarget map[string][]string `json:"FromTarget"`
 }
 
 type CutoverTimingRecord struct {

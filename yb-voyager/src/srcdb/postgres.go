@@ -803,6 +803,10 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	return getColumnsWithSupportedTypes(pg.db, tableList, PostgresUnsupportedDataTypesForDbzm, []string{pgTypTypeRange, pgTypTypeMultirange})
 }
 
+func (pg *PostgreSQL) GetTableColumnsWithTypes(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []ColumnWithType], error) {
+	return getTablesColumnsWithTypes(pg.db, tableList)
+}
+
 // GetGeneratedStoredColumns returns, per table in tableList, the names of its STORED
 // generated columns (pg_attribute.attgenerated = 's').
 //

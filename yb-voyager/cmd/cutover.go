@@ -230,6 +230,7 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 		record.SourceExportedTableListWithLeafPartitions = currentMSR.SourceExportedTableListWithLeafPartitions
 		record.SourceRenameTablesMap = currentMSR.SourceRenameTablesMap
 		record.TargetRenameTablesMap = currentMSR.TargetRenameTablesMap
+		record.ExcludedColumns = currentMSR.ExcludedColumns
 
 		//sequence mapping is required for the next iteration to restore sequences
 		record.SourceColumnToSequenceMapping = currentMSR.SourceColumnToSequenceMapping

@@ -56,7 +56,7 @@ func (myb *mockYugabyteDB) GetListOfTableAttributes(tableNameTup sqlname.NameTup
 }
 
 func (myb *mockYugabyteDB) FindBestMatchingTargetColumnName(columnName string, targetTableColumns []string) (string, error) {
-	return myb.FindBestMatchingColumnName(columnName, targetTableColumns)
+	return sqlname.FindBestMatchingColumnName(YUGABYTEDB, columnName, targetTableColumns)
 }
 
 func TestProcessEventsBasic(t *testing.T) {
@@ -306,6 +306,24 @@ func TestParseCdcPartitionKeyOverrides(t *testing.T) {
 				"public.orders": {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}},
 				"sales.events":  {Strategy: PARTITION_BY_PK},
 			},
+		},
+		{
+			name:  "quoted names may contain separators",
+			input: `"Sales"."Orders;2024":pk;public.orders:("Region:EU","a,b")`,
+			want: map[string]cdcPartitionKeyOverride{
+				`"Sales"."Orders;2024"`: {Strategy: PARTITION_BY_PK},
+				"public.orders":         {Strategy: PARTITION_BY_CUSTOM, Columns: []string{`"Region:EU"`, `"a,b"`}},
+			},
+		},
+		{
+			name:    "rejects unbalanced quotes",
+			input:   `"public.orders:pk`,
+			wantErr: "unbalanced double quotes",
+		},
+		{
+			name:    "rejects value with only separators",
+			input:   " ; ;",
+			wantErr: "no entries",
 		},
 		{
 			name:    "rejects missing colon",
@@ -737,7 +755,7 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 		_, err := resolveCdcPartitionKeyOverrides(
 			map[string]cdcPartitionKeyOverride{"test_schema.missing": {Strategy: PARTITION_BY_PK}}, importList)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found in name registry")
+		assert.Equal(t, "invalid --cdc-partition-key-overrides:\n  test_schema.missing: table not found", err.Error())
 	})
 
 	t.Run("rejects table not in import table list", func(t *testing.T) {
@@ -745,7 +763,7 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 			map[string]cdcPartitionKeyOverride{"test_schema.events": {Strategy: PARTITION_BY_PK}},
 			[]sqlname.NameTuple{orders}) // events excluded from import list
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "is not in the import table list")
+		assert.Equal(t, "invalid --cdc-partition-key-overrides:\n  test_schema.events: table is not in the import table list", err.Error())
 	})
 
 	t.Run("rejects conflicting values across different spellings", func(t *testing.T) {
@@ -754,7 +772,7 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 			`"test_schema"."orders"`: {Strategy: PARTITION_BY_TABLE},
 		}, importList)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "specified multiple times")
+		assert.Equal(t, "invalid --cdc-partition-key-overrides:\n  test_schema.orders: table test_schema.orders is already listed as \"test_schema\".\"orders\"", err.Error())
 	})
 
 	t.Run("dedups same value across different spellings", func(t *testing.T) {
@@ -763,7 +781,7 @@ func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 			"orders":             {Strategy: PARTITION_BY_PK}, // unqualified resolves to default schema
 		}, importList)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "specified multiple times")
+		assert.Equal(t, "invalid --cdc-partition-key-overrides:\n  test_schema.orders: table test_schema.orders is already listed as orders", err.Error())
 	})
 }
 
@@ -1486,7 +1504,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		cdcPartitionKey = PARTITION_BY_PK
 		cdcPartitionKeyOverrides = "test_schema.orders_part_r1:table"
 		err := validateCdcPartitioningStrategyUnchanged(tableNames, customStored("customer_id"), emptyUK)
-		assert.EqualError(t, err, "error computing cdc partitioning strategy per table: cdc-partition-key-overrides: table 'test_schema.orders_part_r1' is not in the import table list")
+		assert.EqualError(t, err, "error computing cdc partitioning strategy per table: invalid --cdc-partition-key-overrides:\n  test_schema.orders_part_r1: table is not in the import table list")
 	})
 
 	// --- global key change (flag-level guard) ---

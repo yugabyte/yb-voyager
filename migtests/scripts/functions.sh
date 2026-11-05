@@ -435,6 +435,9 @@ export_data() {
           "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-forward" || \
           "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-back" ]]; then
         args="${args} --export-type snapshot-and-changes"
+        if [ "${EXPORT_EX_COLUMN_LIST}" != "" ]; then
+            args="${args} --exclude-column-list ${EXPORT_EX_COLUMN_LIST}"
+        fi
     fi
 
     yb-voyager export data ${args} "$@"

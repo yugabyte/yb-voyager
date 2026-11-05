@@ -1,3 +1,5 @@
 export SOURCE_DB_TYPE="postgresql"
 export SOURCE_DB_SCHEMA="public"
 export ANON_SALT="a9f8c2d4e7b6f1a3d9c0b7e4f5a6c3d2"
+# Columns whose datatypes live migration cannot stream from the PostgreSQL source.
+export EXPORT_EX_COLUMN_LIST="range_types:price_range_col,discount_range_col,period_range_col,active_ts_range_col;range_array_types:price_ranges,discount_ranges,period_ranges,ts_ranges;datetime_types:timetz_col;datetime_arrays:timetz_col;geometry_types:point_col,line_col,lseg_col,box_col,path_col,polygon_col,circle_col;geometry_arrays:point_col,line_col,lseg_col,box_col,path_col,polygon_col,circle_col;misc_types:pg_lsn_col,txid_snapshot_col;misc_arrays:pg_lsn_col,txid_snapshot_col"

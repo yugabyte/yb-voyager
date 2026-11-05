@@ -117,6 +117,7 @@ var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
+	"exclude-column-list",
 	"table-list-file-path", "parallel-jobs", "export-type",
 	"allow-oracle-clob-data-export", "metrics-port",
 	"disable-schema-snapshot-capture", "schema-snapshot-capture-interval",
@@ -127,6 +128,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "log-max-size-mb", "log-max-backups",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
+	"exclude-column-list",
 	"table-list-file-path", "transaction-ordering", "metrics-port",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
