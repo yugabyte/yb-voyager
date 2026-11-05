@@ -79,19 +79,6 @@
     },
     "AssessmentIssues": [
         {
-            "Category": "unsupported_datatypes",
-            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-            "Type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT",
-            "Name": "Unsupported datatype - txid_snapshot",
-            "Description": "TXID_SNAPSHOT datatype is not yet supported in YugabyteDB. Affected column: snapshot_data.",
-            "Impact": "LEVEL_3",
-            "ObjectType": "COLUMN",
-            "ObjectName": "public.mixed_data_types_table1.snapshot_data",
-            "SqlStatement": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
-        },
-        {
             "Category": "migration_caveats",
             "CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
             "Type": "INHERITANCE_MIGRATION_CAVEAT",
@@ -223,6 +210,22 @@
             "MinimumVersionsFixedInEA": {
                 "2025.2": "2025.2.2.0",
                 "2026.1": "2026.1.0.0"
+            }
+        },
+        {
+            "Category": "unsupported_datatypes",
+            "CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+            "Type": "UNSUPPORTED_DATATYPE_TXID_SNAPSHOT",
+            "Name": "Unsupported datatype - txid_snapshot",
+            "Description": "TXID_SNAPSHOT datatype is not yet supported in YugabyteDB. Affected column: snapshot_data.",
+            "Impact": "LEVEL_3",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.mixed_data_types_table1",
+            "SqlStatement": "CREATE TABLE public.mixed_data_types_table1 (\n    id integer NOT NULL,\n    data jsonb,\n    snapshot_data txid_snapshot\n);",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+            "MinimumVersionsFixedIn": null,
+            "Details": {
+                "ColumnName": "snapshot_data"
             }
         }
     ],

@@ -31,6 +31,7 @@ const (
 
 	TABLE_OBJECT_TYPE                       = "TABLE"
 	TYPE_OBJECT_TYPE                        = "TYPE"
+	DOMAIN_OBJECT_TYPE                      = "DOMAIN"
 	VIEW_OBJECT_TYPE                        = "VIEW"
 	MVIEW_OBJECT_TYPE                       = "MVIEW"
 	FOREIGN_TABLE_OBJECT_TYPE               = "FOREIGN TABLE"
