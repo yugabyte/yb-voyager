@@ -262,9 +262,12 @@ func generateArtifact(b *testing.B, w Workload, voyagerBin, dir, exportDir strin
 		return artifactManifest{}, fail(fmt.Sprintf("waiting for %d events to drain (last count %d)", w.ExpectedEvents, prev), err)
 	}
 
-	// cutover terminates the queue with a cutover event and stops the exporter
+	// cutover terminates the queue with a cutover event and stops the exporter.
+	// Since #3878 cutover runs a schema-drift pre-check against the source, which
+	// needs the source password (it cannot prompt: stdin is not a terminal here).
 	cutover := exec.CommandContext(ctx, voyagerBin, "initiate", "cutover", "to", "target",
-		"--export-dir", exportDir, "--prepare-for-fall-back", "false", "--yes")
+		"--export-dir", exportDir, "--prepare-for-fall-back", "false", "--yes",
+		"--source-db-password", config.Password)
 	cutover.Env = export.Env
 	cutover.Stdout = logFile
 	cutover.Stderr = logFile
