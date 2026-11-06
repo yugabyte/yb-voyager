@@ -1645,8 +1645,7 @@ func TestLiveMigrationCdcPartitionKeyConfigs(t *testing.T) {
 	})
 	require.Error(t, err, "import with unknown override table should fail")
 	stderr := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.True(t,
-		strings.Contains(stderr, "not in the import table list") || strings.Contains(stderr, "not found in name registry"),
+	assert.True(t, strings.Contains(stderr, "test_schema.missing_table: table not found"),
 		"expected table-list/namereg error, got: %s", stderr)
 
 	// Case 2: global pk succeeds; stored map should be pk for both tables.
