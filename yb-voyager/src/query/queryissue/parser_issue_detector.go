@@ -363,9 +363,12 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-func (p *ParserIssueDetector) isCompositeType(typeName string) bool {
-	userDefinedType, ok := p.userDefinedTypes[typeName]
-	return ok && !userDefinedType.IsEnum
+// YugabyteDB indexes enums, but rejects composite and range types as 'user_defined_type', also
+// through a domain over one.
+func (p *ParserIssueDetector) isUserDefinedTypeUnsupportedForIndex(typeName string) bool {
+	return slices.ContainsFunc(p.GetUnderlyingTypes(typeName), func(t UnderlyingType) bool {
+		return t.Kind == TypeKindComposite || t.Kind == TypeKindRange
+	})
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
@@ -971,7 +974,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			meta.DataTypeMods = col.TypeMods
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
-			isUDTType := p.isCompositeType(col.GetFullTypeName())
+			isUDTType := p.isUserDefinedTypeUnsupportedForIndex(col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
 
 			switch {
@@ -1019,6 +1022,17 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
 		p.userDefinedTypes[ddlObj.GetObjectName()] = ddlObj
+		if ddlObj.IsRange {
+			multirange := &queryparser.CreateType{
+				TypeName:   ddlObj.MultirangeTypeName,
+				SchemaName: ddlObj.MultirangeSchemaName,
+				IsRange:    true,
+			}
+			// PG 13 and older create no multirange, so a user type of that name keeps it, whichever comes first
+			if _, exists := p.userDefinedTypes[multirange.GetObjectName()]; !exists {
+				p.userDefinedTypes[multirange.GetObjectName()] = multirange
+			}
+		}
 	case *queryparser.CreateDomain:
 		p.domains[ddlObj.GetObjectName()] = ddlObj
 	case *queryparser.Index:
