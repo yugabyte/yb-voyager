@@ -803,6 +803,10 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	return getColumnsWithSupportedTypes(pg.db, tableList, PostgresUnsupportedDataTypesForDbzm, []string{pgTypTypeRange, pgTypTypeMultirange})
 }
 
+func (pg *PostgreSQL) GetTableColumnsWithTypes(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []ColumnWithType], error) {
+	return getTablesColumnsWithTypes(pg.db, tableList)
+}
+
 func (pg *PostgreSQL) GetTypeToOid(typeNames []string) (map[string]int, error) {
 	return getTypeToOid(pg.db, typeNames)
 }

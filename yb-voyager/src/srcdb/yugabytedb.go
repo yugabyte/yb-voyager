@@ -700,6 +700,9 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	return getColumnsWithSupportedTypes(yb.db, tableList, GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector), unsupportedTypTypes)
 }
 
+func (yb *YugabyteDB) GetTableColumnsWithTypes(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []ColumnWithType], error) {
+	return getTablesColumnsWithTypes(yb.db, tableList)
+}
 func (yb *YugabyteDB) GetTypeToOid(typeNames []string) (map[string]int, error) {
 	return getTypeToOid(yb.db, typeNames)
 }

@@ -357,6 +357,13 @@ export-data-from-source:
   # table-list-file-path: <table-list-file-path>
   # exclude-table-list-file-path: <exclude-table-list-file-path>                    
 
+  ### Semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes streamed in live migration.
+  ### Export data fails if a column's datatype is not supported for live migration; list such columns here or exclude their tables with exclude-table-list.
+  ### The snapshot still copies these columns. Changes to them are not streamed: the target keeps their snapshot values, and rows inserted during streaming get NULL in them.
+  ### For partitioned tables, specify the root table. Primary key columns cannot be excluded.
+  ### Column names are matched ignoring case; double-quote a column name only if the table has columns differing just in case. Double-quote case-sensitive table names.
+  # exclude-column-list: 'public.orders:note,"Meta";"Sales":geom'
+
   ### Number of Parallel Jobs to extract data from source database.
   ### Default - 4
   parallel-jobs: 4    
@@ -625,6 +632,11 @@ export-data-from-target:
   ### Accepted values (true, false, yes, no, 0, 1) 
   ### Default - true
   # transaction-ordering: true 
+
+  ### Semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes exported from the target.
+  ### Use it for columns whose datatype the YugabyteDB connector does not support. Columns excluded in export-data-from-source are always excluded here as well.
+  ### Changes made on the target to these columns are not exported. For partitioned tables, specify the root table. Primary key columns cannot be excluded.
+  # exclude-column-list: 'public.orders:search_query'
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.

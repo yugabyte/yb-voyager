@@ -429,6 +429,9 @@ func startExportDataFromSourceOnNextIteration() {
 		//If these are overridden by CLI/Config file then pass it to the command always
 		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
 	}
+	if len(currentMsr.ExcludedColumns.FromSource) > 0 {
+		cmd = append(cmd, "--exclude-column-list", excludeColumnListFlagValue(currentMsr.ExcludedColumns.FromSource))
+	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
 	utils.PrintAndLogfPhase("\nStarting export data from source on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)

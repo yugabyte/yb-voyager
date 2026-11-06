@@ -46,6 +46,8 @@ type tableColumnTypes struct {
 	Columns []string
 	// UnderlyingTypes[i] holds every type Columns[i] is built from; [i][0] is its declared type.
 	UnderlyingTypes [][]columnType
+	// DeclaredTypes[i] is Columns[i]'s declared type as SQL writes it (format_type), for display.
+	DeclaredTypes []string
 }
 
 // columnUnderlyingTypesQuery lists, for every column of the tables in the IN list (format
@@ -91,7 +93,8 @@ const columnUnderlyingTypesQuery = `
 			WHEN t.typtype IN ('c', 'r') THEN type_n.nspname || '.' || t.typname
 			ELSE t.typname
 		END AS type_name,
-		t.typtype::text AS typtype
+		t.typtype::text AS typtype,
+		format_type(a.atttypid, a.atttypmod) AS declared_type
 	FROM column_type AS ct
 	JOIN pg_attribute AS a ON a.attrelid = ct.attrelid AND a.attnum = ct.attnum
 	JOIN pg_class AS c ON c.oid = a.attrelid
@@ -129,9 +132,9 @@ func getTablesColumnTypes(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlnam
 	}()
 
 	for rows.Next() {
-		var schema, table, column string
+		var schema, table, column, declaredType string
 		var colType columnType
-		if err := rows.Scan(&schema, &table, &column, &colType.Name, &colType.TypType); err != nil {
+		if err := rows.Scan(&schema, &table, &column, &colType.Name, &colType.TypType, &declaredType); err != nil {
 			return nil, fmt.Errorf("scanning column types: %w", err)
 		}
 		tableName, ok := tableLookup[fmt.Sprintf("%s.%s", schema, table)]
@@ -146,10 +149,39 @@ func getTablesColumnTypes(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlnam
 		} else {
 			info.Columns = append(info.Columns, column)
 			info.UnderlyingTypes = append(info.UnderlyingTypes, []columnType{colType})
+			info.DeclaredTypes = append(info.DeclaredTypes, declaredType)
 		}
 		result[tableName] = info
 	}
 	return result, rows.Err()
+}
+
+// ColumnWithType is a table column with its declared type as SQL writes it (format_type), e.g. point[].
+type ColumnWithType struct {
+	Name string
+	Type string
+}
+
+// getTablesColumnsWithTypes returns the columns of every table in tableList, in table
+// definition order, each with its declared type.
+func getTablesColumnsWithTypes(db *sql.DB, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []ColumnWithType], error) {
+	tablesColumnTypes, err := getTablesColumnTypes(tableList, db)
+	if err != nil {
+		return nil, fmt.Errorf("fetching table column types: %w", err)
+	}
+	result := utils.NewStructMap[sqlname.NameTuple, []ColumnWithType]()
+	for _, tableName := range tableList {
+		info, ok := tablesColumnTypes[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("no columns found for table %s", tableName.ForOutput())
+		}
+		columns := make([]ColumnWithType, 0, len(info.Columns))
+		for i, column := range info.Columns {
+			columns = append(columns, ColumnWithType{Name: column, Type: info.DeclaredTypes[i]})
+		}
+		result.Put(tableName, columns)
+	}
+	return result, nil
 }
 
 // isColumnTypeUnsupported reports whether any type the column is built from is unsupported,
