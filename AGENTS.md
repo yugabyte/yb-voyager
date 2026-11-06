@@ -23,7 +23,7 @@ Standards live in an `AGENTS.md` file in the directory they govern, from this fi
 
 Each such directory carries three entries for the same content: `AGENTS.md` (the real file), `CLAUDE.md` (symlink — Claude Code reads `CLAUDE.md`, not `AGENTS.md`), and `.cursor/BUGBOT.md` (symlink — Cursor Bugbot reads only this name). Edit `AGENTS.md`; never edit a symlink. When adding standards for a new subtree, create all three.
 
-Current scopes: repo root (this file), `debezium-server-voyager/`, `migtests/`, `yb-voyager/`, `yb-voyager/cmd/`, `yb-voyager/src/`, and the `src/` packages `anon`, `callhome`, `errs`, `metadb`, `metrics`, `migassessment`, `query/queryissue`, `srcdb`, `testlivemigration`, `tgtdb`, `utils`.
+Current scopes: repo root (this file), `debezium-server-voyager/`, `migtests/`, `yb-voyager/`, `yb-voyager/cmd/`, `yb-voyager/src/`, and the `src/` packages `anon`, `callhome`, `errs`, `metadb`, `metrics`, `migassessment`, `query/queryissue`, `schema/schemadrift`, `schemadiff`, `schemasnapshot`, `srcdb`, `testlivemigration`, `tgtdb`, `utils`.
 
 Reviewing a change: follow `REVIEW.md` at the repo root. It is the one review workflow every review agent (the `branch-review` skill, `pr-review-sweep`, AgentK, others) applies on top of these standards.
 
