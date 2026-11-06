@@ -32,6 +32,8 @@ import (
 
 const driftSchema = "diff_it"
 
+const refSchema = "diff_it_ref"
+
 // TestDiff_EndToEnd starts a real PostgreSQL container, captures two schema
 // snapshots with DDL mutations in between, and asserts that schemadiff.Diff
 // produces the expected findings including rename detection, column changes,
@@ -50,6 +52,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 	// ── Baseline DDL — snapshot A ──────────────────────────────────────────────
 	pg.ExecuteSqls(
 		`CREATE SCHEMA `+driftSchema,
+		`CREATE SCHEMA `+refSchema,
+		`CREATE TABLE `+refSchema+`.parent (id int PRIMARY KEY)`,
 		`CREATE TABLE `+driftSchema+`.orders (
 			id       integer NOT NULL,
 			customer text,
@@ -77,6 +81,9 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`."Ck_Added" (a int)`,
 		`CREATE TABLE `+driftSchema+`.ck_dropped (a int CONSTRAINT ck_dropped_check CHECK (a > 0))`,
 		`CREATE TABLE `+driftSchema+`.ck_renamed (a int CONSTRAINT old_ck CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`."Fk_Added" (x int)`,
+		`CREATE TABLE `+driftSchema+`.fk_dropped (x int CONSTRAINT fk_dropped_fkey REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
+		`CREATE TABLE `+driftSchema+`.fk_renamed (x int CONSTRAINT old_fk REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
 		`CREATE TABLE `+driftSchema+`.pk_part (id int) PARTITION BY RANGE (id)`,
 		`CREATE TABLE `+driftSchema+`.pk_part_a PARTITION OF `+driftSchema+`.pk_part FOR VALUES FROM (1) TO (10) PARTITION BY RANGE (id)`,
 		`CREATE TABLE `+driftSchema+`.pk_part_a1 PARTITION OF `+driftSchema+`.pk_part_a FOR VALUES FROM (1) TO (5)`,
@@ -85,6 +92,11 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`.part_leaf PARTITION OF `+driftSchema+`.part_mid FOR VALUES FROM (0) TO (50)`,
 		`CREATE TABLE `+driftSchema+`.inh_base (a int CONSTRAINT inh_ck CHECK (a > 0))`,
 		`CREATE TABLE `+driftSchema+`.inh_kid (b int) INHERITS (`+driftSchema+`.inh_base)`,
+		`CREATE TABLE `+refSchema+`.pparent (id int PRIMARY KEY) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+refSchema+`.pparent_p1 PARTITION OF `+refSchema+`.pparent FOR VALUES FROM (0) TO (100)`,
+		`CREATE TABLE `+driftSchema+`.fk_to_partitioned (x int CONSTRAINT fk_to_partitioned_fkey REFERENCES `+refSchema+`.pparent(id))`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned (x int CONSTRAINT fk_from_partitioned_fkey REFERENCES `+refSchema+`.parent(id)) PARTITION BY RANGE (x)`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned_p1 PARTITION OF `+driftSchema+`.fk_from_partitioned FOR VALUES FROM (0) TO (100)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -136,10 +148,15 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`."Ck_Added" ADD CONSTRAINT "Ck_Added_Check" CHECK (a > 0)`,
 		`ALTER TABLE `+driftSchema+`.ck_dropped DROP CONSTRAINT ck_dropped_check`,
 		`ALTER TABLE `+driftSchema+`.ck_renamed RENAME CONSTRAINT old_ck TO "New_Ck"`,
+		`ALTER TABLE `+driftSchema+`."Fk_Added" ADD CONSTRAINT "Fk_Added_Fkey" FOREIGN KEY (x) REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE`,
+		`ALTER TABLE `+driftSchema+`.fk_dropped DROP CONSTRAINT fk_dropped_fkey`,
+		`ALTER TABLE `+driftSchema+`.fk_renamed RENAME CONSTRAINT old_fk TO "New_Fk"`,
 		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
 		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_uq UNIQUE (id)`,
 		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_ck CHECK (a > 0)`,
 		`ALTER TABLE `+driftSchema+`.inh_base DROP CONSTRAINT inh_ck`,
+		`CREATE TABLE `+refSchema+`.pparent_p2 PARTITION OF `+refSchema+`.pparent FOR VALUES FROM (100) TO (200)`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned_p2 PARTITION OF `+driftSchema+`.fk_from_partitioned FOR VALUES FROM (100) TO (200)`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -323,6 +340,7 @@ func TestDiff_EndToEnd(t *testing.T) {
 	for i, d := range constraintFindings {
 		gotConstraints[i] = constraintFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
 	}
+	fkDefinition := `FOREIGN KEY (x) REFERENCES ` + refSchema + `.parent(id) ON DELETE CASCADE`
 	assert.ElementsMatch(t, []constraintFinding{
 		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.Pk_Added.Pk_Added_Pkey`, New: `PRIMARY KEY ("Id")`},
 		{Type: schemadiff.PrimaryKeyDropped, Object: driftSchema + `.pk_dropped.pk_dropped_pkey`, Old: `PRIMARY KEY (id)`},
@@ -333,12 +351,16 @@ func TestDiff_EndToEnd(t *testing.T) {
 		{Type: schemadiff.CheckAdded, Object: driftSchema + `.Ck_Added.Ck_Added_Check`, New: `CHECK (a > 0)`},
 		{Type: schemadiff.CheckDropped, Object: driftSchema + `.ck_dropped.ck_dropped_check`, Old: `CHECK (a > 0)`},
 		{Type: schemadiff.CheckNameChanged, Object: driftSchema + `.ck_renamed.old_ck`, Old: "old_ck", New: "New_Ck"},
+		{Type: schemadiff.ForeignKeyAdded, Object: driftSchema + `.Fk_Added.Fk_Added_Fkey`, New: fkDefinition},
+		{Type: schemadiff.ForeignKeyDropped, Object: driftSchema + `.fk_dropped.fk_dropped_fkey`, Old: fkDefinition},
+		{Type: schemadiff.ForeignKeyNameChanged, Object: driftSchema + `.fk_renamed.old_fk`, Old: "old_fk", New: "New_Fk"},
 		// The key's copies on pk_part_a and pk_part_a1 report nothing.
 		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.pk_part.pk_part_pkey`, New: `PRIMARY KEY (id)`},
 		// The copies on part_mid, part_leaf and inh_kid report nothing.
 		{Type: schemadiff.UniqueAdded, Object: driftSchema + `.part_root.part_root_uq`, New: `UNIQUE (id)`},
 		{Type: schemadiff.CheckAdded, Object: driftSchema + `.part_root.part_root_ck`, New: `CHECK (a > 0)`},
 		{Type: schemadiff.CheckDropped, Object: driftSchema + `.inh_base.inh_ck`, Old: `CHECK (a > 0)`},
+		// New partitions on either side of fk_to_partitioned_fkey and fk_from_partitioned_fkey report nothing.
 	}, gotConstraints)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────

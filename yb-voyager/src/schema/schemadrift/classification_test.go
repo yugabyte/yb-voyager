@@ -108,6 +108,9 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.CheckAdded:                    {adv, adv, adv, adv},
 		schemadiff.CheckDropped:                  {rec, pot, rec, rec},
 		schemadiff.CheckNameChanged:              {adv, adv, adv, adv},
+		schemadiff.ForeignKeyAdded:               {adv, adv, adv, adv},
+		schemadiff.ForeignKeyDropped:             {pot, pot, pot, pot},
+		schemadiff.ForeignKeyNameChanged:         {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -141,9 +144,10 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 
 func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	sentences := map[schemadiff.DiffType]string{
-		schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
-		schemadiff.UniqueAdded:   uniqueAddedFallBackRisk,
-		schemadiff.CheckAdded:    "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+		schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+		schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
+		schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+		schemadiff.ForeignKeyAdded: "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
 	}
 	// A type without a sentence must read the same with and without fall-back, so new
 	// fall-back text on it fails here whatever its wording.
@@ -157,6 +161,36 @@ func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 			want += " " + sentence
 		}
 		assert.Equal(t, want, withFallBack.Impact, string(diffType))
+	}
+}
+
+// Offline import data replays no deletes or updates, so the key's ON DELETE or ON UPDATE
+// action is mentioned only for live, and before export data only scoped to live.
+func TestGetDriftInfo_ForeignKeyDroppedActionOnlyWhenChangesReplay(t *testing.T) {
+	type want struct{ impact, action string }
+	liveOnly := want{
+		impact: "In a live migration, a delete or update of a parent row",
+		action: "In a live migration, restore from the source",
+	}
+	live := want{
+		impact: "A delete or update of a parent row",
+		action: "Restore from the source",
+	}
+	for timing, w := range map[Timing]want{
+		TimingBeforeExportData:            liveOnly,
+		TimingOfflineAfterExportStart:     {},
+		TimingLiveAfterExportStart:        live,
+		TimingChangesOnlyAfterExportStart: live,
+	} {
+		info, err := getDriftInfo(schemadiff.ForeignKeyDropped, situation{Timing: timing})
+		require.NoError(t, err)
+		if w == (want{}) {
+			assert.NotContains(t, info.Impact, "`CASCADE`", "%s Impact", timing)
+			assert.NotContains(t, strings.ToLower(info.Action), "restore from the source", "%s Action", timing)
+			continue
+		}
+		assert.Contains(t, info.Impact, w.impact, "%s Impact", timing)
+		assert.Contains(t, info.Action, w.action, "%s Action", timing)
 	}
 }
 

@@ -53,6 +53,9 @@ const (
 	CheckAdded            DiffType = "CHECK_ADDED"
 	CheckDropped          DiffType = "CHECK_DROPPED"
 	CheckNameChanged      DiffType = "CHECK_NAME_CHANGED"
+	ForeignKeyAdded       DiffType = "FOREIGN_KEY_ADDED"
+	ForeignKeyDropped     DiffType = "FOREIGN_KEY_DROPPED"
+	ForeignKeyNameChanged DiffType = "FOREIGN_KEY_NAME_CHANGED"
 )
 
 // AllDiffTypes returns every DiffType the engine can emit, so consumers keyed by
@@ -67,6 +70,7 @@ func AllDiffTypes() []DiffType {
 		PrimaryKeyAdded, PrimaryKeyDropped, PrimaryKeyNameChanged,
 		UniqueAdded, UniqueDropped, UniqueNameChanged,
 		CheckAdded, CheckDropped, CheckNameChanged,
+		ForeignKeyAdded, ForeignKeyDropped, ForeignKeyNameChanged,
 	}
 }
 
