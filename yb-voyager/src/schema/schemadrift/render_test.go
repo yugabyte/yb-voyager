@@ -254,6 +254,17 @@ func TestObjectPathMinQuotesIdentifiers(t *testing.T) {
 			},
 			wantQ: "sales.orders.", wantS: "discount",
 		},
+		{
+			name: "constraint with a mixed-case name under a mixed-case table quotes both parts",
+			entry: DriftEntry{
+				Diff: Diff{
+					ObjectType: schemadiff.ObjectTypeConstraint,
+					Object:     schemasnapshot.ObjectRef{Schema: "sales", Name: "MixedCase"},
+					SubObject:  "MixedCase_Pkey",
+				},
+			},
+			wantQ: `sales."MixedCase".`, wantS: `"MixedCase_Pkey"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -449,7 +460,12 @@ func TestRenderHTML_RejectsReportsItCannotDisplay(t *testing.T) {
 		{
 			name:    "a column finding without a column",
 			breakIt: func(r *Report) { r.Drifts[1].SubObject = "" },
-			wantErr: "column finding on public.orders has no column name",
+			wantErr: "COLUMN finding on public.orders has no object name",
+		},
+		{
+			name:    "a constraint finding without a constraint",
+			breakIt: func(r *Report) { r.Drifts[1].ObjectType = schemadiff.ObjectTypeConstraint; r.Drifts[1].SubObject = "" },
+			wantErr: "CONSTRAINT finding on public.orders has no object name",
 		},
 		{
 			name:    "a finding without an object name",
@@ -504,5 +520,41 @@ func TestRenderHTML_FooterMentionsTheLiveReadOnlyWhenThereIsOne(t *testing.T) {
 		out, err := RenderHTML(r)
 		require.NoError(t, err)
 		assert.Contains(t, string(out), liveSentence)
+	})
+}
+
+func TestRenderHTML_PrimaryKeyFindings(t *testing.T) {
+	orders := schemasnapshot.ObjectRef{Schema: "public", Name: "Orders"}
+	keyEntry := func(d Diff) DriftEntry {
+		d.ObjectType = schemadiff.ObjectTypeConstraint
+		d.Object = orders
+		return DriftEntry{Diff: d, Window: fixtureReport().Drifts[0].Window, Phase: "export data: running", DriftInfo: infoByDiffType[d.Type][TimingBeforeExportData]}
+	}
+	render := func(d Diff) string {
+		r := fixtureReport()
+		r.Drifts = []DriftEntry{keyEntry(d)}
+		r.Summary.ChangeCount = 1
+		out, err := RenderHTML(r)
+		require.NoError(t, err)
+		return string(out)
+	}
+
+	t.Run("added shows the definition", func(t *testing.T) {
+		html := render(Diff{Type: schemadiff.PrimaryKeyAdded, Operation: schemadiff.OpAdded, SubObject: "Orders_Pkey", NewValue: `PRIMARY KEY ("Id")`})
+		assert.Contains(t, html, "primary key added")
+		assert.Contains(t, html, `<span class="s">&#34;Orders_Pkey&#34;</span>`)
+		assert.Contains(t, html, "PRIMARY KEY (&#34;Id&#34;)")
+	})
+
+	t.Run("dropped shows no definition", func(t *testing.T) {
+		html := render(Diff{Type: schemadiff.PrimaryKeyDropped, Operation: schemadiff.OpDropped, SubObject: "Orders_Pkey", OldValue: `PRIMARY KEY ("Id")`})
+		assert.Contains(t, html, "primary key dropped")
+		assert.NotContains(t, html, "PRIMARY KEY (&#34;Id&#34;)")
+	})
+
+	t.Run("renamed shows old to new", func(t *testing.T) {
+		html := render(Diff{Type: schemadiff.PrimaryKeyNameChanged, Operation: schemadiff.OpChanged, Attribute: schemadiff.AttrName, SubObject: "New_Pk", OldValue: "Orders_Pkey", NewValue: "New_Pk"})
+		assert.Contains(t, html, "primary key name changed")
+		assert.Contains(t, html, `<span class="chiplet v-old">Orders_Pkey</span><span class="arrow">→</span><span class="chiplet v-new">New_Pk</span>`)
 	})
 }

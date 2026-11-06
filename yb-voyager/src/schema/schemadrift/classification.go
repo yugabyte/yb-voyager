@@ -240,6 +240,36 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 		TimingOfflineAfterExportStart: inheritanceRemovedInfo,
 		TimingLiveAfterExportStart:    inheritanceRemovedInfo,
 	},
+	schemadiff.PrimaryKeyAdded: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "In a live migration, `import data` refuses the table until the target has a primary key. An offline migration is not affected.",
+			Action: "Add the same primary key on the target before running `import data`. If `import data` already failed on it, run it again."},
+		TimingOfflineAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "`import data` is not affected.",
+			Action: "Add the same primary key on the target to keep the schemas the same."},
+		TimingLiveAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "The live migration is not affected. Either the table had no primary key, so it was not part of the live migration, or it is a partitioned table whose partitions already had keys, which now belong to this one. If `PRIMARY_KEY_DROPPED` is also reported for the table in the same interval, the key was replaced, and that entry's Action applies.",
+			Action: "Add the same primary key on the target."},
+	},
+	schemadiff.PrimaryKeyDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "In a live migration, `export data` refuses a table without a primary key. In an offline migration, the target still has the key, so `import data` fails on the first duplicate key value.",
+			Action: "In a live migration, add the key back on the source before starting `export data`. In an offline migration, drop it on the target too, and run `import data` again if it already failed."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "Rows exported after the drop can repeat a key value. The target's key rejects them, so `import data` fails.",
+			Action: "Drop the primary key on the target, then run `import data` again."},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: primaryKeyDroppedLiveImpact,
+			Action: "Add the key back on the source, then restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: primaryKeyDroppedLiveImpact,
+			Action: "Add the key back on the source, then start a new migration in a new export directory."},
+	},
+	schemadiff.PrimaryKeyNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
 }
 
 // Appended to Impact while a cutover with fall-back is still possible.
@@ -304,6 +334,12 @@ var (
 	inheritanceRemovedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`export data` and `import data` are not affected.",
 		Action: "Remove the same inheritance on the target before the application moves to the target."}
+
+	primaryKeyDroppedLiveImpact = "Every later change to this table reaches `import data` with an empty key, so it stops, and it fails again on every restart. A restart of `export data` refuses the table. This is also reported, with `PRIMARY_KEY_ADDED`, when the key was changed or re-created: if it was changed in one transaction, changing it on the target and running `import data` again recovers."
+
+	keyNameChangedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`export data` and `import data` are not affected.",
+		Action: "Rename it on the target to keep the names the same."}
 )
 
 var afterCutoverInfo = DriftInfo{

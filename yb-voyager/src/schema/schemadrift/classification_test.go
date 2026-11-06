@@ -99,6 +99,9 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.TableInheritRemoved:           {adv, adv, adv, adv},
 		schemadiff.TableInheritedByAdded:         {rec, pot, unr, unr},
 		schemadiff.TableInheritedByRemoved:       {adv, adv, adv, adv},
+		schemadiff.PrimaryKeyAdded:               {rec, adv, adv, adv},
+		schemadiff.PrimaryKeyDropped:             {rec, pot, unr, unr},
+		schemadiff.PrimaryKeyNameChanged:         {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -130,16 +133,23 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 	}
 }
 
-func TestGetDriftInfo_FallBackSentenceOnlyOnColumnDropped(t *testing.T) {
-	const sentence = "If you cut over with fall-back, `import data to source` stops at the first insert on this table"
-	for _, diffType := range schemadiff.AllDiffTypes() {
-		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
-		require.NoError(t, err)
-		assert.Equal(t, diffType == schemadiff.ColumnDropped, strings.Contains(info.Impact, sentence), string(diffType))
+func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
+	sentences := map[schemadiff.DiffType]string{
+		schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
 	}
-	info, err := getDriftInfo(schemadiff.ColumnDropped, situation{Timing: TimingLiveAfterExportStart})
-	require.NoError(t, err)
-	assert.NotContains(t, info.Impact, "fall-back")
+	// A type without a sentence must read the same with and without fall-back, so new
+	// fall-back text on it fails here whatever its wording.
+	for _, diffType := range schemadiff.AllDiffTypes() {
+		withFallBack, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
+		require.NoError(t, err)
+		withoutFallBack, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart})
+		require.NoError(t, err)
+		want := withoutFallBack.Impact
+		if sentence, ok := sentences[diffType]; ok {
+			want += " " + sentence
+		}
+		assert.Equal(t, want, withFallBack.Impact, string(diffType))
+	}
 }
 
 func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {

@@ -112,27 +112,27 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 		want    []schemadiff.ObjectType
 	}{
 		{
-			name:    "exclude TABLE leaves COLUMN",
+			name:    "exclude TABLE leaves COLUMN and CONSTRAINT",
 			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeColumn},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
 		},
 		{
-			name:    "exclude COLUMN leaves TABLE",
+			name:    "exclude COLUMN leaves TABLE and CONSTRAINT",
 			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeColumn},
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeConstraint},
 		},
 		{
 			// detectDrift rejects this with an error rather than
 			// forwarding it to schemadiff.Scope, which keeps nothing for an empty
 			// dimension -- the run would compare nothing and report it as clean.
-			name:    "exclude both yields empty",
-			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+			name:    "exclude all yields empty",
+			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
 			want:    nil,
 		},
 		{
-			name:    "exclude none keeps both, in universe order",
+			name:    "exclude none keeps all, in universe order",
 			exclude: nil,
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
 		},
 	}
 
@@ -202,9 +202,9 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "TABLE,COLUMN parses both",
-			raw:  "TABLE,COLUMN",
-			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+			name: "TABLE,COLUMN,CONSTRAINT parses all",
+			raw:  "TABLE,COLUMN,CONSTRAINT",
+			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
 		},
 		{
 			name: "single lowercase type is case-insensitive",
