@@ -70,9 +70,11 @@
   /* value */
   .val{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
   .v-lbl{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;}
+  .val-def{align-items:flex-start;}
+  .val-def .v-lbl{padding-top:7px;}
   .chiplet{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;
     padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:#fbfbfc;}
-  .v-def{color:var(--add);background:var(--add-bg);border-color:var(--add-line);}
+  .v-def{color:var(--add);background:var(--add-bg);border-color:var(--add-line);white-space:pre-wrap;}
   .v-old{color:var(--chg);background:var(--chg-bg);border-color:var(--chg-line);text-decoration:line-through;text-decoration-color:rgba(138,90,18,.4);}
   .v-new{color:var(--chg);background:var(--chg-bg);border-color:var(--chg-line);font-weight:700;}
   .arrow{color:var(--faint);font-weight:700;}
@@ -216,7 +218,7 @@
         <details class="finding {{.KindClass}}">
           <summary class="finding-h"><span class="kind">{{.KindLabel}}</span>
             <span class="obj"><span class="q">{{.ObjQ}}</span><span class="s">{{.ObjS}}</span></span></summary>
-          {{if .HasDef}}<div class="val"><span class="v-lbl">definition</span><span class="chiplet v-def">{{.ValDef}}</span></div>{{end}}
+          {{if .HasDef}}<div class="val val-def"><span class="v-lbl">definition</span><span class="chiplet v-def">{{.ValDef}}</span></div>{{end}}
           {{if .HasChange}}<div class="val"><span class="chiplet v-old">{{.ValOld}}</span><span class="arrow">→</span><span class="chiplet v-new">{{.ValNew}}</span></div>{{end}}
           <div class="action"><span class="action-h">Impact &amp; action</span>
             <p class="severity-label">{{.SeverityLabel}}</p>
