@@ -24,7 +24,11 @@ type kindTypes struct {
 	objectType                  ObjectType
 }
 
-var primaryKeyTypes = kindTypes{PrimaryKeyAdded, PrimaryKeyDropped, PrimaryKeyNameChanged, ObjectTypeConstraint}
+var (
+	primaryKeyTypes = kindTypes{PrimaryKeyAdded, PrimaryKeyDropped, PrimaryKeyNameChanged, ObjectTypeConstraint}
+	uniqueTypes     = kindTypes{UniqueAdded, UniqueDropped, UniqueNameChanged, ObjectTypeConstraint}
+	checkTypes      = kindTypes{CheckAdded, CheckDropped, CheckNameChanged, ObjectTypeConstraint}
+)
 
 // objectRef is what the diff reads of a constraint or index; generic code cannot
 // read struct fields, so each element type converts itself to this.

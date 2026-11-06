@@ -102,6 +102,12 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.PrimaryKeyAdded:               {rec, adv, adv, adv},
 		schemadiff.PrimaryKeyDropped:             {rec, pot, unr, unr},
 		schemadiff.PrimaryKeyNameChanged:         {adv, adv, adv, adv},
+		schemadiff.UniqueAdded:                   {adv, adv, adv, adv},
+		schemadiff.UniqueDropped:                 {rec, pot, rec, rec},
+		schemadiff.UniqueNameChanged:             {adv, adv, adv, adv},
+		schemadiff.CheckAdded:                    {adv, adv, adv, adv},
+		schemadiff.CheckDropped:                  {rec, pot, rec, rec},
+		schemadiff.CheckNameChanged:              {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -136,6 +142,8 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	sentences := map[schemadiff.DiffType]string{
 		schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+		schemadiff.UniqueAdded:   uniqueAddedFallBackRisk,
+		schemadiff.CheckAdded:    "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
 	}
 	// A type without a sentence must read the same with and without fall-back, so new
 	// fall-back text on it fails here whatever its wording.
@@ -149,6 +157,23 @@ func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 			want += " " + sentence
 		}
 		assert.Equal(t, want, withFallBack.Impact, string(diffType))
+	}
+}
+
+// Only a streaming import data reads the target's unique keys, so only the timings that
+// can be live tell the user to restart it, and they carve out stored generated columns.
+func TestGetDriftInfo_UniqueAddedRestartOnlyWhenLive(t *testing.T) {
+	for timing, wantRestart := range map[Timing]bool{
+		TimingBeforeExportData:            false,
+		TimingOfflineAfterExportStart:     false,
+		TimingLiveAfterExportStart:        true,
+		TimingChangesOnlyAfterExportStart: true,
+	} {
+		info, err := getDriftInfo(schemadiff.UniqueAdded, situation{Timing: timing})
+		require.NoError(t, err)
+		assert.Equal(t, SeverityAdvisory, info.Severity, string(timing))
+		assert.Equal(t, wantRestart, strings.Contains(info.Action, "restart it afterwards"), string(timing))
+		assert.Equal(t, wantRestart, strings.Contains(info.Action, "If it covers a stored generated column, add it on the target only after cutover"), string(timing))
 	}
 }
 
