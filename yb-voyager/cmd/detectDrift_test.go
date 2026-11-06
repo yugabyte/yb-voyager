@@ -112,27 +112,27 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 		want    []schemadiff.ObjectType
 	}{
 		{
-			name:    "exclude TABLE leaves COLUMN and CONSTRAINT",
+			name:    "exclude TABLE leaves COLUMN, CONSTRAINT and INDEX",
 			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 		{
-			name:    "exclude COLUMN leaves TABLE and CONSTRAINT",
+			name:    "exclude COLUMN leaves TABLE, CONSTRAINT and INDEX",
 			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeColumn},
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeConstraint},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 		{
 			// detectDrift rejects this with an error rather than
 			// forwarding it to schemadiff.Scope, which keeps nothing for an empty
 			// dimension -- the run would compare nothing and report it as clean.
 			name:    "exclude all yields empty",
-			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
+			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 			want:    nil,
 		},
 		{
 			name:    "exclude none keeps all, in universe order",
 			exclude: nil,
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 	}
 
@@ -202,9 +202,9 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "TABLE,COLUMN,CONSTRAINT parses all",
-			raw:  "TABLE,COLUMN,CONSTRAINT",
-			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint},
+			name: "TABLE,COLUMN,CONSTRAINT,INDEX parses all",
+			raw:  "TABLE,COLUMN,CONSTRAINT,INDEX",
+			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 		{
 			name: "single lowercase type is case-insensitive",
@@ -227,13 +227,13 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "old export-schema vocabulary (INDEX) is no longer supported",
-			raw:     "INDEX",
+			name:    "old export-schema vocabulary (VIEW) is no longer supported",
+			raw:     "VIEW",
 			wantErr: true,
 		},
 		{
 			name:    "one bad type among good ones still errors",
-			raw:     "TABLE,INDEX",
+			raw:     "TABLE,VIEW",
 			wantErr: true,
 		},
 	}

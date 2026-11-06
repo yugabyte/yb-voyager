@@ -454,8 +454,8 @@ func kindLabel(diffType schemadiff.DiffType) string {
 }
 
 // objectPath splits an object identity into the muted qualifier (q) and the
-// highlighted subject (s). A COLUMN or CONSTRAINT finding qualifies down to the
-// column or constraint, a table-level one to the table.
+// highlighted subject (s). A COLUMN, CONSTRAINT or INDEX finding qualifies down to
+// the column, constraint or index, a table-level one to the table.
 //
 // Every part is minimally quoted, so a special identifier renders as valid SQL
 // (sales."MixedCase", not the ambiguous sales.MixedCase). q+s equals ForDisplay.
@@ -463,7 +463,8 @@ func objectPath(d DriftEntry, dbType string) (q, s string, err error) {
 	if d.Object.Schema == "" || d.Object.Name == "" {
 		return "", "", goerrors.Errorf("object identity %+v has an empty schema or name", d.Object)
 	}
-	if d.ObjectType == schemadiff.ObjectTypeColumn || d.ObjectType == schemadiff.ObjectTypeConstraint {
+	switch d.ObjectType {
+	case schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex:
 		if d.SubObject == "" {
 			return "", "", goerrors.Errorf("%s finding on %s has no object name", d.ObjectType, d.Object.ForDisplay(dbType))
 		}

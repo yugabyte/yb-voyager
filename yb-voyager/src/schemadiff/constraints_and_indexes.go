@@ -29,6 +29,9 @@ var (
 	uniqueTypes     = kindTypes{UniqueAdded, UniqueDropped, UniqueNameChanged, ObjectTypeConstraint}
 	checkTypes      = kindTypes{CheckAdded, CheckDropped, CheckNameChanged, ObjectTypeConstraint}
 	foreignKeyTypes = kindTypes{ForeignKeyAdded, ForeignKeyDropped, ForeignKeyNameChanged, ObjectTypeConstraint}
+
+	uniqueIndexTypes = kindTypes{UniqueIndexAdded, UniqueIndexDropped, UniqueIndexNameChanged, ObjectTypeIndex}
+	indexTypes       = kindTypes{IndexAdded, IndexDropped, IndexNameChanged, ObjectTypeIndex}
 )
 
 // objectRef is what the diff reads of a constraint or index; generic code cannot
@@ -42,6 +45,10 @@ type objectRef struct {
 
 func constraintRef(c schemasnapshot.Constraint) objectRef {
 	return objectRef{ID: c.ID, Ref: c.TableScopedObjectRef, Definition: c.Definition, FromParent: c.FromParent}
+}
+
+func indexRef(i schemasnapshot.Index) objectRef {
+	return objectRef{ID: i.ID, Ref: i.TableScopedObjectRef, Definition: i.Definition, FromParent: i.FromParent}
 }
 
 func primaryKeyAsSlice(key *schemasnapshot.Constraint) []schemasnapshot.Constraint {

@@ -111,6 +111,12 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.ForeignKeyAdded:               {adv, adv, adv, adv},
 		schemadiff.ForeignKeyDropped:             {pot, pot, pot, pot},
 		schemadiff.ForeignKeyNameChanged:         {adv, adv, adv, adv},
+		schemadiff.UniqueIndexAdded:              {adv, adv, pot, pot},
+		schemadiff.UniqueIndexDropped:            {rec, pot, rec, rec},
+		schemadiff.UniqueIndexNameChanged:        {adv, adv, adv, adv},
+		schemadiff.IndexAdded:                    {adv, adv, adv, adv},
+		schemadiff.IndexDropped:                  {adv, adv, adv, adv},
+		schemadiff.IndexNameChanged:              {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -144,10 +150,11 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 
 func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	sentences := map[schemadiff.DiffType]string{
-		schemadiff.ColumnDropped:   "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
-		schemadiff.UniqueAdded:     uniqueAddedFallBackRisk,
-		schemadiff.CheckAdded:      "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
-		schemadiff.ForeignKeyAdded: "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
+		schemadiff.ColumnDropped:    "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+		schemadiff.UniqueAdded:      uniqueAddedFallBackRisk,
+		schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+		schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
+		schemadiff.UniqueIndexAdded: uniqueAddedFallBackRisk,
 	}
 	// A type without a sentence must read the same with and without fall-back, so new
 	// fall-back text on it fails here whatever its wording.
@@ -161,6 +168,42 @@ func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 			want += " " + sentence
 		}
 		assert.Equal(t, want, withFallBack.Impact, string(diffType))
+	}
+}
+
+// A rebuilt unique key or index reads as a drop plus an add, so the drop's Action must not
+// tell the user to drop it unconditionally, and each kind names only the rebuilds it can have.
+func TestGetDriftInfo_UniqueDropKeepsItWhenRebuilt(t *testing.T) {
+	for _, diffType := range []schemadiff.DiffType{schemadiff.UniqueDropped, schemadiff.UniqueIndexDropped} {
+		for _, timing := range []Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+			info, err := getDriftInfo(diffType, situation{Timing: timing})
+			require.NoError(t, err)
+			assert.True(t, strings.HasPrefix(info.Action, "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it"), "%s / %s: %s", diffType, timing, info.Action)
+			assert.Contains(t, info.Impact, "a column type change", "%s / %s", diffType, timing)
+			isIndex := diffType == schemadiff.UniqueIndexDropped
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "REINDEX CONCURRENTLY"), "%s / %s", diffType, timing)
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "USING INDEX"), "%s / %s", diffType, timing)
+		}
+	}
+	for _, diffType := range []schemadiff.DiffType{schemadiff.UniqueAdded, schemadiff.UniqueIndexAdded} {
+		for _, timing := range []Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+			info, err := getDriftInfo(diffType, situation{Timing: timing})
+			require.NoError(t, err)
+			assert.Contains(t, info.Impact, uniqueAddedRebuiltHint, "%s / %s", diffType, timing)
+		}
+	}
+}
+
+// A unique index on an expression or a stored generated column forces in-order apply only
+// from import data's first run, so live never tells the user to add one and restart.
+func TestGetDriftInfo_UniqueIndexAddedLiveDefersUnorderableKeys(t *testing.T) {
+	for _, timing := range []Timing{TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+		info, err := getDriftInfo(schemadiff.UniqueIndexAdded, situation{Timing: timing})
+		require.NoError(t, err)
+		assert.Equal(t, SeverityPotentialImpact, info.Severity, string(timing))
+		assert.Contains(t, info.Impact, "If the index is on an expression, such as `lower(email)`, or covers a stored generated column, adding it on the target before cutover can stop `import data`", string(timing))
+		assert.Contains(t, info.Action, "If it is on plain columns and covers no stored generated column, add it now", string(timing))
+		assert.Contains(t, info.Action, "If it is on an expression or covers a stored generated column, add it only after cutover", string(timing))
 	}
 }
 
