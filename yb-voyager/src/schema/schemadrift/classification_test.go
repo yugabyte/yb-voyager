@@ -171,6 +171,17 @@ func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
 	}
 }
 
+func TestGetDriftInfo_FallForwardSentenceOnEveryTypeButPartitionChildren(t *testing.T) {
+	for _, diffType := range schemadiff.AllDiffTypes() {
+		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallForwardPossible: true})
+		require.NoError(t, err)
+		assert.Equal(t, diffType != schemadiff.TablePartitionChildrenChanged, strings.HasSuffix(info.Action, " "+fallForwardAction), string(diffType))
+	}
+	info, err := getDriftInfo(schemadiff.ColumnAdded, situation{Timing: TimingLiveAfterExportStart})
+	require.NoError(t, err)
+	assert.Equal(t, infoByDiffType[schemadiff.ColumnAdded][TimingLiveAfterExportStart].Action, info.Action)
+}
+
 // A rebuilt unique key or index reads as a drop plus an add, so the drop's Action must not
 // tell the user to drop it unconditionally, and each kind names only the rebuilds it can have.
 func TestGetDriftInfo_UniqueDropKeepsItWhenRebuilt(t *testing.T) {
@@ -287,6 +298,10 @@ func TestGetDriftInfo_ResolvesPerTiming(t *testing.T) {
 		info.Impact += " fall-back risk."
 		return info
 	}
+	withFallForward := func(info DriftInfo) DriftInfo {
+		info.Action += " " + fallForwardAction
+		return info
+	}
 	wantAfterCutover := DriftInfo{
 		Severity: SeverityAdvisory,
 		Impact:   "This change was made after cutover to target. Data already migrated to the target is not affected.",
@@ -304,6 +319,8 @@ func TestGetDriftInfo_ResolvesPerTiming(t *testing.T) {
 		{"the fall-back sentence is appended before export data too", situation{Timing: TimingBeforeExportData, FallBackPossible: true}, withRisk(beforeInfo)},
 		{"after cutover is the same advisory for every type, with no action", situation{Timing: TimingAfterCutover}, wantAfterCutover},
 		{"after cutover never carries the fall-back sentence", situation{Timing: TimingAfterCutover, FallBackPossible: true}, wantAfterCutover},
+		{"the fall-forward sentence is appended to Action while fall-forward is in use", situation{Timing: TimingLiveAfterExportStart, FallForwardPossible: true}, withFallForward(liveInfo)},
+		{"after cutover never carries the fall-forward sentence", situation{Timing: TimingAfterCutover, FallForwardPossible: true}, wantAfterCutover},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

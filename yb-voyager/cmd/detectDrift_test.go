@@ -939,8 +939,9 @@ func TestDriftMigrationInfoFrom(t *testing.T) {
 	msr := &metadb.MigrationStatusRecord{
 		ExportTypeFromSource: SNAPSHOT_AND_CHANGES,
 		CutoverTimings:       metadb.CutoverTimingRecord{ToTargetRequestedAt: requestedAt},
+		FallForwardEnabled:   true,
 	}
-	assert.Equal(t, schemadrift.MigrationInfo{ExportType: SNAPSHOT_AND_CHANGES, CutoverRequestedAt: requestedAt}, driftMigrationInfoFrom(msr))
+	assert.Equal(t, schemadrift.MigrationInfo{ExportType: SNAPSHOT_AND_CHANGES, CutoverRequestedAt: requestedAt, FallForwardEnabled: true}, driftMigrationInfoFrom(msr))
 	assert.Equal(t, schemadrift.MigrationInfo{}, driftMigrationInfoFrom(&metadb.MigrationStatusRecord{}))
 }
 
