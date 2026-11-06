@@ -15,9 +15,8 @@
 package schemadiff
 
 // DiffType is a string-typed enumeration of the kinds of schema changes that
-// can be detected between two snapshots. Only the V1-emitted set is declared
-// here: table-level and column-level findings produced by diffTables and
-// diffColumns respectively.
+// can be detected between two snapshots. Only the types the diff engine emits
+// are declared here.
 type DiffType string
 
 const (
@@ -43,6 +42,28 @@ const (
 	ColumnNotNullSet     DiffType = "COLUMN_NOT_NULL_SET"
 	ColumnNotNullDropped DiffType = "COLUMN_NOT_NULL_DROPPED"
 	ColumnDefaultChanged DiffType = "COLUMN_DEFAULT_CHANGED"
+
+	// Key findings.
+	PrimaryKeyAdded       DiffType = "PRIMARY_KEY_ADDED"
+	PrimaryKeyDropped     DiffType = "PRIMARY_KEY_DROPPED"
+	PrimaryKeyNameChanged DiffType = "PRIMARY_KEY_NAME_CHANGED"
+	UniqueAdded           DiffType = "UNIQUE_ADDED"
+	UniqueDropped         DiffType = "UNIQUE_DROPPED"
+	UniqueNameChanged     DiffType = "UNIQUE_NAME_CHANGED"
+	CheckAdded            DiffType = "CHECK_ADDED"
+	CheckDropped          DiffType = "CHECK_DROPPED"
+	CheckNameChanged      DiffType = "CHECK_NAME_CHANGED"
+	ForeignKeyAdded       DiffType = "FOREIGN_KEY_ADDED"
+	ForeignKeyDropped     DiffType = "FOREIGN_KEY_DROPPED"
+	ForeignKeyNameChanged DiffType = "FOREIGN_KEY_NAME_CHANGED"
+
+	// Index findings.
+	UniqueIndexAdded       DiffType = "UNIQUE_INDEX_ADDED"
+	UniqueIndexDropped     DiffType = "UNIQUE_INDEX_DROPPED"
+	UniqueIndexNameChanged DiffType = "UNIQUE_INDEX_NAME_CHANGED"
+	IndexAdded             DiffType = "INDEX_ADDED"
+	IndexDropped           DiffType = "INDEX_DROPPED"
+	IndexNameChanged       DiffType = "INDEX_NAME_CHANGED"
 )
 
 // AllDiffTypes returns every DiffType the engine can emit, so consumers keyed by
@@ -54,6 +75,12 @@ func AllDiffTypes() []DiffType {
 		TableInheritAdded, TableInheritRemoved, TableInheritedByAdded, TableInheritedByRemoved,
 		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
 		ColumnNotNullSet, ColumnNotNullDropped, ColumnDefaultChanged,
+		PrimaryKeyAdded, PrimaryKeyDropped, PrimaryKeyNameChanged,
+		UniqueAdded, UniqueDropped, UniqueNameChanged,
+		CheckAdded, CheckDropped, CheckNameChanged,
+		ForeignKeyAdded, ForeignKeyDropped, ForeignKeyNameChanged,
+		UniqueIndexAdded, UniqueIndexDropped, UniqueIndexNameChanged,
+		IndexAdded, IndexDropped, IndexNameChanged,
 	}
 }
 
@@ -74,9 +101,9 @@ const (
 // ObjectType is the honest object type of the changed object and the user-facing
 // selector matched by --object-type-list. It is the decomposed noun of Type
 // (e.g. COLUMN_TYPE_CHANGED → ObjectTypeColumn), a first-class facet alongside
-// Operation and Attribute. v1 emits and filters TABLE and COLUMN findings, so both
-// are declared; the remaining selectors are re-enabled as the engine starts
-// emitting their findings.
+// Operation and Attribute. Only the object types the engine emits are declared;
+// the remaining selectors are re-enabled as the engine starts emitting their
+// findings.
 //
 // COLUMN is its own selector: a column change is filtered directly by
 // --object-type-list=COLUMN (it is NOT swept in under TABLE). Table-scoping is
@@ -86,10 +113,13 @@ type ObjectType string
 const (
 	ObjectTypeTable  ObjectType = "TABLE"
 	ObjectTypeColumn ObjectType = "COLUMN"
-	// Not yet emitted by the diff engine — uncomment each as its findings land
-	// (INDEX is its own selector but stays anchored to its host table for
-	// --table-list, like COLUMN):
-	// ObjectTypeIndex    ObjectType = "INDEX"
+	// ObjectTypeConstraint covers primary key, unique, check and foreign key
+	// constraints. Like COLUMN, it anchors to its host table for --table-list.
+	ObjectTypeConstraint ObjectType = "CONSTRAINT"
+	// ObjectTypeIndex is its own selector but stays anchored to its host table for
+	// --table-list, like COLUMN.
+	ObjectTypeIndex ObjectType = "INDEX"
+	// Not yet emitted by the diff engine — uncomment each as its findings land:
 	// ObjectTypeSequence ObjectType = "SEQUENCE"
 	// ObjectTypeView     ObjectType = "VIEW"
 	// ObjectTypeFunction ObjectType = "FUNCTION"

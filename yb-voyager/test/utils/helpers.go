@@ -10,7 +10,8 @@ func isSourceCmd(cmdName string) bool {
 }
 
 func isTargetCmd(cmdName string) bool {
-	return cmdName == "import schema" || cmdName == "import data" || cmdName == "import data file"
+	return cmdName == "import schema" || cmdName == "import data" || cmdName == "import data file" ||
+		cmdName == "finalize-schema-post-data-import"
 }
 
 // check if sqlname tuple slice contains a tuple

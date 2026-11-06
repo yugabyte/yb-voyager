@@ -99,6 +99,24 @@ func TestGetDriftInfo_SeverityPerTiming(t *testing.T) {
 		schemadiff.TableInheritRemoved:           {adv, adv, adv, adv},
 		schemadiff.TableInheritedByAdded:         {rec, pot, unr, unr},
 		schemadiff.TableInheritedByRemoved:       {adv, adv, adv, adv},
+		schemadiff.PrimaryKeyAdded:               {rec, adv, adv, adv},
+		schemadiff.PrimaryKeyDropped:             {rec, pot, unr, unr},
+		schemadiff.PrimaryKeyNameChanged:         {adv, adv, adv, adv},
+		schemadiff.UniqueAdded:                   {adv, adv, adv, adv},
+		schemadiff.UniqueDropped:                 {rec, pot, rec, rec},
+		schemadiff.UniqueNameChanged:             {adv, adv, adv, adv},
+		schemadiff.CheckAdded:                    {adv, adv, adv, adv},
+		schemadiff.CheckDropped:                  {rec, pot, rec, rec},
+		schemadiff.CheckNameChanged:              {adv, adv, adv, adv},
+		schemadiff.ForeignKeyAdded:               {adv, adv, adv, adv},
+		schemadiff.ForeignKeyDropped:             {pot, pot, pot, pot},
+		schemadiff.ForeignKeyNameChanged:         {adv, adv, adv, adv},
+		schemadiff.UniqueIndexAdded:              {adv, adv, pot, pot},
+		schemadiff.UniqueIndexDropped:            {rec, pot, rec, rec},
+		schemadiff.UniqueIndexNameChanged:        {adv, adv, adv, adv},
+		schemadiff.IndexAdded:                    {adv, adv, adv, adv},
+		schemadiff.IndexDropped:                  {adv, adv, adv, adv},
+		schemadiff.IndexNameChanged:              {adv, adv, adv, adv},
 	}
 	require.ElementsMatch(t, schemadiff.AllDiffTypes(), lo.Keys(want))
 
@@ -130,16 +148,121 @@ func TestGetDriftInfo_SplitTypesHaveTheirOwnText(t *testing.T) {
 	}
 }
 
-func TestGetDriftInfo_FallBackSentenceOnlyOnColumnDropped(t *testing.T) {
-	const sentence = "If you cut over with fall-back, `import data to source` stops at the first insert on this table"
-	for _, diffType := range schemadiff.AllDiffTypes() {
-		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
-		require.NoError(t, err)
-		assert.Equal(t, diffType == schemadiff.ColumnDropped, strings.Contains(info.Impact, sentence), string(diffType))
+func TestGetDriftInfo_FallBackSentenceOnlyOnItsTypes(t *testing.T) {
+	sentences := map[schemadiff.DiffType]string{
+		schemadiff.ColumnDropped:    "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+		schemadiff.UniqueAdded:      uniqueAddedFallBackRisk,
+		schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+		schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
+		schemadiff.UniqueIndexAdded: uniqueAddedFallBackRisk,
 	}
-	info, err := getDriftInfo(schemadiff.ColumnDropped, situation{Timing: TimingLiveAfterExportStart})
+	// A type without a sentence must read the same with and without fall-back, so new
+	// fall-back text on it fails here whatever its wording.
+	for _, diffType := range schemadiff.AllDiffTypes() {
+		withFallBack, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallBackPossible: true})
+		require.NoError(t, err)
+		withoutFallBack, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart})
+		require.NoError(t, err)
+		want := withoutFallBack.Impact
+		if sentence, ok := sentences[diffType]; ok {
+			want += " " + sentence
+		}
+		assert.Equal(t, want, withFallBack.Impact, string(diffType))
+	}
+}
+
+func TestGetDriftInfo_FallForwardSentenceOnEveryTypeButPartitionChildren(t *testing.T) {
+	for _, diffType := range schemadiff.AllDiffTypes() {
+		info, err := getDriftInfo(diffType, situation{Timing: TimingLiveAfterExportStart, FallForwardPossible: true})
+		require.NoError(t, err)
+		assert.Equal(t, diffType != schemadiff.TablePartitionChildrenChanged, strings.HasSuffix(info.Action, " "+fallForwardAction), string(diffType))
+	}
+	info, err := getDriftInfo(schemadiff.ColumnAdded, situation{Timing: TimingLiveAfterExportStart})
 	require.NoError(t, err)
-	assert.NotContains(t, info.Impact, "fall-back")
+	assert.Equal(t, infoByDiffType[schemadiff.ColumnAdded][TimingLiveAfterExportStart].Action, info.Action)
+}
+
+// A rebuilt unique key or index reads as a drop plus an add, so the drop's Action must not
+// tell the user to drop it unconditionally, and each kind names only the rebuilds it can have.
+func TestGetDriftInfo_UniqueDropKeepsItWhenRebuilt(t *testing.T) {
+	for _, diffType := range []schemadiff.DiffType{schemadiff.UniqueDropped, schemadiff.UniqueIndexDropped} {
+		for _, timing := range []Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+			info, err := getDriftInfo(diffType, situation{Timing: timing})
+			require.NoError(t, err)
+			assert.True(t, strings.HasPrefix(info.Action, "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it"), "%s / %s: %s", diffType, timing, info.Action)
+			assert.Contains(t, info.Impact, "a column type change", "%s / %s", diffType, timing)
+			isIndex := diffType == schemadiff.UniqueIndexDropped
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "REINDEX CONCURRENTLY"), "%s / %s", diffType, timing)
+			assert.Equal(t, isIndex, strings.Contains(info.Impact, "USING INDEX"), "%s / %s", diffType, timing)
+		}
+	}
+	for _, diffType := range []schemadiff.DiffType{schemadiff.UniqueAdded, schemadiff.UniqueIndexAdded} {
+		for _, timing := range []Timing{TimingBeforeExportData, TimingOfflineAfterExportStart, TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+			info, err := getDriftInfo(diffType, situation{Timing: timing})
+			require.NoError(t, err)
+			assert.Contains(t, info.Impact, uniqueAddedRebuiltHint, "%s / %s", diffType, timing)
+		}
+	}
+}
+
+// A unique index on an expression or a stored generated column forces in-order apply only
+// from import data's first run, so live never tells the user to add one and restart.
+func TestGetDriftInfo_UniqueIndexAddedLiveDefersUnorderableKeys(t *testing.T) {
+	for _, timing := range []Timing{TimingLiveAfterExportStart, TimingChangesOnlyAfterExportStart} {
+		info, err := getDriftInfo(schemadiff.UniqueIndexAdded, situation{Timing: timing})
+		require.NoError(t, err)
+		assert.Equal(t, SeverityPotentialImpact, info.Severity, string(timing))
+		assert.Contains(t, info.Impact, "If the index is on an expression, such as `lower(email)`, or covers a stored generated column, adding it on the target before cutover can stop `import data`", string(timing))
+		assert.Contains(t, info.Action, "If it is on plain columns and covers no stored generated column, add it now", string(timing))
+		assert.Contains(t, info.Action, "If it is on an expression or covers a stored generated column, add it only after cutover", string(timing))
+	}
+}
+
+// Offline import data replays no deletes or updates, so the key's ON DELETE or ON UPDATE
+// action is mentioned only for live, and before export data only scoped to live.
+func TestGetDriftInfo_ForeignKeyDroppedActionOnlyWhenChangesReplay(t *testing.T) {
+	type want struct{ impact, action string }
+	liveOnly := want{
+		impact: "In a live migration, a delete or update of a parent row",
+		action: "In a live migration, restore from the source",
+	}
+	live := want{
+		impact: "A delete or update of a parent row",
+		action: "Restore from the source",
+	}
+	for timing, w := range map[Timing]want{
+		TimingBeforeExportData:            liveOnly,
+		TimingOfflineAfterExportStart:     {},
+		TimingLiveAfterExportStart:        live,
+		TimingChangesOnlyAfterExportStart: live,
+	} {
+		info, err := getDriftInfo(schemadiff.ForeignKeyDropped, situation{Timing: timing})
+		require.NoError(t, err)
+		if w == (want{}) {
+			assert.NotContains(t, info.Impact, "`CASCADE`", "%s Impact", timing)
+			assert.NotContains(t, strings.ToLower(info.Action), "restore from the source", "%s Action", timing)
+			continue
+		}
+		assert.Contains(t, info.Impact, w.impact, "%s Impact", timing)
+		assert.Contains(t, info.Action, w.action, "%s Action", timing)
+	}
+}
+
+// Only a streaming import data reads the target's unique keys, so only the timings that
+// can be live tell the user to restart it, and they carve out stored generated columns.
+func TestGetDriftInfo_UniqueAddedRestartOnlyWhenLive(t *testing.T) {
+	for timing, wantRestart := range map[Timing]bool{
+		TimingBeforeExportData:            false,
+		TimingOfflineAfterExportStart:     false,
+		TimingLiveAfterExportStart:        true,
+		TimingChangesOnlyAfterExportStart: true,
+	} {
+		info, err := getDriftInfo(schemadiff.UniqueAdded, situation{Timing: timing})
+		require.NoError(t, err)
+		assert.Equal(t, SeverityAdvisory, info.Severity, string(timing))
+		assert.Equal(t, wantRestart, strings.Contains(info.Action, "restart it afterwards"), string(timing))
+		assert.Equal(t, wantRestart, strings.Contains(info.Action, "If it covers a stored generated column, add it on the target only after cutover"), string(timing))
+	}
 }
 
 func TestGetDriftInfo_ChangesOnlyStartsANewMigration(t *testing.T) {
@@ -175,6 +298,10 @@ func TestGetDriftInfo_ResolvesPerTiming(t *testing.T) {
 		info.Impact += " fall-back risk."
 		return info
 	}
+	withFallForward := func(info DriftInfo) DriftInfo {
+		info.Action += " " + fallForwardAction
+		return info
+	}
 	wantAfterCutover := DriftInfo{
 		Severity: SeverityAdvisory,
 		Impact:   "This change was made after cutover to target. Data already migrated to the target is not affected.",
@@ -192,6 +319,8 @@ func TestGetDriftInfo_ResolvesPerTiming(t *testing.T) {
 		{"the fall-back sentence is appended before export data too", situation{Timing: TimingBeforeExportData, FallBackPossible: true}, withRisk(beforeInfo)},
 		{"after cutover is the same advisory for every type, with no action", situation{Timing: TimingAfterCutover}, wantAfterCutover},
 		{"after cutover never carries the fall-back sentence", situation{Timing: TimingAfterCutover, FallBackPossible: true}, wantAfterCutover},
+		{"the fall-forward sentence is appended to Action while fall-forward is in use", situation{Timing: TimingLiveAfterExportStart, FallForwardPossible: true}, withFallForward(liveInfo)},
+		{"after cutover never carries the fall-forward sentence", situation{Timing: TimingAfterCutover, FallForwardPossible: true}, wantAfterCutover},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

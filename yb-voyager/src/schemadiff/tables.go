@@ -33,8 +33,9 @@ func diffTables(a, b *schemasnapshot.SnapshotContent) []Difference {
 	keyA, keyB := chooseMatchKeys(a.DatabaseType, b.DatabaseType,
 		idOfTable, schemasnapshot.Table.ForKey)
 
+	compareKeys := a.Version >= schemasnapshot.VersionWithKeysAndIndexes && b.Version >= schemasnapshot.VersionWithKeysAndIndexes
 	return matchByKey(a.Tables, b.Tables, keyA, keyB,
-		compareMatchedTables(a.DatabaseType, b.DatabaseType, linkKeyFunc(a, keyA), linkKeyFunc(b, keyB)),
+		compareMatchedTables(a.DatabaseType, b.DatabaseType, compareKeys, linkKeyFunc(a, keyA), linkKeyFunc(b, keyB)),
 		emitTableDropped, emitTableAdded)
 }
 
@@ -74,7 +75,9 @@ func emitTableAdded(t schemasnapshot.Table) []Difference {
 // compareMatchedTables returns the matchByKey onMatch callback for tables: it
 // emits the table's field-level differences and then diffs its nested columns.
 // dbTypeA/dbTypeB select ID- vs name-based column matching (see diffColumnsIn).
-func compareMatchedTables(dbTypeA, dbTypeB string, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string) func(tA, tB schemasnapshot.Table) []Difference {
+// compareKeys is false when either snapshot predates keys and indexes, so a table
+// without captured keys is not read as one that lost them.
+func compareMatchedTables(dbTypeA, dbTypeB string, compareKeys bool, linkKeyA, linkKeyB func(schemasnapshot.ObjectRef) string) func(tA, tB schemasnapshot.Table) []Difference {
 	return func(tA, tB schemasnapshot.Table) []Difference {
 		var diffs []Difference
 
@@ -107,6 +110,15 @@ func compareMatchedTables(dbTypeA, dbTypeB string, linkKeyA, linkKeyB func(schem
 		diffs = append(diffs, diffLinkSet(tA, tB, tA.InheritedBy, tB.InheritedBy, linkKeyA, linkKeyB, TableInheritedByAdded, TableInheritedByRemoved, AttrInheritedBy)...)
 
 		diffs = append(diffs, diffColumnsIn(tA.Columns, tB.Columns, dbTypeA, dbTypeB)...)
+
+		if compareKeys {
+			diffs = append(diffs, diffConstraintsOrIndexes(primaryKeyAsSlice(tA.PrimaryKey), primaryKeyAsSlice(tB.PrimaryKey), constraintRef, primaryKeyTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.UniqueKeys, tB.UniqueKeys, constraintRef, uniqueTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.Checks, tB.Checks, constraintRef, checkTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.ForeignKeys, tB.ForeignKeys, constraintRef, foreignKeyTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.UniqueIndexes, tB.UniqueIndexes, indexRef, uniqueIndexTypes)...)
+			diffs = append(diffs, diffConstraintsOrIndexes(tA.Indexes, tB.Indexes, indexRef, indexTypes)...)
+		}
 
 		return diffs
 	}
@@ -198,7 +210,8 @@ func cloneColumns(cols []schemasnapshot.Column) []schemasnapshot.Column {
 // so a TABLE_ADDED/TABLE_DROPPED finding carrying the whole Table never shares
 // backing storage with the input snapshot. t is received by value, so the scalar
 // and embedded ObjectRef fields are already copied; only the reference-typed
-// fields (Columns, the ObjectRef link slices, and the PartitionParent pointer)
+// fields (Columns, the ObjectRef link slices, the key, check and index slices, and the
+// PartitionParent and PrimaryKey pointers)
 // need decoupling. Without this, a consumer mutating the finding's Table would
 // write through into the source snapshot.
 func cloneTable(t schemasnapshot.Table) schemasnapshot.Table {
@@ -210,5 +223,14 @@ func cloneTable(t schemasnapshot.Table) schemasnapshot.Table {
 		parent := *t.PartitionParent
 		t.PartitionParent = &parent
 	}
+	if t.PrimaryKey != nil {
+		primaryKey := *t.PrimaryKey
+		t.PrimaryKey = &primaryKey
+	}
+	t.UniqueKeys = slices.Clone(t.UniqueKeys)
+	t.UniqueIndexes = slices.Clone(t.UniqueIndexes)
+	t.Checks = slices.Clone(t.Checks)
+	t.ForeignKeys = slices.Clone(t.ForeignKeys)
+	t.Indexes = slices.Clone(t.Indexes)
 	return t
 }

@@ -187,6 +187,16 @@ func TestCloneColumns_Independence(t *testing.T) {
 	newTbl := makeTable("42", "public", "users", schemasnapshot.TableKindOrdinary)
 	col1 := makeColumn("public", "users", "42:1", "id", "integer")
 	newTbl.Columns = []schemasnapshot.Column{col1}
+	tableRef := newTbl.ObjectRef
+	scoped := func(name string) schemasnapshot.TableScopedObjectRef {
+		return schemasnapshot.TableScopedObjectRef{Table: tableRef, Name: name}
+	}
+	newTbl.PrimaryKey = &schemasnapshot.Constraint{TableScopedObjectRef: scoped("users_pkey"), ID: "1"}
+	newTbl.UniqueKeys = []schemasnapshot.Constraint{{TableScopedObjectRef: scoped("uk"), ID: "2"}}
+	newTbl.Checks = []schemasnapshot.Constraint{{TableScopedObjectRef: scoped("ck"), ID: "3"}}
+	newTbl.ForeignKeys = []schemasnapshot.Constraint{{TableScopedObjectRef: scoped("fk"), ID: "4"}}
+	newTbl.UniqueIndexes = []schemasnapshot.Index{{TableScopedObjectRef: scoped("uidx"), ID: "5"}}
+	newTbl.Indexes = []schemasnapshot.Index{{TableScopedObjectRef: scoped("idx"), ID: "6"}}
 
 	a := snapWithTables()
 	b := snapWithTables(newTbl)
@@ -203,6 +213,22 @@ func TestCloneColumns_Independence(t *testing.T) {
 	cols[0].Name = "mutated"
 	if b.Tables[0].Columns[0].Name != "id" {
 		t.Errorf("mutating the returned column slice must not affect the source snapshot; source became %v", b.Tables[0].Columns[0].Name)
+	}
+
+	tbl.PrimaryKey.Name = "mutated"
+	tbl.UniqueKeys[0].Name = "mutated"
+	tbl.Checks[0].Name = "mutated"
+	tbl.ForeignKeys[0].Name = "mutated"
+	tbl.UniqueIndexes[0].Name = "mutated"
+	tbl.Indexes[0].Name = "mutated"
+	src := b.Tables[0]
+	names := []string{src.PrimaryKey.Name, src.UniqueKeys[0].Name, src.Checks[0].Name,
+		src.ForeignKeys[0].Name, src.UniqueIndexes[0].Name, src.Indexes[0].Name}
+	wantNames := []string{"users_pkey", "uk", "ck", "fk", "uidx", "idx"}
+	for i := range wantNames {
+		if names[i] != wantNames[i] {
+			t.Errorf("mutating the returned key/index data must not affect the source snapshot; entry %d became %q, want %q", i, names[i], wantNames[i])
+		}
 	}
 }
 

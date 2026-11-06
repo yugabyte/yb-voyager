@@ -177,7 +177,6 @@ const (
 	UNLOGGED_TABLE_DOC_LINK                       = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unlogged-table-is-not-supported"
 	XID_DATATYPE_DOC_LINK                         = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported"
 	UNSUPPORTED_DATATYPES_DOC_LINK                = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-voyager-during-live-migration"
 	// temporary, till unsupported datatype documentation is shifted to known issues for Oracle
 	UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE = "https://docs.yugabyte.com/preview/yugabyte-voyager/reference/datatype-mapping-oracle"
 )
@@ -236,14 +235,10 @@ const (
 	// Migration caveats
 
 	//POSTGRESQL
-	ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE                           = "Alter partitioned tables to add Primary Key"
-	FOREIGN_TABLE_CAVEAT_FEATURE                                    = "Foreign tables"
-	POLICIES_CAVEAT_FEATURE                                         = "Policies"
-	INHERITANCE_CAVEAT_FEATURE                                      = "Table inheritance"
-	UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE                       = "Unsupported Data Types for Live Migration"
-	UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE            = "Unsupported Data Types for Live Migration with Fall-forward/Fallback"
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
+	ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE = "Alter partitioned tables to add Primary Key"
+	FOREIGN_TABLE_CAVEAT_FEATURE          = "Foreign tables"
+	POLICIES_CAVEAT_FEATURE               = "Policies"
+	INHERITANCE_CAVEAT_FEATURE            = "Table inheritance"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

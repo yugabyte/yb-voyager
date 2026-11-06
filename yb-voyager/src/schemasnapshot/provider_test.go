@@ -38,19 +38,24 @@ func TestNewProviderUnknownTypeFromCapture(t *testing.T) {
 }
 
 // setupSuccessfulPGMock registers the minimal pg_catalog expectations for one
-// round of TakeSnapshot: server_version, pg_class (empty), pg_inherits (empty),
-// pg_attribute (empty). Use this when testing Capture orchestration (header
+// round of TakeSnapshot: set_config(search_path), server_version, pg_class (empty), pg_inherits (empty),
+// pg_attribute, pg_constraint and pg_index (all empty). Use this when testing Capture orchestration (header
 // stamping, tx commit/rollback) rather than the loader logic itself.
 func setupSuccessfulPGMock(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SHOW server_version`).
-		WillReturnRows(sqlmock.NewRows([]string{"server_version"}).AddRow("16.4"))
+	expectEmptySearchPath(mock)
+	mock.ExpectQuery(`server_version_num`).
+		WillReturnRows(sqlmock.NewRows([]string{"current_setting", "current_setting"}).AddRow("16.4", 160004))
 	mock.ExpectQuery(`pg_class`).
 		WillReturnRows(sqlmock.NewRows([]string{"oid", "schema", "name", "relkind"}))
 	mock.ExpectQuery(`pg_inherits`).
 		WillReturnRows(sqlmock.NewRows([]string{"child_oid", "child_schema", "child_name", "parent_oid", "parent_schema", "parent_name", "is_partition"}))
 	mock.ExpectQuery(`pg_attribute`).
 		WillReturnRows(sqlmock.NewRows([]string{"table_oid", "attnum", "schema", "table_name", "col_name", "data_type", "not_null", "col_default"}))
+	mock.ExpectQuery(`pg_get_constraintdef`).
+		WillReturnRows(sqlmock.NewRows(constraintColumns))
+	mock.ExpectQuery(`pg_get_indexdef`).
+		WillReturnRows(sqlmock.NewRows(indexColumns))
 	mock.ExpectCommit()
 }
 
@@ -63,8 +68,9 @@ func TestCaptureRollbackOnSnapshotError(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectBegin()
+	expectEmptySearchPath(mock)
 	// Make detectDatabaseVersion fail — this causes TakeSnapshot to return an error.
-	mock.ExpectQuery(`SHOW server_version`).
+	mock.ExpectQuery(`server_version_num`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
@@ -108,7 +114,7 @@ func TestCaptureStampsHeaders(t *testing.T) {
 	require.NotNil(t, snap)
 
 	// Content fields stamped by Capture.
-	assert.Equal(t, 1, snap.Content.Version)
+	assert.Equal(t, currentSnapshotVersion, snap.Content.Version)
 	assert.Equal(t, constants.POSTGRESQL, snap.Content.DatabaseType)
 	assert.Equal(t, dbMeta, snap.Content.DBMetadata)
 
@@ -167,7 +173,8 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderTrue(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SHOW server_version`).
+	expectEmptySearchPath(mock)
+	mock.ExpectQuery(`server_version_num`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 
@@ -235,7 +242,8 @@ func TestCaptureAndSaveSnapshotFailurePlaceholderFalse(t *testing.T) {
 	defer db.Close()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SHOW server_version`).
+	expectEmptySearchPath(mock)
+	mock.ExpectQuery(`server_version_num`).
 		WillReturnError(fmt.Errorf("snapshot intentionally failed"))
 	mock.ExpectRollback()
 

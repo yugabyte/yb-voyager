@@ -68,16 +68,18 @@ var driftValidOutputFormats = []string{"html", "json"}
 
 // driftObjectTypesByName maps the --object-type-list vocabulary onto
 // schemadiff.ObjectType. Deliberately smaller than export/analyze-schema's
-// --object-type-list: the engine only emits TABLE and COLUMN findings in v1.
-// COLUMN is its own selector, not swept in under TABLE.
+// --object-type-list: the engine only emits TABLE, COLUMN, CONSTRAINT and INDEX findings.
+// COLUMN, CONSTRAINT and INDEX are their own selectors, not swept in under TABLE.
 var driftObjectTypesByName = map[string]schemadiff.ObjectType{
-	"TABLE":  schemadiff.ObjectTypeTable,
-	"COLUMN": schemadiff.ObjectTypeColumn,
+	"TABLE":      schemadiff.ObjectTypeTable,
+	"COLUMN":     schemadiff.ObjectTypeColumn,
+	"CONSTRAINT": schemadiff.ObjectTypeConstraint,
+	"INDEX":      schemadiff.ObjectTypeIndex,
 }
 
-// allDriftObjectTypes is the full v1 object-type universe, used to resolve
+// allDriftObjectTypes is the full object-type universe, used to resolve
 // --exclude-object-type-list into its complement (see complementDriftObjectTypes).
-var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn}
+var allDriftObjectTypes = []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex}
 
 var detectDriftCmd = &cobra.Command{
 	Use:   "detect-drift",
@@ -155,9 +157,9 @@ func init() {
 		"comma-separated list of the tables to exclude from comparison (glob patterns allowed). Only one of --table-list and --exclude-table-list can be specified.")
 
 	detectDriftCmd.Flags().StringVar(&driftObjectTypeList, "object-type-list", "",
-		"comma-separated list of object types to compare: (TABLE, COLUMN). Only one of --object-type-list and --exclude-object-type-list can be specified.")
+		"comma-separated list of object types to compare: (TABLE, COLUMN, CONSTRAINT, INDEX). Only one of --object-type-list and --exclude-object-type-list can be specified.")
 	detectDriftCmd.Flags().StringVar(&driftExcludeObjectTypeList, "exclude-object-type-list", "",
-		"comma-separated list of object types to exclude from comparison: (TABLE, COLUMN). Only one of --object-type-list and --exclude-object-type-list can be specified.")
+		"comma-separated list of object types to exclude from comparison: (TABLE, COLUMN, CONSTRAINT, INDEX). Only one of --object-type-list and --exclude-object-type-list can be specified.")
 }
 
 // resolveDetectDriftFlagDefaults fills in what the user did not pass and rewrites
@@ -255,7 +257,7 @@ func parseDriftObjectTypeList(raw string) ([]schemadiff.ObjectType, error) {
 		out = append(out, ot)
 	}
 	if len(invalid) > 0 {
-		return nil, goerrors.Errorf("unknown object type(s) %v; supported types: TABLE, COLUMN", invalid)
+		return nil, goerrors.Errorf("unknown object type(s) %v; supported types: TABLE, COLUMN, CONSTRAINT, INDEX", invalid)
 	}
 	return lo.Uniq(out), nil
 }
@@ -746,6 +748,7 @@ func driftMigrationInfoFrom(msr *metadb.MigrationStatusRecord) schemadrift.Migra
 	return schemadrift.MigrationInfo{
 		ExportType:         msr.ExportTypeFromSource,
 		CutoverRequestedAt: msr.CutoverTimings.ToTargetRequestedAt,
+		FallForwardEnabled: msr.FallForwardEnabled,
 	}
 }
 

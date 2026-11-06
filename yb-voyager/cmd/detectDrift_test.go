@@ -108,27 +108,27 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 		want    []schemadiff.ObjectType
 	}{
 		{
-			name:    "exclude TABLE leaves COLUMN",
+			name:    "exclude TABLE leaves COLUMN, CONSTRAINT and INDEX",
 			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeColumn},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 		{
-			name:    "exclude COLUMN leaves TABLE",
+			name:    "exclude COLUMN leaves TABLE, CONSTRAINT and INDEX",
 			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeColumn},
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 		{
 			// detectDrift rejects this with an error rather than
 			// forwarding it to schemadiff.Scope, which keeps nothing for an empty
 			// dimension -- the run would compare nothing and report it as clean.
-			name:    "exclude both yields empty",
-			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+			name:    "exclude all yields empty",
+			exclude: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 			want:    nil,
 		},
 		{
-			name:    "exclude none keeps both, in universe order",
+			name:    "exclude none keeps all, in universe order",
 			exclude: nil,
-			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+			want:    []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 	}
 
@@ -196,11 +196,11 @@ func TestValidateDetectDriftFlags(t *testing.T) {
 		{name: "bad output format", dbType: constants.POSTGRESQL, format: "xml",
 			wantErr: "invalid report output format: xml. Supported formats are [html json]"},
 		{name: "bad object type", dbType: constants.POSTGRESQL, objectTypes: "VIEW",
-			wantErr:   "invalid --object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN",
-			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN"},
+			wantErr:   "invalid --object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX",
+			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX"},
 		{name: "bad excluded object type", dbType: constants.POSTGRESQL, excludeObjectTypes: "VIEW",
-			wantErr:   "invalid --exclude-object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN",
-			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN"},
+			wantErr:   "invalid --exclude-object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX",
+			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX"},
 		{name: "valid flags store the parsed lists", dbType: constants.POSTGRESQL, format: "json", tables: "public.t",
 			objectTypes: "TABLE", wantObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable}},
 		{name: "valid exclude list", dbType: constants.POSTGRESQL, excludeObjectTypes: "COLUMN",
@@ -255,9 +255,9 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "TABLE,COLUMN parses both",
-			raw:  "TABLE,COLUMN",
-			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn},
+			name: "TABLE,COLUMN,CONSTRAINT,INDEX parses all",
+			raw:  "TABLE,COLUMN,CONSTRAINT,INDEX",
+			want: []schemadiff.ObjectType{schemadiff.ObjectTypeTable, schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex},
 		},
 		{
 			name: "single lowercase type is case-insensitive",
@@ -280,13 +280,13 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "old export-schema vocabulary (INDEX) is no longer supported",
-			raw:     "INDEX",
+			name:    "old export-schema vocabulary (VIEW) is no longer supported",
+			raw:     "VIEW",
 			wantErr: true,
 		},
 		{
 			name:    "one bad type among good ones still errors",
-			raw:     "TABLE,INDEX",
+			raw:     "TABLE,VIEW",
 			wantErr: true,
 		},
 	}
@@ -1084,8 +1084,9 @@ func TestDriftMigrationInfoFrom(t *testing.T) {
 	msr := &metadb.MigrationStatusRecord{
 		ExportTypeFromSource: SNAPSHOT_AND_CHANGES,
 		CutoverTimings:       metadb.CutoverTimingRecord{ToTargetRequestedAt: requestedAt},
+		FallForwardEnabled:   true,
 	}
-	assert.Equal(t, schemadrift.MigrationInfo{ExportType: SNAPSHOT_AND_CHANGES, CutoverRequestedAt: requestedAt}, driftMigrationInfoFrom(msr))
+	assert.Equal(t, schemadrift.MigrationInfo{ExportType: SNAPSHOT_AND_CHANGES, CutoverRequestedAt: requestedAt, FallForwardEnabled: true}, driftMigrationInfoFrom(msr))
 	assert.Equal(t, schemadrift.MigrationInfo{}, driftMigrationInfoFrom(&metadb.MigrationStatusRecord{}))
 }
 

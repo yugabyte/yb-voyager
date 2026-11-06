@@ -70,6 +70,10 @@ func getDriftInfo(t schemadiff.DiffType, s situation) (DriftInfo, error) {
 	if risk, ok := fallBackRiskByDiffType[t]; ok && s.FallBackPossible {
 		info.Impact += " " + risk
 	}
+	// TABLE_PARTITION_CHILDREN_CHANGED's Action points at each partition's own entry, which carries the sentence.
+	if s.FallForwardPossible && t != schemadiff.TablePartitionChildrenChanged {
+		info.Action += " " + fallForwardAction
+	}
 	return info, nil
 }
 
@@ -240,12 +244,141 @@ var infoByDiffType = map[schemadiff.DiffType]map[Timing]DriftInfo{
 		TimingOfflineAfterExportStart: inheritanceRemovedInfo,
 		TimingLiveAfterExportStart:    inheritanceRemovedInfo,
 	},
+	schemadiff.PrimaryKeyAdded: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "In a live migration, `import data` refuses the table until the target has a primary key. An offline migration is not affected.",
+			Action: "Add the same primary key on the target before running `import data`. If `import data` already failed on it, run it again."},
+		TimingOfflineAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "`import data` is not affected.",
+			Action: "Add the same primary key on the target to keep the schemas the same."},
+		TimingLiveAfterExportStart: {Severity: SeverityAdvisory,
+			Impact: "The live migration is not affected. Either the table had no primary key, so it was not part of the live migration, or it is a partitioned table whose partitions already had keys, which now belong to this one. If `PRIMARY_KEY_DROPPED` is also reported for the table in the same interval, the key was replaced, and that entry's Action applies.",
+			Action: "Add the same primary key on the target."},
+	},
+	schemadiff.PrimaryKeyDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: "In a live migration, `export data` refuses a table without a primary key. In an offline migration, the target still has the key, so `import data` fails on the first duplicate key value.",
+			Action: "In a live migration, add the key back on the source before starting `export data`. In an offline migration, drop it on the target too, and run `import data` again if it already failed."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: "Rows exported after the drop can repeat a key value. The target's key rejects them, so `import data` fails.",
+			Action: "Drop the primary key on the target, then run `import data` again."},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: primaryKeyDroppedLiveImpact,
+			Action: "Add the key back on the source, then restart the data migration: `export data --start-clean true`, then `import data --start-clean true --truncate-tables true`."},
+		TimingChangesOnlyAfterExportStart: {Severity: SeverityBreaksUnrecoverable,
+			Impact: primaryKeyDroppedLiveImpact,
+			Action: "Add the key back on the source, then start a new migration in a new export directory."},
+	},
+	schemadiff.PrimaryKeyNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
+	schemadiff.UniqueAdded: {
+		TimingBeforeExportData:        uniqueAddedInfo,
+		TimingOfflineAfterExportStart: uniqueAddedInfo,
+		TimingLiveAfterExportStart:    uniqueAddedLiveInfo,
+	},
+	schemadiff.UniqueDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedImpact + " " + uniqueConstraintRebuiltHint,
+			Action: uniqueDroppedAction},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: uniqueDroppedImpact + " " + uniqueConstraintRebuiltHint,
+			Action: uniqueDroppedAction},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedLiveImpact + " " + uniqueConstraintRebuiltHint,
+			Action: uniqueDroppedLiveAction},
+	},
+	schemadiff.UniqueNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
+	schemadiff.CheckAdded: {
+		TimingBeforeExportData:        checkAddedInfo,
+		TimingOfflineAfterExportStart: checkAddedInfo,
+		TimingLiveAfterExportStart:    checkAddedInfo,
+	},
+	schemadiff.CheckDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: checkDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: checkDroppedImpact,
+			Action: "Drop it on the target too, and run `import data` again if it already failed."},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksRecoverable,
+			Impact: "The source now allows rows the target's check rejects, so `import data` stops on the first one.",
+			Action: "Drop it on the target, then run `import data` again."},
+	},
+	schemadiff.CheckNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
+	schemadiff.ForeignKeyAdded: {
+		TimingBeforeExportData:        foreignKeyAddedInfo,
+		TimingOfflineAfterExportStart: foreignKeyAddedInfo,
+		TimingLiveAfterExportStart:    foreignKeyAddedInfo,
+	},
+	schemadiff.ForeignKeyDropped: {
+		TimingBeforeExportData:        foreignKeyDroppedBeforeExportInfo,
+		TimingOfflineAfterExportStart: foreignKeyDroppedOfflineInfo,
+		TimingLiveAfterExportStart:    foreignKeyDroppedInfo,
+	},
+	schemadiff.ForeignKeyNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
+	schemadiff.UniqueIndexAdded: {
+		TimingBeforeExportData:        uniqueAddedInfo,
+		TimingOfflineAfterExportStart: uniqueAddedInfo,
+		TimingLiveAfterExportStart:    uniqueIndexAddedLiveInfo,
+	},
+	schemadiff.UniqueIndexDropped: {
+		TimingBeforeExportData: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedImpact + " " + uniqueIndexRebuiltHint,
+			Action: uniqueDroppedAction},
+		TimingOfflineAfterExportStart: {Severity: SeverityPotentialImpact,
+			Impact: uniqueDroppedImpact + " " + uniqueIndexRebuiltHint,
+			Action: uniqueDroppedAction},
+		TimingLiveAfterExportStart: {Severity: SeverityBreaksRecoverable,
+			Impact: uniqueDroppedLiveImpact + " " + uniqueIndexRebuiltHint,
+			Action: uniqueDroppedLiveAction},
+	},
+	schemadiff.UniqueIndexNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
+	schemadiff.IndexAdded: {
+		TimingBeforeExportData:        indexChangedInfo,
+		TimingOfflineAfterExportStart: indexChangedInfo,
+		TimingLiveAfterExportStart:    indexChangedInfo,
+	},
+	schemadiff.IndexDropped: {
+		TimingBeforeExportData:        indexChangedInfo,
+		TimingOfflineAfterExportStart: indexChangedInfo,
+		TimingLiveAfterExportStart:    indexChangedInfo,
+	},
+	schemadiff.IndexNameChanged: {
+		TimingBeforeExportData:        keyNameChangedInfo,
+		TimingOfflineAfterExportStart: keyNameChangedInfo,
+		TimingLiveAfterExportStart:    keyNameChangedInfo,
+	},
 }
 
 // Appended to Impact while a cutover with fall-back is still possible.
 var fallBackRiskByDiffType = map[schemadiff.DiffType]string{
-	schemadiff.ColumnDropped: "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+	schemadiff.ColumnDropped:    "If you cut over with fall-back, `import data to source` stops at the first insert on this table while the target still has this column, and later changes don't reach the source.",
+	schemadiff.UniqueAdded:      uniqueAddedFallBackRisk,
+	schemadiff.UniqueIndexAdded: uniqueAddedFallBackRisk,
+	schemadiff.CheckAdded:       "If you cut over with fall-back while the target doesn't have this check, `import data to source` stops at the first row from the target that breaks it.",
+	schemadiff.ForeignKeyAdded:  "If you cut over with fall-back while the target doesn't have this key, rows from the target that break it still load into the source: `import data to source` runs with foreign-key checks off, or refuses to start until they are turned off. The source's key then no longer holds for those rows.",
 }
+
+const fallForwardAction = "Fall-forward is in use: make on the source-replica any change this asks you to make on the target, and when it restarts `import data`, restart `import data to source-replica` the same way."
 
 // Shared by several timings or change types.
 var (
@@ -304,6 +437,73 @@ var (
 	inheritanceRemovedInfo = DriftInfo{Severity: SeverityAdvisory,
 		Impact: "`export data` and `import data` are not affected.",
 		Action: "Remove the same inheritance on the target before the application moves to the target."}
+
+	primaryKeyDroppedLiveImpact = "Every later change to this table reaches `import data` with an empty key, so it stops, and it fails again on every restart. A restart of `export data` refuses the table. This is also reported, with `PRIMARY_KEY_ADDED`, when the key was changed or re-created: if it was changed in one transaction, changing it on the target and running `import data` again recovers."
+
+	// A rebuild reads as a drop plus an add, and the drop's Action already says to keep it.
+	uniqueAddedRebuiltHint = "If a unique key or unique index on the same columns is also reported as dropped for this table, it was rebuilt: the target already has it, and that entry's Action applies."
+
+	// Only a streaming import data reads the target's unique keys, so only live needs the restart.
+	uniqueAddedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected. " + uniqueAddedRebuiltHint,
+		Action: "Add it on the target to keep the schemas the same."}
+
+	// A stored generated column has no value in a change event, and the tables import data
+	// applies in order are fixed on its first run, so a restart can't make such a key safe.
+	uniqueAddedLiveInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected. " + uniqueAddedRebuiltHint,
+		Action: "Add it on the target to keep the schemas the same. If `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it covers a stored generated column, add it on the target only after cutover, once `import data` has applied every change: `import data` can't keep changes to such a key in order, and restarting it does not change that."}
+
+	// An expression key has no columns for import data's conflict check, a stored generated
+	// column has no value in a change event, and the tables that need in-order apply for
+	// either are fixed on import data's first run.
+	uniqueIndexAddedLiveInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "`import data` is not affected while the target doesn't have the index. If the index is on an expression, such as `lower(email)`, or covers a stored generated column, adding it on the target before cutover can stop `import data` on a unique violation: `import data` can't keep changes to such an index in order, and restarting it does not prevent another stop. " + uniqueAddedRebuiltHint,
+		Action: "Add it on the target to keep the schemas the same. If it is on plain columns and covers no stored generated column, add it now, and if `import data` is running, restart it afterwards: it reads the target's unique keys only when it starts, so with the new one missing, the first write that frees and reuses a value stops it. If it is on an expression or covers a stored generated column, add it only after cutover, once `import data` has applied every change and before the application moves to the target. If you already added it and `import data` stopped, drop it on the target, run `import data` again, and add it back after cutover."}
+
+	uniqueDroppedImpact     = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` fails on the first duplicate."
+	uniqueDroppedLiveImpact = "The source now allows duplicate values, but the target still enforces uniqueness, so `import data` stops at the first duplicate value."
+
+	// A unique constraint keeps its OID through REINDEX CONCURRENTLY, and USING INDEX only
+	// turns an index into one, so only a column type change re-creates it.
+	uniqueConstraintRebuiltHint = "This is also reported, with an added unique key on the same columns, when a column type change re-created it. The source then still enforces uniqueness, so keep it on the target."
+	uniqueIndexRebuiltHint      = "This is also reported, with an added unique key, unique index or primary key on the same columns, when it was rebuilt (`REINDEX CONCURRENTLY`, a column type change) or turned into a constraint (`ADD CONSTRAINT ... USING INDEX`). The source then still enforces uniqueness, so keep it on the target."
+
+	uniqueDroppedAction     = "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it on the target too, and run `import data` again if it already failed."
+	uniqueDroppedLiveAction = "If it was rebuilt, as the Impact describes, keep it on the target. Otherwise drop it on the target, then run `import data` again."
+
+	uniqueAddedFallBackRisk = "If you cut over with fall-back while the target doesn't have it, `import data to source` stops at the first row from the target that breaks it."
+
+	checkAddedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected.",
+		Action: "Add it on the target to keep the schemas the same."}
+
+	checkDroppedImpact = "The source now allows rows the target's check rejects, so `import data` fails on the first one."
+
+	indexChangedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "Only query speed is affected. `export data` and `import data` are not.",
+		Action: "Make the same change on the target."}
+
+	foreignKeyAddedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`import data` is not affected, because the target does not have the key.",
+		Action: "Add it on the target to keep the schemas the same."}
+
+	foreignKeyDroppedInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first orphan child row. A delete or update of a parent row the key protects also stops it if the key is `NO ACTION` or `RESTRICT`; with an `ON DELETE` or `ON UPDATE` action such as `CASCADE` or `SET NULL`, that change instead removes or changes rows the source keeps.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped. Restore from the source any rows the key's action removed or changed on the target, because running `import data` again does not bring them back."}
+
+	foreignKeyDroppedBeforeExportInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first orphan child row. In a live migration, a delete or update of a parent row the key protects also stops it if the key is `NO ACTION` or `RESTRICT`; with an `ON DELETE` or `ON UPDATE` action such as `CASCADE` or `SET NULL`, that change instead removes or changes rows the source keeps.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped. In a live migration, restore from the source any rows the key's action removed or changed on the target, because running `import data` again does not bring them back."}
+
+	// Offline import data only inserts snapshot rows, so a referential action never fires on the target.
+	foreignKeyDroppedOfflineInfo = DriftInfo{Severity: SeverityPotentialImpact,
+		Impact: "Rows the source now allows load anyway, so the target's foreign key no longer holds for them. If the target user can't turn foreign-key checks off, the target still enforces the key: `import data` stops on the first row that breaks it.",
+		Action: "Drop it on the target (or change it to match), then run `import data` again if it stopped."}
+
+	keyNameChangedInfo = DriftInfo{Severity: SeverityAdvisory,
+		Impact: "`export data` and `import data` are not affected.",
+		Action: "Rename it on the target to keep the names the same."}
 )
 
 var afterCutoverInfo = DriftInfo{

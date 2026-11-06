@@ -141,7 +141,7 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 	require.NoError(t, err, "Capture should succeed against live postgres")
 
 	// Schema content fields.
-	assert.Equal(t, 1, snap.Content.Version)
+	assert.Equal(t, 2, snap.Content.Version)
 	assert.Equal(t, "postgresql", snap.Content.DatabaseType)
 
 	// Header fields.
@@ -286,6 +286,8 @@ func TestCaptureAgainstLivePostgres(t *testing.T) {
 	assert.Equal(t, c12Ref, byName["p1"].InheritedBy[0])
 	require.Len(t, byName["p2"].InheritedBy, 1)
 	assert.Equal(t, c12Ref, byName["p2"].InheritedBy[0])
+
+	assertKeysChecksAndIndexes(t, ctx, db, dbMeta)
 }
 
 // TestCapturePersistRoundTrip performs a full Capture → SaveSnapshot →
@@ -395,4 +397,149 @@ func TestCapturePersistRoundTrip(t *testing.T) {
 	require.Contains(t, loadedByName, "dogs")
 	assert.NotEmpty(t, loadedByName["dogs"].InheritsFrom,
 		"dogs.InheritsFrom must survive JSON round-trip")
+}
+
+// assertKeysChecksAndIndexes creates keys, checks and indexes on case-sensitive names
+// across two schemas, a 3-level partition tree and an invalid index, captures them, and
+// asserts what lands under each table.
+func assertKeysChecksAndIndexes(t *testing.T, ctx context.Context, db *sql.DB, dbMeta schemasnapshot.DBMetadata) {
+	t.Helper()
+	const refSchema = "keys_other"
+	const mixedSchema = "MixedCase"
+
+	for _, stmt := range []string{
+		`CREATE SCHEMA ` + refSchema,
+		`CREATE TABLE ` + refSchema + `.ref (id int PRIMARY KEY)`,
+		`CREATE SCHEMA "` + mixedSchema + `"`,
+		`CREATE TABLE "` + mixedSchema + `"."My Table" (
+			"Id" int NOT NULL,
+			email text,
+			qty int,
+			ref_id int,
+			CONSTRAINT "My PK" PRIMARY KEY ("Id"),
+			CONSTRAINT "My Unique" UNIQUE (email),
+			CONSTRAINT "My Check" CHECK (qty > 0),
+			CONSTRAINT "My FK" FOREIGN KEY (ref_id) REFERENCES ` + refSchema + `.ref (id) ON DELETE CASCADE
+		)`,
+		`CREATE UNIQUE INDEX "My Uidx" ON "` + mixedSchema + `"."My Table" (lower(email)) WHERE (email IS NOT NULL)`,
+		`CREATE INDEX "My Idx" ON "` + mixedSchema + `"."My Table" (qty)`,
+
+		`CREATE TABLE "` + mixedSchema + `"."Part Root" (id int NOT NULL, k int NOT NULL, grp int NOT NULL, v int,
+			CONSTRAINT "Root PK" PRIMARY KEY (id, k, grp),
+			CONSTRAINT "Root Check" CHECK (v >= 0)
+		) PARTITION BY RANGE (id)`,
+		`CREATE INDEX "Root Idx" ON "` + mixedSchema + `"."Part Root" (v)`,
+		`CREATE TABLE "` + mixedSchema + `"."Part Mid" PARTITION OF "` + mixedSchema + `"."Part Root"
+			FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (k)`,
+		`CREATE TABLE "` + mixedSchema + `"."Part Leaf" PARTITION OF "` + mixedSchema + `"."Part Mid"
+			FOR VALUES FROM (0) TO (50)`,
+
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders" (id int PRIMARY KEY) PARTITION BY RANGE (id)`,
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Lo" PARTITION OF "` + mixedSchema + `"."Ref Orders" FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id)`,
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Lo A" PARTITION OF "` + mixedSchema + `"."Ref Orders Lo" FOR VALUES FROM (0) TO (50)`,
+		`CREATE TABLE "` + mixedSchema + `"."Ref Orders Hi" PARTITION OF "` + mixedSchema + `"."Ref Orders" FOR VALUES FROM (100) TO (200)`,
+		`CREATE TABLE "` + mixedSchema + `"."Line Items" (order_id int REFERENCES "` + mixedSchema + `"."Ref Orders" (id))`,
+		// A partitioned referencing table: each partition's own copy of the foreign key is kept.
+		`CREATE TABLE "` + mixedSchema + `"."Shipments" (order_id int REFERENCES "` + mixedSchema + `"."Ref Orders" (id), k int) PARTITION BY RANGE (k)`,
+		`CREATE TABLE "` + mixedSchema + `"."Shipments 1" PARTITION OF "` + mixedSchema + `"."Shipments" FOR VALUES FROM (0) TO (10)`,
+
+		`CREATE TABLE "` + mixedSchema + `"."Dup Rows" (a int)`,
+		`INSERT INTO "` + mixedSchema + `"."Dup Rows" VALUES (1), (1)`,
+	} {
+		_, err := db.ExecContext(ctx, stmt)
+		require.NoError(t, err, stmt)
+	}
+	_, err := db.ExecContext(ctx, `CREATE UNIQUE INDEX CONCURRENTLY "Dup Idx" ON "`+mixedSchema+`"."Dup Rows" (a)`)
+	require.Error(t, err, "the concurrent unique index build must fail and leave an invalid index behind")
+
+	snap, err := schemasnapshot.Capture(ctx, db, schemasnapshot.CaptureParams{
+		DatabaseType: constants.POSTGRESQL,
+		Side:         schemasnapshot.SideSource,
+		DBMetadata:   dbMeta,
+		Schemas:      []string{mixedSchema, refSchema},
+		Label:        schemasnapshot.LabelExportSchema,
+	})
+	require.NoError(t, err)
+
+	byName := map[string]schemasnapshot.Table{}
+	for _, tb := range snap.Content.Tables {
+		byName[tb.Name] = tb
+	}
+	names := func(cons []schemasnapshot.Constraint) []string {
+		out := make([]string, len(cons))
+		for i, c := range cons {
+			out[i] = c.Name
+		}
+		return out
+	}
+	indexNames := func(idxs []schemasnapshot.Index) []string {
+		out := make([]string, len(idxs))
+		for i, x := range idxs {
+			out[i] = x.Name
+		}
+		return out
+	}
+
+	my := byName["My Table"]
+	tableRef := schemasnapshot.ObjectRef{Schema: mixedSchema, Name: "My Table"}
+	require.NotNil(t, my.PrimaryKey)
+	assert.Equal(t, tableRef, my.PrimaryKey.Table)
+	assert.Equal(t, "My PK", my.PrimaryKey.Name)
+	assert.Equal(t, `PRIMARY KEY ("Id")`, my.PrimaryKey.Definition)
+	assert.NotEmpty(t, my.PrimaryKey.ID)
+	assert.False(t, my.PrimaryKey.FromParent)
+	assert.Equal(t, []string{"My Unique"}, names(my.UniqueKeys))
+	assert.Equal(t, "UNIQUE (email)", my.UniqueKeys[0].Definition)
+	assert.Equal(t, []string{"My Check"}, names(my.Checks), "NOT NULL rows (PostgreSQL 18) must not be captured")
+	assert.Equal(t, "CHECK (qty > 0)", my.Checks[0].Definition)
+	assert.Equal(t, []string{"My FK"}, names(my.ForeignKeys))
+	assert.Equal(t, "FOREIGN KEY (ref_id) REFERENCES "+refSchema+".ref(id) ON DELETE CASCADE", my.ForeignKeys[0].Definition)
+	assert.Equal(t, []string{"My Uidx"}, indexNames(my.UniqueIndexes))
+	assert.Equal(t, "USING btree (lower(email)) WHERE (email IS NOT NULL)", my.UniqueIndexes[0].Definition)
+	assert.Equal(t, []string{"My Idx"}, indexNames(my.Indexes))
+	assert.Equal(t, "USING btree (qty)", my.Indexes[0].Definition)
+
+	ref := byName["ref"]
+	require.NotNil(t, ref.PrimaryKey, "the referenced table's primary key index must not be hidden by the foreign key")
+	assert.Equal(t, "PRIMARY KEY (id)", ref.PrimaryKey.Definition)
+	assert.Empty(t, ref.Indexes)
+	assert.Empty(t, ref.UniqueIndexes)
+
+	lineItems := byName["Line Items"]
+	require.Len(t, lineItems.ForeignKeys, 1, "PostgreSQL's per-partition clones of a foreign key to a partitioned table must not be captured")
+	assert.False(t, lineItems.ForeignKeys[0].FromParent)
+	assert.Contains(t, lineItems.ForeignKeys[0].Definition, `REFERENCES "`+mixedSchema+`"."Ref Orders"(id)`)
+	assert.NotContains(t, lineItems.ForeignKeys[0].Definition, "Ref Orders Lo")
+	assert.NotContains(t, lineItems.ForeignKeys[0].Definition, "Ref Orders Hi")
+
+	shipments := byName["Shipments"]
+	require.Len(t, shipments.ForeignKeys, 1, "PostgreSQL's per-partition clones of a foreign key to a partitioned table must not be captured")
+	assert.False(t, shipments.ForeignKeys[0].FromParent)
+	shipments1 := byName["Shipments 1"]
+	require.Len(t, shipments1.ForeignKeys, 1, "a partition's own copy of its parent's foreign key must be kept")
+	assert.True(t, shipments1.ForeignKeys[0].FromParent)
+	assert.Equal(t, shipments.ForeignKeys[0].Definition, shipments1.ForeignKeys[0].Definition)
+
+	dup := byName["Dup Rows"]
+	assert.Empty(t, dup.UniqueIndexes, "an invalid index must not be captured")
+	assert.Empty(t, dup.Indexes)
+
+	root, mid, leaf := byName["Part Root"], byName["Part Mid"], byName["Part Leaf"]
+	require.NotNil(t, root.PrimaryKey)
+	assert.False(t, root.PrimaryKey.FromParent)
+	assert.Equal(t, []string{"Root Check"}, names(root.Checks))
+	assert.False(t, root.Checks[0].FromParent)
+	require.Len(t, root.Indexes, 1)
+	assert.Equal(t, "Root Idx", root.Indexes[0].Name)
+	assert.False(t, root.Indexes[0].FromParent)
+	assert.Equal(t, "USING btree (v)", root.Indexes[0].Definition, "the ON ONLY form of a partitioned parent's index must be stripped")
+	for _, child := range []schemasnapshot.Table{mid, leaf} {
+		require.NotNil(t, child.PrimaryKey, child.Name)
+		assert.True(t, child.PrimaryKey.FromParent, child.Name)
+		assert.Equal(t, []string{"Root Check"}, names(child.Checks), child.Name)
+		assert.True(t, child.Checks[0].FromParent, child.Name)
+		require.Len(t, child.Indexes, 1, child.Name)
+		assert.True(t, child.Indexes[0].FromParent, child.Name)
+		assert.Equal(t, "USING btree (v)", child.Indexes[0].Definition, child.Name)
+	}
 }
