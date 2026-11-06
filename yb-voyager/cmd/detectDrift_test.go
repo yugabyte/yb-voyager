@@ -58,8 +58,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// ─── complementDriftTableRefs ────────────────────────────────────────────────
-
 func TestComplementDriftTableRefs(t *testing.T) {
 	refA := schemasnapshot.ObjectRef{Schema: "public", Name: "a"}
 	refB := schemasnapshot.ObjectRef{Schema: "public", Name: "b"}
@@ -103,8 +101,6 @@ func TestComplementDriftTableRefs(t *testing.T) {
 	}
 }
 
-// ─── complementDriftObjectTypes ──────────────────────────────────────────────
-
 func TestComplementDriftObjectTypes(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -144,8 +140,6 @@ func TestComplementDriftObjectTypes(t *testing.T) {
 	}
 }
 
-// ─── parseDriftObjectTypeList ────────────────────────────────────────────────
-
 func TestNormalizeDriftListFlag(t *testing.T) {
 	// The point of this helper is that a value which LOOKS set but names nothing
 	// is treated as unset -- otherwise it resolves to an empty keep-set, and the
@@ -176,6 +170,65 @@ func TestResolveDetectDriftFlagDefaultsTrimsSourceSchemas(t *testing.T) {
 	source.SchemaConfig = "public, sales ,"
 	resolveDetectDriftFlagDefaults()
 	assert.Equal(t, "public,sales", source.SchemaConfig)
+}
+
+func TestValidateDetectDriftFlags(t *testing.T) {
+	savedSource, savedParsed := source, driftParsedFlags
+	savedFormat, savedTL, savedETL, savedOTL, savedEOTL := driftOutputFormat, driftTableList, driftExcludeTableList, driftObjectTypeList, driftExcludeObjectTypeList
+	t.Cleanup(func() {
+		source, driftParsedFlags = savedSource, savedParsed
+		driftOutputFormat, driftTableList, driftExcludeTableList, driftObjectTypeList, driftExcludeObjectTypeList = savedFormat, savedTL, savedETL, savedOTL, savedEOTL
+	})
+
+	tests := []struct {
+		name                                    string
+		dbType, format, tables, excludeTables   string
+		objectTypes, excludeObjectTypes         string
+		wantErr, wantCause                      string
+		wantObjectTypes, wantExcludeObjectTypes []schemadiff.ObjectType
+	}{
+		{name: "non-PostgreSQL source", dbType: constants.ORACLE,
+			wantErr: `schema detect-drift currently supports PostgreSQL sources only (got --source-db-type="oracle")`},
+		{name: "both table lists", dbType: constants.POSTGRESQL, tables: "a", excludeTables: "b",
+			wantErr: "--table-list and --exclude-table-list are mutually exclusive. Use only one of them."},
+		{name: "both object-type lists", dbType: constants.POSTGRESQL, objectTypes: "TABLE", excludeObjectTypes: "COLUMN",
+			wantErr: "--object-type-list and --exclude-object-type-list are mutually exclusive. Use only one of them."},
+		{name: "bad output format", dbType: constants.POSTGRESQL, format: "xml",
+			wantErr: "invalid report output format: xml. Supported formats are [html json]"},
+		{name: "bad object type", dbType: constants.POSTGRESQL, objectTypes: "VIEW",
+			wantErr:   "invalid --object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX",
+			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX"},
+		{name: "bad excluded object type", dbType: constants.POSTGRESQL, excludeObjectTypes: "VIEW",
+			wantErr:   "invalid --exclude-object-type-list: unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX",
+			wantCause: "unknown object type(s) [VIEW]; supported types: TABLE, COLUMN, CONSTRAINT, INDEX"},
+		{name: "valid flags store the parsed lists", dbType: constants.POSTGRESQL, format: "json", tables: "public.t",
+			objectTypes: "TABLE", wantObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeTable}},
+		{name: "valid exclude list", dbType: constants.POSTGRESQL, excludeObjectTypes: "COLUMN",
+			wantExcludeObjectTypes: []schemadiff.ObjectType{schemadiff.ObjectTypeColumn}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			source.DBType = tc.dbType
+			driftOutputFormat, driftTableList, driftExcludeTableList = tc.format, tc.tables, tc.excludeTables
+			driftObjectTypeList, driftExcludeObjectTypeList = tc.objectTypes, tc.excludeObjectTypes
+			driftParsedFlags.objectTypes, driftParsedFlags.excludeObjectTypes = nil, nil
+
+			err := validateDetectDriftFlags()
+			if tc.wantErr != "" {
+				require.EqualError(t, err, tc.wantErr)
+				if tc.wantCause != "" {
+					// goerrors.Errorf wraps a fmt.Errorf value, so the parse error sits two levels down.
+					cause := errors.Unwrap(errors.Unwrap(err))
+					require.NotNil(t, cause)
+					assert.EqualError(t, cause, tc.wantCause)
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantObjectTypes, driftParsedFlags.objectTypes)
+			assert.Equal(t, tc.wantExcludeObjectTypes, driftParsedFlags.excludeObjectTypes)
+		})
+	}
 }
 
 func TestDetectDriftNeedsInitialisedExportDirAndTakesLock(t *testing.T) {
@@ -252,8 +305,6 @@ func TestParseDriftObjectTypeList(t *testing.T) {
 	}
 }
 
-// ─── validateDriftOutputFormat ───────────────────────────────────────────────
-
 func TestValidateDriftOutputFormat(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -306,8 +357,6 @@ func TestValidateDriftOutputFormat(t *testing.T) {
 	}
 }
 
-// ─── driftTableUniverse (the universe fix) ───────────────────────────────────
-
 // snapContent is a tiny helper to build a SnapshotContent whose Tables are the
 // given (schema, name) refs -- only the embedded ObjectRef is set, which is all
 // the union logic reads unless a test also attaches PartitionChildren.
@@ -320,8 +369,10 @@ func snapContent(refs ...schemasnapshot.ObjectRef) *schemasnapshot.SnapshotConte
 }
 
 func TestDriftTableUniverse(t *testing.T) {
+	publicOnly := []string{"public"}
+
 	t.Run("snapshot-only (dropped) table is still in the universe; dedup across snapshots", func(t *testing.T) {
-		// Headline universe-fix case: products is present ONLY in an older snapshot
+		// Headline case: products is present ONLY in an older snapshot
 		// (dropped from the source since) yet must still be nameable. orders appears
 		// in both snapshots => deduped to one.
 		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{
@@ -330,20 +381,20 @@ func TestDriftTableUniverse(t *testing.T) {
 				schemasnapshot.ObjectRef{Schema: "public", Name: "products"},
 			),
 			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}),
-		}, nil)
+		}, nil, publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"orders", "products"}}, got)
 	})
 
 	t.Run("live capture contributes an extra table", func(t *testing.T) {
 		got := driftTableUniverse(
 			[]*schemasnapshot.SnapshotContent{snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})},
-			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "audit"}))
+			snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "audit"}), publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"products", "audit"}}, got)
 	})
 
 	t.Run("same table in a snapshot and the live capture yields a single entry", func(t *testing.T) {
 		orders := schemasnapshot.ObjectRef{Schema: "public", Name: "orders"}
-		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{snapContent(orders)}, snapContent(orders))
+		got := driftTableUniverse([]*schemasnapshot.SnapshotContent{snapContent(orders)}, snapContent(orders), publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"orders"}}, got)
 	})
 
@@ -351,25 +402,112 @@ func TestDriftTableUniverse(t *testing.T) {
 		got := driftTableUniverse(nil, snapContent(
 			schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
 			schemasnapshot.ObjectRef{Schema: "Sales", Name: "Invoices"},
-		))
+		), []string{"public", "Sales"})
 		assert.Equal(t, map[string][]string{"public": {"orders"}, "Sales": {"Invoices"}}, got)
 	})
 
 	t.Run("nil snapshot content is skipped", func(t *testing.T) {
 		got := driftTableUniverse(
-			[]*schemasnapshot.SnapshotContent{nil, snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})}, nil)
+			[]*schemasnapshot.SnapshotContent{nil, snapContent(schemasnapshot.ObjectRef{Schema: "public", Name: "products"})}, nil, publicOnly)
 		assert.Equal(t, map[string][]string{"public": {"products"}}, got)
+	})
+
+	t.Run("tables of a schema outside the requested ones are left out, from snapshots and live alike", func(t *testing.T) {
+		got := driftTableUniverse(
+			[]*schemasnapshot.SnapshotContent{snapContent(
+				schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+				schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+			)},
+			snapContent(schemasnapshot.ObjectRef{Schema: "sales", Name: "audit"}),
+			publicOnly)
+		assert.Equal(t, map[string][]string{"public": {"orders"}}, got)
+	})
+
+	t.Run("schema match is case-sensitive", func(t *testing.T) {
+		got := driftTableUniverse(nil, snapContent(
+			schemasnapshot.ObjectRef{Schema: "Sales", Name: "Invoices"},
+			schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+		), []string{"sales"})
+		assert.Equal(t, map[string][]string{"sales": {"orders"}}, got)
+
+		got = driftTableUniverse(nil, snapContent(
+			schemasnapshot.ObjectRef{Schema: "Sales", Name: "Invoices"},
+			schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+		), []string{"Sales"})
+		assert.Equal(t, map[string][]string{"Sales": {"Invoices"}}, got)
 	})
 }
 
-// ─── requireDriftTableListQualified ──────────────────────────────────────────
+func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
+	savedSource := source
+	t.Cleanup(func() { source = savedSource })
+	source.DBType = constants.POSTGRESQL
+
+	history := []schemasnapshot.SchemaSnapshot{{Content: snapContent(
+		schemasnapshot.ObjectRef{Schema: "public", Name: "orders"},
+		schemasnapshot.ObjectRef{Schema: "sales", Name: "orders"},
+	)}}
+	schemas := []string{"public"}
+
+	t.Run("table-list naming an out-of-scope schema is an unknown table", func(t *testing.T) {
+		_, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{tableList: "sales.orders"})
+		var unknownErr *errs.UnknownTableErr
+		require.True(t, errors.As(err, &unknownErr))
+		assert.EqualError(t, unknownErr, "\nUnknown table names in the include list: [sales.orders]\nValid table names are: [public.orders]")
+	})
+
+	t.Run("exclude-table-list naming an out-of-scope schema is an unknown table", func(t *testing.T) {
+		_, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{excludeTableList: "sales.orders"})
+		var unknownErr *errs.UnknownTableErr
+		require.True(t, errors.As(err, &unknownErr))
+		assert.EqualError(t, unknownErr, "\nUnknown table names in the exclude list: [sales.orders]\nValid table names are: [public.orders]")
+	})
+
+	t.Run("unfiltered scope holds only the requested schemas' tables", func(t *testing.T) {
+		scope, err := resolveDriftScope(history, nil, schemas, driftScopeFilters{})
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "orders"}}, scope.Tables)
+	})
+
+	t.Run("a partition in an out-of-scope schema is not expanded into scope", func(t *testing.T) {
+		root := schemasnapshot.ObjectRef{Schema: "public", Name: "events"}
+		inScope := schemasnapshot.ObjectRef{Schema: "public", Name: "events_2024"}
+		outOfScope := schemasnapshot.ObjectRef{Schema: "archive", Name: "events_2020"}
+		partitioned := []schemasnapshot.SchemaSnapshot{{Content: &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+			{ObjectRef: root, PartitionChildren: []schemasnapshot.ObjectRef{inScope, outOfScope}},
+			{ObjectRef: inScope},
+			{ObjectRef: outOfScope},
+		}}}}
+
+		scope, err := resolveDriftScope(partitioned, nil, schemas, driftScopeFilters{tableList: "public.events"})
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{root, inScope}, scope.Tables)
+	})
+
+	t.Run("expansion walks through an out-of-scope partition to in-scope ones below it", func(t *testing.T) {
+		root := schemasnapshot.ObjectRef{Schema: "public", Name: "events"}
+		mid := schemasnapshot.ObjectRef{Schema: "archive", Name: "events_old"}
+		leaf := schemasnapshot.ObjectRef{Schema: "public", Name: "events_2019"}
+		partitioned := []schemasnapshot.SchemaSnapshot{{Content: &schemasnapshot.SnapshotContent{Tables: []schemasnapshot.Table{
+			{ObjectRef: root, PartitionChildren: []schemasnapshot.ObjectRef{mid}},
+			{ObjectRef: mid, PartitionChildren: []schemasnapshot.ObjectRef{leaf}},
+			{ObjectRef: leaf},
+		}}}}
+
+		scope, err := resolveDriftScope(partitioned, nil, schemas, driftScopeFilters{tableList: "public.events"})
+		require.NoError(t, err)
+		assert.Equal(t, []schemasnapshot.ObjectRef{root, leaf}, scope.Tables)
+
+		_, err = resolveDriftScope(partitioned, nil, schemas, driftScopeFilters{excludeTableList: "public.events"})
+		require.EqualError(t, err, `--exclude-table-list "public.events" excludes every table in the comparison; nothing left to compare`)
+	})
+}
 
 func TestRequireDriftTableListQualified(t *testing.T) {
 	t.Run("unqualified pattern without a default schema is rejected by name", func(t *testing.T) {
 		err := requireDriftTableListQualified("orders", "table-list", false)
 		require.Error(t, err)
-		// The old behaviour reported "unknown table name", which sent the user
-		// looking for a table that does exist.
+		// Must not read as an unknown table: the table exists, only the pattern is wrong.
 		assert.Contains(t, err.Error(), "not schema-qualified")
 		assert.NotContains(t, err.Error(), "unknown table name")
 	})
@@ -388,8 +526,6 @@ func TestRequireDriftTableListQualified(t *testing.T) {
 		assert.Contains(t, err.Error(), `"customers"`)
 	})
 }
-
-// ─── table-list resolution via the in-memory registry + extractTableListFromString ──
 
 func TestDriftTableListResolutionViaRegistry(t *testing.T) {
 	universe := map[string][]string{
@@ -435,8 +571,6 @@ func TestDriftTableListResolutionViaRegistry(t *testing.T) {
 		assert.Equal(t, []schemasnapshot.ObjectRef{{Schema: "public", Name: "Orders"}}, driftObjectRefs(refs))
 	})
 }
-
-// ─── partition expansion ─────────────────────────────────────────────────────
 
 var (
 	driftPartRoot  = schemasnapshot.ObjectRef{Schema: "public", Name: "events"}
@@ -529,30 +663,36 @@ func TestExpandDriftPartitionsCaseSensitive(t *testing.T) {
 	assert.Equal(t, []schemasnapshot.ObjectRef{root, leaf}, expandDriftPartitions([]schemasnapshot.ObjectRef{root}, children))
 }
 
-// ─── nothingComparedError ────────────────────────────────────────────────────
-
 func TestNothingComparedError(t *testing.T) {
+	const noSnapshots = "this export directory holds no schema snapshots, so there is nothing to compare. " +
+		"Snapshots are recorded while `export schema` and `export data` run, unless they ran with " +
+		"--disable-schema-snapshot-capture=true or on a voyager version that did not capture by default"
+
 	tests := []struct {
-		name   string
-		points []schemadrift.CapturePoint
-		want   string
-		absent string
+		name    string
+		points  []schemadrift.CapturePoint
+		stored  int
+		wantErr string
 	}{
 		{
-			name:   "no captures stored at all",
-			points: nil,
-			want:   "holds no schema snapshots",
-			// Capture cannot be enabled retroactively, so the message must not
-			// suggest re-running the export as a fix for this run.
-			absent: "Re-run",
+			name:    "no captures stored, live read only",
+			points:  []schemadrift.CapturePoint{{Label: schemasnapshot.LabelSourceLive}},
+			stored:  0,
+			wantErr: noSnapshots,
+		},
+		{
+			name:    "no captures stored, no live read",
+			points:  nil,
+			stored:  0,
+			wantErr: noSnapshots,
 		},
 		{
 			name: "one usable capture forms no interval",
 			points: []schemadrift.CapturePoint{
 				{Label: schemasnapshot.LabelExportSchema},
 			},
-			want:   "a single capture forms no interval",
-			absent: "skipped because",
+			stored:  1,
+			wantErr: "only 1 of 1 captures is usable, and a single capture forms no interval, so there was nothing to compare",
 		},
 		{
 			name: "every capture excluded, reasons named",
@@ -560,22 +700,24 @@ func TestNothingComparedError(t *testing.T) {
 				{Label: schemasnapshot.LabelExportSchema, Excluded: "the capture failed, so this point holds no schema"},
 				{Label: schemasnapshot.LabelExportDataFromSourceStart, Excluded: "captured only sales, so it cannot answer for public"},
 			},
-			want:   "captured only sales, so it cannot answer for public",
-			absent: "single capture",
+			stored: 2,
+			wantErr: "no two comparable schema snapshots in this export directory, so there was nothing to compare: " +
+				"0 of 2 captures usable; the rest were skipped because: the capture failed, so this point holds no schema; " +
+				"captured only sales, so it cannot answer for public. " +
+				"If the schemas named there are not the ones you expected, check --source-db-schema",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := nothingComparedError(schemadrift.Report{CapturePoints: tt.points})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
-			assert.NotContains(t, err.Error(), tt.absent)
+			err := nothingComparedError(schemadrift.Report{
+				CapturePoints: tt.points,
+				Summary:       schemadrift.Summary{StoredCaptureCount: tt.stored},
+			})
+			require.EqualError(t, err, tt.wantErr)
 		})
 	}
 }
-
-// ─── buildSchemaDriftPayload ─────────────────────────────────────────────────
 
 func TestBuildSchemaDriftPayload(t *testing.T) {
 	report := schemadrift.Report{
@@ -857,8 +999,6 @@ func TestPackAndSendSchemaDriftPayloadSentGuard(t *testing.T) {
 	}
 }
 
-// ─── checkSchemaDrift (the in-process entry point) ────────────────────────────
-
 func TestDriftReportBaseName(t *testing.T) {
 	assert.Equal(t, "drift_analysis_report", driftReportBaseName(driftInvokerDetectDrift))
 	assert.Equal(t, "drift_analysis_report_export_data", driftReportBaseName(driftInvoker("export-data")))
@@ -886,9 +1026,14 @@ func TestWriteDriftReportsRoutesTheOverwriteNote(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, notes, "a first write overwrites nothing")
 
-	_, err = writeDriftReports(schemadrift.Report{}, []string{"json"}, "drift_analysis_report_export_data", info)
+	_, err = writeDriftReports(schemadrift.Report{}, []string{"html", "json"}, "drift_analysis_report_export_data", info)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"\ndrift_analysis_report_export_data.json already exists, overwriting it with a new generated report\n"}, notes)
+	assert.Equal(t, []string{"Overwriting existing drift_analysis_report_export_data.json\n"}, notes)
+
+	notes = nil
+	_, err = writeDriftReports(schemadrift.Report{}, []string{"html", "json"}, "drift_analysis_report_export_data", info)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Overwriting existing drift_analysis_report_export_data.html, drift_analysis_report_export_data.json\n"}, notes)
 }
 
 // The export-data caller's shape: stored snapshots only, no live read.

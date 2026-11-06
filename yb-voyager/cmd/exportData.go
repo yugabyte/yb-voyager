@@ -2195,46 +2195,6 @@ func getDefaultSourceSchemaName() (string, bool) {
 	}
 }
 
-func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList string, listName string) ([]sqlname.NameTuple, error) {
-	result := []sqlname.NameTuple{}
-	if flagTableList == "" {
-		return result, nil
-	}
-	findPatternMatchingTables := func(pattern string) ([]sqlname.NameTuple, error) {
-		var matched []sqlname.NameTuple
-		for _, tableName := range fullTableList {
-			ok, err := tableName.MatchesPattern(pattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid table name pattern %q: %w", pattern, err)
-			}
-			if ok {
-				matched = append(matched, tableName)
-			}
-		}
-		return matched, nil
-	}
-	tableList := utils.CsvStringToSlice(flagTableList)
-	var unknownTableNames []string
-	for _, pattern := range tableList {
-		tables, err := findPatternMatchingTables(pattern)
-		if err != nil {
-			return nil, err
-		}
-		if len(tables) == 0 {
-			unknownTableNames = append(unknownTableNames, pattern)
-		}
-		result = append(result, tables...)
-	}
-	if len(unknownTableNames) > 0 {
-		return nil, errs.NewUnknownTableErr(listName, unknownTableNames, lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
-			return tableName.ForOutput()
-		}))
-	}
-	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {
-		return tableName.ForKey()
-	}), nil
-}
-
 func checkSourceDBCharset() {
 	// If source db does not use unicode character set, ask for confirmation before
 	// proceeding for export.
