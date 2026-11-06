@@ -198,7 +198,8 @@ func cloneColumns(cols []schemasnapshot.Column) []schemasnapshot.Column {
 // so a TABLE_ADDED/TABLE_DROPPED finding carrying the whole Table never shares
 // backing storage with the input snapshot. t is received by value, so the scalar
 // and embedded ObjectRef fields are already copied; only the reference-typed
-// fields (Columns, the ObjectRef link slices, and the PartitionParent pointer)
+// fields (Columns, the ObjectRef link slices, the key, check and index slices, and the
+// PartitionParent and PrimaryKey pointers)
 // need decoupling. Without this, a consumer mutating the finding's Table would
 // write through into the source snapshot.
 func cloneTable(t schemasnapshot.Table) schemasnapshot.Table {
@@ -210,5 +211,14 @@ func cloneTable(t schemasnapshot.Table) schemasnapshot.Table {
 		parent := *t.PartitionParent
 		t.PartitionParent = &parent
 	}
+	if t.PrimaryKey != nil {
+		primaryKey := *t.PrimaryKey
+		t.PrimaryKey = &primaryKey
+	}
+	t.UniqueKeys = slices.Clone(t.UniqueKeys)
+	t.UniqueIndexes = slices.Clone(t.UniqueIndexes)
+	t.Checks = slices.Clone(t.Checks)
+	t.ForeignKeys = slices.Clone(t.ForeignKeys)
+	t.Indexes = slices.Clone(t.Indexes)
 	return t
 }
