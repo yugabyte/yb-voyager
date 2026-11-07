@@ -23,4 +23,4 @@ RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales && \
     rm -rf /root/go /root/.cache /tmp/go && \
     apt-get clean
 COPY --from=0 $HOME/go/bin/dlv /usr/local/bin
-CMD [“yb-voyager”]
+CMD ["yb-voyager"]
