@@ -121,6 +121,28 @@ ysql_terminate_and_drop_database() {
 	return 1
 }
 
+create_target_database() {
+	local target_db_to_create=$1
+	local create_options=${2:-}
+	# The YB master can still hold the keyspace when the preceding DROP returns,
+	# failing the CREATE with "Keyspace '<name>' already exists" - retry the
+	# drop and create as a unit so each attempt starts from a clean state.
+	local max_attempts=5
+	local attempt=1
+	while [ ${attempt} -le ${max_attempts} ]; do
+		ysql_terminate_and_drop_database "${target_db_to_create}" || true
+		if run_ysql yugabyte "CREATE DATABASE \"${target_db_to_create}\" ${create_options};"; then
+			return 0
+		fi
+		echo "CREATE DATABASE for '${target_db_to_create}' failed (attempt ${attempt}/${max_attempts}); retrying in 10s..."
+		sleep 10
+		attempt=$((attempt + 1))
+	done
+
+	echo "ERROR: CREATE DATABASE for '${target_db_to_create}' failed after ${max_attempts} attempts"
+	return 1
+}
+
 ysql_import_file() {
 	db_name=$1
 	file=$2
