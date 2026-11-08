@@ -12,6 +12,8 @@
     "live_compared": true,
     "object_types": [
       "COLUMN",
+      "CONSTRAINT",
+      "INDEX",
       "TABLE"
     ],
     "payload_version": 1.1,
