@@ -101,6 +101,11 @@ generator_target:
       enable_index_create_drop: true
       index_events_interval: 5
 
+voyager:
+  cutover_to_target:
+    flags:
+      skip-pre-checks: schema_drift
+
 stages:
   # Phase 1: forward live migration (no resumptions)
   - name: create_source_target_and_replica_dbs
