@@ -371,6 +371,17 @@ func (p *ParserIssueDetector) isUserDefinedTypeUnsupportedForIndex(typeName stri
 	})
 }
 
+// getUnsupportedIndexDatatype returns the type in UnsupportedIndexDatatypes that typeName is built
+// from, also through a domain over one.
+func (p *ParserIssueDetector) getUnsupportedIndexDatatype(typeName string) (string, bool) {
+	for _, t := range p.GetUnderlyingTypes(typeName) {
+		if isListedDatatype(t, UnsupportedIndexDatatypes) {
+			return strings.ToLower(t.BaseName()), true
+		}
+	}
+	return "", false
+}
+
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
 	issues, err := p.getAllIssues(query)
 	if err != nil {
@@ -973,7 +984,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			meta.DataType = col.TypeName
 			meta.DataTypeMods = col.TypeMods
 
-			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
+			unsupportedIndexDatatype, isUnsupportedType := p.getUnsupportedIndexDatatype(col.GetFullTypeName())
 			isUDTType := p.isUserDefinedTypeUnsupportedForIndex(col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
 
@@ -988,6 +999,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				if isUDTType {
 					meta.IsUserDefinedType = true
 					meta.DataType = "user_defined_type"
+				} else {
+					meta.DataType = unsupportedIndexDatatype
 				}
 
 			case isHotspotType:

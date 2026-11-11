@@ -3146,9 +3146,9 @@ func TestTransactionIDDatatypesAreLiveMigrationIssues(t *testing.T) {
 
 // A column is checked against the unsupported datatype lists using every type it is built from,
 // so it is reported the same way as a column of the unsupported type: through stacked domains,
-// a domain over an array, an array of a domain, composite fields at any depth
-// (live migration with fall-forward/fall-back), and an unqualified domain reference
-// resolved in the table's schema. A domain over a supported type is not reported.
+// a domain over an array, an array of a domain, and composite fields at any depth. An unqualified
+// name is matched as written. A domain over a supported type, or a composite whose fields are all
+// supported, is not reported.
 func TestDomainOverUnsupportedDatatypeThroughGetDDLIssues(t *testing.T) {
 	domainDDLs := []string{
 		`CREATE TYPE public.address AS (street text, city text);`,
@@ -3363,7 +3363,7 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 	detector := NewParserIssueDetector()
 	for _, ddl := range []string{
 		`CREATE DOMAIN types.lsn_dom AS pg_lsn;`,
-		`CREATE TYPE types.address AS (street text, zip int);`,
+		`CREATE TYPE types.address AS (street text, zip int, lsn pg_lsn);`,
 		ordersRoot, ordersMid, ordersLeaf, ordersDumpedLeaf, ordersAttachLeaf, eventsParent, eventsChild, eventsChildOwnCol,
 		`CREATE TYPE types.period AS RANGE (subtype = date);`,
 	} {
@@ -3378,12 +3378,14 @@ func TestDatatypeIssuesInPartitionAndInheritanceHierarchy(t *testing.T) {
 	}{
 		{"case-sensitive partitioned root", ordersRoot, []QueryIssue{
 			NewPgLsnDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "pg_lsn", "Lsn"),
+			NewPgLsnDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "pg_lsn", "addr"),
 			NewRangeLiveMigrationDatatypeIssue("TABLE", "sales.Orders", ordersRoot, "types.period", "During"),
 		}},
 		{"intermediate partition", ordersMid, nil},
 		{"leaf partition", ordersLeaf, nil},
 		{"leaf partition as pg_dump writes it", ordersDumpedLeaf, []QueryIssue{
 			NewPgLsnDatatypeIssue("TABLE", "sales.Orders_US", ordersDumpedLeaf, "pg_lsn", "Lsn"),
+			NewPgLsnDatatypeIssue("TABLE", "sales.Orders_US", ordersDumpedLeaf, "pg_lsn", "addr"),
 			NewRangeLiveMigrationDatatypeIssue("TABLE", "sales.Orders_US", ordersDumpedLeaf, "types.period", "During"),
 		}},
 		{"attaching a partition", ordersAttachLeaf, nil},
@@ -3509,6 +3511,62 @@ func TestIndexOnUserDefinedTypes(t *testing.T) {
 			})
 			assert.True(t, cmp.Equal(tc.expected, udtIssues, cmpopts.EquateEmpty()),
 				"issues mismatch (-expected +actual):\n%s", cmp.Diff(tc.expected, udtIssues, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+func TestIndexOnDomainOverUnsupportedIndexDatatype(t *testing.T) {
+	const (
+		spans          = `CREATE TABLE public.spans (id int PRIMARY KEY, span public.i4r_dom, "Span_Nested" public.i4r_dom_nested, doc public.jsonb_dom, label public.text_dom, CONSTRAINT spans_uk UNIQUE (span));`
+		domainIdx      = `CREATE INDEX idx_span ON public.spans (span);`
+		nestedIdx      = `CREATE INDEX idx_span_nested ON public.spans ("Span_Nested");`
+		jsonbDomainIdx = `CREATE INDEX idx_doc ON public.spans (doc);`
+		textDomainIdx  = `CREATE INDEX idx_label ON public.spans (label);`
+		domainCastIdx  = `CREATE INDEX idx_doc_cast ON public.spans ((label::public.jsonb_dom));`
+	)
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{
+		`CREATE DOMAIN public.i4r_dom AS int4range;`,
+		`CREATE DOMAIN public.i4r_dom_nested AS public.i4r_dom;`,
+		`CREATE DOMAIN public.jsonb_dom AS jsonb;`,
+		`CREATE DOMAIN public.text_dom AS text;`,
+		spans,
+	} {
+		require.NoError(t, detector.ParseAndProcessDDL(ddl))
+	}
+	detector.FinalizeTablesMetadata()
+
+	testCases := []struct {
+		name     string
+		stmt     string
+		expected []QueryIssue
+	}{
+		{"unique constraint on a domain over int4range", spans, []QueryIssue{
+			NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue("TABLE", "public.spans", spans, "int4range", "spans_uk"),
+		}},
+		{"index on a domain over int4range", domainIdx, []QueryIssue{
+			NewIndexOnInt4rangeDatatypeIssue("INDEX", "idx_span ON public.spans", domainIdx),
+		}},
+		{"index on a case-sensitive domain over a domain over int4range", nestedIdx, []QueryIssue{
+			NewIndexOnInt4rangeDatatypeIssue("INDEX", "idx_span_nested ON public.spans", nestedIdx),
+		}},
+		{"index on a domain over jsonb", jsonbDomainIdx, []QueryIssue{
+			NewIndexOnJsonbDatatypeIssue("INDEX", "idx_doc ON public.spans", jsonbDomainIdx),
+		}},
+		{"index on a domain over text", textDomainIdx, nil},
+		{"expression index cast to a domain over jsonb", domainCastIdx, []QueryIssue{
+			NewIndexOnJsonbDatatypeIssue("INDEX", "idx_doc_cast ON public.spans", domainCastIdx),
+		}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := detector.GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			require.NoError(t, err)
+			indexIssues := lo.Filter(issues, func(issue QueryIssue, _ int) bool {
+				return strings.HasPrefix(issue.Type, "INDEX_ON_") || strings.HasPrefix(issue.Type, "PK_UK_ON_")
+			})
+			assert.True(t, cmp.Equal(tc.expected, indexIssues, cmpopts.EquateEmpty()),
+				"issues mismatch (-expected +actual):\n%s", cmp.Diff(tc.expected, indexIssues, cmpopts.EquateEmpty()))
 		})
 	}
 }

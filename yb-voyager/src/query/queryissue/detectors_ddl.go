@@ -896,7 +896,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	if index.AccessMethod == queryparser.BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
-				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
+				unsupportedIndexDatatype, isUnsupportedType := d.getUnsupportedIndexDatatype(param.GetFullExprCastTypeName())
 				isUDTType := d.isUserDefinedTypeUnsupportedForIndex(param.GetFullExprCastTypeName())
 				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
 				if param.IsExprCastArrayType {
@@ -915,7 +915,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
 						obj.GetObjectType(),
 						index.GetObjectName(),
-						param.ExprCastTypeName,
+						unsupportedIndexDatatype,
 						false,
 						"",
 					))
