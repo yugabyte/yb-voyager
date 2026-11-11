@@ -506,10 +506,8 @@ func TestResolveDriftScopeLimitsUniverseToRequestedSchemas(t *testing.T) {
 func TestRequireDriftTableListQualified(t *testing.T) {
 	t.Run("unqualified pattern without a default schema is rejected by name", func(t *testing.T) {
 		err := requireDriftTableListQualified("orders", "table-list", false)
-		require.Error(t, err)
-		// Must not read as an unknown table: the table exists, only the pattern is wrong.
-		assert.Contains(t, err.Error(), "not schema-qualified")
-		assert.NotContains(t, err.Error(), "unknown table name")
+		require.EqualError(t, err, `--table-list entry "orders" is not schema-qualified, and --source-db-schema names no `+
+			`default schema (no "public"); write it as schema.table`)
 	})
 
 	t.Run("qualified pattern needs no default schema", func(t *testing.T) {
@@ -522,8 +520,8 @@ func TestRequireDriftTableListQualified(t *testing.T) {
 
 	t.Run("one unqualified entry among qualified ones still errors", func(t *testing.T) {
 		err := requireDriftTableListQualified("sales.orders,customers", "exclude-table-list", false)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `"customers"`)
+		require.EqualError(t, err, `--exclude-table-list entry "customers" is not schema-qualified, and --source-db-schema names no `+
+			`default schema (no "public"); write it as schema.table`)
 	})
 }
 
