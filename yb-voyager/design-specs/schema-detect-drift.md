@@ -357,7 +357,7 @@ cmd.detectDrift()
  │      └─ schemasnapshot.Capture(ctx, db, CaptureParams{Label: LabelSourceLive})        cmd → schemasnapshot
  │         its Header.Label IS the timeline identity; appended as the last input
  │
- ├─ cmd.driftTableUniverse(contents, live)                    → table universe                                §5.5
+ ├─ cmd.driftTableUniverse(contents, live, schemas)           → table universe                                §5.5
  ├─ namereg.NewInMemorySourceNameRegistry(universe)           → []NameTuple, cmd.extractTableListFromString,
  │      cmd.expandDriftPartitions / complementDriftTableRefs  → []ObjectRef, then schemadiff.Scope            §5.5
  │
@@ -494,11 +494,11 @@ Every entry in `infoByDiffType` carries a non-empty Severity, Impact and Action.
 
 ### 5.5 Table universe and scope resolution
 
-**Where:** `cmd.driftTableUniverse`, `namereg.NewInMemorySourceNameRegistry`, export data's `cmd.extractTableListFromString`, `cmd.expandDriftPartitions`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** every loaded `SnapshotContent`, the live read, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
+**Where:** `cmd.driftTableUniverse`, `namereg.NewInMemorySourceNameRegistry`, `cmd.extractTableListFromString` (shared with export data), `cmd.expandDriftPartitions`, `cmd.complementDriftTableRefs`, and the object-type equivalents, before `BuildReport`. **In:** every loaded `SnapshotContent`, the live read, the resolved `--source-db-schema` list, and the four list flags. **Out:** `schemadiff.Scope` for `DetectionConfig.Scope`. **Decides:** what a `--table-list` pattern can name, and how an exclude list becomes the positive allow-list `Scope` expects.
 
-The set of tables a pattern can match is the union of every loadable stored snapshot and the live read. The live read already holds every table in the catalog, so the catalog is not listed separately. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing the live read is an error (exit 1).
+The set of tables a pattern can match is the union of every loadable stored snapshot and the live read, restricted to the run's schemas (`--source-db-schema` for the command, the migration's schema list for the in-process checks): a table in another schema would resolve, but every finding for it would be dropped, so the run would read as "no drift". Expanding a partitioned table never brings in a partition from another schema, but it walks through one to reach the in-scope partitions below it. The live read already holds every table in the catalog, so the catalog is not listed separately. A table dropped from the source but present in history is therefore still addressable, which is the case where the user most needs the report. Failing the live read is an error (exit 1).
 
-Names resolve the way export data resolves them. The universe is loaded into an in-memory name registry, which turns it into `NameTuple`s. The flags then go through export data's `extractTableListFromString`, so the glob matching and the unknown-table error are export's own. The registry is never written: the migration's `name_registry.json` lists only the tables present at export data's first run, so it cannot name a table created since.
+Names resolve the way export data resolves them. The universe is loaded into an in-memory name registry, which turns it into `NameTuple`s. The flags then go through `extractTableListFromString`, the matcher export data uses, so the glob matching and the unknown-table error are export's own. The registry is never written: the migration's `name_registry.json` lists only the tables present at export data's first run, so it cannot name a table created since.
 
 A partitioned table matched by either list brings every partition beneath it, at every level, as in export data. A partition matched on its own brings only itself. The hierarchy comes from `PartitionChildren` in the snapshots and the live read, so a partition dropped since is still expanded and its drop is still reported.
 
@@ -624,7 +624,7 @@ Pairing leftovers by name, which removes the first two, is designed in the Adden
 
 ## 6\. Migration-flow matrix
 
-Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
+Capture happens in `export schema` and, when the exporter role is the source exporter, at `export data` start, every `--schema-snapshot-capture-interval` minutes (default 60), and at exit. It runs by default on a PostgreSQL source and is a no-op on any other; `--disable-schema-snapshot-capture` turns it off. Both flags are also config-file keys, listed commented out under the export sections of the four migration templates. A capture failure is logged and never fails the export. `detect-drift` reads whatever `<export-dir>/metainfo/meta.db` holds.
 
 | Flow | Captures | detect-drift | Timing after `export data` starts (§5.3) | Notes |
 | :---- | :---- | :---- | :---- | :---- |
@@ -649,7 +649,7 @@ Capture happens in `export schema` and, when the exporter role is the source exp
 | A capture did not cover the requested schemas | bridged, and recorded on its `CapturePoint` (§5.2) | A requested table missing from it means nobody looked, not that it was dropped. Treating it as a boundary lost every interval around it. |
 | Live capture fails or the source is unreachable | error, exit 1; no report is written | The live read covers drift since the last stored snapshot. A report without it can show no drift while the source has drifted, and a script reading `summary.change_count` would not notice. |
 | One stored snapshot, and the live read makes it a pair | warning; report covers that single interval | Not an error: one stored capture plus the live read is a real interval. Zero stored snapshots gets no warning, because it can never form an interval and always lands on the row below. |
-| No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
+| No comparable pair at all (`ComparedIntervalCount == 0`) | error, exit 1; the message is derived from what the assembler recorded, and names only the case that actually occurred | An empty report reads as "no drift". The three causes — no captures stored, none usable, only one usable — need different advice, so the message must not assert a cause it did not observe. "None stored" is `StoredCaptureCount == 0`, not an empty `CapturePoints`: the live read is a capture point too. Capture cannot be enabled retroactively, so "re-run the export" is never the remedy for the run in hand. |
 | `DiffType` with no guidance entry | error, exit 1 (§3.4) | Reporting it as advisory with no note would show a change the report cannot explain. A test fails when a `DiffType` has no entry, so only a coding error reaches this. |
 | The migration status record is missing | error, exit 1 | Without it the report cannot place a change in a timing, and guessing one would print advice for the wrong flow. |
 | The cutover pre-check cannot run (§5.8) | cutover fails, exit 1, and names `--skip-pre-checks schema_drift` | A pre-check that silently passes reads as "no drift" just before the user commits to the target. |
@@ -692,7 +692,7 @@ None. `detect-drift` runs once per invocation over a handful of snapshots. Captu
 1. **Renamed tables under `--table-list`.** Alias handling in `schemadiff` is disabled, so filtering by a renamed table's name returns only the findings anchored to that name, not its full history. Unfiltered runs report both. A fix needs a cross-window alias map or anchors keyed by table OID.  
 2. **Iterative cutover.** Each iteration captures into its own metaDB. Should `detect-drift` on the main export dir walk the iteration dirs and present one timeline?  
 3. **Target-side and post-cutover drift.** `SnapshotHeader.Side` exists for this. Is capture from the target exporter roles wanted for fall-back and fall-forward?  
-4. **Default for capture.** It is off. What evidence flips it on by default, and does the 60-minute interval stay?  
+4. **Default for capture.** Resolved: capture is on by default on a PostgreSQL source (§6), at a 60-minute interval.  
 5. **Object coverage.** Sequences, views and functions are outside `schemasnapshot` today. Which come next, and does the severity vocabulary hold for them?  
 6. **ID-based matching across instances.** [\#3672](https://github.com/yugabyte/yb-voyager/issues/3672): OID-based table matching assumes the same PostgreSQL instance across snapshots.
 
