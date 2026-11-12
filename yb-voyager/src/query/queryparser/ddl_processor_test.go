@@ -197,32 +197,47 @@ func TestProcessRangeType(t *testing.T) {
 		{
 			name:     "multirange name derived by inserting multi before range",
 			sql:      `CREATE TYPE public.float_range AS RANGE (subtype = float8);`,
-			expected: &CreateType{TypeName: "float_range", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "float_multirange"},
+			expected: &CreateType{TypeName: "float_range", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "float_multirange"},
 		},
 		{
 			name:     "multirange name derived by appending _multirange",
 			sql:      `CREATE TYPE public."Span" AS RANGE (subtype = int4);`,
-			expected: &CreateType{TypeName: "Span", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "Span_multirange"},
+			expected: &CreateType{TypeName: "Span", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "Span_multirange"},
+		},
+		{
+			name:     "long derived name with multi inserted is clipped to 63 bytes",
+			sql:      `CREATE TYPE public.r1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaarange AS RANGE (subtype = int4);`,
+			expected: &CreateType{TypeName: "r1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaarange", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "r1_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaamultira"},
+		},
+		{
+			name:     "long name gets _multirange appended to its first 52 bytes",
+			sql:      `CREATE TYPE public.r2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa AS RANGE (subtype = int4);`,
+			expected: &CreateType{TypeName: "r2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "r2_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_multirange"},
+		},
+		{
+			name:     "clipping drops a multibyte character that would be split",
+			sql:      `CREATE TYPE public."r3_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaarangeé" AS RANGE (subtype = int4);`,
+			expected: &CreateType{TypeName: "r3_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaarangeé", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "r3_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaamultirange"},
 		},
 		{
 			name:     "qualified multirange_type_name",
 			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = other."SpanSet");`,
-			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "other", MultirangeTypeName: "SpanSet"},
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", Kind: CreateTypeRange, MultirangeSchemaName: "other", MultirangeTypeName: "SpanSet"},
 		},
 		{
 			name:     "unqualified multirange_type_name is in the range type's schema",
 			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = span_set);`,
-			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "Sch", MultirangeTypeName: "span_set"},
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", Kind: CreateTypeRange, MultirangeSchemaName: "Sch", MultirangeTypeName: "span_set"},
 		},
 		{
 			name:     "string literal multirange_type_name is one unqualified name",
 			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = 'Span.Set');`,
-			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "Sch", MultirangeTypeName: "Span.Set"},
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", Kind: CreateTypeRange, MultirangeSchemaName: "Sch", MultirangeTypeName: "Span.Set"},
 		},
 		{
 			name:     "reserved keyword multirange_type_name is one unqualified name",
 			sql:      `CREATE TYPE public.span AS RANGE (subtype = int4, multirange_type_name = user);`,
-			expected: &CreateType{TypeName: "span", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "user"},
+			expected: &CreateType{TypeName: "span", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "user"},
 		},
 	}
 	for _, tc := range testCases {

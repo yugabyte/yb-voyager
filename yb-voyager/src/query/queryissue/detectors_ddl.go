@@ -275,6 +275,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
+func displayColumnDatatype(typeName string, typeMods []int32, isArray bool) string {
+	datatype := utils.ApplyModifiersToDatatype(utils.GetSQLTypeName(typeName), typeMods)
+	if isArray {
+		datatype += "[]"
+	}
+	return datatype
+}
+
 func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, tablesMetadata map[string]*TableMetadata, issues *[]QueryIssue) {
 	for _, col := range columnList {
 		tm, ok := tablesMetadata[objectName]
@@ -300,16 +308,13 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 
 		// Compare only the internal types
 		// Not comparing the modifiers here as in the testing, there were no issues with datatypes with mismatched modifiers
-		if colMetadata.DataType == colMetadata.ReferencedColumnType {
+		if colMetadata.DataType == colMetadata.ReferencedColumnType && colMetadata.IsArray == colMetadata.ReferencedColumnIsArray {
 			continue
 		}
 
 		// Generate user-facing display types for the issue
-		localSQLTypeName := utils.GetSQLTypeName(colMetadata.DataType)
-		localDatatypeWithModifiers := utils.ApplyModifiersToDatatype(localSQLTypeName, colMetadata.DataTypeMods)
-
-		referencedSQLTypeName := utils.GetSQLTypeName(colMetadata.ReferencedColumnType)
-		referencedDatatypeWithModifiers := utils.ApplyModifiersToDatatype(referencedSQLTypeName, colMetadata.ReferencedColumnTypeMods)
+		localDatatypeWithModifiers := displayColumnDatatype(colMetadata.DataType, colMetadata.DataTypeMods, colMetadata.IsArray)
+		referencedDatatypeWithModifiers := displayColumnDatatype(colMetadata.ReferencedColumnType, colMetadata.ReferencedColumnTypeMods, colMetadata.ReferencedColumnIsArray)
 
 		*issues = append(*issues, NewForeignKeyDatatypeMismatchIssue(
 			objectType,
@@ -896,22 +901,12 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	if index.AccessMethod == queryparser.BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
-				unsupportedIndexDatatype, isUnsupportedType := d.getUnsupportedIndexDatatype(param.GetFullExprCastTypeName())
-				isUDTType := d.isUserDefinedTypeUnsupportedForIndex(param.GetFullExprCastTypeName())
-				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
+				unsupportedIndexDatatype := d.getUnsupportedIndexDatatype(param.GetFullExprCastTypeName())
 				if param.IsExprCastArrayType {
-					issues = append(issues, NewIndexOnArrayDatatypeIssue(
-						obj.GetObjectType(),
-						index.GetObjectName(),
-						"",
-					))
-				} else if isUDTType {
-					issues = append(issues, NewIndexOnUserDefinedTypeIssue(
-						obj.GetObjectType(),
-						index.GetObjectName(),
-						"",
-					))
-				} else if isUnsupportedType {
+					unsupportedIndexDatatype = "array"
+				}
+				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
+				if unsupportedIndexDatatype != "" {
 					issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
 						obj.GetObjectType(),
 						index.GetObjectName(),
@@ -1015,7 +1010,7 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	//Now most frequent value is reported all the time as low cardinality is no longer a problem as we have default as RANGE secondary indexes
 	if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD && !mostCommonValPartialIndex {
 		columnType := ""
-		if columnMeta, ok := tm.Columns[firstColumnParam.ColName]; ok && columnMeta != nil {
+		if columnMeta, ok := tm.Columns[firstColumnParam.ColName]; ok && columnMeta != nil && !columnMeta.IsArray {
 			columnType = columnMeta.DataType
 		}
 
