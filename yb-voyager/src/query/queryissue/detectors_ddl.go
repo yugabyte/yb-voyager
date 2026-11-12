@@ -202,23 +202,17 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 			issues = append(issues, ReportUnsupportedDatatypes(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		}
 		for _, unsupportedType := range support.UnsupportedInLive {
-			issues = append(issues, ReportUnsupportedDatatypesInLive(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+			if unsupportedType.Kind == TypeKindRange {
+				issues = append(issues, NewRangeLiveMigrationDatatypeIssue(obj.GetObjectType(), table.GetObjectName(), "", unsupportedType.Name, col.ColumnName))
+			} else {
+				issues = append(issues, ReportUnsupportedDatatypesInLive(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+			}
 		}
 		// a column already excluded from live migration needs no fall-forward/fall-back issue
 		if len(support.UnsupportedInLive) == 0 {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 			for _, unsupportedType := range support.UnsupportedInLiveWithFFOrFB {
-				if unsupportedType.Kind == TypeKindComposite {
-					issues = append(issues, NewUserDefinedDatatypeIssue(
-						obj.GetObjectType(),
-						table.GetObjectName(),
-						"",
-						unsupportedType.Name,
-						col.ColumnName,
-					))
-				} else {
-					issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
-				}
+				issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 			}
 		}
 
@@ -743,6 +737,14 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			baseTypeName,
 			columnName,
 		)
+	case "int4range", "int8range", "numrange", "tsrange", "tstzrange", "daterange":
+		issue = NewRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
@@ -894,8 +896,8 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	if index.AccessMethod == queryparser.BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
-				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
-				isUDTType := d.isCompositeType(param.GetFullExprCastTypeName())
+				unsupportedIndexDatatype, isUnsupportedType := d.getUnsupportedIndexDatatype(param.GetFullExprCastTypeName())
+				isUDTType := d.isUserDefinedTypeUnsupportedForIndex(param.GetFullExprCastTypeName())
 				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
 				if param.IsExprCastArrayType {
 					issues = append(issues, NewIndexOnArrayDatatypeIssue(
@@ -913,7 +915,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
 						obj.GetObjectType(),
 						index.GetObjectName(),
-						param.ExprCastTypeName,
+						unsupportedIndexDatatype,
 						false,
 						"",
 					))

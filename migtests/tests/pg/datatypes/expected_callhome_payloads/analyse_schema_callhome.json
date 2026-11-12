@@ -37,7 +37,7 @@
         "TotalCount": 10
       },
       {
-        "InvalidCount": 9,
+        "InvalidCount": 8,
         "ObjectNames": "",
         "ObjectType": "TABLE",
         "TotalCount": 29
@@ -176,34 +176,66 @@
       {
         "category": "migration_caveats",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "name": "Unsupported datatype for Live migration - range",
         "object_name": "XXXXX",
         "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
       },
       {
         "category": "migration_caveats",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "name": "Unsupported datatype for Live migration - range",
         "object_name": "XXXXX",
         "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
       },
       {
         "category": "migration_caveats",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "name": "Unsupported datatype for Live migration - range",
         "object_name": "XXXXX",
         "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
       },
       {
         "category": "migration_caveats",
         "impact": "LEVEL_1",
-        "name": "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+        "name": "Unsupported datatype for Live migration - range",
         "object_name": "XXXXX",
         "object_type": "TABLE",
-        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED"
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
+      },
+      {
+        "category": "migration_caveats",
+        "impact": "LEVEL_1",
+        "name": "Unsupported datatype for Live migration - range",
+        "object_name": "XXXXX",
+        "object_type": "TABLE",
+        "type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE"
       },
       {
         "category": "unsupported_datatypes",
