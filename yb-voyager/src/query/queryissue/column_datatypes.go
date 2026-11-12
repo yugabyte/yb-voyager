@@ -75,17 +75,16 @@ func (p *ParserIssueDetector) GetUnderlyingTypes(typeName string) []UnderlyingTy
 				return
 			}
 			visited[userDefinedType.GetObjectName()] = true
-			if userDefinedType.IsEnum {
+			switch userDefinedType.Kind {
+			case queryparser.CreateTypeEnum:
 				types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindEnum})
-				return
-			}
-			if userDefinedType.IsRange {
+			case queryparser.CreateTypeRange, queryparser.CreateTypeMultirange:
 				types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindRange})
-				return
-			}
-			types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindComposite})
-			for _, field := range userDefinedType.CompositeFields {
-				walk(field.GetFullTypeName())
+			case queryparser.CreateTypeComposite:
+				types = append(types, UnderlyingType{Name: userDefinedType.GetObjectName(), Kind: TypeKindComposite})
+				for _, field := range userDefinedType.CompositeFields {
+					walk(field.GetFullTypeName())
+				}
 			}
 			return
 		}

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -1116,6 +1117,7 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 		createType := &CreateType{
 			TypeName:   compositeNode.CompositeTypeStmt.Typevar.GetRelname(),
 			SchemaName: compositeNode.CompositeTypeStmt.Typevar.GetSchemaname(),
+			Kind:       CreateTypeComposite,
 		}
 		for _, element := range compositeNode.CompositeTypeStmt.GetColdeflist() {
 			colDef := element.GetColumnDef()
@@ -1137,7 +1139,7 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 		createType := &CreateType{
 			TypeName:   typeName,
 			SchemaName: typeSchemaName,
-			IsEnum:     true,
+			Kind:       CreateTypeEnum,
 		}
 		return createType, nil
 	case isRange:
@@ -1145,7 +1147,7 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 		createType := &CreateType{
 			TypeName:   typeName,
 			SchemaName: typeSchemaName,
-			IsRange:    true,
+			Kind:       CreateTypeRange,
 		}
 		multirangeSchemaName, multirangeTypeName, err := getMultirangeTypeName(rangeNode.CreateRangeStmt, typeSchemaName, typeName)
 		if err != nil {
@@ -1160,11 +1162,20 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 
 }
 
+type CreateTypeKind int
+
+const (
+	CreateTypeComposite CreateTypeKind = iota
+	CreateTypeEnum
+	CreateTypeRange
+	// not parsed from a statement: the multirange PostgreSQL creates along with a range type
+	CreateTypeMultirange
+)
+
 type CreateType struct {
 	TypeName   string
 	SchemaName string
-	IsEnum     bool
-	IsRange    bool
+	Kind       CreateTypeKind
 	// the multirange type PostgreSQL creates along with a range type
 	MultirangeSchemaName string
 	MultirangeTypeName   string
@@ -1173,7 +1184,7 @@ type CreateType struct {
 
 // getMultirangeTypeName returns the multirange_type_name option if given, else the name PostgreSQL
 // derives (makeMultirangeTypeName): "multi" inserted before the first "range", or "_multirange"
-// appended. An unqualified name is assumed to be in the range type's schema (pg_dump always qualifies it)
+// appended to the name cut to 52 bytes, clipped to 63 bytes. An unqualified name is assumed to be in the range type's schema (pg_dump always qualifies it)
 func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName string, rangeTypeName string) (string, string, error) {
 	for _, param := range stmt.GetParams() {
 		defElem := param.GetDefElem()
@@ -1197,9 +1208,26 @@ func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName strin
 		return schemaName, typeName, nil
 	}
 	if idx := strings.Index(rangeTypeName, "range"); idx >= 0 {
-		return rangeSchemaName, rangeTypeName[:idx] + "multi" + rangeTypeName[idx:], nil
+		return rangeSchemaName, clipIdentifier(rangeTypeName[:idx] + "multi" + rangeTypeName[idx:]), nil
 	}
-	return rangeSchemaName, rangeTypeName + "_multirange", nil
+	// PG cuts the name by bytes here (pnstrdup), even inside a multibyte character
+	return rangeSchemaName, clipIdentifier(rangeTypeName[:min(len(rangeTypeName), maxIdentifierBytes-len("_multirange"))] + "_multirange"), nil
+}
+
+// NAMEDATALEN - 1
+const maxIdentifierBytes = 63
+
+// clipIdentifier cuts name to maxIdentifierBytes without splitting a multibyte character, as
+// PostgreSQL's pg_mbcliplen does.
+func clipIdentifier(name string) string {
+	if len(name) <= maxIdentifierBytes {
+		return name
+	}
+	end := maxIdentifierBytes
+	for end > 0 && !utf8.RuneStart(name[end]) {
+		end--
+	}
+	return name[:end]
 }
 
 func (c *CreateType) GetObjectName() string {
