@@ -101,6 +101,12 @@ generator_target:
       enable_index_create_drop: true
       index_events_interval: 5
 
+voyager:
+  cutover_to_target:
+    flags:
+      # generator_source churns indexes (enable_index_create_drop); since #3922 that is schema drift, which cutover under --yes refuses.
+      skip-pre-checks: schema_drift
+
 stages:
   # Phase 1: forward live migration (no resumptions)
   - name: create_source_target_and_replica_dbs
