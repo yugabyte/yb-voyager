@@ -119,3 +119,18 @@ func TestEscapeConnUriQueryValue(t *testing.T) {
 		})
 	}
 }
+
+func TestShellQuoteCommand(t *testing.T) {
+	args := []string{
+		"yb-voyager", "export", "data", "from", "source",
+		"--export-dir", "/tmp/export dir",
+		"--send-diagnostics=true",
+		"--table-list", "public.orders,public.items",
+		"--exclude-column-list", `"public"."Orders":note,"Meta";"public"."t2":b`,
+		"--source-db-schema", "it's",
+		"--empty", "",
+	}
+	assert.Equal(t, `yb-voyager export data from source --export-dir '/tmp/export dir' --send-diagnostics=true `+
+		`--table-list public.orders,public.items --exclude-column-list '"public"."Orders":note,"Meta";"public"."t2":b' `+
+		`--source-db-schema 'it'\''s' --empty ''`, ShellQuoteCommand(args))
+}

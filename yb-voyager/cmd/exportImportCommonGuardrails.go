@@ -23,8 +23,8 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/samber/lo"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -57,7 +57,7 @@ func resolveTableColumns(dbType string, table sqlname.NameTuple, givenColumns, t
 		var notFoundErr *sqlname.ErrColumnNameNotFound
 		switch {
 		case errors.As(err, &ambiguousErr):
-			problems = append(problems, fmt.Sprintf("%s: column %q is ambiguous; double-quote the exact column name", table.ForOutput(), givenColumn))
+			problems = append(problems, fmt.Sprintf("%s: column %q is ambiguous; write the column's exact case", table.ForOutput(), givenColumn))
 			continue
 		case errors.As(err, &notFoundErr):
 			problems = append(problems, fmt.Sprintf("%s: column %q does not exist", table.ForOutput(), givenColumn))
@@ -152,7 +152,7 @@ func splitOutsideQuotes(s string, sep rune) []string {
 }
 
 // lookupPerTableFlagTables resolves each table named in a per-table flag. Instead of stopping at the
-// first bad table, it returns a problem for every table that can't be found or that is the same
+// first bad table, it returns a problem for every table that can't be looked up or that is the same
 // table as one named earlier under another spelling, so that the user can fix them all at once.
 func lookupPerTableFlagTables(tableSpecs []string, lookupTable func(string) (sqlname.NameTuple, error)) (map[string]sqlname.NameTuple, []string) {
 	resolved := make(map[string]sqlname.NameTuple, len(tableSpecs))
@@ -160,8 +160,16 @@ func lookupPerTableFlagTables(tableSpecs []string, lookupTable func(string) (sql
 	for _, spec := range tableSpecs {
 		table, err := lookupTable(spec)
 		if err != nil {
-			log.Infof("lookup of table %q: %v", spec, err)
-			problems = append(problems, fmt.Sprintf("%s: table not found", spec))
+			var notFoundErr *namereg.ErrNameNotFound
+			var multipleErr *namereg.ErrMultipleMatchingNames
+			switch {
+			case errors.As(err, &notFoundErr):
+				problems = append(problems, fmt.Sprintf("%s: table not found", spec))
+			case errors.As(err, &multipleErr):
+				problems = append(problems, fmt.Sprintf("%s: matches several tables (%s); double-quote the exact table name", spec, strings.Join(multipleErr.Names, ", ")))
+			default:
+				problems = append(problems, fmt.Sprintf("%s: %v", spec, err))
+			}
 			continue
 		}
 		earlierSpec, found := lo.FindKeyBy(resolved, func(_ string, t sqlname.NameTuple) bool { return t.Key() == table.Key() })

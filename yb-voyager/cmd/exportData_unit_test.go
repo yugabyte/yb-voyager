@@ -18,7 +18,8 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -27,6 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -128,13 +131,13 @@ func TestExcludeColumnListFlagValueRoundTrips(t *testing.T) {
 		`"Sales"."orders:1"`: {"geo"},
 	}
 	value := formatExcludeColumnList(recorded)
-	assert.Equal(t, `"Sales"."orders:1":geo;"public"."Orders":note,"Meta","select";"public"."t2":b`, value)
+	assert.Equal(t, `"Sales"."orders:1":geo;"public"."Orders":note,Meta,select;"public"."t2":b`, value)
 
 	entries, err := parseTableColumnsFlag(excludeColumnListFlagName, value)
 	require.NoError(t, err)
 	assert.Equal(t, map[string][]string{
 		`"Sales"."orders:1"`: {"geo"},
-		`"public"."Orders"`:  {"note", `"Meta"`, `"select"`},
+		`"public"."Orders"`:  {"note", "Meta", "select"},
 		`"public"."t2"`:      {"b"},
 	}, entries)
 }
@@ -146,7 +149,7 @@ func TestResolveExcludeColumnList(t *testing.T) {
 		case "orders", "public.orders":
 			return orders, nil
 		}
-		return sqlname.NameTuple{}, fmt.Errorf("table %s not found", name)
+		return sqlname.NameTuple{}, &namereg.ErrNameNotFound{ObjectType: "table", Name: name}
 	}
 	entries := map[string][]string{
 		"orders":         {"a"},
@@ -233,7 +236,7 @@ func (e excludeColumnsTestExport) lookupTable(name string) (sqlname.NameTuple, e
 			return table, nil
 		}
 	}
-	return sqlname.NameTuple{}, fmt.Errorf("table %s not found", name)
+	return sqlname.NameTuple{}, &namereg.ErrNameNotFound{ObjectType: "table", Name: name}
 }
 
 func TestValidateExcludedColumns(t *testing.T) {
@@ -315,7 +318,7 @@ func TestValidateExcludedColumns(t *testing.T) {
 		columns.Put(e.orders, []string{"id", "Note", "NOTE"})
 		_, problems, err = validateExcludedColumns(map[string][]string{"public.orders": {"note"}}, e.lookupTable, exportTables, e.rootOfTable, excludeTableHint)
 		require.NoError(t, err)
-		assert.Equal(t, []string{`public.orders: column "note" is ambiguous; double-quote the exact column name`}, problems)
+		assert.Equal(t, []string{`public.orders: column "note" is ambiguous; write the column's exact case`}, problems)
 	})
 
 	t.Run("primary key column with an unsupported datatype points to exclude-table-list", func(t *testing.T) {
@@ -411,11 +414,11 @@ A table cannot be migrated without its primary key. Exclude these tables with --
   --exclude-table-list 'public.orders'
 
 The following columns have datatypes not supported for this migration:
-  public.sales: "Geo"
+  public.sales: Geo
 To proceed, do one of the following:
   1. Exclude these columns with --exclude-column-list:
-       --exclude-column-list 'public.items:a;public.sales:region_note,"Geo"'
-     Changes to excluded columns are not streamed: the target keeps their snapshot values, and rows inserted during streaming get NULL in them. If any of them has a NOT NULL constraint in the target database, remove it.
+       --exclude-column-list 'public.items:a;public.sales:region_note,Geo'
+     Changes to excluded columns are not streamed: the target keeps their snapshot phase of migration, and rows inserted during streaming get NULL in them. If any of them has a NOT NULL constraint in the target database, remove it.
   2. Exclude these tables with --exclude-table-list:
        --exclude-table-list 'public.sales'`, err.Error())
 	})
@@ -432,9 +435,9 @@ A table cannot be migrated without its primary key. These tables had to be exclu
   --exclude-table-list 'public.orders'
 
 The following columns have datatypes not supported for this migration:
-  public.sales: "Geo"
+  public.sales: Geo
 Restart 'export data from target' with these columns excluded:
-  --exclude-column-list 'public.sales:"Geo"'
+  --exclude-column-list 'public.sales:Geo'
 Changes made on the target to excluded columns are not exported: the source database keeps their values from before cutover, and rows inserted after cutover get NULL in them. If any of them has a NOT NULL constraint in the source database, remove it.`, err.Error())
 	})
 }
@@ -601,5 +604,151 @@ func TestExcludeColumnsOnPartitionedRootWithoutPrimaryKey(t *testing.T) {
 		_, report, err := applyExcludedColumns(utils.NewStructMap[sqlname.NameTuple, []string](), exportTables)
 		require.NoError(t, err)
 		assert.Equal(t, unsupportedColumnsReport{primaryKeyTables: map[string][]string{e.sales.ForOutput(): {"region"}}, otherTables: map[string][]string{}}, report)
+	})
+}
+
+type excludeColumnsStubSourceDB struct {
+	srcdb.SourceDB
+	columns     *utils.StructMap[sqlname.NameTuple, []string]
+	primaryKeys *utils.StructMap[sqlname.NameTuple, []string]
+}
+
+func (s excludeColumnsStubSourceDB) GetTableToColumns([]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return s.columns, nil
+}
+
+func (s excludeColumnsStubSourceDB) GetPrimaryKeyColumns([]sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return s.primaryKeys, nil
+}
+
+// finalizeExcludeColumnsTest is an export of public.orders and the case-sensitive "Sales"."Orders",
+// with the globals finalizeColumnListForLiveMigration reads pointed at a temp metaDB and an
+// in-memory name registry for role.
+type finalizeExcludeColumnsTest struct {
+	orders, salesOrders sqlname.NameTuple
+	sourceDB            excludeColumnsStubSourceDB
+	supported           *utils.StructMap[sqlname.NameTuple, []string]
+	unsupported         *utils.StructMap[sqlname.NameTuple, []string]
+}
+
+func newFinalizeExcludeColumnsTest(t *testing.T, role string) finalizeExcludeColumnsTest {
+	useExcludeColumnsTestMetaDB(t, role)
+	savedNameReg, savedSourceDBType, savedSqlnameSourceDBType := namereg.NameReg, source.DBType, sqlname.SourceDBType
+	savedEntries := userSpecifiedExcludeColumnListEntries
+	t.Cleanup(func() {
+		namereg.NameReg, source.DBType, sqlname.SourceDBType = savedNameReg, savedSourceDBType, savedSqlnameSourceDBType
+		userSpecifiedExcludeColumnListEntries = savedEntries
+	})
+	source.DBType = POSTGRESQL
+	sqlname.SourceDBType = POSTGRESQL
+
+	regFile := filepath.Join(t.TempDir(), "name_registry.json")
+	require.NoError(t, os.WriteFile(regFile, []byte(`{
+  "SourceDBType": "postgresql",
+  "SourceDBSchemaNames": ["public", "Sales"],
+  "DefaultSourceDBSchemaName": "public",
+  "SourceDBTableNames": {"public": ["orders"], "Sales": ["Orders"]},
+  "YBSchemaNames": ["public", "Sales"],
+  "DefaultYBSchemaName": "public",
+  "YBTableNames": {"public": ["orders"], "Sales": ["Orders"]}
+}`), 0644))
+	require.NoError(t, namereg.InitNameRegistry(namereg.NameRegistryParams{FilePath: regFile, Role: role}))
+
+	f := finalizeExcludeColumnsTest{}
+	var err error
+	f.orders, err = namereg.NameReg.LookupTableName("public.orders")
+	require.NoError(t, err)
+	f.salesOrders, err = namereg.NameReg.LookupTableName(`"Sales"."Orders"`)
+	require.NoError(t, err)
+
+	columns := utils.NewStructMap[sqlname.NameTuple, []string]()
+	columns.Put(f.orders, []string{"id", "note", "doc"})
+	columns.Put(f.salesOrders, []string{"id", "note", "region"})
+	primaryKeys := utils.NewStructMap[sqlname.NameTuple, []string]()
+	primaryKeys.Put(f.orders, []string{"id"})
+	primaryKeys.Put(f.salesOrders, []string{"id"})
+	f.sourceDB = excludeColumnsStubSourceDB{columns: columns, primaryKeys: primaryKeys}
+
+	f.supported = utils.NewStructMap[sqlname.NameTuple, []string]()
+	f.supported.Put(f.orders, []string{"id", "note"})
+	f.supported.Put(f.salesOrders, []string{"*"})
+	f.unsupported = utils.NewStructMap[sqlname.NameTuple, []string]()
+	f.unsupported.Put(f.orders, []string{"doc"})
+	return f
+}
+
+func (f finalizeExcludeColumnsTest) run(t *testing.T, flagValue string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	entries, err := parseTableColumnsFlag(excludeColumnListFlagName, flagValue)
+	require.NoError(t, err)
+	userSpecifiedExcludeColumnListEntries = entries
+	noPartitions := func(table sqlname.NameTuple) (sqlname.NameTuple, error) { return table, nil }
+	return finalizeColumnListForLiveMigration(f.sourceDB, noPartitions, []sqlname.NameTuple{f.orders, f.salesOrders}, map[string]string{}, f.supported, f.unsupported)
+}
+
+func TestFinalizeColumnListForLiveMigration(t *testing.T) {
+	t.Run("source exporter: first run, resume with the value passed to the next iteration, and a changed set", func(t *testing.T) {
+		f := newFinalizeExcludeColumnsTest(t, SOURCE_DB_EXPORTER_ROLE)
+
+		columnList, err := f.run(t, `public.orders:DOC;"Sales"."Orders":note`)
+		require.NoError(t, err)
+		ordersColumns, _ := columnList.Get(f.orders)
+		assert.Equal(t, []string{"id", "note"}, ordersColumns)
+		salesOrdersColumns, _ := columnList.Get(f.salesOrders)
+		assert.Equal(t, []string{"id", "region"}, salesOrdersColumns, `"*" is expanded so that the excluded column is left out`)
+		recorded := map[string][]string{f.orders.ForKey(): {"doc"}, f.salesOrders.ForKey(): {"note"}}
+		assert.Equal(t, metadb.ExcludedColumnsRecord{FromSource: recorded}, excludedColumnsRecord(t))
+
+		// startExportDataFromSourceOnNextIteration passes the recorded set back in this form
+		_, err = f.run(t, formatExcludeColumnList(recorded))
+		require.NoError(t, err)
+
+		_, err = f.run(t, "public.orders:doc")
+		require.Error(t, err)
+		assert.Equal(t, "--exclude-column-list cannot change once export data has started.\n"+
+			"  started with: '"+formatExcludeColumnList(recorded)+"'\n"+
+			"  now:          '"+formatExcludeColumnList(map[string][]string{f.orders.ForKey(): {"doc"}})+"'\n"+
+			"Re-run with the value it started with.", err.Error())
+		assert.Equal(t, metadb.ExcludedColumnsRecord{FromSource: recorded}, excludedColumnsRecord(t))
+	})
+
+	t.Run("source exporter: problems in the value fail before anything is recorded", func(t *testing.T) {
+		f := newFinalizeExcludeColumnsTest(t, SOURCE_DB_EXPORTER_ROLE)
+		_, err := f.run(t, `"Sales".missing:note;public.orders:id,foo`)
+		require.Error(t, err)
+		assert.Equal(t, "invalid --exclude-column-list:\n"+
+			"  \"Sales\".missing: table not found\n"+
+			"  public.orders: column \"foo\" does not exist\n"+
+			"  public.orders: column \"id\" is part of the primary key and cannot be excluded", err.Error())
+		assert.Equal(t, metadb.ExcludedColumnsRecord{}, excludedColumnsRecord(t))
+	})
+
+	t.Run("source exporter: an unsupported column left on a case-sensitive table fails and records nothing", func(t *testing.T) {
+		f := newFinalizeExcludeColumnsTest(t, SOURCE_DB_EXPORTER_ROLE)
+		f.unsupported.Put(f.salesOrders, []string{"region"})
+		_, err := f.run(t, "public.orders:doc")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "  "+f.salesOrders.ForOutput()+": region\n")
+		assert.Contains(t, err.Error(), "--exclude-column-list '"+f.salesOrders.ForOutput()+":region;public.orders:doc'")
+		assert.Contains(t, err.Error(), "--exclude-table-list '"+f.salesOrders.ForOutput()+"'")
+		assert.Equal(t, metadb.ExcludedColumnsRecord{}, excludedColumnsRecord(t))
+	})
+
+	t.Run("target exporter: inherits the source's columns and adds its own", func(t *testing.T) {
+		f := newFinalizeExcludeColumnsTest(t, TARGET_DB_EXPORTER_FB_ROLE)
+		fromSource := map[string][]string{f.orders.ForKey(): {"doc"}}
+		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
+			r.ExcludedColumns.FromSource = fromSource
+		}))
+		f.unsupported.Put(f.salesOrders, []string{"note"})
+
+		columnList, err := f.run(t, `"Sales"."Orders":note`)
+		require.NoError(t, err)
+		ordersColumns, _ := columnList.Get(f.orders)
+		assert.Equal(t, []string{"id", "note"}, ordersColumns)
+		salesOrdersColumns, _ := columnList.Get(f.salesOrders)
+		assert.Equal(t, []string{"id", "region"}, salesOrdersColumns)
+		record := excludedColumnsRecord(t)
+		assert.Equal(t, fromSource, record.FromSource)
+		assert.Equal(t, map[string][]string{f.orders.ForKey(): {"doc"}, f.salesOrders.ForKey(): {"note"}}, record.FromTarget)
 	})
 }

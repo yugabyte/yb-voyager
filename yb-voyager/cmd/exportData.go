@@ -2415,7 +2415,7 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsTo
 	}
 	isPGOrYBStreaming := (source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB) && changeStreamingIsEnabled(exportType)
 	if isPGOrYBStreaming {
-		tablesColumnList, err = finalizeColumnListForLiveMigration(finalTableList, partitionsToRootTableMap, tablesColumnList, unsupportedTableColumnsMap)
+		tablesColumnList, err = finalizeColumnListForLiveMigration(source.DB(), GetRootTableOfPartition, finalTableList, partitionsToRootTableMap, tablesColumnList, unsupportedTableColumnsMap)
 		if err != nil {
 			utils.ErrExit("%s", err)
 		}
@@ -2778,8 +2778,9 @@ var excludeColumnList string
 const excludeColumnListFlagHelp = "semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes streamed in live migration. " +
 	"The snapshot still copies these columns. Only for PostgreSQL source databases and 'export data from target'.\n" +
 	"For partitioned tables, specify the root table; the columns are excluded from all its partitions. Primary key columns cannot be excluded.\n" +
-	"Column names are matched ignoring case; double-quote a column name only if the table has columns differing just in case. In case the table names are case sensitive, double-quote them.\n" +
-	`For example --exclude-column-list 'public.orders:note,"Meta";"Sales":geom'`
+	"Column names are matched ignoring case; if the table has columns differing only in case, write the column's exact case. " +
+	"In case the table names are case sensitive, double-quote them.\n" +
+	`For example --exclude-column-list 'public.orders:note,Meta;"Sales":geom'`
 
 var userSpecifiedExcludeColumnListEntries map[string][]string
 
@@ -2800,18 +2801,11 @@ func validateExcludeColumnListFlag() error {
 
 const excludeColumnListFlagName = "exclude-column-list"
 
-func minQuoteColumnName(column string) string {
-	if sqlname.IsAllLowercase(column) && !sqlname.IsReservedKeywordPG(column) {
-		return column
-	}
-	return `"` + strings.ReplaceAll(column, `"`, `""`) + `"`
-}
-
 // formatExcludeColumnList renders table -> columns as an --exclude-column-list value, with the
 // tables sorted.
 func formatExcludeColumnList(tableToColumns map[string][]string) string {
 	return strings.Join(lo.Map(slices.Sorted(maps.Keys(tableToColumns)), func(table string, _ int) string {
-		return table + ":" + strings.Join(lo.Map(tableToColumns[table], func(c string, _ int) string { return minQuoteColumnName(c) }), ",")
+		return table + ":" + strings.Join(tableToColumns[table], ",")
 	}), ";")
 }
 
@@ -2985,9 +2979,7 @@ func describeColumns(tableToColumns map[string][]string) string {
 		b.WriteString("  ")
 		b.WriteString(table)
 		b.WriteString(": ")
-		b.WriteString(strings.Join(lo.Map(tableToColumns[table], func(c string, _ int) string {
-			return minQuoteColumnName(c)
-		}), ", "))
+		b.WriteString(strings.Join(tableToColumns[table], ", "))
 		b.WriteString("\n")
 	}
 	return b.String()
@@ -2999,7 +2991,7 @@ func excludedColumnsNote() string {
 			"and rows inserted after cutover get NULL in them. If any of them has a NOT NULL constraint in the %s database, remove it.",
 			getImportingDatabaseString(), getImportingDatabaseString())
 	}
-	return "Changes to excluded columns are not streamed: the target keeps their snapshot values, and rows inserted during streaming get NULL in them. " +
+	return "Changes to excluded columns are not streamed: the target keeps their snapshot phase of migration, and rows inserted during streaming get NULL in them. " +
 		"If any of them has a NOT NULL constraint in the target database, remove it."
 }
 
@@ -3057,14 +3049,15 @@ func buildUnsupportedColumnsError(report unsupportedColumnsReport, userExcluded 
 // finalizeColumnListForLiveMigration applies --exclude-column-list to the column list Debezium
 // streams for a PostgreSQL source or a YugabyteDB target exporter, and fails on any column with an
 // unsupported datatype that is still left.
-func finalizeColumnListForLiveMigration(finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string,
+func finalizeColumnListForLiveMigration(sourceDB srcdb.SourceDB, rootOfTable func(sqlname.NameTuple) (sqlname.NameTuple, error),
+	finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string,
 	supportedColumns *utils.StructMap[sqlname.NameTuple, []string], unsupportedColumns *utils.StructMap[sqlname.NameTuple, []string]) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 
-	tableToColumns, err := source.DB().GetTableToColumns(finalTableList)
+	tableToColumns, err := sourceDB.GetTableToColumns(finalTableList)
 	if err != nil {
 		return nil, fmt.Errorf("get columns of tables: %w", err)
 	}
-	tableToPrimaryKeyColumns, err := source.DB().GetPrimaryKeyColumns(finalTableList)
+	tableToPrimaryKeyColumns, err := sourceDB.GetPrimaryKeyColumns(finalTableList)
 	if err != nil {
 		return nil, fmt.Errorf("get primary key columns of tables: %w", err)
 	}
@@ -3087,7 +3080,7 @@ func finalizeColumnListForLiveMigration(finalTableList []sqlname.NameTuple, part
 		excludeTableHint = "the table had to be excluded with --exclude-table-list on 'export data from source'"
 	}
 	userExcluded, problems, err := validateExcludedColumns(userSpecifiedExcludeColumnListEntries, namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole,
-		exportTables, GetRootTableOfPartition, excludeTableHint)
+		exportTables, rootOfTable, excludeTableHint)
 	if err != nil {
 		return nil, err
 	}
@@ -3095,20 +3088,20 @@ func finalizeColumnListForLiveMigration(finalTableList []sqlname.NameTuple, part
 		return nil, perTableFlagProblemsError(excludeColumnListFlagName, problems)
 	}
 
-	excluded := userExcluded
+	finalExcluded := userExcluded
 	if isTargetDBExporter(exporterRole) {
-		excluded, err = handleExcludedColumnForTargetExporter(userExcluded, finalTableList, partitionsToRootTableMap)
+		finalExcluded, err = handleExcludedColumnForTargetExporter(userExcluded, finalTableList, partitionsToRootTableMap)
 		if err != nil {
 			return nil, err
 		}
 	}
-	columnList, report, err := applyExcludedColumns(excluded, exportTables)
+	columnList, report, err := applyExcludedColumns(finalExcluded, exportTables)
 	if err != nil {
 		return nil, err
 	}
 	if !report.isEmpty() {
 		userExcludedForOutput := map[string][]string{}
-		err = userExcluded.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+		err = finalExcluded.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
 			userExcludedForOutput[table.ForOutput()] = columns
 			return true, nil
 		})
@@ -3118,16 +3111,16 @@ func finalizeColumnListForLiveMigration(finalTableList []sqlname.NameTuple, part
 		return nil, buildUnsupportedColumnsError(report, userExcludedForOutput)
 	}
 
-	err = recordExcludedColumns(userExcluded)
+	err = recordExcludedColumns(finalExcluded)
 	if err != nil {
 		return nil, err
 	}
-	if len(excluded.Keys()) > 0 {
+	if len(finalExcluded.Keys()) > 0 {
 		var excludedMsg strings.Builder
 		excludedMsg.WriteString("Excluding the following columns from the changes streamed in live migration:\n")
-		for _, table := range excluded.SortedActualKeys(func(a, b sqlname.NameTuple) bool { return a.ForOutput() < b.ForOutput() }) {
-			cols, _ := excluded.Get(table)
-			excludedMsg.WriteString(fmt.Sprintf("  %s: %s\n", table.ForOutput(), strings.Join(lo.Map(cols, func(c string, _ int) string { return minQuoteColumnName(c) }), ", ")))
+		for _, table := range finalExcluded.SortedActualKeys(func(a, b sqlname.NameTuple) bool { return a.ForOutput() < b.ForOutput() }) {
+			cols, _ := finalExcluded.Get(table)
+			excludedMsg.WriteString(fmt.Sprintf("  %s: %s\n", table.ForOutput(), strings.Join(cols, ", ")))
 		}
 		excludedMsg.WriteString(excludedColumnsNote())
 		utils.PrintAndLog(color.YellowString("%s", excludedMsg.String()))

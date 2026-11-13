@@ -94,21 +94,21 @@ The flag is registered once in `registerExportDataFlags` (`cmd/export.go`), whic
 <table>  = [<schema>.]<table name>
 ```
 
-- Entries are separated by `;`, the table from its columns by `:`, and columns by `,`. None of these split inside double quotes, so a quoted name may contain them.
+- Entries are separated by `;`, the table from its columns by `:`, and columns by `,`. None of these split inside double quotes, so a quoted table name may contain them.
 - On the command line the value needs single quotes because of `;`.
 - **Tables** resolve through the name registry, as `--table-list` does. A bare name resolves in the default schema. Case-sensitive table names must be double-quoted.
-- **Columns** are matched against the table's real columns ignoring case (§5.5). A column name needs double quotes only when the table has columns that differ only in case.
+- **Columns** are matched against the table's real columns ignoring case (§5.5). Quotes do not change which column matches: when the table has columns that differ only in case, the exact spelling picks one. Column names containing `;`, `:` or `,` are not supported (§10).
 - **Partitioned tables** are named by their root table. The exclusion applies to every partition.
 
 Example:
 
 ```
---exclude-column-list 'public.orders:note,"Meta";"Sales"."Geo":geom'
+--exclude-column-list 'public.orders:note,Meta;"Sales"."Geo":geom'
 ```
 
 ### 3.3 Help text
 
-> semicolon-separated list of `<table>:<column1>,<column2>,...` entries naming the columns to leave out of the changes streamed in live migration. The snapshot still copies these columns. Only for PostgreSQL source databases and 'export data from target'. For partitioned tables, specify the root table; the columns are excluded from all its partitions. Primary key columns cannot be excluded. Column names are matched ignoring case; double-quote a column name only if the table has columns differing just in case. In case the table names are case sensitive, double-quote them.
+> semicolon-separated list of `<table>:<column1>,<column2>,...` entries naming the columns to leave out of the changes streamed in live migration. The snapshot still copies these columns. Only for PostgreSQL source databases and 'export data from target'. For partitioned tables, specify the root table; the columns are excluded from all its partitions. Primary key columns cannot be excluded. Column names are matched ignoring case; if the table has columns differing only in case, write the column's exact case. In case the table names are case sensitive, double-quote them.
 
 ## 4\. What happens to an excluded column
 
@@ -171,18 +171,19 @@ The new path runs after the table-level filters, so it works on exactly the tabl
 ```
 invalid --exclude-column-list:
   public.missing: table not found
+  orders2: matches several tables (Orders2, ORDERS2); double-quote the exact table name
   public.orders: table public.orders is already listed as orders
   public.sales_q1: is a partition of public.sales; specify the root table public.sales
   public.audit: table is not part of this export; check --table-list and --exclude-table-list
   public.orders: column "foo" does not exist
-  public.orders: column "note" is ambiguous; double-quote the exact column name
+  public.orders: column "note" is ambiguous; write the column's exact case
   public.orders: column "doc" is listed more than once
   public.orders: column "id" is part of the primary key and cannot be excluded
 ```
 
 | Check | Rule |
 | :---- | :---- |
-| Table lookup | The lookup passed in; `finalizeColumnListForLiveMigration` passes `LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole`. Tables are looked up in sorted order. A table that is not found, or that resolves to a table already listed under another spelling, is a problem. |
+| Table lookup | The lookup passed in; `finalizeColumnListForLiveMigration` passes `LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole`. Tables are looked up in sorted order. A table that is not found, a name that matches several tables differing only in case, or a table already listed under another spelling is a problem; any other lookup error (such as an invalid name) is shown as is. |
 | Partition root | `GetRootTableOfPartition`. Naming a leaf partition is a problem that names the root to use instead. On the target a partitioned table is one table, so excluding a column on only some partitions would leave it partly NULL. |
 | Exported | The table must be in the finalized table list. A table removed by `--table-list` / `--exclude-table-list`, or skipped by voyager, is a problem (see §14 on skipped tables). |
 | Column match | `resolveTableColumns`, which calls `sqlname.FindBestMatchingColumnName` against the table's columns: an exact match, then a single case-insensitive match, then the all-lowercase column if several differ only in case. Otherwise "does not exist" or "ambiguous". |
@@ -250,7 +251,7 @@ The messages name the columns but not their datatypes.
 ```
 Excluding the following columns from the changes streamed in live migration:
   public.orders: doc, note
-  public.sales: "Geo"
+  public.sales: Geo
 Changes to excluded columns are not streamed: ...
 ```
 
@@ -278,7 +279,7 @@ The column set Debezium streams must not change during a migration, otherwise so
 | Resume with the same set | Continues. The comparison is on resolved table keys and sorted column names, so a different spelling of the same set passes. |
 | Resume with a different set | Fails and prints both values in flag syntax, so the user can re-run with the original: `--exclude-column-list cannot change once export data has started. started with: '...' now: '...' Re-run with the value it started with.` |
 | `export data --start-clean` | `clearMigrationStateIfRequired` resets `ExcludedColumns`. |
-| Next cutover iteration | `setUpNextIterationMSR` copies `ExcludedColumns` into the new iteration's MSR. `startExportDataFromSourceOnNextIteration` passes `--exclude-column-list` rendered from `FromSource` by `formatExcludeColumnList` (sorted tables, min-quoted columns), so the spawned exporter passes the resume check. |
+| Next cutover iteration | `setUpNextIterationMSR` copies `ExcludedColumns` into the new iteration's MSR. `startExportDataFromSourceOnNextIteration` passes `--exclude-column-list` rendered from `FromSource` by `formatExcludeColumnList` (sorted tables, column names as recorded), so the spawned exporter passes the resume check. On the target side, `generateExportDataFromTargetCommand` passes `--exclude-column-list` rendered from `FromTarget` when it is non-empty, so the target exporter of every iteration after the first passes the resume check too, in CLI and config-file mode. |
 
 ### 5.11 How `export data from target` gets its exclusions
 
@@ -289,7 +290,7 @@ Source and target have the same tables and columns, so most columns that need ex
 | Excluded on the source export (`FromSource`) | Read from the MSR in the same export directory by `handleExcludedColumnForTargetExporter` and merged per root table (§5.6). They are removed before the datatype check, so they never cause an error on the target. | None. |
 | Unsupported only by the YB connector and not excluded on the source (`TSQUERY`; with gRPC also `HSTORE`, `CITEXT`, `LTREE`, `TSVECTOR`, composites, see §5.9) | Only from the target exporter's own `--exclude-column-list`. Without it, export fails at startup with the exact value to use (§5.7). | Add them to `export-data-from-target: exclude-column-list`, or pass the flag. |
 
-**The spawned command does not carry `FromSource`.** `import data` starts `export data from target` itself (`generateExportDataFromTargetCommand`), and it deliberately does not pass the source's list as `--exclude-column-list`:
+**The spawned command does not carry `FromSource`.** `import data` starts `export data from target` itself (`generateExportDataFromTargetCommand`), and it deliberately does not pass the source's list as `--exclude-column-list`. It passes only `FromTarget`, the target exporter's own saved list, once one exists:
 
 - **One copy of the fact.** The MSR already holds the list; a command-line copy would be a second one.
 - **It would block the user's own flag.** The target exporter saves whatever its flag holds as `FromTarget` and refuses to resume with a different list (§5.10). If the spawned command passed the source columns, a later restart with "source columns plus the extra ones" would count as a changed list.
@@ -298,8 +299,9 @@ Source and target have the same tables and columns, so most columns that need ex
 
 | Mode | Behaviour |
 | :---- | :---- |
-| Config file | The spawned command gets `--config-file` through the global arguments, so `export-data-from-target: exclude-column-list` is read. Works without user action at cutover. |
-| CLI | The spawned command gets only global flags. If extra unsupported columns exist, the target exporter fails at startup; the user restarts `export data from target` by hand with the suggested flag value. Recoverable, but it always fails once, and automated runs (the gRPC `pg/datatypes` migtests) have no one to restart it. |
+| Config file | The spawned command gets `--config-file` through the global arguments, so `export-data-from-target: exclude-column-list` is read. Works without user action at cutover. Once `FromTarget` is saved, the spawned command also carries it as `--exclude-column-list`, which overrides the config file, so a later edit of the config key is ignored instead of failing the resume check. |
+| CLI, first iteration | The spawned command gets only global flags. If extra unsupported columns exist, the target exporter fails at startup; the user restarts `export data from target` by hand with the suggested flag value. Recoverable, but it always fails once, and automated runs (the gRPC `pg/datatypes` migtests) have no one to restart it. |
+| CLI, later iterations | `setUpNextIterationMSR` copies `FromTarget` into the new iteration's MSR, and the spawned command passes it as `--exclude-column-list`. No user action. |
 
 **Proposed: check at cutover time.** `initiate cutover to target` with `--prepare-for-fall-back` or fall-forward knows which connector the target exporter will use. It can run the YB connector's datatype check on the exported tables, leave out everything in `FromSource`, and fail with the suggested `export-data-from-target: exclude-column-list` value before anything is spawned. The same point could take a value for CLI users (for example `--exclude-column-list-for-target`), save it in the MSR, and have `generateExportDataFromTargetCommand` pass it on. Tracked in §14.
 
@@ -367,7 +369,7 @@ type ExcludedColumnsRecord struct {
 | Changes-only | Same as live; there is no snapshot, so excluded columns are never copied. | n/a |
 | Live with fall-back | As live. | Inherits `FromSource` from the MSR; own flag only for YB-connector-only columns. Effective set is `FromSource` ∪ own (§5.6, §5.11). Checked against the YB connector in use. |
 | Live with fall-forward | As live. | Same as fall-back, towards the replica. |
-| Iterative cutover | Each iteration's source exporter gets `FromSource` through the spawned command line and the copied MSR. | `FromTarget` is copied with the MSR. The spawned target exporter does not get a flag on the command line in CLI mode (§14). |
+| Iterative cutover | Each iteration's source exporter gets `FromSource` through the spawned command line and the copied MSR. | `FromTarget` is copied with the MSR and passed on the spawned command line, so iterations after the first need no user action. In CLI mode the first iteration's target exporter still gets no flag (§14). |
 
 Oracle and MySQL sources: the flag is rejected and every flow behaves as before.
 
@@ -398,6 +400,7 @@ Oracle and MySQL are unchanged.
 | MSR missing when recording or reading the source set | Error. It should exist by this point in export; continuing would lose the resume guard. |
 | Partition attached after the first run | Gets its root's exclusions on the next run, because leaves are recomputed every run. |
 | Column renamed or dropped on the source between runs | The saved name no longer matches; the check reports "does not exist". The user must restart with `--start-clean`. |
+| Column name containing `;`, `:` or `,` | Not supported. Recorded and suggested values write column names without quotes, so such a name would be split when the value is read back. |
 | Column name containing `"` (written `"x""y"`) | Not supported. The matcher strips the outer quotes but does not un-escape `""`, so the name is reported as not existing. Live migration already fails on such columns: the importer quotes column names with Go's `%q` (`AttributeNameRegistry.QuoteAttributeName`), producing `"x\"y"`, which PostgreSQL rejects. |
 
 ## 11\. Performance
@@ -418,6 +421,8 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 | Keyless partitioned root | `TestExcludeColumnsOnPartitionedRootWithoutPrimaryKey` (`cmd`, unit) | The root takes its partitions' key; excluding a column of that key is rejected; an unsupported column in it is reported as a primary-key table. |
 | Target merge | `TestHandleExcludedColumnForTargetExporter` (`cmd`, unit, temp metaDB) | `FromSource` is added per root table and leaves are skipped; after the merge only a `tsquery` column the source did not exclude is left as unsupported. |
 | Matcher | `TestFindBestMatchingColumnName` (`sqlname`, unit) | Exact, quoted, case-insensitive, lowercase (PG/YB) and uppercase (Oracle) preference, ambiguous, not found. |
+| Orchestrator | `TestFinalizeColumnListForLiveMigration` (`cmd`, unit, stub `SourceDB`, temp metaDB, in-memory name registry) | Source exporter: first run with a case-sensitive table and a case-insensitive column, `*` expanded, set recorded; resume with the value `startExportDataFromSourceOnNextIteration` renders; changed set refused; flag problems and leftover unsupported columns record nothing. Target exporter: inherits `FromSource` and adds its own column. |
+| Table lookup | `TestLookupPerTableFlagTables` (`cmd`, unit, in-memory name registry) | Not found, name matching tables that differ only in case, invalid name, quoted exact name resolving. |
 | Shared guardrails | `TestParseCdcPartitionKeyOverrides`, `TestResolveCdcPartitionKeyOverrides` (`cmd`, unit) | Shared parser and lookup through the import flag, including quoted separators and aggregated table problems. |
 | Catalog | `TestPostgresGetTableColumns` (`srcdb`, integration) | Column names in definition order for a case-sensitive schema and table, with a dropped column, a reserved-word column, a domain and an array column; partition root and leaf. |
 | End to end | migtest `pg/datatypes` | `EXPORT_EX_COLUMN_LIST` lists every unsupported column of the test schema; passed by `export_data` in `migtests/scripts/functions.sh` and by the live config templates. |
@@ -425,7 +430,7 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 **Gaps:**
 
 - **No YugabyteDB integration test** for `GetTableToColumns`.
-- **No unit test that the source exporter skips the `FromSource` merge.** That role check is in `finalizeColumnListForLiveMigration`, which needs a database.
+- **No test that `--start-clean` resets `ExcludedColumns`.** The reset is inside `clearMigrationStateIfRequired`, which also cleans directories and prompts.
 - **No end-to-end test for `export data from target`:**
   - `TSQUERY` failing in reverse and passing once listed
   - a source-excluded column not being NULLed on the source after an UPDATE on the target
@@ -448,7 +453,7 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 
 ## 14\. Open questions
 
-1. **Extra YB-only columns for the spawned target exporter (§5.11).** Columns excluded on the source are already inherited; only the YB-connector-only ones are at issue. Options:
+1. **Extra YB-only columns for the first spawned target exporter (§5.11).** Columns excluded on the source are already inherited, and from the second iteration on the target exporter's own list is passed from `FromTarget`; only the first iteration in CLI mode is at issue. Options:
    - **Cutover-time check (proposed).** `initiate cutover to target` with fall-back or fall-forward fails early with the suggested target value, and can take a value for CLI users to save in the MSR and pass to the spawned command.
    - **Keep the manual restart in CLI mode.** The target exporter fails at startup with the exact value, and the user restarts it with the flag.
    - **For CI now:** run the gRPC `pg/datatypes` fall-back and fall-forward migtests in config-file mode with `EXPORT_FROM_TARGET_EX_COLUMN_LIST` set. This needs no product change.

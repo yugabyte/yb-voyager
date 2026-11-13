@@ -873,6 +873,9 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	if len(tables) == 0 {
+		return nil, nil
+	}
 	catalogTableToTuple := make(map[string]sqlname.NameTuple)
 	for _, table := range tables {
 		catalogTableToTuple[table.AsQualifiedCatalogName()] = table
