@@ -700,6 +700,9 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	return getColumnsWithSupportedTypes(yb.db, tableList, GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector), unsupportedTypTypes)
 }
 
+func (yb *YugabyteDB) GetTableToColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return getTablesToColumns(yb.db, tableList)
+}
 func (yb *YugabyteDB) GetTypeToOid(typeNames []string) (map[string]int, error) {
 	return getTypeToOid(yb.db, typeNames)
 }
@@ -870,6 +873,9 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	if len(tables) == 0 {
+		return nil, nil
+	}
 	catalogTableToTuple := make(map[string]sqlname.NameTuple)
 	for _, table := range tables {
 		catalogTableToTuple[table.AsQualifiedCatalogName()] = table

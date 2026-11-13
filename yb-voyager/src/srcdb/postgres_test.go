@@ -207,6 +207,57 @@ func TestPostgresGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
 	})
 }
 
+// --exclude-column-list is validated against these columns, so names must come back exactly as in
+// the catalog and in definition order, with each column's declared type as SQL writes it rather
+// than the type underneath a domain or array; a partitioned root and its leaf report the same columns.
+func TestPostgresGetTableColumns(t *testing.T) {
+	testPostgresSource.TestContainer.ExecuteSqls(
+		`CREATE SCHEMA "ColSchema";`,
+		`CREATE DOMAIN "ColSchema".lsn_dom AS PG_LSN;`,
+		`CREATE TABLE "ColSchema"."Orders" (
+			id INT PRIMARY KEY,
+			"Note" VARCHAR(20),
+			lsn_col "ColSchema".lsn_dom,
+			tags TEXT[],
+			pts POINT[]
+		);`,
+		`ALTER TABLE "ColSchema"."Orders" DROP COLUMN tags;`,
+		`ALTER TABLE "ColSchema"."Orders" ADD COLUMN "select" XML;`,
+		`CREATE TABLE "ColSchema".sales (id INT, region TEXT, PRIMARY KEY (id, region)) PARTITION BY LIST (region);`,
+		`CREATE TABLE "ColSchema".sales_east PARTITION OF "ColSchema".sales FOR VALUES IN ('east');`,
+	)
+	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA "ColSchema" CASCADE;`)
+
+	sqlname.SourceDBType = "postgresql"
+	orders := testutils.CreateNameTupleWithSourceName(`"ColSchema"."Orders"`, `"ColSchema"`, testPostgresSource.DBType)
+	sales := testutils.CreateNameTupleWithSourceName(`"ColSchema".sales`, `"ColSchema"`, testPostgresSource.DBType)
+	salesEast := testutils.CreateNameTupleWithSourceName(`"ColSchema".sales_east`, `"ColSchema"`, testPostgresSource.DBType)
+
+	_ = testPostgresSource.DB().Connect()
+	defer testPostgresSource.DB().Disconnect()
+	pgDB := testPostgresSource.DB().(*PostgreSQL)
+
+	columns, err := pgDB.GetTableToColumns([]sqlname.NameTuple{orders, sales, salesEast})
+	require.NoError(t, err)
+
+	ordersColumns, exists := columns.Get(orders)
+	require.True(t, exists)
+	require.Equal(t, []string{
+		"id",
+		"Note",
+		"lsn_col",
+		"pts",
+		"select",
+	}, ordersColumns)
+
+	salesColumns := []string{"id", "region"}
+	for _, table := range []sqlname.NameTuple{sales, salesEast} {
+		got, exists := columns.Get(table)
+		require.True(t, exists, table.ForOutput())
+		require.Equal(t, salesColumns, got, table.ForOutput())
+	}
+}
+
 // Shared by the PG and YB nested-type tests. Each nested_table column is built from types
 // through arrays, composite fields, and domains; the unsupported type sits at a different
 // level in each.

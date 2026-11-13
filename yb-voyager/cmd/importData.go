@@ -429,12 +429,15 @@ func startExportDataFromSourceOnNextIteration() {
 		//If these are overridden by CLI/Config file then pass it to the command always
 		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
 	}
+	if len(currentMsr.ExcludedColumns.FromSource) > 0 {
+		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(currentMsr.ExcludedColumns.FromSource))
+	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
 	utils.PrintAndLogfPhase("\nStarting export data from source on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
 	fmt.Println()
 
-	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + utils.ShellQuoteCommand(cmd)
 
 	utils.PrintAndLogf("Starting export data from source with command:\n %s", color.GreenString(cmdStr))
 
@@ -703,7 +706,7 @@ func startExportDataFromTargetIfRequired() {
 
 	cmd := generateExportDataFromTargetCommand(msr)
 
-	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+	cmdStr := "TARGET_DB_PASSWORD=*** " + utils.ShellQuoteCommand(cmd)
 
 	msg := "Starting fallback flow from target to source"
 	if msr.IterationNo > 0 {
@@ -744,6 +747,10 @@ func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []st
 		if tconf.SSLRootCert != "" {
 			cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
 		}
+	}
+	// setUpNextIterationMSR copies FromTarget, and the target exporter refuses a different set on resume.
+	if len(msr.ExcludedColumns.FromTarget) > 0 {
+		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(msr.ExcludedColumns.FromTarget))
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")

@@ -20,10 +20,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,7 +41,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
-	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -117,6 +118,9 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
+	if err := validateExcludeColumnListFlag(); err != nil {
+		utils.ErrExit("failed to validate export flags: %w", err)
+	}
 	if err := validateSchemaSnapshotCaptureInterval(cmd); err != nil {
 		utils.ErrExit("failed to validate export flags: %w", err)
 	}
@@ -2160,6 +2164,7 @@ func clearMigrationStateIfRequired() {
 			record.TargetExportedTableListWithLeafPartitions = nil
 			record.TargetColumnToSequenceMapping = nil
 			record.TargetRenameTablesMap = nil
+			record.ExcludedColumns = metadb.ExcludedColumnsRecord{}
 			record.ExportTypeFromSource = ""
 		})
 		if err != nil {
@@ -2368,8 +2373,13 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsTo
 	if err != nil {
 		utils.ErrExit("get columns with supported types: %w", err)
 	}
-	// If any of the keys of unsupportedTableColumnsMap contains values in the string array then do this check
-	if len(unsupportedTableColumnsMap.Keys()) > 0 {
+	isPGOrYBStreaming := (source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB) && changeStreamingIsEnabled(exportType)
+	if isPGOrYBStreaming {
+		tablesColumnList, err = finalizeColumnListForLiveMigration(source.DB(), GetRootTableOfPartition, finalTableList, partitionsToRootTableMap, tablesColumnList, unsupportedTableColumnsMap)
+		if err != nil {
+			utils.ErrExit("%s", err)
+		}
+	} else if len(unsupportedTableColumnsMap.Keys()) > 0 {
 		handleUnsupportedColumnsInExportData(unsupportedTableColumnsMap)
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
@@ -2719,4 +2729,426 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	}
 
 	return result
+}
+
+// ================================ Exclude column list ================================
+
+var excludeColumnList string
+
+const excludeColumnListFlagHelp = "semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes streamed in live migration. " +
+	"The snapshot still copies these columns. Only for PostgreSQL source databases and 'export data from target'.\n" +
+	"For partitioned tables, specify the root table; the columns are excluded from all its partitions. Primary key columns cannot be excluded.\n" +
+	"Column names are matched ignoring case; if the table has columns differing only in case, write the column's exact case. " +
+	"In case the table names are case sensitive, double-quote them.\n" +
+	`For example --exclude-column-list 'public.orders:note,Meta;"Sales":geom'`
+
+var userSpecifiedExcludeColumnListEntries map[string][]string
+
+func validateExcludeColumnListFlag() error {
+	if excludeColumnList == "" {
+		return nil
+	}
+	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
+		return goerrors.Errorf("--exclude-column-list is supported only for PostgreSQL source databases")
+	}
+	if !changeStreamingIsEnabled(exportType) {
+		return goerrors.Errorf("--exclude-column-list is supported only for live migration (--export-type %s or %s)", SNAPSHOT_AND_CHANGES, CHANGES_ONLY)
+	}
+	var err error
+	userSpecifiedExcludeColumnListEntries, err = parseTableColumnsFlag(excludeColumnListFlagName, excludeColumnList)
+	return err
+}
+
+const excludeColumnListFlagName = "exclude-column-list"
+
+// formatExcludeColumnList renders table -> columns as an --exclude-column-list value, with the
+// tables sorted.
+func formatExcludeColumnList(tableToColumns map[string][]string) string {
+	return strings.Join(lo.Map(slices.Sorted(maps.Keys(tableToColumns)), func(table string, _ int) string {
+		return table + ":" + strings.Join(tableToColumns[table], ",")
+	}), ";")
+}
+
+func resolveExcludeColumnList(entries map[string][]string, lookupTable func(string) (sqlname.NameTuple, error)) (*utils.StructMap[sqlname.NameTuple, []string], []string) {
+	tables, problems := lookupPerTableFlagTables(slices.Sorted(maps.Keys(entries)), lookupTable)
+	resolved := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for tableSpec, table := range tables {
+		resolved.Put(table, entries[tableSpec])
+	}
+	return resolved, problems
+}
+
+// exportTableColumnMetadata describes the tables being exported and their columns.
+type exportTableColumnMetadata struct {
+	dbType string
+	// roots and leaf partitions, as in the finalized table list
+	tableList []sqlname.NameTuple
+	// leaf partition -> its root, both as AsQualifiedCatalogName()
+	leafToRoot               map[string]string
+	tableToColumns           *utils.StructMap[sqlname.NameTuple, []string]
+	tableToPrimaryKeyColumns *utils.StructMap[sqlname.NameTuple, []string]
+	supportedColumns         *utils.StructMap[sqlname.NameTuple, []string]
+	unsupportedColumns       *utils.StructMap[sqlname.NameTuple, []string]
+}
+
+func (t exportTableColumnMetadata) rootOf(table sqlname.NameTuple) (sqlname.NameTuple, error) {
+	rootCatalogName, isLeaf := t.leafToRoot[table.AsQualifiedCatalogName()]
+	if !isLeaf {
+		return table, nil
+	}
+	root, found := lo.Find(t.tableList, func(candidate sqlname.NameTuple) bool {
+		return candidate.AsQualifiedCatalogName() == rootCatalogName
+	})
+	if !found {
+		return sqlname.NameTuple{}, goerrors.Errorf("root table %s of partition %s is not in the export table list", rootCatalogName, table.ForOutput())
+	}
+	return root, nil
+}
+
+// addPrimaryKeyToRootTableIfRequired gives a partitioned root without a primary key of its own the
+// key its partitions have. reportUnsupportedTablesForLiveMigration accepts such roots, and
+// reportLeafPartitionsWithMismatchedPrimaryKeys ensures all their partitions have the same key.
+func (t exportTableColumnMetadata) addPrimaryKeyToRootTableIfRequired() error {
+	for _, table := range t.tableList {
+		root, err := t.rootOf(table)
+		if err != nil {
+			return err
+		}
+		if root.Key() == table.Key() {
+			continue
+		}
+		if rootPrimaryKey, _ := t.tableToPrimaryKeyColumns.Get(root); len(rootPrimaryKey) > 0 {
+			continue
+		}
+		if partitionPrimaryKey, _ := t.tableToPrimaryKeyColumns.Get(table); len(partitionPrimaryKey) > 0 {
+			t.tableToPrimaryKeyColumns.Put(root, partitionPrimaryKey)
+		}
+	}
+	return nil
+}
+
+// validateExcludedColumns checks every user-given table whether it exists in namereg or not and column against the export, replacing
+// each column in excluded with the table column it matches (see sqlname.FindBestMatchingColumnName). rootOfTable
+// resolves the root of any table, including ones not being exported, so that naming a partition is
+// reported as such.
+func validateExcludedColumns(userExcludeEntries map[string][]string, lookupTable func(string) (sqlname.NameTuple, error), exportTables exportTableColumnMetadata,
+	rootOfTable func(sqlname.NameTuple) (sqlname.NameTuple, error), excludeTableHint string) (*utils.StructMap[sqlname.NameTuple, []string], []string, error) {
+
+	userExcluded, problems := resolveExcludeColumnList(userExcludeEntries, lookupTable)
+	for _, table := range userExcluded.ActualKeys() {
+		root, err := rootOfTable(table)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get root table of %s: %w", table.ForOutput(), err)
+		}
+		if root.ForKey() != table.ForKey() {
+			problems = append(problems, fmt.Sprintf("%s: is a partition of %s; specify the root table %s", table.ForOutput(), root.ForOutput(), root.ForOutput()))
+			continue
+		}
+		if !lo.ContainsBy(exportTables.tableList, func(t sqlname.NameTuple) bool { return t.ForKey() == table.ForKey() }) {
+			problems = append(problems, fmt.Sprintf("%s: table is not part of this export; check --table-list and --exclude-table-list", table.ForOutput()))
+			continue
+		}
+		tableColumnNames, _ := exportTables.tableToColumns.Get(table)
+		primaryKeyColumns, _ := exportTables.tableToPrimaryKeyColumns.Get(table)
+		unsupportedColumns, _ := exportTables.unsupportedColumns.Get(table)
+		excludedColumns, _ := userExcluded.Get(table)
+		matchedColumns, columnProblems, err := resolveTableColumns(exportTables.dbType, table, excludedColumns, tableColumnNames)
+		if err != nil {
+			return nil, nil, err
+		}
+		problems = append(problems, columnProblems...)
+		for _, column := range lo.Intersect(primaryKeyColumns, matchedColumns) {
+			problem := fmt.Sprintf("%s: column %q is part of the primary key and cannot be excluded", table.ForOutput(), column)
+			if slices.Contains(unsupportedColumns, column) {
+				problem += fmt.Sprintf(". Its datatype is not supported, so %s", excludeTableHint)
+			}
+			problems = append(problems, problem)
+		}
+		userExcluded.Put(table, matchedColumns)
+	}
+	return userExcluded, problems, nil
+}
+
+// unsupportedColumnsReport collects, per root table, the unsupported columns left after the exclusions.
+type unsupportedColumnsReport struct {
+	// root table (as ForOutput) -> its unsupported columns; tables with an unsupported primary key
+	// column can only be excluded as a whole
+	primaryKeyTables map[string][]string
+	otherTables      map[string][]string
+	// tables whose every column is excluded
+	tablesWithNoColumns []sqlname.NameTuple
+}
+
+func (r unsupportedColumnsReport) isEmpty() bool {
+	return len(r.primaryKeyTables) == 0 && len(r.otherTables) == 0 && len(r.tablesWithNoColumns) == 0
+}
+
+// applyExcludedColumns removes the excluded columns, given per root table, from the column list of
+// every exported table, and reports the unsupported columns that remain. A table with excluded
+// columns always gets an explicit column list: "*" would let Debezium stream the excluded ones.
+func applyExcludedColumns(excluded *utils.StructMap[sqlname.NameTuple, []string], exportTables exportTableColumnMetadata) (*utils.StructMap[sqlname.NameTuple, []string], unsupportedColumnsReport, error) {
+	columnList := utils.NewStructMap[sqlname.NameTuple, []string]()
+	report := unsupportedColumnsReport{primaryKeyTables: map[string][]string{}, otherTables: map[string][]string{}}
+	reportedRoots := map[string]bool{}
+	for _, table := range exportTables.tableList {
+		root, err := exportTables.rootOf(table)
+		if err != nil {
+			return nil, report, err
+		}
+		excludedColumns, _ := excluded.Get(root)
+		supportedColumns, ok := exportTables.supportedColumns.Get(table)
+		if !ok {
+			return nil, report, goerrors.Errorf("no column list found for table %s", table.ForOutput())
+		}
+
+		if len(excludedColumns) == 0 {
+			columnList.Put(table, supportedColumns)
+		} else {
+			if slices.Equal(supportedColumns, []string{"*"}) {
+				supportedColumns, _ = exportTables.tableToColumns.Get(table)
+			}
+			remainingColumns := lo.Without(supportedColumns, excludedColumns...)
+			columnList.Put(table, remainingColumns)
+			if len(remainingColumns) == 0 && !reportedRoots[root.ForKey()] {
+				report.tablesWithNoColumns = append(report.tablesWithNoColumns, root)
+				reportedRoots[root.ForKey()] = true
+				continue
+			}
+		}
+
+		unsupportedColumns, _ := exportTables.unsupportedColumns.Get(table)
+		remainingUnsupported := lo.Without(unsupportedColumns, excludedColumns...)
+		// partitions share their root's columns, so the root's line covers every leaf
+		if len(remainingUnsupported) == 0 || reportedRoots[root.ForKey()] {
+			continue
+		}
+		reportedRoots[root.ForKey()] = true
+		primaryKeyColumns, _ := exportTables.tableToPrimaryKeyColumns.Get(root)
+		if lo.Some(remainingUnsupported, primaryKeyColumns) {
+			report.primaryKeyTables[root.ForOutput()] = lo.Intersect(remainingUnsupported, primaryKeyColumns)
+		} else {
+			report.otherTables[root.ForOutput()] = remainingUnsupported
+		}
+	}
+	return columnList, report, nil
+}
+
+func describeColumns(tableToColumns map[string][]string) string {
+	var b strings.Builder
+	for _, table := range slices.Sorted(maps.Keys(tableToColumns)) {
+		b.WriteString("  ")
+		b.WriteString(table)
+		b.WriteString(": ")
+		b.WriteString(strings.Join(tableToColumns[table], ", "))
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func excludedColumnsNote() string {
+	if isTargetDBExporter(exporterRole) {
+		return fmt.Sprintf("Changes made on the target to excluded columns are not exported: the %s database keeps their values from before cutover, "+
+			"and rows inserted after cutover get NULL in them. If any of them has a NOT NULL constraint in the %s database, remove it.",
+			getImportingDatabaseString(), getImportingDatabaseString())
+	}
+	return "Changes to excluded columns are not streamed: the target keeps their snapshot phase of migration, and rows inserted during streaming get NULL in them. " +
+		"If any of them has a NOT NULL constraint in the target database, remove it."
+}
+
+// buildUnsupportedColumnsError builds the error for the unsupported columns left after the
+// exclusions. userExcluded is the user's own flag value, which the suggested value extends.
+func buildUnsupportedColumnsError(report unsupportedColumnsReport, userExcluded map[string][]string) error {
+	var msg strings.Builder
+	isTargetExporter := isTargetDBExporter(exporterRole)
+	if len(report.tablesWithNoColumns) > 0 {
+		msg.WriteString("Every column of the following tables is excluded by --exclude-column-list:\n")
+		for _, table := range report.tablesWithNoColumns {
+			msg.WriteString("  " + table.ForOutput() + "\n")
+		}
+		msg.WriteString("Exclude these tables with --exclude-table-list instead.\n\n")
+	}
+	if len(report.primaryKeyTables) > 0 {
+		msg.WriteString("The following primary key columns have datatypes not supported for this migration:\n")
+		msg.WriteString(describeColumns(report.primaryKeyTables))
+		tableNames := strings.Join(slices.Sorted(maps.Keys(report.primaryKeyTables)), ",")
+		if isTargetExporter {
+			msg.WriteString("A table cannot be migrated without its primary key. These tables had to be excluded with --exclude-table-list " +
+				"on 'export data from source', which requires starting the migration again:\n")
+		} else {
+			msg.WriteString("A table cannot be migrated without its primary key. Exclude these tables with --exclude-table-list:\n")
+		}
+		msg.WriteString(fmt.Sprintf("  --exclude-table-list '%s'\n\n", tableNames))
+	}
+	if len(report.otherTables) > 0 {
+		suggested := maps.Clone(userExcluded)
+		if suggested == nil {
+			suggested = map[string][]string{}
+		}
+		for table, columns := range report.otherTables {
+			suggested[table] = append(slices.Clone(suggested[table]), columns...)
+		}
+		msg.WriteString("The following columns have datatypes not supported for this migration:\n")
+		msg.WriteString(describeColumns(report.otherTables))
+		if isTargetExporter {
+			msg.WriteString("Restart 'export data from target' with these columns excluded:\n")
+			msg.WriteString(fmt.Sprintf("  --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
+			msg.WriteString(excludedColumnsNote() + "\n")
+		} else {
+			tableNames := strings.Join(slices.Sorted(maps.Keys(report.otherTables)), ",")
+			msg.WriteString("To proceed, do one of the following:\n")
+			msg.WriteString("  1. Exclude these columns with --exclude-column-list:\n")
+			msg.WriteString(fmt.Sprintf("       --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
+			msg.WriteString("     " + excludedColumnsNote() + "\n")
+			msg.WriteString("  2. Exclude these tables with --exclude-table-list:\n")
+			msg.WriteString(fmt.Sprintf("       --exclude-table-list '%s'\n", tableNames))
+		}
+	}
+	return goerrors.Errorf("%s", strings.TrimRight(msg.String(), "\n"))
+}
+
+// finalizeColumnListForLiveMigration applies --exclude-column-list to the column list Debezium
+// streams for a PostgreSQL source or a YugabyteDB target exporter, and fails on any column with an
+// unsupported datatype that is still left.
+func finalizeColumnListForLiveMigration(sourceDB srcdb.SourceDB, rootOfTable func(sqlname.NameTuple) (sqlname.NameTuple, error),
+	finalTableList []sqlname.NameTuple, partitionsToRootTableMap map[string]string,
+	supportedColumns *utils.StructMap[sqlname.NameTuple, []string], unsupportedColumns *utils.StructMap[sqlname.NameTuple, []string]) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+
+	tableToColumns, err := sourceDB.GetTableToColumns(finalTableList)
+	if err != nil {
+		return nil, fmt.Errorf("get columns of tables: %w", err)
+	}
+	tableToPrimaryKeyColumns, err := sourceDB.GetPrimaryKeyColumns(finalTableList)
+	if err != nil {
+		return nil, fmt.Errorf("get primary key columns of tables: %w", err)
+	}
+	exportTables := exportTableColumnMetadata{
+		dbType:                   source.DBType,
+		tableList:                finalTableList,
+		leafToRoot:               partitionsToRootTableMap,
+		tableToColumns:           tableToColumns,
+		tableToPrimaryKeyColumns: tableToPrimaryKeyColumns,
+		supportedColumns:         supportedColumns,
+		unsupportedColumns:       unsupportedColumns,
+	}
+	err = exportTables.addPrimaryKeyToRootTableIfRequired()
+	if err != nil {
+		return nil, err
+	}
+
+	excludeTableHint := "exclude the whole table with --exclude-table-list"
+	if isTargetDBExporter(exporterRole) {
+		excludeTableHint = "the table had to be excluded with --exclude-table-list on 'export data from source'"
+	}
+	userExcluded, problems, err := validateExcludedColumns(userSpecifiedExcludeColumnListEntries, namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole,
+		exportTables, rootOfTable, excludeTableHint)
+	if err != nil {
+		return nil, err
+	}
+	if len(problems) > 0 {
+		return nil, perTableFlagProblemsError(excludeColumnListFlagName, problems)
+	}
+
+	finalExcluded := userExcluded
+	if isTargetDBExporter(exporterRole) {
+		finalExcluded, err = handleExcludedColumnForTargetExporter(userExcluded, finalTableList, partitionsToRootTableMap)
+		if err != nil {
+			return nil, err
+		}
+	}
+	columnList, report, err := applyExcludedColumns(finalExcluded, exportTables)
+	if err != nil {
+		return nil, err
+	}
+	if !report.isEmpty() {
+		userExcludedForOutput := map[string][]string{}
+		err = finalExcluded.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+			userExcludedForOutput[table.ForOutput()] = columns
+			return true, nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return nil, buildUnsupportedColumnsError(report, userExcludedForOutput)
+	}
+
+	err = recordExcludedColumns(finalExcluded)
+	if err != nil {
+		return nil, err
+	}
+	if len(finalExcluded.Keys()) > 0 {
+		var excludedMsg strings.Builder
+		excludedMsg.WriteString("Excluding the following columns from the changes streamed in live migration:\n")
+		for _, table := range finalExcluded.SortedActualKeys(func(a, b sqlname.NameTuple) bool { return a.ForOutput() < b.ForOutput() }) {
+			cols, _ := finalExcluded.Get(table)
+			excludedMsg.WriteString(fmt.Sprintf("  %s: %s\n", table.ForOutput(), strings.Join(cols, ", ")))
+		}
+		excludedMsg.WriteString(excludedColumnsNote())
+		utils.PrintAndLog(color.YellowString("%s", excludedMsg.String()))
+	}
+	return columnList, nil
+}
+
+// handleExcludedColumnForTargetExporter adds, for the target exporter, the columns the source exporter
+// excluded. Those columns are not kept up to date on the target, so exporting them back would
+// overwrite the source(-replica)'s current values with stale ones.
+func handleExcludedColumnForTargetExporter(userExcluded *utils.StructMap[sqlname.NameTuple, []string], finalTableList []sqlname.NameTuple,
+	partitionsToRootTableMap map[string]string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get migration status record: %w", err)
+	}
+	if msr == nil {
+		return nil, goerrors.Errorf("migration status record not found")
+	}
+	excluded := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for _, table := range finalTableList {
+		if _, isLeaf := partitionsToRootTableMap[table.AsQualifiedCatalogName()]; isLeaf {
+			continue
+		}
+		columns, _ := userExcluded.Get(table)
+		columns = lo.Union(msr.ExcludedColumns.FromSource[table.ForKey()], columns)
+		if len(columns) > 0 {
+			excluded.Put(table, columns)
+		}
+	}
+	return excluded, nil
+}
+
+// recordExcludedColumns stores this exporter's resolved --exclude-column-list on its first run, and
+// on later runs fails if it changed: the column set Debezium streams has to stay the same for the
+// whole migration.
+func recordExcludedColumns(userExcluded *utils.StructMap[sqlname.NameTuple, []string]) error {
+	current := map[string][]string{}
+	_ = userExcluded.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+		current[table.ForKey()] = slices.Sorted(slices.Values(columns))
+		return true, nil
+	})
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("get migration status record: %w", err)
+	}
+	if msr == nil {
+		return goerrors.Errorf("migration status record not found")
+	}
+	recorded := lo.Ternary(isTargetDBExporter(exporterRole), msr.ExcludedColumns.FromTarget, msr.ExcludedColumns.FromSource)
+	if recorded != nil {
+		if !maps.EqualFunc(recorded, current, slices.Equal[[]string]) {
+			return goerrors.Errorf("--exclude-column-list cannot change once export data has started.\n"+
+				"  started with: '%s'\n  now:          '%s'\nRe-run with the value it started with.",
+				formatExcludeColumnList(recorded), formatExcludeColumnList(current))
+		}
+		return nil
+	}
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if isTargetDBExporter(exporterRole) {
+			record.ExcludedColumns.FromTarget = current
+		} else {
+			record.ExcludedColumns.FromSource = current
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("record excluded columns in migration status record: %w", err)
+	}
+	return nil
 }
