@@ -219,6 +219,16 @@ _WAIT_FOR_CONDITIONS: Dict[str, Dict[str, Any]] = {
         "interval": 5,
         "predicate": lambda ctx: H.backlog_marker_present(ctx.iteration_export_dir),
     },
+    # remaining_events_eq_0 is exporter-side only (marker written to the queue);
+    # these wait for the IMPORTER to drain the queue segments before cutover.
+    "forward_importer_caught_up": {
+        "interval": 5,
+        "predicate": lambda ctx: H.importer_caught_up(ctx.iteration_export_dir, "forward"),
+    },
+    "fallback_importer_caught_up": {
+        "interval": 5,
+        "predicate": lambda ctx: H.importer_caught_up(ctx.iteration_export_dir, "fallback"),
+    },
     "cutover_to_target_status_completed": {
         "interval": 10,
         "predicate": lambda ctx: H.get_cutover_status(ctx.export_dir_base, mode="target") == "COMPLETED",
