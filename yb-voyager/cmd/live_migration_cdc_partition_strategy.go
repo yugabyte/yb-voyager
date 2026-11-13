@@ -624,61 +624,27 @@ func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap 
 	if err != nil {
 		return err
 	}
-	// every custom key column must exist on the table.
-	missingColumnsOnTables := make(map[string][]string)
-	ambiguousColumnsOnTables := make(map[string][]string)
-	tableToColumns := make(map[string][]string)
+	slices.SortFunc(customTables, func(a, b sqlname.NameTuple) int { return strings.Compare(a.ForOutput(), b.ForOutput()) })
+	var problems []string
 	for _, t := range customTables {
 		override, _ := tableToPartitionKeyOverrideMap.Get(t)
 		tableColumns, err := tdb.GetListOfTableAttributes(t)
 		if err != nil {
 			return fmt.Errorf("error getting columns of table %s for custom cdc-partition-key validation: %w", t.ForOutput(), err)
 		}
-		overrideColumns := make([]string, 0, len(override.Columns))
-		var missing []string
-		var ambiguous []string
-		for _, c := range override.Columns {
-			bestMatchingColumnName, err := tdb.FindBestMatchingTargetColumnName(c, tableColumns)
-			if err != nil {
-				if _, ok := err.(*tgtdb.ErrAmbiguousColumnName); ok {
-					ambiguous = append(ambiguous, c)
-					continue
-				}
-				if _, ok := err.(*tgtdb.ErrColumnNameNotFound); ok {
-					missing = append(missing, c)
-					continue
-				}
-				return err
-			}
-			overrideColumns = append(overrideColumns, bestMatchingColumnName)
+		overrideColumns, columnProblems, err := resolveTableColumns(tconf.TargetDBType, t, override.Columns, tableColumns)
+		if err != nil {
+			return err
 		}
-		sort.Strings(tableColumns)
-		tableToColumns[t.ForOutput()] = tableColumns
-		if len(missing) > 0 {
-			sort.Strings(missing)
-			missingColumnsOnTables[t.ForOutput()] = missing
-		} else if len(ambiguous) > 0 {
-			sort.Strings(ambiguous)
-			ambiguousColumnsOnTables[t.ForOutput()] = ambiguous
-		} else {
-			//once we have finalized the custom key column casing, now we can put the override back into the map
-			override.Columns = overrideColumns
-			tableToPartitionKeyOverrideMap.Put(t, override)
+		if len(columnProblems) > 0 {
+			problems = append(problems, columnProblems...)
+			continue
 		}
+		override.Columns = overrideColumns
+		tableToPartitionKeyOverrideMap.Put(t, override)
 	}
-	errMsg := ""
-	if len(missingColumnsOnTables) > 0 {
-		for table, columns := range missingColumnsOnTables {
-			errMsg += fmt.Sprintf("custom key column(s) '%v' do not exist on table '%s' (available columns: %v)\n", columns, table, tableToColumns[table])
-		}
-	}
-	if len(ambiguousColumnsOnTables) > 0 {
-		for table, columns := range ambiguousColumnsOnTables {
-			errMsg += fmt.Sprintf("custom key column(s) '%v' are ambiguous on table '%s' (available columns: %v)\n", columns, table, tableToColumns[table])
-		}
-	}
-	if errMsg != "" {
-		return goerrors.Errorf("cdc-partition-key-overrides: %s", errMsg)
+	if len(problems) > 0 {
+		return perTableFlagProblemsError(cdcPartitionKeyOverridesFlagName, problems)
 	}
 
 	//once we have finalized the custom key column casing, now we can do the validation where custom/partition keys can't be used

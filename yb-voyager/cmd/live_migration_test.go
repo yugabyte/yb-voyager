@@ -618,8 +618,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"no_such_col"}})
 		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, nil, nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "do not exist on table")
-		assert.Contains(t, err.Error(), "no_such_col")
+		assert.Equal(t, "invalid --cdc-partition-key-overrides:\n  test_schema.audit: column \"no_such_col\" does not exist", err.Error())
 	})
 }
 

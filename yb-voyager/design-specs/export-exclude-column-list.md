@@ -45,7 +45,8 @@ This design replaces the prompt with an explicit flag. For PostgreSQL and Yugaby
 
 ```
  export data / export data from target
-   PreRun ── validateExcludeColumnListFlag ─────────────── rejects Oracle/MySQL, offline, bad syntax
+   PreRun ── validateExcludeColumnListFlag ─────────────── rejects Oracle/MySQL, offline, bad syntax;
+   │                                                        parseTableColumnsFlag keeps the parsed map
    │
    finalizeTableAndColumnList (cmd/exportData.go)
      1. FilterEmptyTables            (offline only)
@@ -53,11 +54,11 @@ This design replaces the prompt with an explicit flag. For PostgreSQL and Yugaby
      3. GetColumnsWithSupportedTypes ── srcdb: supported / unsupported columns per table
         │
         ├── PG or YB source, live ──► finalizeColumnListForLiveMigration          (new path)
-        │                               srcdb GetTableColumnsWithTypes, GetPrimaryKeyColumns
-        │                               parseExcludeColumnList ─┐
-        │                               resolveExcludeColumnList ├─ shared guardrails (§6)
-        │                               validateExcludedColumns ─┘
-        │                               withExcludedColumnsFromSource ── MSR (target exporter)
+        │                               srcdb GetTableToColumns, GetPrimaryKeyColumns
+        │                               addPrimaryKeyToRootTableIfRequired
+        │                               validateExcludedColumns ─┬─ resolveExcludeColumnList ─┐
+        │                                                        └─ resolveTableColumns ──────┴─ shared guardrails (§6)
+        │                               handleExcludedColumnForTargetExporter ── MSR (target exporter only)
         │                               applyExcludedColumns
         │                               buildUnsupportedColumnsError      (on leftovers)
         │                               recordExcludedColumns ── MSR
@@ -133,13 +134,13 @@ Runs in the command's PreRun, before any table or database work.
 | Flag empty | Nothing to do. |
 | Source is Oracle or MySQL | Fail: `--exclude-column-list is supported only for PostgreSQL source databases`. |
 | `--export-type snapshot-only` | Fail: `--exclude-column-list is supported only for live migration (--export-type snapshot-and-changes or changes-only)`. |
-| Syntax error | Fail with the parse error (§5.3). |
+| Syntax error | Fail with the parse error (§5.3). Otherwise the parsed value is kept for `finalizeColumnListForLiveMigration`. |
 
 YugabyteDB is accepted because `export data from target` runs with YB as its source. YugabyteDB is never exported offline.
 
-### 5.3 Parsing (`parseExcludeColumnList`)
+### 5.3 Parsing (`parseTableColumnsFlag`)
 
-Built on the shared `parsePerTableFlag` and `parseColumnNameList` (§6). It rejects:
+`parseTableColumnsFlag` is shared with import (§6) and built on `parsePerTableFlag` and `parseColumnNameList`. It needs no database, so it runs in PreRun. It rejects:
 
 - unbalanced double quotes
 - an entry with no `:`, or with a second unquoted `:`
@@ -148,7 +149,7 @@ Built on the shared `parsePerTableFlag` and `parseColumnNameList` (§6). It reje
 - an empty column name, or the same column name twice in one entry
 - a non-empty value with no entries, such as `;`
 
-Trailing `;` and whitespace around names are ignored. Parsing produces `[]tableColumns`, one per entry, with names as the user typed them.
+Trailing `;` and whitespace around names are ignored. Parsing produces a `map[string][]string` from each table, as typed, to its columns, as typed. The order of the entries is not kept: every list printed later is sorted by table name.
 
 ### 5.4 Two paths in `finalizeTableAndColumnList`
 
@@ -161,11 +162,11 @@ Step 3 of `finalizeTableAndColumnList` used to call `handleUnsupportedColumnsInE
 
 The new path runs after the table-level filters, so it works on exactly the tables that will be exported.
 
-`GetTableColumnsWithTypes` is on the `SourceDB` interface. PostgreSQL and YugabyteDB implement it with the same catalog walk as `GetColumnsWithSupportedTypes` plus `format_type` for display. Oracle and MySQL `panic("not implemented")`; they never reach it because the flag is rejected for them and the new path runs only for PG/YB.
+`GetTableToColumns` is on the `SourceDB` interface and returns each table's column names in definition order. PostgreSQL and YugabyteDB implement it with the same catalog query as `GetColumnsWithSupportedTypes`. Oracle and MySQL `panic("not implemented")`; they never reach it because the flag is rejected for them and the new path runs only for PG/YB.
 
-### 5.5 Checking the entries (`resolveExcludeColumnList`, `validateExcludedColumns`)
+### 5.5 Checking the entries (`validateExcludedColumns`)
 
-Every problem below is collected, and all of them are reported in one error:
+`validateExcludedColumns` takes the parsed map and a table-lookup function, resolves the tables (`resolveExcludeColumnList`), and matches each table's columns (`resolveTableColumns`). It returns the resolved `NameTuple` → matched columns and every problem found. All problems are reported in one error:
 
 ```
 invalid --exclude-column-list:
@@ -181,22 +182,22 @@ invalid --exclude-column-list:
 
 | Check | Rule |
 | :---- | :---- |
-| Table lookup | `LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole`. A table that is not found, or that resolves to a table already listed under another spelling, is a problem. |
+| Table lookup | The lookup passed in; `finalizeColumnListForLiveMigration` passes `LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole`. Tables are looked up in sorted order. A table that is not found, or that resolves to a table already listed under another spelling, is a problem. |
 | Partition root | `GetRootTableOfPartition`. Naming a leaf partition is a problem that names the root to use instead. On the target a partitioned table is one table, so excluding a column on only some partitions would leave it partly NULL. |
 | Exported | The table must be in the finalized table list. A table removed by `--table-list` / `--exclude-table-list`, or skipped by voyager, is a problem (see §14 on skipped tables). |
-| Column match | `sqlname.FindBestMatchingColumnName` against the table's columns: an exact match, then a single case-insensitive match, then the all-lowercase column if several differ only in case. Otherwise "does not exist" or "ambiguous". |
+| Column match | `resolveTableColumns`, which calls `sqlname.FindBestMatchingColumnName` against the table's columns: an exact match, then a single case-insensitive match, then the all-lowercase column if several differ only in case. Otherwise "does not exist" or "ambiguous". |
 | Duplicate after matching | Two spellings of the same column are a problem. |
 | Primary key | `GetPrimaryKeyColumns`. A key column cannot be excluded. If its datatype is also unsupported, the message adds that the whole table must be excluded with `--exclude-table-list` (on the source exporter) or had to be (on the target exporter). |
 
 Columns are checked once, on the root table. PostgreSQL requires every partition to have its root's columns. After the checks the matched catalog names replace what the user typed, so everything later, including what is saved in the MSR, uses real column names.
 
-Tables without a primary key are already rejected for live migration by `reportUnsupportedTablesForLiveMigration`, so every table here has a key.
+Tables without a primary key are already rejected for live migration by `reportUnsupportedTablesForLiveMigration`, with one exception: a partitioned root with no key of its own is accepted when every partition has one, and `reportLeafPartitionsWithMismatchedPrimaryKeys` ensures the partitions' keys are identical. Such a root takes its partitions' key for these checks (`addPrimaryKeyToRootTableIfRequired`), so `--exclude-column-list` rejects that key's columns, and an unsupported column in it is reported as a primary-key column.
 
-### 5.6 Applying the exclusions (`withExcludedColumnsFromSource`, `applyExcludedColumns`)
+### 5.6 Applying the exclusions (`handleExcludedColumnForTargetExporter`, `applyExcludedColumns`)
 
 1. **Effective set.**
    - **Source exporter:** the user's list.
-   - **Target exporter:** for each root table, the union of `ExcludedColumns.FromSource` (saved by the source exporter) and its own list. Columns excluded on the source export are never kept up to date on the target, so streaming them back would overwrite the source or replica's current values with stale snapshot values or NULL on every UPDATE, because events carry the full row.
+   - **Target exporter:** `handleExcludedColumnForTargetExporter`, called only for the target exporter, takes for each root table the union of `ExcludedColumns.FromSource` (saved by the source exporter) and its own list. Columns excluded on the source export are never kept up to date on the target, so streaming them back would overwrite the source or replica's current values with stale snapshot values or NULL on every UPDATE, because events carry the full row.
 2. **Per exported table**, roots and leaves alike, take the exclusions of the table's root and remove them from the table's supported column list.
    - A table with exclusions always gets an explicit column list. If its supported list was `*`, it is expanded to all columns first, since `*` would let Debezium stream the excluded ones.
    - A table with no exclusions keeps its list unchanged, including `*`.
@@ -207,9 +208,11 @@ Tables without a primary key are already rejected for live migration by `reportU
    - `primaryKeyTables`: an unsupported column is in the root's primary key.
    - `otherTables`: everything else.
 
+   `primaryKeyTables` and `otherTables` map each root table (as `ForOutput`) to its columns.
+
 ### 5.7 Unsupported columns left (`buildUnsupportedColumnsError`)
 
-If any leftovers exist, export fails. Each section is printed only when it has entries; a table in the primary-key group is not repeated in the other group. Suggested values name root tables and are merged with what the user already passed, so they can be pasted as is.
+If any leftovers exist, export fails. Each section is printed only when it has entries; a table in the primary-key group is not repeated in the other group. Suggested values name root tables and are merged with what the user already passed, so they can be pasted as is. Tables are listed sorted by name, in the column lists and in the suggested values; each table's columns keep their order.
 
 **Source exporter:**
 
@@ -219,12 +222,12 @@ Every column of the following tables is excluded by --exclude-column-list:
 Exclude these tables with --exclude-table-list instead.
 
 The following primary key columns have datatypes not supported for this migration:
-  public.test_pk_un: id (int4multirange)
+  public.test_pk_un: id
 A table cannot be migrated without its primary key. Exclude these tables with --exclude-table-list:
   --exclude-table-list 'public.test_pk_un'
 
 The following columns have datatypes not supported for this migration:
-  public.t1: geom (geometry), rng (int4range)
+  public.t1: geom, rng
 To proceed, do one of the following:
   1. Exclude these columns with --exclude-column-list:
        --exclude-column-list 'public.orders:note;public.t1:geom,rng'
@@ -240,7 +243,7 @@ To proceed, do one of the following:
 - A table with an unsupported key column cannot be fixed at this stage. The message says it had to be excluded with `--exclude-table-list` on `export data from source`, which means starting the migration again.
 - For other columns, only `--exclude-column-list` is suggested ("Restart 'export data from target' with these columns excluded"). The note says that the source or replica keeps their values from before cutover, and that rows inserted after cutover get NULL.
 
-Types are shown as `format_type` writes them (`point[]`, `character varying(20)`), not internal names like `_point`.
+The messages name the columns but not their datatypes.
 
 ### 5.8 Success output
 
@@ -275,7 +278,7 @@ The column set Debezium streams must not change during a migration, otherwise so
 | Resume with the same set | Continues. The comparison is on resolved table keys and sorted column names, so a different spelling of the same set passes. |
 | Resume with a different set | Fails and prints both values in flag syntax, so the user can re-run with the original: `--exclude-column-list cannot change once export data has started. started with: '...' now: '...' Re-run with the value it started with.` |
 | `export data --start-clean` | `clearMigrationStateIfRequired` resets `ExcludedColumns`. |
-| Next cutover iteration | `setUpNextIterationMSR` copies `ExcludedColumns` into the new iteration's MSR. `startExportDataFromSourceOnNextIteration` passes `--exclude-column-list` rendered from `FromSource` by `excludeColumnListFlagValue` (sorted tables, min-quoted columns), so the spawned exporter passes the resume check. |
+| Next cutover iteration | `setUpNextIterationMSR` copies `ExcludedColumns` into the new iteration's MSR. `startExportDataFromSourceOnNextIteration` passes `--exclude-column-list` rendered from `FromSource` by `formatExcludeColumnList` (sorted tables, min-quoted columns), so the spawned exporter passes the resume check. |
 
 ### 5.11 How `export data from target` gets its exclusions
 
@@ -283,7 +286,7 @@ Source and target have the same tables and columns, so most columns that need ex
 
 | Columns | How the target exporter gets them | User action |
 | :---- | :---- | :---- |
-| Excluded on the source export (`FromSource`) | Read from the MSR in the same export directory by `withExcludedColumnsFromSource` and merged per root table (§5.6). They are removed before the datatype check, so they never cause an error on the target. | None. |
+| Excluded on the source export (`FromSource`) | Read from the MSR in the same export directory by `handleExcludedColumnForTargetExporter` and merged per root table (§5.6). They are removed before the datatype check, so they never cause an error on the target. | None. |
 | Unsupported only by the YB connector and not excluded on the source (`TSQUERY`; with gRPC also `HSTORE`, `CITEXT`, `LTREE`, `TSVECTOR`, composites, see §5.9) | Only from the target exporter's own `--exclude-column-list`. Without it, export fails at startup with the exact value to use (§5.7). | Add them to `export-data-from-target: exclude-column-list`, or pass the flag. |
 
 **The spawned command does not carry `FromSource`.** `import data` starts `export data from target` itself (`generateExportDataFromTargetCommand`), and it deliberately does not pass the source's list as `--exclude-column-list`:
@@ -306,12 +309,14 @@ Source and target have the same tables and columns, so most columns that need ex
 
 | Helper | Location | Used by export | Used by import |
 | :---- | :---- | :---- | :---- |
-| `parsePerTableFlag` | `cmd/exportImportCommonGuardrails.go` | `parseExcludeColumnList` | `parseCdcPartitionKeyOverrides` |
-| `parseColumnNameList` | same | `parseExcludeColumnList` | `parseCdcPartitionKeyOverrideValue` (custom key) |
+| `parseTableColumnsFlag` | `cmd/exportImportCommonGuardrails.go` | `validateExcludeColumnListFlag` | — (its values are `pk`, `table` or `(cols)`) |
+| `resolveTableColumns` | same | `validateExcludedColumns` | `validateAndFinalizeCDCPartitionKeysPerTable` (custom key columns, matched against the target with `tconf.TargetDBType`) |
+| `parsePerTableFlag` | same | `parseTableColumnsFlag` | `parseCdcPartitionKeyOverrides` |
+| `parseColumnNameList` | same | `parseTableColumnsFlag` | `parseCdcPartitionKeyOverrideValue` (custom key) |
 | `splitOutsideQuotes` | same | via the two above | via the two above |
 | `lookupPerTableFlagTables` | same | `resolveExcludeColumnList` | `resolveCdcPartitionKeyOverrides` |
-| `perTableFlagProblemsError` | same | `finalizeColumnListForLiveMigration` | `resolveCdcPartitionKeyOverrides` |
-| `sqlname.FindBestMatchingColumnName` | `src/utils/sqlname/column_match.go` | `validateExcludedColumns` | `tdb.FindBestMatchingTargetColumnName` via `AttributeNameRegistry` |
+| `perTableFlagProblemsError` | same | `finalizeColumnListForLiveMigration` | `resolveCdcPartitionKeyOverrides`, `validateAndFinalizeCDCPartitionKeysPerTable` |
+| `sqlname.FindBestMatchingColumnName` | `src/utils/sqlname/column_match.go` | via `resolveTableColumns` | via `resolveTableColumns`; also `tdb.FindBestMatchingTargetColumnName` elsewhere in import |
 
 **Kept per flag:**
 
@@ -324,6 +329,7 @@ Source and target have the same tables and columns, so most columns that need ex
 - **Rejected values:** unbalanced quotes and separator-only values such as `" ; ;"` now fail.
 - **Table problems reported together:** all of them, sorted, instead of only the first in map order.
 - **Error format:** messages now take the form `invalid --cdc-partition-key-overrides:\n  <table>: <problem>`.
+- **Custom key columns:** a missing or ambiguous column now reads `<table>: column "x" does not exist` (or `is ambiguous`), with all tables reported together, sorted. The old message's `(available columns: ...)` list is gone, and a column listed twice in `(…)` is now reported.
 
 `sqlname.FindBestMatchingColumnName` is the logic that used to be `AttributeNameRegistry.FindBestMatchingColumnName`. It depended only on the database type. The error types `ErrAmbiguousColumnName` and `ErrColumnNameNotFound` moved with it; `tgtdb` keeps type aliases so existing `errors.As` checks are unchanged.
 
@@ -348,9 +354,9 @@ type ExcludedColumnsRecord struct {
 
 | Type | Holds |
 | :---- | :---- |
-| `tableColumns` | A table and some of its columns, written as in a flag value: parsed entries, suggested values and report rows. |
-| `exportTableColumnMetadata` | The exported tables (roots and leaves), the leaf-to-root map, each table's columns with types, primary-key columns, and the supported and unsupported columns. `rootOf` and `columnType` look up a table's root and a column's type. |
-| `unsupportedColumnsReport` | Leftovers from §5.6: `primaryKeyTables`, `otherTables`, `tablesWithNoColumns`. |
+| `map[string][]string` | A table, written as in a flag value, to its columns: the parsed flag, the suggested values, and report rows. |
+| `exportTableColumnMetadata` | The exported tables (roots and leaves), the leaf-to-root map, each table's column names, primary-key columns, and the supported and unsupported columns. `rootOf` looks up a table's root; `addPrimaryKeyToRootTableIfRequired` gives a keyless partitioned root its partitions' key (§5.5). |
+| `unsupportedColumnsReport` | Leftovers from §5.6: `primaryKeyTables` and `otherTables` (root table → columns), `tablesWithNoColumns`. |
 
 ## 8\. Migration-flow matrix
 
@@ -396,7 +402,7 @@ Oracle and MySQL are unchanged.
 
 ## 11\. Performance
 
-Not on a hot path. The new path runs once per `export data` start: one catalog query for columns with types, one for primary keys, and in-memory checks over the table list. Nothing runs per row or per change event. Debezium's own column filtering is unchanged.
+Not on a hot path. The new path runs once per `export data` start: one catalog query for columns, one for primary keys, and in-memory checks over the table list. Nothing runs per row or per change event. Debezium's own column filtering is unchanged.
 
 ## 12\. Testing
 
@@ -405,19 +411,21 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 | Parsing | `TestParseExcludeColumnList` (`cmd`, unit) | Qualified and bare tables; quoted names containing `;`, `:` and `,`, kept as typed; missing or extra `:`; empty table, column or list; duplicate columns; unbalanced quotes; separator-only values. |
 | Round trip | `TestExcludeColumnListFlagValueRoundTrips` (`cmd`, unit) | A recorded map renders to flag syntax and parses back to the same entries. |
 | Resolution | `TestResolveExcludeColumnList` (`cmd`, unit) | Missing table; same table under two spellings. |
-| Checks | `TestValidateExcludedColumns` (`cmd`, unit) | Missing column, leaf partition named, table not exported, primary key with and without unsupported type, case-insensitive matching, lowercase preference, ambiguous name, duplicate after matching. |
+| Checks | `TestValidateExcludedColumns` (`cmd`, unit, fake table lookup) | Missing table, missing column, leaf partition named, table not exported, primary key with and without unsupported type, case-insensitive matching, lowercase preference, ambiguous name, duplicate after matching. |
 | Apply | `TestApplyExcludedColumns` (`cmd`, unit) | Excluded unsupported columns pass; root exclusions reach leaves; `*` becomes an explicit list; all columns excluded; key-column and other leftovers. |
 | Error text | `TestBuildUnsupportedColumnsError` (`cmd`, unit) | Exact messages for source and target roles, merged suggestions. |
 | Resume guard | `TestRecordExcludedColumns` (`cmd`, unit, temp metaDB) | First run saves the set sorted; same set in another order passes; a different set fails with the exact message and leaves the record unchanged; a run without the flag saves an empty set; the target exporter saves `FromTarget` without touching `FromSource`. |
-| Target merge | `TestWithExcludedColumnsFromSource` (`cmd`, unit, temp metaDB) | Source role uses its own set; target role adds `FromSource` per root table and skips leaves; after the merge only a `tsquery` column the source did not exclude is left as unsupported. |
+| Keyless partitioned root | `TestExcludeColumnsOnPartitionedRootWithoutPrimaryKey` (`cmd`, unit) | The root takes its partitions' key; excluding a column of that key is rejected; an unsupported column in it is reported as a primary-key table. |
+| Target merge | `TestHandleExcludedColumnForTargetExporter` (`cmd`, unit, temp metaDB) | `FromSource` is added per root table and leaves are skipped; after the merge only a `tsquery` column the source did not exclude is left as unsupported. |
 | Matcher | `TestFindBestMatchingColumnName` (`sqlname`, unit) | Exact, quoted, case-insensitive, lowercase (PG/YB) and uppercase (Oracle) preference, ambiguous, not found. |
 | Shared guardrails | `TestParseCdcPartitionKeyOverrides`, `TestResolveCdcPartitionKeyOverrides` (`cmd`, unit) | Shared parser and lookup through the import flag, including quoted separators and aggregated table problems. |
-| Catalog | `TestPostgresGetTableColumnsWithTypes` (`srcdb`, integration) | Case-sensitive schema and table, dropped column, reserved-word column, domain, `point[]`, `character varying(20)`, partition root and leaf. |
+| Catalog | `TestPostgresGetTableColumns` (`srcdb`, integration) | Column names in definition order for a case-sensitive schema and table, with a dropped column, a reserved-word column, a domain and an array column; partition root and leaf. |
 | End to end | migtest `pg/datatypes` | `EXPORT_EX_COLUMN_LIST` lists every unsupported column of the test schema; passed by `export_data` in `migtests/scripts/functions.sh` and by the live config templates. |
 
 **Gaps:**
 
-- **No YugabyteDB integration test** for `GetTableColumnsWithTypes`.
+- **No YugabyteDB integration test** for `GetTableToColumns`.
+- **No unit test that the source exporter skips the `FromSource` merge.** That role check is in `finalizeColumnListForLiveMigration`, which needs a database.
 - **No end-to-end test for `export data from target`:**
   - `TSQUERY` failing in reverse and passing once listed
   - a source-excluded column not being NULLed on the source after an UPDATE on the target
@@ -432,7 +440,9 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 - **Make `pg_dump` honour the column list.** Would also keep excluded columns out of the snapshot, but `pg_dump` has no column filter and the snapshot path would need its own mechanism. Out of scope for now.
 - **Ignore entries for tables voyager skipped (empty, unsupported).** Proposed in the plan so that a config does not fail depending on data. Not implemented; such entries are currently errors (§14).
 - **PG identifier rules for columns (unquoted lowercased).** Replaced by best-match matching shared with import, so users do not need to know a column's exact case unless two columns differ only in case.
-- **Reach `GetTableColumnsWithTypes` by type assertion instead of the `SourceDB` interface.** Avoids `panic` stubs on Oracle and MySQL, but adds a one-method interface in `cmd`. The interface method was chosen.
+- **Reach `GetTableToColumns` by type assertion instead of the `SourceDB` interface.** Avoids `panic` stubs on Oracle and MySQL, but adds a one-method interface in `cmd`. The interface method was chosen.
+- **Keep the user's entry order (a slice of table/columns pairs).** Would let the suggested value follow the order the user typed. A `map[string][]string` was chosen: the same shape as the import flag's parsed value, with problems and suggestions sorted by table name.
+- **Show each unsupported column's datatype in the error.** Needed a `format_type` column in the catalog query and a typed column list. Dropped to keep one plain column list.
 - **Two top-level MSR fields.** Replaced by one `ExcludedColumns` sub-struct, per the MSR grouping convention.
 - **Pass `FromSource` to the spawned `export data from target` as `--exclude-column-list`.** Duplicates the MSR and would make the target exporter save the source's columns as its own, so a later restart that adds the extra YB-only columns would fail the resume check. Rejected; the target exporter reads `FromSource` from the MSR instead (§5.11).
 

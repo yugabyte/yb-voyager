@@ -210,7 +210,7 @@ func TestPostgresGetColumnsWithSupportedTypes_CrossSchemaDomain(t *testing.T) {
 // --exclude-column-list is validated against these columns, so names must come back exactly as in
 // the catalog and in definition order, with each column's declared type as SQL writes it rather
 // than the type underneath a domain or array; a partitioned root and its leaf report the same columns.
-func TestPostgresGetTableColumnsWithTypes(t *testing.T) {
+func TestPostgresGetTableColumns(t *testing.T) {
 	testPostgresSource.TestContainer.ExecuteSqls(
 		`CREATE SCHEMA "ColSchema";`,
 		`CREATE DOMAIN "ColSchema".lsn_dom AS PG_LSN;`,
@@ -237,20 +237,20 @@ func TestPostgresGetTableColumnsWithTypes(t *testing.T) {
 	defer testPostgresSource.DB().Disconnect()
 	pgDB := testPostgresSource.DB().(*PostgreSQL)
 
-	columns, err := pgDB.GetTableColumnsWithTypes([]sqlname.NameTuple{orders, sales, salesEast})
+	columns, err := pgDB.GetTableToColumns([]sqlname.NameTuple{orders, sales, salesEast})
 	require.NoError(t, err)
 
 	ordersColumns, exists := columns.Get(orders)
 	require.True(t, exists)
-	require.Equal(t, []ColumnWithType{
-		{Name: "id", Type: "integer"},
-		{Name: "Note", Type: "character varying(20)"},
-		{Name: "lsn_col", Type: `"ColSchema".lsn_dom`},
-		{Name: "pts", Type: "point[]"},
-		{Name: "select", Type: "xml"},
+	require.Equal(t, []string{
+		"id",
+		"Note",
+		"lsn_col",
+		"pts",
+		"select",
 	}, ordersColumns)
 
-	salesColumns := []ColumnWithType{{Name: "id", Type: "integer"}, {Name: "region", Type: "text"}}
+	salesColumns := []string{"id", "region"}
 	for _, table := range []sqlname.NameTuple{sales, salesEast} {
 		got, exists := columns.Get(table)
 		require.True(t, exists, table.ForOutput())

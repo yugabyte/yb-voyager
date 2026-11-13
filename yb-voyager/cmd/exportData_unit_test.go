@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -41,35 +40,35 @@ func TestParseExcludeColumnList(t *testing.T) {
 	tests := []struct {
 		name     string
 		value    string
-		expected []tableColumns
+		expected map[string][]string
 		errMsg   string
 	}{
 		{
 			name:     "empty value",
 			value:    "",
-			expected: nil,
+			expected: map[string][]string{},
 		},
 		{
 			name:  "qualified and bare tables, columns keep their case",
 			value: "public.orders:Note,meta; items : a , B",
-			expected: []tableColumns{
-				{table: "public.orders", columns: []string{"Note", "meta"}},
-				{table: "items", columns: []string{"a", "B"}},
+			expected: map[string][]string{
+				"public.orders": {"Note", "meta"},
+				"items":         {"a", "B"},
 			},
 		},
 		{
 			name:  "quoted names are kept as typed and may contain separators",
 			value: `"Sales"."Orders;2024":"Geo:Point","a,b";public.t:"Mixed"`,
-			expected: []tableColumns{
-				{table: `"Sales"."Orders;2024"`, columns: []string{`"Geo:Point"`, `"a,b"`}},
-				{table: "public.t", columns: []string{`"Mixed"`}},
+			expected: map[string][]string{
+				`"Sales"."Orders;2024"`: {`"Geo:Point"`, `"a,b"`},
+				"public.t":              {`"Mixed"`},
 			},
 		},
 		{
 			name:  "trailing semicolon",
 			value: "public.t:a;",
-			expected: []tableColumns{
-				{table: "public.t", columns: []string{"a"}},
+			expected: map[string][]string{
+				"public.t": {"a"},
 			},
 		},
 		{
@@ -110,7 +109,7 @@ func TestParseExcludeColumnList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			entries, err := parseExcludeColumnList(tt.value)
+			entries, err := parseTableColumnsFlag(excludeColumnListFlagName, tt.value)
 			if tt.errMsg != "" {
 				require.Error(t, err)
 				assert.Equal(t, tt.errMsg, err.Error())
@@ -128,15 +127,15 @@ func TestExcludeColumnListFlagValueRoundTrips(t *testing.T) {
 		`"public"."Orders"`:  {"note", "Meta", "select"},
 		`"Sales"."orders:1"`: {"geo"},
 	}
-	value := excludeColumnListFlagValue(recorded)
+	value := formatExcludeColumnList(recorded)
 	assert.Equal(t, `"Sales"."orders:1":geo;"public"."Orders":note,"Meta","select";"public"."t2":b`, value)
 
-	entries, err := parseExcludeColumnList(value)
+	entries, err := parseTableColumnsFlag(excludeColumnListFlagName, value)
 	require.NoError(t, err)
-	assert.Equal(t, []tableColumns{
-		{table: `"Sales"."orders:1"`, columns: []string{"geo"}},
-		{table: `"public"."Orders"`, columns: []string{"note", `"Meta"`, `"select"`}},
-		{table: `"public"."t2"`, columns: []string{"b"}},
+	assert.Equal(t, map[string][]string{
+		`"Sales"."orders:1"`: {"geo"},
+		`"public"."Orders"`:  {"note", `"Meta"`, `"select"`},
+		`"public"."t2"`:      {"b"},
 	}, entries)
 }
 
@@ -149,10 +148,10 @@ func TestResolveExcludeColumnList(t *testing.T) {
 		}
 		return sqlname.NameTuple{}, fmt.Errorf("table %s not found", name)
 	}
-	entries := []tableColumns{
-		{table: "orders", columns: []string{"a"}},
-		{table: "public.missing", columns: []string{"b"}},
-		{table: "public.orders", columns: []string{"c"}},
+	entries := map[string][]string{
+		"orders":         {"a"},
+		"public.missing": {"b"},
+		"public.orders":  {"c"},
 	}
 	resolved, problems := resolveExcludeColumnList(entries, lookup)
 	assert.Equal(t, []string{
@@ -179,10 +178,10 @@ func newExcludeColumnsTestExport() excludeColumnsTestExport {
 		salesQ1: excludeColumnsTestTable("public", "sales_q1"),
 		salesQ2: excludeColumnsTestTable("public", "sales_q2"),
 	}
-	ordersColumns := []srcdb.ColumnWithType{{Name: "id", Type: "integer"}, {Name: "note", Type: "text"}, {Name: "doc", Type: "xml"}}
-	salesColumns := []srcdb.ColumnWithType{{Name: "id", Type: "integer"}, {Name: "region", Type: "text"}, {Name: "Geo", Type: "geometry"}}
+	ordersColumns := []string{"id", "note", "doc"}
+	salesColumns := []string{"id", "region", "Geo"}
 
-	columns := utils.NewStructMap[sqlname.NameTuple, []srcdb.ColumnWithType]()
+	columns := utils.NewStructMap[sqlname.NameTuple, []string]()
 	primaryKeyColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
 	supported := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupported := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -203,7 +202,7 @@ func newExcludeColumnsTestExport() excludeColumnsTestExport {
 			"public.sales_q1": "public.sales",
 			"public.sales_q2": "public.sales",
 		},
-		tableToColumnsWithType:   columns,
+		tableToColumns:           columns,
 		tableToPrimaryKeyColumns: primaryKeyColumns,
 		supportedColumns:         supported,
 		unsupportedColumns:       unsupported,
@@ -226,58 +225,73 @@ func excludedColumnsMap(entries map[sqlname.NameTuple][]string) *utils.StructMap
 	return m
 }
 
+// lookupTable resolves the fixture's tables, and public.audit, which is not exported, by their
+// ForOutput names.
+func (e excludeColumnsTestExport) lookupTable(name string) (sqlname.NameTuple, error) {
+	for _, table := range []sqlname.NameTuple{e.orders, e.sales, e.salesQ1, e.salesQ2, excludeColumnsTestTable("public", "audit")} {
+		if table.ForOutput() == name {
+			return table, nil
+		}
+	}
+	return sqlname.NameTuple{}, fmt.Errorf("table %s not found", name)
+}
+
 func TestValidateExcludedColumns(t *testing.T) {
 	e := newExcludeColumnsTestExport()
 	excludeTableHint := "exclude the whole table with --exclude-table-list"
-	notExported := excludeColumnsTestTable("public", "audit")
 
 	tests := []struct {
 		name     string
-		excluded map[sqlname.NameTuple][]string
+		excluded map[string][]string
 		expected []string
 	}{
 		{
 			name:     "valid columns on a table and a partitioned root",
-			excluded: map[sqlname.NameTuple][]string{e.orders: {"doc", "note"}, e.sales: {"Geo"}},
+			excluded: map[string][]string{"public.orders": {"doc", "note"}, "public.sales": {"Geo"}},
 			expected: nil,
 		},
 		{
+			name:     "table that does not exist",
+			excluded: map[string][]string{"public.missing": {"a"}},
+			expected: []string{"public.missing: table not found"},
+		},
+		{
 			name:     "column that does not exist",
-			excluded: map[sqlname.NameTuple][]string{e.orders: {"foo"}},
+			excluded: map[string][]string{"public.orders": {"foo"}},
 			expected: []string{`public.orders: column "foo" does not exist`},
 		},
 		{
 			name:     "two spellings of one column",
-			excluded: map[sqlname.NameTuple][]string{e.orders: {"Doc", "doc"}},
+			excluded: map[string][]string{"public.orders": {"Doc", "doc"}},
 			expected: []string{`public.orders: column "doc" is listed more than once`},
 		},
 		{
 			name:     "leaf partition named directly",
-			excluded: map[sqlname.NameTuple][]string{e.salesQ1: {"Geo"}},
+			excluded: map[string][]string{"public.sales_q1": {"Geo"}},
 			expected: []string{"public.sales_q1: is a partition of public.sales; specify the root table public.sales"},
 		},
 		{
 			name:     "table not part of the export",
-			excluded: map[sqlname.NameTuple][]string{notExported: {"a"}},
+			excluded: map[string][]string{"public.audit": {"a"}},
 			expected: []string{"public.audit: table is not part of this export; check --table-list and --exclude-table-list"},
 		},
 		{
 			name:     "primary key column",
-			excluded: map[sqlname.NameTuple][]string{e.sales: {"region"}},
+			excluded: map[string][]string{"public.sales": {"region"}},
 			expected: []string{`public.sales: column "region" is part of the primary key and cannot be excluded`},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			problems, err := validateExcludedColumns(excludedColumnsMap(tt.excluded), e.exportTables, e.rootOfTable, excludeTableHint)
+			_, problems, err := validateExcludedColumns(tt.excluded, e.lookupTable, e.exportTables, e.rootOfTable, excludeTableHint)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expected, problems)
 		})
 	}
 
 	t.Run("columns are matched to the table's columns ignoring case", func(t *testing.T) {
-		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"DOC", "Note"}, e.sales: {"geo"}})
-		problems, err := validateExcludedColumns(excluded, e.exportTables, e.rootOfTable, excludeTableHint)
+		excluded, problems, err := validateExcludedColumns(map[string][]string{"public.orders": {"DOC", "Note"}, "public.sales": {"geo"}},
+			e.lookupTable, e.exportTables, e.rootOfTable, excludeTableHint)
 		require.NoError(t, err)
 		assert.Empty(t, problems)
 		ordersColumns, _ := excluded.Get(e.orders)
@@ -287,20 +301,19 @@ func TestValidateExcludedColumns(t *testing.T) {
 	})
 
 	t.Run("a column matching several columns only by case", func(t *testing.T) {
-		columns := utils.NewStructMap[sqlname.NameTuple, []srcdb.ColumnWithType]()
-		columns.Put(e.orders, []srcdb.ColumnWithType{{Name: "id", Type: "integer"}, {Name: "Note", Type: "text"}, {Name: "NOTE", Type: "text"}, {Name: "note", Type: "text"}})
+		columns := utils.NewStructMap[sqlname.NameTuple, []string]()
+		columns.Put(e.orders, []string{"id", "Note", "NOTE", "note"})
 		exportTables := e.exportTables
-		exportTables.tableToColumnsWithType = columns
+		exportTables.tableToColumns = columns
 
-		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"nOtE", "NOTE"}})
-		problems, err := validateExcludedColumns(excluded, exportTables, e.rootOfTable, excludeTableHint)
+		excluded, problems, err := validateExcludedColumns(map[string][]string{"public.orders": {"nOtE", "NOTE"}}, e.lookupTable, exportTables, e.rootOfTable, excludeTableHint)
 		require.NoError(t, err)
 		assert.Empty(t, problems, "an unquoted spelling resolves to the lowercase column, an exact spelling to itself")
 		matched, _ := excluded.Get(e.orders)
 		assert.Equal(t, []string{"note", "NOTE"}, matched)
 
-		columns.Put(e.orders, []srcdb.ColumnWithType{{Name: "id", Type: "integer"}, {Name: "Note", Type: "text"}, {Name: "NOTE", Type: "text"}})
-		problems, err = validateExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note"}}), exportTables, e.rootOfTable, excludeTableHint)
+		columns.Put(e.orders, []string{"id", "Note", "NOTE"})
+		_, problems, err = validateExcludedColumns(map[string][]string{"public.orders": {"note"}}, e.lookupTable, exportTables, e.rootOfTable, excludeTableHint)
 		require.NoError(t, err)
 		assert.Equal(t, []string{`public.orders: column "note" is ambiguous; double-quote the exact column name`}, problems)
 	})
@@ -310,7 +323,7 @@ func TestValidateExcludedColumns(t *testing.T) {
 		unsupported.Put(e.orders, []string{"id"})
 		exportTables := e.exportTables
 		exportTables.unsupportedColumns = unsupported
-		problems, err := validateExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"id"}}), exportTables, e.rootOfTable, excludeTableHint)
+		_, problems, err := validateExcludedColumns(map[string][]string{"public.orders": {"id"}}, e.lookupTable, exportTables, e.rootOfTable, excludeTableHint)
 		require.NoError(t, err)
 		assert.Equal(t, []string{`public.orders: column "id" is part of the primary key and cannot be excluded. Its datatype is not supported, so exclude the whole table with --exclude-table-list`}, problems)
 	})
@@ -352,10 +365,8 @@ func TestApplyExcludedColumns(t *testing.T) {
 		_, report, err := applyExcludedColumns(excludedColumnsMap(nil), e.exportTables)
 		require.NoError(t, err)
 		assert.Equal(t, unsupportedColumnsReport{
-			otherTables: []tableColumns{
-				{table: "public.orders", columns: []string{"doc"}},
-				{table: "public.sales", columns: []string{"Geo"}},
-			},
+			primaryKeyTables: map[string][]string{},
+			otherTables:      map[string][]string{"public.orders": {"doc"}, "public.sales": {"Geo"}},
 		}, report)
 	})
 
@@ -365,7 +376,8 @@ func TestApplyExcludedColumns(t *testing.T) {
 		_, report, err := applyExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.sales: {"Geo"}}), e.exportTables)
 		require.NoError(t, err)
 		assert.Equal(t, unsupportedColumnsReport{
-			primaryKeyTables: []tableColumns{{table: "public.orders", columns: []string{"id"}}},
+			primaryKeyTables: map[string][]string{"public.orders": {"id"}},
+			otherTables:      map[string][]string{},
 		}, report)
 	})
 
@@ -374,7 +386,11 @@ func TestApplyExcludedColumns(t *testing.T) {
 		e.exportTables.supportedColumns.Put(e.orders, []string{"note"})
 		_, report, err := applyExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note", "doc"}, e.sales: {"Geo"}}), e.exportTables)
 		require.NoError(t, err)
-		assert.Equal(t, unsupportedColumnsReport{tablesWithNoColumns: []sqlname.NameTuple{e.orders}}, report)
+		assert.Equal(t, unsupportedColumnsReport{
+			primaryKeyTables:    map[string][]string{},
+			otherTables:         map[string][]string{},
+			tablesWithNoColumns: []sqlname.NameTuple{e.orders},
+		}, report)
 	})
 }
 
@@ -382,23 +398,23 @@ func TestBuildUnsupportedColumnsError(t *testing.T) {
 	e := newExcludeColumnsTestExport()
 	e.exportTables.unsupportedColumns.Put(e.orders, []string{"id"})
 	report := unsupportedColumnsReport{
-		primaryKeyTables: []tableColumns{{table: "public.orders", columns: []string{"id"}}},
-		otherTables:      []tableColumns{{table: "public.sales", columns: []string{"Geo"}}},
+		primaryKeyTables: map[string][]string{"public.orders": {"id"}},
+		otherTables:      map[string][]string{"public.sales": {"Geo"}},
 	}
-	userExcluded := []tableColumns{{table: "public.sales", columns: []string{"region_note"}}, {table: "public.items", columns: []string{"a"}}}
+	userExcluded := map[string][]string{"public.sales": {"region_note"}, "public.items": {"a"}}
 
 	t.Run("source exporter", func(t *testing.T) {
-		err := buildUnsupportedColumnsError(report, e.exportTables, userExcluded)
+		err := buildUnsupportedColumnsError(report, userExcluded)
 		assert.Equal(t, `The following primary key columns have datatypes not supported for this migration:
-  public.orders: id (integer)
+  public.orders: id
 A table cannot be migrated without its primary key. Exclude these tables with --exclude-table-list:
   --exclude-table-list 'public.orders'
 
 The following columns have datatypes not supported for this migration:
-  public.sales: "Geo" (geometry)
+  public.sales: "Geo"
 To proceed, do one of the following:
   1. Exclude these columns with --exclude-column-list:
-       --exclude-column-list 'public.sales:region_note,"Geo";public.items:a'
+       --exclude-column-list 'public.items:a;public.sales:region_note,"Geo"'
      Changes to excluded columns are not streamed: the target keeps their snapshot values, and rows inserted during streaming get NULL in them. If any of them has a NOT NULL constraint in the target database, remove it.
   2. Exclude these tables with --exclude-table-list:
        --exclude-table-list 'public.sales'`, err.Error())
@@ -409,14 +425,14 @@ To proceed, do one of the following:
 		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
 		t.Cleanup(func() { exporterRole = originalRole })
 
-		err := buildUnsupportedColumnsError(report, e.exportTables, nil)
+		err := buildUnsupportedColumnsError(report, nil)
 		assert.Equal(t, `The following primary key columns have datatypes not supported for this migration:
-  public.orders: id (integer)
+  public.orders: id
 A table cannot be migrated without its primary key. These tables had to be excluded with --exclude-table-list on 'export data from source', which requires starting the migration again:
   --exclude-table-list 'public.orders'
 
 The following columns have datatypes not supported for this migration:
-  public.sales: "Geo" (geometry)
+  public.sales: "Geo"
 Restart 'export data from target' with these columns excluded:
   --exclude-column-list 'public.sales:"Geo"'
 Changes made on the target to excluded columns are not exported: the source database keeps their values from before cutover, and rows inserted after cutover get NULL in them. If any of them has a NOT NULL constraint in the source database, remove it.`, err.Error())
@@ -495,18 +511,11 @@ func TestRecordExcludedColumns(t *testing.T) {
 	})
 }
 
-func TestWithExcludedColumnsFromSource(t *testing.T) {
+func TestHandleExcludedColumnForTargetExporter(t *testing.T) {
 	e := newExcludeColumnsTestExport()
 	finalTableList := e.exportTables.tableList
 	leafToRoot := e.exportTables.leafToRoot
 	userExcluded := excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note"}})
-
-	t.Run("the source exporter uses its own set as is", func(t *testing.T) {
-		useExcludeColumnsTestMetaDB(t, SOURCE_DB_EXPORTER_ROLE)
-		excluded, err := withExcludedColumnsFromSource(userExcluded, finalTableList, leafToRoot)
-		require.NoError(t, err)
-		assert.Same(t, userExcluded, excluded)
-	})
 
 	t.Run("the target exporter adds the source's set per root table, skipping leaves", func(t *testing.T) {
 		useExcludeColumnsTestMetaDB(t, TARGET_DB_EXPORTER_FB_ROLE)
@@ -514,7 +523,7 @@ func TestWithExcludedColumnsFromSource(t *testing.T) {
 			r.ExcludedColumns.FromSource = map[string][]string{e.orders.ForKey(): {"doc", "note"}, e.sales.ForKey(): {"Geo"}}
 		}))
 
-		excluded, err := withExcludedColumnsFromSource(userExcluded, finalTableList, leafToRoot)
+		excluded, err := handleExcludedColumnForTargetExporter(userExcluded, finalTableList, leafToRoot)
 		require.NoError(t, err)
 		ordersColumns, _ := excluded.Get(e.orders)
 		assert.Equal(t, []string{"doc", "note"}, ordersColumns)
@@ -529,14 +538,14 @@ func TestWithExcludedColumnsFromSource(t *testing.T) {
 			r.ExcludedColumns.FromSource = map[string][]string{e.orders.ForKey(): {"doc"}, e.sales.ForKey(): {"Geo"}}
 		}))
 		exportTables := e.exportTables
-		columns := utils.NewStructMap[sqlname.NameTuple, []srcdb.ColumnWithType]()
-		_ = e.exportTables.tableToColumnsWithType.IterKV(func(table sqlname.NameTuple, cols []srcdb.ColumnWithType) (bool, error) {
+		columns := utils.NewStructMap[sqlname.NameTuple, []string]()
+		_ = e.exportTables.tableToColumns.IterKV(func(table sqlname.NameTuple, cols []string) (bool, error) {
 			columns.Put(table, cols)
 			return true, nil
 		})
 		ordersColumns, _ := columns.Get(e.orders)
-		columns.Put(e.orders, append(slices.Clone(ordersColumns), srcdb.ColumnWithType{Name: "search", Type: "tsquery"}))
-		exportTables.tableToColumnsWithType = columns
+		columns.Put(e.orders, append(slices.Clone(ordersColumns), "search"))
+		exportTables.tableToColumns = columns
 		unsupported := utils.NewStructMap[sqlname.NameTuple, []string]()
 		unsupported.Put(e.orders, []string{"doc", "search"})
 		for _, table := range []sqlname.NameTuple{e.sales, e.salesQ1, e.salesQ2} {
@@ -544,10 +553,53 @@ func TestWithExcludedColumnsFromSource(t *testing.T) {
 		}
 		exportTables.unsupportedColumns = unsupported
 
-		excluded, err := withExcludedColumnsFromSource(utils.NewStructMap[sqlname.NameTuple, []string](), finalTableList, leafToRoot)
+		excluded, err := handleExcludedColumnForTargetExporter(utils.NewStructMap[sqlname.NameTuple, []string](), finalTableList, leafToRoot)
 		require.NoError(t, err)
 		_, report, err := applyExcludedColumns(excluded, exportTables)
 		require.NoError(t, err)
-		assert.Equal(t, unsupportedColumnsReport{otherTables: []tableColumns{{table: e.orders.ForOutput(), columns: []string{"search"}}}}, report)
+		assert.Equal(t, unsupportedColumnsReport{primaryKeyTables: map[string][]string{}, otherTables: map[string][]string{e.orders.ForOutput(): {"search"}}}, report)
+	})
+}
+
+// A partitioned root may have no primary key of its own when every partition has the same one;
+// the exclude-column-list checks must treat the partitions' key as the root's.
+func TestExcludeColumnsOnPartitionedRootWithoutPrimaryKey(t *testing.T) {
+	newExportWithKeylessSalesRoot := func(t *testing.T) (excludeColumnsTestExport, exportTableColumnMetadata) {
+		e := newExcludeColumnsTestExport()
+		exportTables := e.exportTables
+		primaryKeyColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
+		primaryKeyColumns.Put(e.orders, []string{"id"})
+		primaryKeyColumns.Put(e.salesQ1, []string{"id", "region"})
+		primaryKeyColumns.Put(e.salesQ2, []string{"id", "region"})
+		exportTables.tableToPrimaryKeyColumns = primaryKeyColumns
+		require.NoError(t, exportTables.addPrimaryKeyToRootTableIfRequired())
+		return e, exportTables
+	}
+
+	t.Run("the root takes its partitions' primary key", func(t *testing.T) {
+		e, exportTables := newExportWithKeylessSalesRoot(t)
+		salesPrimaryKey, ok := exportTables.tableToPrimaryKeyColumns.Get(e.sales)
+		require.True(t, ok)
+		assert.Equal(t, []string{"id", "region"}, salesPrimaryKey)
+	})
+
+	t.Run("excluding a column of the partitions' primary key is rejected", func(t *testing.T) {
+		e, exportTables := newExportWithKeylessSalesRoot(t)
+		_, problems, err := validateExcludedColumns(map[string][]string{"public.sales": {"id"}}, e.lookupTable, exportTables, e.rootOfTable, "exclude the whole table with --exclude-table-list")
+		require.NoError(t, err)
+		assert.Equal(t, []string{`public.sales: column "id" is part of the primary key and cannot be excluded`}, problems)
+	})
+
+	t.Run("an unsupported column in the partitions' primary key points to exclude-table-list", func(t *testing.T) {
+		e, exportTables := newExportWithKeylessSalesRoot(t)
+		unsupported := utils.NewStructMap[sqlname.NameTuple, []string]()
+		for _, table := range []sqlname.NameTuple{e.sales, e.salesQ1, e.salesQ2} {
+			unsupported.Put(table, []string{"region"})
+		}
+		exportTables.unsupportedColumns = unsupported
+
+		_, report, err := applyExcludedColumns(utils.NewStructMap[sqlname.NameTuple, []string](), exportTables)
+		require.NoError(t, err)
+		assert.Equal(t, unsupportedColumnsReport{primaryKeyTables: map[string][]string{e.sales.ForOutput(): {"region"}}, otherTables: map[string][]string{}}, report)
 	})
 }

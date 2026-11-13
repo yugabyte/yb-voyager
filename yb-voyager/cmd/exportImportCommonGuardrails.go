@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -26,6 +27,52 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
+
+// parseTableColumnsFlag parses a '<table>:<column1>,<column2>,...' per-table flag. Table and column
+// names are returned as written; resolveTableColumns matches the columns to the table's later.
+func parseTableColumnsFlag(flagName, flagValue string) (map[string][]string, error) {
+	entries, err := parsePerTableFlag(flagName, flagValue, "'<table>:<column1>,<column2>,...'")
+	if err != nil {
+		return nil, err
+	}
+	parsed := make(map[string][]string, len(entries))
+	for _, entry := range entries {
+		columns, err := parseColumnNameList(entry.value)
+		if err != nil {
+			return nil, goerrors.Errorf("invalid --%s entry for table %q: %w", flagName, entry.table, err)
+		}
+		parsed[entry.table] = columns
+	}
+	return parsed, nil
+}
+
+// resolveTableColumns matches each given column to a column of the table (see
+// sqlname.FindBestMatchingColumnName). Columns that don't exist, are ambiguous, or are listed twice
+// are returned as problems, so that the caller can report them along with its own.
+func resolveTableColumns(dbType string, table sqlname.NameTuple, givenColumns, tableColumns []string) ([]string, []string, error) {
+	var matched, problems []string
+	for _, givenColumn := range givenColumns {
+		column, err := sqlname.FindBestMatchingColumnName(dbType, givenColumn, tableColumns)
+		var ambiguousErr *sqlname.ErrAmbiguousColumnName
+		var notFoundErr *sqlname.ErrColumnNameNotFound
+		switch {
+		case errors.As(err, &ambiguousErr):
+			problems = append(problems, fmt.Sprintf("%s: column %q is ambiguous; double-quote the exact column name", table.ForOutput(), givenColumn))
+			continue
+		case errors.As(err, &notFoundErr):
+			problems = append(problems, fmt.Sprintf("%s: column %q does not exist", table.ForOutput(), givenColumn))
+			continue
+		case err != nil:
+			return nil, nil, fmt.Errorf("match column %q of table %s: %w", givenColumn, table.ForOutput(), err)
+		}
+		if slices.Contains(matched, column) {
+			problems = append(problems, fmt.Sprintf("%s: column %q is listed more than once", table.ForOutput(), column))
+			continue
+		}
+		matched = append(matched, column)
+	}
+	return matched, problems, nil
+}
 
 // perTableFlagEntry is one '<table>:<value>' entry of a ';'-separated per-table flag such as
 // --exclude-column-list or --cdc-partition-key-overrides.

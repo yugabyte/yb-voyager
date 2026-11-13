@@ -430,7 +430,7 @@ func startExportDataFromSourceOnNextIteration() {
 		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
 	}
 	if len(currentMsr.ExcludedColumns.FromSource) > 0 {
-		cmd = append(cmd, "--exclude-column-list", excludeColumnListFlagValue(currentMsr.ExcludedColumns.FromSource))
+		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(currentMsr.ExcludedColumns.FromSource))
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)

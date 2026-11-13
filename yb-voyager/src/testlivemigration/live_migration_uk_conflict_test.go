@@ -3692,10 +3692,10 @@ func TestLiveMigrationCustomCaseSensitiveCdcPartitionKeyNoConflict(t *testing.T)
 	})
 	require.Error(t, err, "import with a non-existent custom key column should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	require.Contains(t, output, "custom key column(s) '[custom_key]' do not exist on table 'test_schema.test_live' (available columns: [CustomKey id most_recent]",
+	require.Contains(t, output, `test_schema.test_live: column "custom_key" does not exist`,
 		"expected missing-column rejection, got: %s", output)
 
-	require.Contains(t, output, "custom key column(s) '[customPkey]' do not exist on table 'test_schema.test_partitioned_case_sensitive' (available columns: [CustomKey id most_recent region]",
+	require.Contains(t, output, `test_schema.test_partitioned_case_sensitive: column "customPkey" does not exist`,
 		"expected missing-column rejection, got: %s", output)
 
 	err = lm.StartImportData(true, map[string]string{
@@ -3860,7 +3860,7 @@ func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyColumnNotOnTable(t *testing
 	})
 	require.Error(t, err, "import with a non-existent custom key column should fail")
 	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
-	assert.Contains(t, output, "cdc-partition-key-overrides: custom key column(s) '[nonexistent_col]' do not exist on table 'test_schema.orders' (available columns: [amount customer_id id]",
+	assert.Contains(t, output, "invalid --cdc-partition-key-overrides:\n  test_schema.orders: column \"nonexistent_col\" does not exist",
 		"expected missing-column rejection, got: %s", output)
 
 	err = lm.StartImportData(true, map[string]string{
