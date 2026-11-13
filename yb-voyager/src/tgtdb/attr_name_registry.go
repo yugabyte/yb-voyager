@@ -1,6 +1,7 @@
 package tgtdb
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -148,4 +149,11 @@ type ErrColumnNameNotFound struct {
 
 func (e *ErrColumnNameNotFound) Error() string {
 	return fmt.Sprintf("column name %q not found amongst table columns %v", e.colName, e.targetColumns)
+}
+
+// Retrying cannot help: the target column list is cached for the life of the importer.
+func isColumnNameResolutionError(err error) bool {
+	var notFound *ErrColumnNameNotFound
+	var ambiguous *ErrAmbiguousColumnName
+	return errors.As(err, &notFound) || errors.As(err, &ambiguous)
 }
