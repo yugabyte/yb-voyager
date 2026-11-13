@@ -91,6 +91,27 @@ if FAKER_SEED is not None:
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
 
+RECONNECT_ATTEMPTS = 60
+RECONNECT_INITIAL_WAIT_SECONDS = 10
+RECONNECT_MAX_WAIT_SECONDS = 60
+RECONNECT_BACKOFF_STEP_SECONDS = 5
+
+
+def reconnect():
+    global conn, cursor
+    wait = RECONNECT_INITIAL_WAIT_SECONDS
+    for attempt in range(1, RECONNECT_ATTEMPTS + 1):
+        try:
+            conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
+            cursor = conn.cursor()
+            print(f"Reconnected to the database on attempt {attempt}")
+            return
+        except psycopg2.OperationalError as e:
+            print(f"Reconnect attempt {attempt}/{RECONNECT_ATTEMPTS} failed: {e}")
+            time.sleep(wait)
+            wait = min(wait + RECONNECT_BACKOFF_STEP_SECONDS, RECONNECT_MAX_WAIT_SECONDS)
+    raise RuntimeError(f"could not reconnect to the database after {RECONNECT_ATTEMPTS} attempts")
+
 # Detect database flavor (PostgreSQL vs YugabyteDB)
 DB_FLAVOR = detect_db_flavor(cursor)
 
@@ -259,10 +280,18 @@ try:
 
         except psycopg2.Error as e:
             print(f"An error occurred: {e}")
+            if conn.closed:
+                print("Connection lost; reconnecting...")
+                reconnect()
+                continue
             if "current transaction is aborted" in str(e):
                 print("Transaction aborted. Commands ignored until the end of the transaction block.")
             # Rollback the transaction to avoid leaving it in an inconsistent state
-            conn.rollback()
+            try:
+                conn.rollback()
+            except psycopg2.InterfaceError:
+                print("Connection lost during rollback; reconnecting...")
+                reconnect()
 
 except KeyboardInterrupt:
     print("Received KeyboardInterrupt. Stopping generator...")
@@ -275,7 +304,8 @@ finally:
     
     # Commit changes outside the loop for UPDATE and DELETE operations
     try:
-        conn.commit()
+        if not conn.closed:
+            conn.commit()
     finally:
         # Close the connection
         conn.close()
