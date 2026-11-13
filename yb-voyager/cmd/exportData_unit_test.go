@@ -752,3 +752,43 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 		assert.Equal(t, map[string][]string{f.orders.ForKey(): {"doc"}, f.salesOrders.ForKey(): {"note"}}, record.FromTarget)
 	})
 }
+func TestLookupPerTableFlagTables(t *testing.T) {
+	origNameReg := namereg.NameReg
+	origSourceDBType := sqlname.SourceDBType
+	t.Cleanup(func() {
+		namereg.NameReg = origNameReg
+		sqlname.SourceDBType = origSourceDBType
+	})
+	sqlname.SourceDBType = POSTGRESQL
+
+	regFile := filepath.Join(t.TempDir(), "name_registry.json")
+	content := `{
+  "SourceDBType": "postgresql",
+  "SourceDBSchemaNames": ["test_schema"],
+  "DefaultSourceDBSchemaName": "test_schema",
+  "SourceDBTableNames": {"test_schema": ["Orders", "ORDERS", "events"]},
+  "YBSchemaNames": ["test_schema"],
+  "DefaultYBSchemaName": "test_schema",
+  "YBTableNames": {"test_schema": ["Orders", "ORDERS", "events"]}
+}`
+	require.NoError(t, os.WriteFile(regFile, []byte(content), 0644))
+	require.NoError(t, namereg.InitNameRegistry(namereg.NameRegistryParams{
+		FilePath: regFile,
+		Role:     namereg.TARGET_DB_IMPORTER_ROLE,
+	}))
+
+	resolved, problems := lookupPerTableFlagTables([]string{
+		"test_schema.missing",
+		"test_schema.orders",
+		`test_schema."Orders"`,
+		"a.b.c",
+		"events",
+	}, namereg.NameReg.LookupTableName)
+
+	assert.Equal(t, []string{
+		"test_schema.missing: table not found",
+		`test_schema.orders: matches several tables (Orders, ORDERS); double-quote the exact table name`,
+		"a.b.c: invalid table name: a.b.c",
+	}, problems)
+	assert.ElementsMatch(t, []string{`test_schema."Orders"`, "events"}, lo.Keys(resolved))
+}
