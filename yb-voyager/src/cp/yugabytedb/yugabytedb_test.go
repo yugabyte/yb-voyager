@@ -191,6 +191,31 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 	})
 	flush()
 
+	// Events the control plane cannot map are rejected whole: nothing is
+	// written for them, under a migration id of their own.
+	rejectedUUID := uuid.New()
+	rejected := func(eventType string) cp.BaseEvent {
+		return cp.BaseEvent{EventType: eventType, MigrationUUID: rejectedUUID}
+	}
+	controlPlane.ExportSchemaStarted(&cp.ExportSchemaStartedEvent{BaseEvent: rejected("NOT A PHASE")})
+	// A document-producing phase must not be marked done without its document,
+	// or with a document that carries no version.
+	controlPlane.MigrationAssessmentCompleted(&cp.MigrationAssessmentCompletedEvent{
+		BaseEvent: rejected("ASSESS MIGRATION"), Report: 42})
+	controlPlane.MigrationAssessmentCompleted(&cp.MigrationAssessmentCompletedEvent{
+		BaseEvent: rejected("ASSESS MIGRATION"), Report: ""})
+	controlPlane.MigrationAssessmentCompleted(&cp.MigrationAssessmentCompletedEvent{
+		BaseEvent: rejected("ASSESS MIGRATION"), Report: `{"MigrationComplexity":"LOW"}`})
+	controlPlane.UpdateImportedRowCount([]*cp.UpdateImportedRowCountEvent{
+		{BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+			BaseEvent: rejected("IMPORT DATA"), TableName: "bad_status", Status: "PAUSED"}},
+	})
+	controlPlane.UpdateImportedRowCount([]*cp.UpdateImportedRowCountEvent{
+		{BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+			BaseEvent: rejected("EXPORT SCHEMA"), TableName: "bad_event_type", Status: "IN PROGRESS"}},
+	})
+	flush()
+
 	// A statement that fails on every attempt must surface its error.
 	err = controlPlane.exec(`SELECT 1/0`)
 	assert.ErrorContains(t, err, "division by zero")
@@ -201,6 +226,15 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 		name  string
 		value bool
 	}
+
+	t.Run("rejected events write nothing", func(t *testing.T) {
+		for _, table := range []string{"migration_state", "metadata", "table_data_progress"} {
+			var count int
+			err := db.QueryRow(`SELECT count(*) FROM voyager_core.`+table+` WHERE migration_id = $1`, rejectedUUID).Scan(&count)
+			assert.NoError(t, err)
+			assert.Equal(t, 0, count, "rows in %s for a rejected event", table)
+		}
+	})
 
 	t.Run("migration_state history", func(t *testing.T) {
 		rows, err := db.Query(`SELECT name, value, scope, detail IS NULL
@@ -276,7 +310,7 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 		assert.NoError(t, rows.Err())
 		assert.Equal(t, [][3]string{
 			{"assessment", "1.8", "LOW"},
-			{"schema_analysis", "2026.11.1", ""},
+			{"schema_analysis", SCHEMA_ANALYSIS_PAYLOAD_VERSION, ""},
 		}, got)
 	})
 
@@ -322,10 +356,10 @@ func TestYugabyteDBStructs(t *testing.T) {
 	})
 
 	expectedMigrationEvent := struct {
-		MigrationUUID  uuid.UUID `json:"migration_uuid"`
-		MigrationPhase int       `json:"migration_phase"`
-		Payload        string    `json:"payload"`
-		Status         string    `json:"status"`
+		MigrationUUID uuid.UUID `json:"migration_uuid"`
+		EventType     string    `json:"event_type"`
+		Payload       string    `json:"payload"`
+		Status        string    `json:"status"`
 	}{}
 
 	t.Run("Validate MigrationEvent Struct Definition", func(t *testing.T) {
@@ -351,7 +385,7 @@ func TestYugabyteDBStructs(t *testing.T) {
 		sync.Mutex
 		waitGroup               sync.WaitGroup
 		eventChan               chan (MigrationEvent)
-		rowCountUpdateEventChan chan ([]cp.TableMetrics)
+		rowCountUpdateEventChan chan ([]TableProgress)
 		connMutex               sync.Mutex
 		connPool                *pgxpool.Pool
 		lastRowCountUpdate      map[string]time.Time

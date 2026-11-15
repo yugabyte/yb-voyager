@@ -20,8 +20,18 @@ import (
 )
 
 type MigrationEvent struct {
-	MigrationUUID  uuid.UUID `json:"migration_uuid"`
-	MigrationPhase int       `json:"migration_phase"`
-	Payload        string    `json:"payload"`
-	Status         string    `json:"status"`
+	MigrationUUID uuid.UUID `json:"migration_uuid"`
+	EventType     string    `json:"event_type"`
+	Payload       string    `json:"payload"`
+	Status        string    `json:"status"`
+}
+
+type TableProgress struct {
+	MigrationUUID     uuid.UUID
+	EventType         string
+	SchemaName        string
+	TableName         string
+	Status            string
+	TotalRowCount     int64
+	CompletedRowCount int64
 }
