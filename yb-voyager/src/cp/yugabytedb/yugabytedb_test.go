@@ -20,11 +20,9 @@ package yugabytedb
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,7 +38,47 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-func TestYugabyteDBTableSchema(t *testing.T) {
+// controlPlaneSchemaDDL is the schema the control plane owns. Voyager never
+// creates it, so the test sets it up before using the control plane.
+var controlPlaneSchemaDDL = []string{
+	`CREATE SCHEMA voyager_core`,
+	`CREATE TABLE voyager_core.migration_state (
+		id           bigserial PRIMARY KEY,
+		migration_id uuid NOT NULL,
+		name         text NOT NULL,
+		scope        text NOT NULL DEFAULT '',
+		value        boolean NOT NULL DEFAULT true,
+		detail       jsonb,
+		set_at       timestamptz NOT NULL DEFAULT now()
+	)`,
+	`CREATE TABLE voyager_core.metadata (
+		id              bigserial PRIMARY KEY,
+		migration_id    uuid NOT NULL,
+		kind            text NOT NULL,
+		payload         jsonb NOT NULL,
+		payload_version text NOT NULL,
+		generated_at    timestamptz NOT NULL DEFAULT now()
+	)`,
+	`CREATE TABLE voyager_core.table_data_progress (
+		migration_id            uuid NOT NULL,
+		db_role                 text NOT NULL,
+		direction               text NOT NULL,
+		schema_name             text NOT NULL,
+		table_name              text NOT NULL,
+		status                  text NOT NULL DEFAULT 'not_started',
+		snapshot_rows_estimated bigint,
+		snapshot_rows           bigint NOT NULL DEFAULT 0,
+		snapshot_rows_errored   bigint NOT NULL DEFAULT 0,
+		cdc_inserts             bigint NOT NULL DEFAULT 0,
+		cdc_updates             bigint NOT NULL DEFAULT 0,
+		cdc_deletes             bigint NOT NULL DEFAULT 0,
+		details                 jsonb,
+		updated_at              timestamptz NOT NULL DEFAULT now(),
+		PRIMARY KEY (migration_id, db_role, direction, schema_name, table_name)
+	)`,
+}
+
+func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 	ctx := context.Background()
 
 	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
@@ -76,57 +114,183 @@ func TestYugabyteDBTableSchema(t *testing.T) {
 	}()
 
 	controlPlane := New(exportDir)
-	controlPlane.eventChan = make(chan MigrationEvent, 100)
-	controlPlane.rowCountUpdateEventChan = make(chan []cp.TableMetrics, 200)
 
-	err = controlPlane.connect()
-	assert.NoError(t, err, "Failed to connect to YugabyteDB")
+	// Init only connects: the control plane must not create any schema objects.
+	err = controlPlane.Init()
+	assert.NoError(t, err, "Failed to initialize the control plane")
+	var schemaCount int
+	err = db.QueryRow(`SELECT count(*) FROM information_schema.schemata WHERE schema_name = $1`,
+		CONTROL_PLANE_SCHEMA).Scan(&schemaCount)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, schemaCount, "control plane must not create its schema")
 
-	err = controlPlane.setupDatabase()
-	assert.NoError(t, err, "Failed to setup YugabyteDB database")
-
-	expectedTables := map[string]map[string]testutils.ColumnPropertiesPG{
-		QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME: {
-			"migration_uuid":       {Type: "uuid", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"migration_phase":      {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"invocation_sequence":  {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"migration_dir":        {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"database_name":        {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"schema_name":          {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"payload":              {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"complexity":           {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"db_type":              {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"status":               {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"invocation_timestamp": {Type: "timestamp with time zone", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"host_ip":              {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"port":                 {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"db_version":           {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"voyager_info":         {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-		},
-		YUGABYTEDB_TABLE_METRICS_TABLE_NAME: {
-			"migration_uuid":       {Type: "uuid", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"table_name":           {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"schema_name":          {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"migration_phase":      {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"status":               {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"count_live_rows":      {Type: "bigint", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"count_total_rows":     {Type: "bigint", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"invocation_timestamp": {Type: "timestamp with time zone", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-		},
+	for _, ddl := range controlPlaneSchemaDDL {
+		_, err = db.Exec(ddl)
+		assert.NoError(t, err, "Failed to create control plane schema: %s", ddl)
 	}
 
-	// Validate the schema and tables
-	t.Run("Check all the expected tables and no extra tables", func(t *testing.T) {
-		testutils.CheckTableExistencePG(t, db, VISUALIZER_METADATA_SCHEMA, expectedTables)
+	migrationUUID := uuid.New()
+	baseEvent := func(eventType string) cp.BaseEvent {
+		return cp.BaseEvent{
+			EventType:     eventType,
+			MigrationUUID: migrationUUID,
+			DBType:        "postgresql",
+			DatabaseName:  "testdb",
+			SchemaNames:   []string{"public", "sales"},
+			DBIP:          []string{"10.0.0.1"},
+			Port:          5432,
+			DBVersion:     "17.2",
+		}
+	}
+	rowCountEvent := func(eventType, table, status string, total, completed int64) cp.BaseUpdateRowCountEvent {
+		return cp.BaseUpdateRowCountEvent{
+			BaseEvent:         cp.BaseEvent{EventType: eventType, MigrationUUID: migrationUUID, SchemaNames: []string{"public"}},
+			TableName:         table,
+			Status:            status,
+			TotalRowCount:     total,
+			CompletedRowCount: completed,
+		}
+	}
+	// flush waits for the queued events to be written.
+	flush := func() { controlPlane.waitGroup.Wait() }
+
+	// First assessment, then a re-run of it: the re-run must unset the done entry.
+	controlPlane.MigrationAssessmentStarted(&cp.MigrationAssessmentStartedEvent{BaseEvent: baseEvent("ASSESS MIGRATION")})
+	flush()
+	controlPlane.MigrationAssessmentCompleted(&cp.MigrationAssessmentCompletedEvent{
+		BaseEvent: baseEvent("ASSESS MIGRATION"),
+		Report:    `{"PayloadVersion":"1.8","MigrationComplexity":"LOW"}`,
+	})
+	flush()
+	controlPlane.MigrationAssessmentStarted(&cp.MigrationAssessmentStartedEvent{BaseEvent: baseEvent("ASSESS MIGRATION")})
+	flush()
+
+	controlPlane.ExportSchemaStarted(&cp.ExportSchemaStartedEvent{BaseEvent: baseEvent("EXPORT SCHEMA")})
+	flush()
+	controlPlane.ExportSchemaCompleted(&cp.ExportSchemaCompletedEvent{BaseEvent: baseEvent("EXPORT SCHEMA")})
+	flush()
+
+	controlPlane.SchemaAnalysisIterationCompleted(&cp.SchemaAnalysisIterationCompletedEvent{
+		BaseEvent:      baseEvent("ANALYZE SCHEMA"),
+		AnalysisReport: utils.SchemaReport{VoyagerVersion: "2026.11.1"},
+	})
+	flush()
+
+	controlPlane.UpdateExportedRowCount([]*cp.UpdateExportedRowCountEvent{
+		{BaseUpdateRowCountEvent: rowCountEvent("EXPORT DATA", "orders", "IN PROGRESS", 100, 40)},
+		{BaseUpdateRowCountEvent: rowCountEvent("EXPORT DATA", "items", "NOT STARTED", 0, 0)},
+	})
+	flush()
+	controlPlane.UpdateExportedRowCount([]*cp.UpdateExportedRowCountEvent{
+		{BaseUpdateRowCountEvent: rowCountEvent("EXPORT DATA", "orders", "COMPLETED", 100, 120)},
+	})
+	flush()
+	controlPlane.UpdateImportedRowCount([]*cp.UpdateImportedRowCountEvent{
+		{BaseUpdateRowCountEvent: rowCountEvent("IMPORT DATA", "customers", "IN PROGRESS", 120, 60)},
+	})
+	flush()
+	controlPlane.Finalize()
+
+	type stateEntry struct {
+		name  string
+		value bool
+	}
+
+	t.Run("migration_state history", func(t *testing.T) {
+		rows, err := db.Query(`SELECT name, value, scope, detail IS NULL
+			FROM voyager_core.migration_state WHERE migration_id = $1 ORDER BY set_at, id`, migrationUUID)
+		assert.NoError(t, err)
+		defer rows.Close()
+		var got []stateEntry
+		for rows.Next() {
+			var e stateEntry
+			var scope string
+			var detailIsNull bool
+			assert.NoError(t, rows.Scan(&e.name, &e.value, &scope, &detailIsNull))
+			assert.Equal(t, "", scope)
+			assert.True(t, detailIsNull, "no detail is reported for %s", e.name)
+			got = append(got, e)
+		}
+		assert.NoError(t, rows.Err())
+		// The started and unset rows of the re-run are written by one statement,
+		// so their relative order is not asserted.
+		assert.ElementsMatch(t, []stateEntry{
+			{"assessment.started", true},
+			{"assessment.completed", true},
+			{"assessment.started", true},
+			{"assessment.completed", false},
+			{"schema.export_started", true},
+			{"schema.exported", true},
+			{"schema.analyzed", true},
+		}, got)
 	})
 
-	// Validate columns for each table
-	for tableName, expectedColumns := range expectedTables {
-		t.Run(fmt.Sprintf("Check columns for %s table", tableName), func(t *testing.T) {
-			table := strings.Split(tableName, ".")[1]
-			testutils.CheckTableStructurePG(t, db, VISUALIZER_METADATA_SCHEMA, table, expectedColumns)
-		})
-	}
+	t.Run("migration_state current", func(t *testing.T) {
+		rows, err := db.Query(`SELECT DISTINCT ON (name, scope) name, value
+			FROM voyager_core.migration_state WHERE migration_id = $1
+			ORDER BY name, scope, set_at DESC, id DESC`, migrationUUID)
+		assert.NoError(t, err)
+		defer rows.Close()
+		got := map[string]bool{}
+		for rows.Next() {
+			var name string
+			var value bool
+			assert.NoError(t, rows.Scan(&name, &value))
+			got[name] = value
+		}
+		assert.NoError(t, rows.Err())
+		assert.Equal(t, map[string]bool{
+			"assessment.started":    true,
+			"assessment.completed":  false,
+			"schema.export_started": true,
+			"schema.exported":       true,
+			"schema.analyzed":       true,
+		}, got)
+	})
+
+	t.Run("metadata", func(t *testing.T) {
+		rows, err := db.Query(`SELECT kind, payload_version, payload->>'MigrationComplexity'
+			FROM voyager_core.metadata WHERE migration_id = $1 ORDER BY generated_at, id`, migrationUUID)
+		assert.NoError(t, err)
+		defer rows.Close()
+		var got [][3]string
+		for rows.Next() {
+			var kind, version string
+			var complexity sql.NullString
+			assert.NoError(t, rows.Scan(&kind, &version, &complexity))
+			got = append(got, [3]string{kind, version, complexity.String})
+		}
+		assert.NoError(t, rows.Err())
+		assert.Equal(t, [][3]string{
+			{"assessment", "1.8", "LOW"},
+			{"schema_analysis", "2026.11.1", ""},
+		}, got)
+	})
+
+	t.Run("table_data_progress", func(t *testing.T) {
+		rows, err := db.Query(`SELECT db_role, direction, schema_name, table_name, status, snapshot_rows_estimated, snapshot_rows
+			FROM voyager_core.table_data_progress WHERE migration_id = $1
+			ORDER BY direction, table_name`, migrationUUID)
+		assert.NoError(t, err)
+		defer rows.Close()
+		type progress struct {
+			role, direction, schema, table, status string
+			estimated                              sql.NullInt64
+			rows                                   int64
+		}
+		var got []progress
+		for rows.Next() {
+			var p progress
+			assert.NoError(t, rows.Scan(&p.role, &p.direction, &p.schema, &p.table, &p.status, &p.estimated, &p.rows))
+			got = append(got, p)
+		}
+		assert.NoError(t, rows.Err())
+		assert.Equal(t, []progress{
+			{"source", "export", "public", "items", "not_started", sql.NullInt64{Int64: 0, Valid: true}, 0},
+			{"source", "export", "public", "orders", "completed", sql.NullInt64{Int64: 100, Valid: true}, 120},
+			{"target", "import", "public", "customers", "in_progress", sql.NullInt64{Int64: 120, Valid: true}, 60},
+		}, got)
+	})
 }
 
 func TestYugabyteDBStructs(t *testing.T) {
@@ -144,20 +308,10 @@ func TestYugabyteDBStructs(t *testing.T) {
 	})
 
 	expectedMigrationEvent := struct {
-		MigrationUUID       uuid.UUID `json:"migration_uuid"`
-		MigrationPhase      int       `json:"migration_phase"`
-		InvocationSequence  int       `json:"invocation_sequence"`
-		MigrationDirectory  string    `json:"migration_dir"`
-		DatabaseName        string    `json:"database_name"`
-		SchemaName          string    `json:"schema_name"`
-		DBIP                string    `json:"db_ip"`
-		Port                int       `json:"port"`
-		DBVersion           string    `json:"db_version"`
-		Payload             string    `json:"payload"`
-		VoyagerInfo         string    `json:"voyager_info"`
-		DBType              string    `json:"db_type"`
-		Status              string    `json:"status"`
-		InvocationTimestamp string    `json:"invocation_timestamp"`
+		MigrationUUID  uuid.UUID `json:"migration_uuid"`
+		MigrationPhase int       `json:"migration_phase"`
+		Payload        string    `json:"payload"`
+		Status         string    `json:"status"`
 	}{}
 
 	t.Run("Validate MigrationEvent Struct Definition", func(t *testing.T) {
@@ -181,14 +335,11 @@ func TestYugabyteDBStructs(t *testing.T) {
 
 	expectedYugabyteDB := struct {
 		sync.Mutex
-		migrationDirectory       string
-		voyagerInfo              *cp.VoyagerInstance
-		waitGroup                sync.WaitGroup
-		eventChan                chan (MigrationEvent)
-		rowCountUpdateEventChan  chan ([]cp.TableMetrics)
-		connPool                 *pgxpool.Pool
-		lastRowCountUpdate       map[string]time.Time
-		latestInvocationSequence int
+		waitGroup               sync.WaitGroup
+		eventChan               chan (MigrationEvent)
+		rowCountUpdateEventChan chan ([]cp.TableMetrics)
+		connPool                *pgxpool.Pool
+		lastRowCountUpdate      map[string]time.Time
 	}{}
 
 	t.Run("Validate YugabyteDB Struct Definition", func(t *testing.T) {

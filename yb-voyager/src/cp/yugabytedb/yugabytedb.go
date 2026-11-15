@@ -17,7 +17,6 @@ package yugabytedb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,8 +27,6 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -37,25 +34,18 @@ import (
 
 type YugabyteDB struct {
 	sync.Mutex
-	migrationDirectory       string
-	voyagerInfo              *controlPlane.VoyagerInstance
-	waitGroup                sync.WaitGroup
-	eventChan                chan (MigrationEvent)
-	rowCountUpdateEventChan  chan ([]controlPlane.TableMetrics)
-	connPool                 *pgxpool.Pool
-	lastRowCountUpdate       map[string]time.Time
-	latestInvocationSequence int
+	waitGroup               sync.WaitGroup
+	eventChan               chan (MigrationEvent)
+	rowCountUpdateEventChan chan ([]controlPlane.TableMetrics)
+	connPool                *pgxpool.Pool
+	lastRowCountUpdate      map[string]time.Time
 }
 
 func New(exportDir string) *YugabyteDB {
-	vi := controlPlane.PrepareVoyagerInstance(exportDir)
-	return &YugabyteDB{
-		voyagerInfo:        vi,
-		migrationDirectory: exportDir,
-	}
+	return &YugabyteDB{}
 }
 
-// Initialize the yugabytedb control plane DB for visualisation metadata
+// Initialize the connection to the yugabytedb control plane DB
 func (cp *YugabyteDB) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []controlPlane.TableMetrics, 200)
@@ -65,13 +55,7 @@ func (cp *YugabyteDB) Init() error {
 		return err
 	}
 
-	err = cp.setupDatabase()
-	if err != nil {
-		return err
-	}
-
 	cp.lastRowCountUpdate = make(map[string]time.Time)
-	cp.latestInvocationSequence = 0
 
 	go cp.eventPublisher()
 	go cp.rowCountUpdateEventPublisher()
@@ -114,47 +98,11 @@ func (cp *YugabyteDB) rowCountUpdateEventPublisher() {
 // The JSON string is stored directly in the database as TEXT
 func (cp *YugabyteDB) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-	invocationSequence, err := cp.getInvocationSequence(event.MigrationUUID,
-		controlPlane.MIGRATION_PHASE_MAP[event.EventType])
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-		return
-	}
-
-	voyagerInfoStr, err := json.Marshal(*cp.voyagerInfo)
-	if err != nil {
-		log.Warnf("failed to marshal voyager_info struct: %s", err)
-	}
-
-	jsonData := make(map[string]string)
-	if controlPlane.IsExportPhase(event.EventType) {
-		jsonData["SourceDBIP"] = strings.Join(event.DBIP, "|")
-	} else if controlPlane.IsImportPhase(event.EventType) {
-		jsonData["TargetDBIP"] = strings.Join(event.DBIP, "|")
-	}
-
-	dbIps, err := json.Marshal(jsonData)
-	if err != nil {
-		log.Warnf("failed to marshal db_ip string slice into json format: %s", err)
-	}
-
 	migrationEvent := MigrationEvent{
-		MigrationUUID:       event.MigrationUUID,
-		MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
-		InvocationSequence:  invocationSequence,
-		DatabaseName:        event.DatabaseName,
-		SchemaName:          strings.Join(event.SchemaNames, "|"),
-		DBIP:                string(dbIps),
-		Port:                event.Port,
-		DBVersion:           event.DBVersion,
-		Payload:             payload,
-		VoyagerInfo:         string(voyagerInfoStr),
-		DBType:              event.DBType,
-		Status:              status,
-		InvocationTimestamp: timestamp,
+		MigrationUUID:  event.MigrationUUID,
+		MigrationPhase: controlPlane.MIGRATION_PHASE_MAP[event.EventType],
+		Payload:        payload,
+		Status:         status,
 	}
 
 	select {
@@ -385,183 +333,78 @@ func (cp *YugabyteDB) disconnect() {
 	cp.connPool = nil
 }
 
-const VISUALIZER_METADATA_SCHEMA = "ybvoyager_visualizer"
-const VISUALIZER_METADATA_TABLE = "ybvoyager_visualizer_metadata"
-const VISUALIZER_METRICS_TABLE = "ybvoyager_visualizer_table_metrics"
+// The control plane schema and its tables are created and owned by the control
+// plane itself. Voyager only writes rows into them and never issues DDL.
+const CONTROL_PLANE_SCHEMA = "voyager_core"
+const MIGRATION_STATE_TABLE = "migration_state"
+const METADATA_TABLE = "metadata"
+const TABLE_DATA_PROGRESS_TABLE = "table_data_progress"
 
-// Set-up YBD database for visualisation metadata
-func (cp *YugabyteDB) setupDatabase() error {
-	err := cp.createVoyagerSchema()
-	if err != nil {
-		return err
-	}
+const QUALIFIED_MIGRATION_STATE_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + MIGRATION_STATE_TABLE
+const QUALIFIED_METADATA_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + METADATA_TABLE
+const QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + TABLE_DATA_PROGRESS_TABLE
 
-	err = cp.createYugabyteDBMetadataTable()
-	if err != nil {
-		return err
-	}
-
-	err = cp.createYugabyteDBTableMetricsTable()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Create the visualisation schema
-func (cp *YugabyteDB) createVoyagerSchema() error {
-	cmd := fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, VISUALIZER_METADATA_SCHEMA)
-
-	return cp.executeCmdOnTarget(cmd)
-}
-
-const QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + VISUALIZER_METADATA_TABLE
-
-// Create visualisation metadata table
-func (cp *YugabyteDB) createYugabyteDBMetadataTable() error {
-	// NOTE: DON'T CHANGE TABLE SCHEMA, use ALTER ddls
-	cmd := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			migration_uuid UUID,
-			migration_phase INT,
-			invocation_sequence INT,
-			migration_dir VARCHAR(250),
-			database_name VARCHAR(250),
-			schema_name VARCHAR(250),
-			payload TEXT,
-			complexity VARCHAR(30),
-			db_type VARCHAR(30),
-			status VARCHAR(30),
-			invocation_timestamp TIMESTAMPTZ,
-			PRIMARY KEY (migration_uuid, migration_phase, invocation_sequence)
-			);`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME)
-
-	err := cp.executeCmdOnTarget(cmd)
-	if err != nil {
-		return err
-	}
-
-	// using ALTER to add new columns and change column types since TABLE might already exists due to old voyager version migrations
-	alterTableCmds := []string{
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS host_ip VARCHAR;`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS port INT;`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS db_version VARCHAR(250);`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS voyager_info VARCHAR;`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN migration_dir TYPE TEXT;`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN database_name TYPE TEXT;`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME),
-	}
-
-	for _, cmd := range alterTableCmds {
-		err := cp.executeCmdOnTarget(cmd)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-const YUGABYTEDB_TABLE_METRICS_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + VISUALIZER_METRICS_TABLE
-
-// Create table metrics table
-func (cp *YugabyteDB) createYugabyteDBTableMetricsTable() error {
-	cmd := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			migration_uuid UUID,
-			table_name VARCHAR(250),
-			schema_name VARCHAR(250),
-			migration_phase INT,
-			status INT,
-			count_live_rows INT,
-			count_total_rows INT,
-			invocation_timestamp TIMESTAMPTZ,
-			PRIMARY KEY (migration_uuid, table_name, migration_phase, schema_name)
-			);`, YUGABYTEDB_TABLE_METRICS_TABLE_NAME)
-
-	err := cp.executeCmdOnTarget(cmd)
-	if err != nil {
-		return err
-	}
-
-	// using ALTER to add new columns since TABLE might already exists due to old voyager version migrations
-	alterTableCmds := []string{
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN count_live_rows TYPE BIGINT;`, YUGABYTEDB_TABLE_METRICS_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN count_total_rows TYPE BIGINT;`, YUGABYTEDB_TABLE_METRICS_TABLE_NAME),
-	}
-
-	for _, cmd := range alterTableCmds {
-		err := cp.executeCmdOnTarget(cmd)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Get the latest invocation sequence for a given migration_uuid and migration phase
-func (cp *YugabyteDB) getInvocationSequence(mUUID uuid.UUID, phase int) (int, error) {
-
-	// Increment and return invocation sequence number if already initialised.
-	if cp.latestInvocationSequence > 0 {
-		cp.latestInvocationSequence += 1
-		return cp.latestInvocationSequence, nil
-	}
-
-	cmd := fmt.Sprintf(`SELECT MAX(invocation_sequence) AS latest_sequence 
-		FROM %s 
-		WHERE migration_uuid = '%s' AND migration_phase = %d`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME,
-		mUUID, phase)
-
-	log.Infof("Executing on yugabytedb control plane DB: [%s]", cmd)
-
-	var latestSequence sql.NullInt32
-	connPool, err := cp.getConnPool()
-	if err != nil {
-		return 0, err
-	}
-
-	err = connPool.QueryRow(context.Background(), cmd).Scan(&latestSequence)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			cp.latestInvocationSequence = 1
-			return cp.latestInvocationSequence, nil
-		} else {
-			return 0, fmt.Errorf("couldn't get the latest sequence number: %w", err)
-		}
-	}
-
-	if latestSequence.Valid {
-		cp.latestInvocationSequence = int(latestSequence.Int32) + 1
-		return cp.latestInvocationSequence, nil
-	} else {
-		cp.latestInvocationSequence = 1
-		return cp.latestInvocationSequence, nil
-	}
-}
+// MIGRATION_PHASES_VALUES maps each migration phase (controlPlane.MIGRATION_PHASE_MAP)
+// to the migration_state entry set when the phase starts, the entry set when it
+// completes, and the metadata kind of the document it produces (NULL if none).
+const MIGRATION_PHASES_VALUES = `(VALUES
+			(1, 'assessment.started',      'assessment.completed', 'assessment'),
+			(2, 'schema.export_started',   'schema.exported',      NULL),
+			(3, 'schema.analysis_started', 'schema.analyzed',      'schema_analysis'),
+			(4, 'data.export_started',     'data.exported',        NULL),
+			(5, 'schema.import_started',   'schema.imported',      NULL),
+			(6, 'data.import_started',     'data.imported',        NULL)
+		) AS phases (migration_phase, started_entry, done_entry, metadata_kind)`
 
 // Send visualisation metadata
 func (cp *YugabyteDB) sendMigrationEvent(
 	migrationEvent MigrationEvent) error {
+	// The current value of an entry is its newest row by set_at (then id): ids
+	// alone do not follow write order, since each database session is handed a
+	// cached block of sequence values.
+	// An "IN PROGRESS" event sets the phase's started entry, and unsets its done
+	// entry if that is currently set (the phase is being re-run). A "COMPLETED"
+	// event sets the phase's done entry and, if it carries a payload, stores it
+	// as the phase's metadata document.
 	cmd := fmt.Sprintf(`
-		INSERT INTO %s (
-			migration_uuid,
-			migration_phase,
-			invocation_sequence,
-			migration_dir,
-			database_name,
-			schema_name,
-			host_ip,
-			port,
-			db_version,
-			payload,
-			voyager_info,
-			db_type,
-			status,
-			invocation_timestamp
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-	`, QUALIFIED_YUGABYTEDB_METADATA_TABLE_NAME)
+		WITH event AS (
+			SELECT
+				$1::uuid AS migration_id,
+				phases.started_entry,
+				phases.done_entry,
+				phases.metadata_kind,
+				$3::text AS status,
+				NULLIF($4::text, '')::jsonb AS payload
+			FROM %[3]s
+			WHERE phases.migration_phase = $2::int
+		), started AS (
+			INSERT INTO %[1]s (migration_id, name, value)
+			SELECT migration_id, started_entry, true
+			FROM event
+			WHERE status = 'IN PROGRESS'
+		), done_unset AS (
+			INSERT INTO %[1]s (migration_id, name, value)
+			SELECT migration_id, done_entry, false
+			FROM event
+			WHERE status = 'IN PROGRESS'
+			  AND (SELECT ms.value FROM %[1]s ms
+			       WHERE ms.migration_id = event.migration_id
+			         AND ms.name = event.done_entry AND ms.scope = ''
+			       ORDER BY ms.set_at DESC, ms.id DESC LIMIT 1)
+		), done AS (
+			INSERT INTO %[1]s (migration_id, name, value)
+			SELECT migration_id, done_entry, true
+			FROM event
+			WHERE status = 'COMPLETED'
+		)
+		INSERT INTO %[2]s (migration_id, kind, payload, payload_version)
+		SELECT migration_id, metadata_kind, payload,
+			COALESCE(payload->>'PayloadVersion', payload->>'VoyagerVersion', '')
+		FROM event
+		WHERE status = 'COMPLETED' AND payload IS NOT NULL AND metadata_kind IS NOT NULL
+	`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME, MIGRATION_PHASES_VALUES)
 
 	var maxAttempts = 5
-	migrationEvent.MigrationDirectory = cp.migrationDirectory
 
 	var err error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -574,9 +417,6 @@ func (cp *YugabyteDB) sendMigrationEvent(
 					" query: %s. migration event data: %v. error: %w", maxAttempts, cmd, migrationEvent, err)
 			}
 		}
-
-		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		migrationEvent.InvocationTimestamp = timestamp
 	}
 
 	return nil
@@ -586,16 +426,30 @@ func (cp *YugabyteDB) sendMigrationEvent(
 func (cp *YugabyteDB) sendVisualizerTableMetrics(
 	visualizerTableMetricsList []controlPlane.TableMetrics) error {
 
+	// Export data (phase 4) reports the source's export counts and import data
+	// (phase 6) the target's import counts. status is the table's own lifecycle:
+	// not_started -> in_progress -> done -> completed.
 	cmd := fmt.Sprintf("INSERT INTO %s ("+
-		"migration_uuid, "+
+		"migration_id, "+
+		"db_role, "+
+		"direction, "+
+		"schema_name, "+
 		"table_name, "+
-		"schema_name,"+
-		"migration_phase, "+
 		"status, "+
-		"count_live_rows, "+
-		"count_total_rows, "+
-		"invocation_timestamp"+
-		") VALUES ", YUGABYTEDB_TABLE_METRICS_TABLE_NAME)
+		"snapshot_rows_estimated, "+
+		"snapshot_rows, "+
+		"updated_at"+
+		") SELECT "+
+		"m.migration_uuid::uuid, "+
+		"CASE m.migration_phase WHEN 4 THEN 'source' ELSE 'target' END, "+
+		"CASE m.migration_phase WHEN 4 THEN 'export' ELSE 'import' END, "+
+		"m.schema_name, "+
+		"m.table_name, "+
+		"CASE m.status WHEN 1 THEN 'in_progress' WHEN 2 THEN 'done' WHEN 3 THEN 'completed' ELSE 'not_started' END, "+
+		"m.count_total_rows::bigint, "+
+		"m.count_live_rows::bigint, "+
+		"now() "+
+		"FROM (VALUES ", QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME)
 
 	var valuesList []string
 	for _, metrics := range visualizerTableMetricsList {
@@ -614,13 +468,15 @@ func (cp *YugabyteDB) sendVisualizerTableMetrics(
 
 	cmd += strings.Join(valuesList, ",")
 
-	cmd += fmt.Sprintf(" ON CONFLICT (migration_uuid, table_name, schema_name, migration_phase) " +
+	cmd += fmt.Sprintf(") AS m (migration_uuid, table_name, schema_name, migration_phase, status, " +
+		"count_live_rows, count_total_rows, invocation_timestamp) " +
+		"ON CONFLICT (migration_id, db_role, direction, schema_name, table_name) " +
 		"DO UPDATE " +
 		"SET " +
 		"status = EXCLUDED.status," +
-		"count_live_rows = EXCLUDED.count_live_rows," +
-		"count_total_rows = EXCLUDED.count_total_rows," +
-		"invocation_timestamp = EXCLUDED.invocation_timestamp;")
+		"snapshot_rows_estimated = EXCLUDED.snapshot_rows_estimated," +
+		"snapshot_rows = EXCLUDED.snapshot_rows," +
+		"updated_at = EXCLUDED.updated_at;")
 
 	return cp.executeCmdOnTarget(cmd)
 }
@@ -642,18 +498,8 @@ func (cp *YugabyteDB) executeInsertQuery(cmd string,
 	_, err = connPool.Exec(context.Background(), cmd,
 		migrationEvent.MigrationUUID,
 		migrationEvent.MigrationPhase,
-		migrationEvent.InvocationSequence,
-		migrationEvent.MigrationDirectory,
-		migrationEvent.DatabaseName,
-		migrationEvent.SchemaName,
-		migrationEvent.DBIP,
-		migrationEvent.Port,
-		migrationEvent.DBVersion,
-		migrationEvent.Payload,
-		migrationEvent.VoyagerInfo,
-		migrationEvent.DBType,
 		migrationEvent.Status,
-		migrationEvent.InvocationTimestamp)
+		migrationEvent.Payload)
 
 	if err == nil {
 		return nil
