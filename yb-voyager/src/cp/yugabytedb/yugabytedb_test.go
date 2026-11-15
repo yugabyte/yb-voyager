@@ -212,17 +212,24 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 			got = append(got, e)
 		}
 		assert.NoError(t, rows.Err())
-		// The started and unset rows of the re-run are written by one statement,
-		// so their relative order is not asserted.
-		assert.ElementsMatch(t, []stateEntry{
+		if !assert.Len(t, got, 7) {
+			return
+		}
+		assert.Equal(t, []stateEntry{
 			{"assessment.started", true},
 			{"assessment.completed", true},
+		}, got[:2])
+		// The re-run's started and unset rows come from one statement, so they
+		// share a set_at and their relative order is not defined.
+		assert.ElementsMatch(t, []stateEntry{
 			{"assessment.started", true},
 			{"assessment.completed", false},
+		}, got[2:4])
+		assert.Equal(t, []stateEntry{
 			{"schema.export_started", true},
 			{"schema.exported", true},
 			{"schema.analyzed", true},
-		}, got)
+		}, got[4:])
 	})
 
 	t.Run("migration_state current", func(t *testing.T) {

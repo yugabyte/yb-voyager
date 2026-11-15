@@ -79,7 +79,7 @@ func (cp *YugabyteDB) eventPublisher() {
 		event := <-cp.eventChan
 		err := cp.sendMigrationEvent(event)
 		if err != nil {
-			log.Warnf("Couldn't send metadata for visualization. %s", err)
+			log.Warnf("Couldn't send migration event to the control plane. %s", err)
 		}
 		cp.waitGroup.Done()
 	}
@@ -89,17 +89,15 @@ func (cp *YugabyteDB) rowCountUpdateEventPublisher() {
 	defer cp.panicHandler()
 	for {
 		event := <-cp.rowCountUpdateEventChan
-		err := cp.sendVisualizerTableMetrics(event)
+		err := cp.sendTableDataProgress(event)
 		if err != nil {
-			log.Warnf("Couldn't send metadata for visualization. %s", err)
+			log.Warnf("Couldn't send table data progress to the control plane. %s", err)
 		}
 		cp.waitGroup.Done()
 	}
 }
 
-// createAndSendEvent inserts event data into the YugabyteDB control plane database
-// YUGABYTEDB: payload parameter is a JSON string (pre-marshaled)
-// The JSON string is stored directly in the database as TEXT
+// payload is a JSON document, or "" when the event carries none.
 func (cp *YugabyteDB) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
 	migrationEvent := MigrationEvent{
@@ -152,8 +150,6 @@ func (cp *YugabyteDB) MigrationAssessmentStarted(ev *controlPlane.MigrationAsses
 }
 
 func (cp *YugabyteDB) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
-	// YUGABYTEDB: ev.Report is a JSON string (already marshaled by yugabyted_event_builder.go)
-	// The string is directly inserted into the database without any unmarshaling
 	payloadStr, ok := ev.Report.(string)
 	if !ok {
 		log.Warnf("Expected Report to be a string for YugabyteDB control plane, got %T", ev.Report)
@@ -174,11 +170,6 @@ func (cp *YugabyteDB) SchemaAnalysisStarted(schemaAnalysisEvent *controlPlane.Sc
 	cp.createAndSendEvent(&schemaAnalysisEvent.BaseEvent, "IN PROGRESS", "")
 }
 
-// YUGABYTEDB DATA FLOW - Schema Analysis Iteration Completed Event:
-// 1. Event contains AnalysisReport struct (utils.SchemaReport)
-// 2. MARSHAL struct to JSON string here: json.Marshal(AnalysisReport) -> string
-// 3. Store JSON string directly in database as TEXT
-// Result: Single marshal (struct -> JSON string), no unmarshal
 func (cp *YugabyteDB) SchemaAnalysisIterationCompleted(schemaAnalysisReport *controlPlane.SchemaAnalysisIterationCompletedEvent) {
 
 	jsonBytes, err := json.Marshal(schemaAnalysisReport.AnalysisReport)
@@ -348,9 +339,7 @@ const QUALIFIED_MIGRATION_STATE_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + MIGRAT
 const QUALIFIED_METADATA_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + METADATA_TABLE
 const QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + TABLE_DATA_PROGRESS_TABLE
 
-// MIGRATION_PHASES_VALUES maps each migration phase (controlPlane.MIGRATION_PHASE_MAP)
-// to the migration_state entry set when the phase starts, the entry set when it
-// completes, and the metadata kind of the document it produces (NULL if none).
+// Keyed by controlPlane.MIGRATION_PHASE_MAP.
 const MIGRATION_PHASES_VALUES = `(VALUES
 			(1, 'assessment.started',      'assessment.completed', 'assessment'),
 			(2, 'schema.export_started',   'schema.exported',      NULL),
@@ -360,16 +349,8 @@ const MIGRATION_PHASES_VALUES = `(VALUES
 			(6, 'data.import_started',     'data.imported',        NULL)
 		) AS phases (migration_phase, started_entry, done_entry, metadata_kind)`
 
-// Send visualisation metadata
 func (cp *YugabyteDB) sendMigrationEvent(
 	migrationEvent MigrationEvent) error {
-	// The current value of an entry is its newest row by set_at (then id): ids
-	// alone do not follow write order, since each database session is handed a
-	// cached block of sequence values.
-	// An "IN PROGRESS" event sets the phase's started entry, and unsets its done
-	// entry if that is currently set (the phase is being re-run). A "COMPLETED"
-	// event sets the phase's done entry and, if it carries a payload, stores it
-	// as the phase's metadata document.
 	cmd := fmt.Sprintf(`
 		WITH event AS (
 			SELECT
@@ -391,6 +372,8 @@ func (cp *YugabyteDB) sendMigrationEvent(
 			SELECT migration_id, done_entry, false
 			FROM event
 			WHERE status = 'IN PROGRESS'
+			  -- a re-run: unset the done entry if it is currently set. Newest is by
+			  -- set_at, since cached sequence blocks mean ids don't follow write order.
 			  AND (SELECT ms.value FROM %[1]s ms
 			       WHERE ms.migration_id = event.migration_id
 			         AND ms.name = event.done_entry AND ms.scope = ''
@@ -426,13 +409,9 @@ func (cp *YugabyteDB) sendMigrationEvent(
 	return nil
 }
 
-// Send Table metrics
-func (cp *YugabyteDB) sendVisualizerTableMetrics(
-	visualizerTableMetricsList []controlPlane.TableMetrics) error {
+func (cp *YugabyteDB) sendTableDataProgress(
+	tableMetricsList []controlPlane.TableMetrics) error {
 
-	// Export data (phase 4) reports the source's export counts and import data
-	// (phase 6) the target's import counts. status is the table's own lifecycle:
-	// not_started -> in_progress -> done -> completed.
 	cmd := fmt.Sprintf("INSERT INTO %s ("+
 		"migration_id, "+
 		"db_role, "+
@@ -456,7 +435,7 @@ func (cp *YugabyteDB) sendVisualizerTableMetrics(
 		"FROM (VALUES ", QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME)
 
 	var valuesList []string
-	for _, metrics := range visualizerTableMetricsList {
+	for _, metrics := range tableMetricsList {
 		value := fmt.Sprintf("('%s', '%s', '%s', %d, %d, %d, %d, '%s')",
 			metrics.MigrationUUID,
 			metrics.TableName,
