@@ -187,8 +187,14 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 	flush()
 	controlPlane.UpdateImportedRowCount([]*cp.UpdateImportedRowCountEvent{
 		{BaseUpdateRowCountEvent: rowCountEvent("IMPORT DATA", "customers", "IN PROGRESS", 120, 60)},
+		{BaseUpdateRowCountEvent: rowCountEvent("IMPORT DATA", `o'brien`, "IN PROGRESS", 10, 5)},
 	})
 	flush()
+
+	// A statement that fails on every attempt must surface its error.
+	err = controlPlane.exec(`SELECT 1/0`)
+	assert.ErrorContains(t, err, "division by zero")
+
 	controlPlane.Finalize()
 
 	type stateEntry struct {
@@ -296,6 +302,7 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 			{"source", "export", "public", "items", "not_started", sql.NullInt64{Int64: 0, Valid: true}, 0},
 			{"source", "export", "public", "orders", "completed", sql.NullInt64{Int64: 100, Valid: true}, 120},
 			{"target", "import", "public", "customers", "in_progress", sql.NullInt64{Int64: 120, Valid: true}, 60},
+			{"target", "import", "public", `o'brien`, "in_progress", sql.NullInt64{Int64: 10, Valid: true}, 5},
 		}, got)
 	})
 }
@@ -345,6 +352,7 @@ func TestYugabyteDBStructs(t *testing.T) {
 		waitGroup               sync.WaitGroup
 		eventChan               chan (MigrationEvent)
 		rowCountUpdateEventChan chan ([]cp.TableMetrics)
+		connMutex               sync.Mutex
 		connPool                *pgxpool.Pool
 		lastRowCountUpdate      map[string]time.Time
 	}{}
