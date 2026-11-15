@@ -40,6 +40,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -600,6 +601,18 @@ func setControlPlane(cpType string) error {
 			return fmt.Errorf("initialize yugabyted control plane for visualization: %w", err)
 		}
 		log.Infof("Yugabyted control plane initialized successfully")
+	case YUGABYTEDB_CONTROL_PLANE:
+		ybdbConnString := os.Getenv("YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING")
+		if ybdbConnString == "" {
+			return goerrors.Errorf("yugabytedb-control-plane.db-conn-string config param (or YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabytedb'.")
+		}
+		controlPlane = yugabytedb.New(exportDir)
+		log.Infof("Migration UUID %s", migrationUUID)
+		err := controlPlane.Init()
+		if err != nil {
+			return fmt.Errorf("initialize yugabytedb control plane for visualization: %w", err)
+		}
+		log.Infof("YugabyteDB control plane initialized successfully")
 	case YBAEON:
 		// Get YB-Aeon config from nested section
 		// Default to production domain if not specified in config
@@ -646,7 +659,7 @@ func setControlPlane(cpType string) error {
 		}
 		log.Infof("YB-Aeon control plane initialized successfully")
 	default:
-		return goerrors.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YBAEON})
+		return goerrors.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED, YUGABYTEDB_CONTROL_PLANE, YBAEON})
 	}
 	return nil
 }
