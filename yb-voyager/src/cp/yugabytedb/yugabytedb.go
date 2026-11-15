@@ -118,20 +118,17 @@ func (cp *YugabyteDB) createAndSendEvent(event *controlPlane.BaseEvent, status s
 
 func (cp *YugabyteDB) createAndSendUpdateRowCountEvent(events []*controlPlane.BaseUpdateRowCountEvent) {
 
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
 	var rowCountUpdateEvent []controlPlane.TableMetrics
 
 	for _, event := range events {
 		snapshotMigrateTableMetrics := controlPlane.TableMetrics{
-			MigrationUUID:       event.MigrationUUID,
-			TableName:           event.TableName,
-			SchemaName:          strings.Join(event.SchemaNames, "|"),
-			MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
-			Status:              controlPlane.UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
-			CountLiveRows:       event.CompletedRowCount,
-			CountTotalRows:      event.TotalRowCount,
-			InvocationTimestamp: timestamp,
+			MigrationUUID:  event.MigrationUUID,
+			TableName:      event.TableName,
+			SchemaName:     strings.Join(event.SchemaNames, "|"),
+			MigrationPhase: controlPlane.MIGRATION_PHASE_MAP[event.EventType],
+			Status:         controlPlane.UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
+			CountLiveRows:  event.CompletedRowCount,
+			CountTotalRows: event.TotalRowCount,
 		}
 
 		rowCountUpdateEvent = append(rowCountUpdateEvent,
@@ -452,8 +449,9 @@ func (cp *YugabyteDB) sendTableDataProgress(
 	return cp.exec(cmd, migrationUUIDs, schemaNames, tableNames, migrationPhases, statuses, totalRows, liveRows)
 }
 
-// exec runs cmd on the control plane database, reconnecting and retrying on
-// failure, and returns the last error if every attempt fails.
+// exec runs cmd on the control plane database. A failed connect or statement
+// is retried on a fresh connection, and the last error is returned if every
+// attempt fails.
 func (cp *YugabyteDB) exec(cmd string, args ...any) error {
 	cp.connMutex.Lock()
 	defer cp.connMutex.Unlock()
@@ -463,20 +461,18 @@ func (cp *YugabyteDB) exec(cmd string, args ...any) error {
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		var connPool *pgxpool.Pool
 		connPool, err = cp.getConnPool()
-		if err != nil {
-			return err
-		}
-
-		_, err = connPool.Exec(context.Background(), cmd, args...)
 		if err == nil {
-			return nil
+			_, err = connPool.Exec(context.Background(), cmd, args...)
+			if err == nil {
+				return nil
+			}
 		}
 		log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
 		time.Sleep(time.Second)
+		// A failed reconnect leaves no pool, so the next attempt connects again.
 		reconnectErr := cp.reconnect()
 		if reconnectErr != nil {
 			log.Warnf("Failed to reconnect to the yugabytedb control plane database: %s", reconnectErr)
-			break
 		}
 	}
 	return fmt.Errorf("couldn't execute command %s on yugabytedb control plane db. error: %w", cmd, err)
