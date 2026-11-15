@@ -31,6 +31,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	cp "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -115,9 +116,10 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 
 	controlPlane := New(exportDir)
 
-	// Init only connects: the control plane must not create any schema objects.
+	// The control plane must not create any schema objects, so without them
+	// Init fails.
 	err = controlPlane.Init()
-	assert.NoError(t, err, "Failed to initialize the control plane")
+	assert.ErrorContains(t, err, "table voyager_core.migration_state does not exist")
 	var schemaCount int
 	err = db.QueryRow(`SELECT count(*) FROM information_schema.schemata WHERE schema_name = $1`,
 		CONTROL_PLANE_SCHEMA).Scan(&schemaCount)
@@ -128,6 +130,8 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 		_, err = db.Exec(ddl)
 		assert.NoError(t, err, "Failed to create control plane schema: %s", ddl)
 	}
+	err = controlPlane.Init()
+	require.NoError(t, err, "Failed to initialize the control plane")
 
 	migrationUUID := uuid.New()
 	baseEvent := func(eventType string) cp.BaseEvent {

@@ -57,6 +57,11 @@ func (cp *YugabyteDB) Init() error {
 	if err != nil {
 		return err
 	}
+	err = cp.checkTables()
+	if err != nil {
+		cp.disconnect()
+		return err
+	}
 
 	cp.lastRowCountUpdate = make(map[string]time.Time)
 
@@ -269,6 +274,31 @@ func (cp *YugabyteDB) panicHandler() {
 		log.Errorf("Panic occurred: %v. No further events will be published to YugabyteDB DB.\n"+
 			"Stack trace of panic location:\n%s", r, string(debug.Stack()))
 	}
+}
+
+// checkTables fails when a table this control plane writes is missing or not
+// writable. Voyager does not create them, and a write that fails later is only
+// logged, so this is the one point where the command can still stop.
+func (cp *YugabyteDB) checkTables() error {
+	for _, table := range []string{
+		QUALIFIED_MIGRATION_STATE_TABLE_NAME,
+		QUALIFIED_METADATA_TABLE_NAME,
+		QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME,
+	} {
+		var canInsert *bool
+		err := cp.connPool.QueryRow(context.Background(),
+			`SELECT has_table_privilege(to_regclass($1)::oid, 'INSERT')`, table).Scan(&canInsert)
+		if err != nil {
+			return fmt.Errorf("check table %s on yugabytedb control plane db: %w", table, err)
+		}
+		if canInsert == nil {
+			return goerrors.Errorf("table %s does not exist on the yugabytedb control plane db", table)
+		}
+		if !*canInsert {
+			return goerrors.Errorf("no INSERT privilege on table %s of the yugabytedb control plane db", table)
+		}
+	}
+	return nil
 }
 
 func (cp *YugabyteDB) getConnPool() (*pgxpool.Pool, error) {
