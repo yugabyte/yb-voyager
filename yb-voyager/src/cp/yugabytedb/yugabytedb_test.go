@@ -131,7 +131,7 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 
 	for _, ddl := range controlPlaneSchemaDDL {
 		_, err = db.Exec(ddl)
-		assert.NoError(t, err, "Failed to create control plane schema: %s", ddl)
+		require.NoError(t, err, "Failed to create control plane schema: %s", ddl)
 	}
 	err = controlPlane.Init()
 	require.NoError(t, err, "Failed to initialize the control plane")
