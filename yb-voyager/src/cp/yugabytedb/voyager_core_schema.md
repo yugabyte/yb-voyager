@@ -18,6 +18,8 @@ CREATE TABLE voyager_core.migration_state (
     detail        jsonb,
     set_at        timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX migration_state_latest_idx
+    ON voyager_core.migration_state (migration_id, name, scope, set_at DESC, id DESC);
 
 CREATE TABLE voyager_core.metadata (
     id               bigserial PRIMARY KEY,
@@ -27,6 +29,8 @@ CREATE TABLE voyager_core.metadata (
     payload_version  text NOT NULL,
     generated_at     timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX metadata_latest_idx
+    ON voyager_core.metadata (migration_id, kind, generated_at DESC, id DESC);
 
 CREATE TABLE voyager_core.table_data_progress (
     migration_id             uuid NOT NULL,
@@ -54,7 +58,8 @@ its newest row per `(migration_id, name, scope)`, ordered by `set_at`, then
 `id`. `id` alone is not enough: sequence values are handed out in cached blocks
 per session, so they do not follow write order.
 
-Each command sets one entry when it starts and one when it completes:
+In an offline migration, each command sets one entry when it starts and one
+when it completes:
 
 | Command | Started entry | Done entry |
 |---|---|---|
