@@ -72,7 +72,9 @@ export-data-from-source:
   exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
-  {% if EXPORT_EX_COLUMN_LIST is defined and EXPORT_EX_COLUMN_LIST != "" %}
+  {% if USE_YB_GRPC_CONNECTOR is defined and USE_YB_GRPC_CONNECTOR == "true" and EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR is defined and EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR != "" %}
+  exclude-column-list: '{{ EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR }}'
+  {% elif EXPORT_EX_COLUMN_LIST is defined and EXPORT_EX_COLUMN_LIST != "" %}
   exclude-column-list: '{{ EXPORT_EX_COLUMN_LIST }}'
   {% endif %}
 
@@ -95,9 +97,6 @@ initiate-cutover-to-target:
 export-data-from-target:
   disable-pb: true
 
-  {% if EXPORT_FROM_TARGET_EX_COLUMN_LIST is defined and EXPORT_FROM_TARGET_EX_COLUMN_LIST != "" %}
-  exclude-column-list: '{{ EXPORT_FROM_TARGET_EX_COLUMN_LIST }}'
-  {% endif %}
 
 import-data-to-source:
   disable-pb: true

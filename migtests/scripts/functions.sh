@@ -435,7 +435,9 @@ export_data() {
           "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-forward" || \
           "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-back" ]]; then
         args="${args} --export-type snapshot-and-changes"
-        if [ "${EXPORT_EX_COLUMN_LIST}" != "" ]; then
+        if [ "${VOYAGER_WORKFLOW}" != "live-migration" ] && [ "${USE_YB_GRPC_CONNECTOR}" = "true" ] && [ "${EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR}" != "" ]; then
+            args="${args} --exclude-column-list ${EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR}"
+        elif [ "${EXPORT_EX_COLUMN_LIST}" != "" ]; then
             args="${args} --exclude-column-list ${EXPORT_EX_COLUMN_LIST}"
         fi
     fi

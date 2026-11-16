@@ -198,7 +198,7 @@ Tables without a primary key are already rejected for live migration by `reportU
 
 1. **Effective set.**
    - **Source exporter:** the user's list.
-   - **Target exporter:** `handleExcludedColumnForTargetExporter`, called only for the target exporter, takes for each root table the union of `ExcludedColumns.FromSource` (saved by the source exporter) and its own list. Columns excluded on the source export are never kept up to date on the target, so streaming them back would overwrite the source or replica's current values with stale snapshot values or NULL on every UPDATE, because events carry the full row.
+   - **Target exporter:** `handleExcludedColumnForTargetExporter`, called only for the target exporter, takes for each root table the union of `ExcludedColumns.FromSource` (saved by the source exporter) and its own list. Without the flag, `FromSource` is inherited as is. A passed list must name every `FromSource` column too; the columns it leaves out are reported in the same error as the leftover unsupported columns (step 3), with one value to re-run with that covers both. Columns excluded on the source export are never kept up to date on the target, so streaming them back would overwrite the source or replica's current values with stale snapshot values or NULL on every UPDATE, because events carry the full row.
 2. **Per exported table**, roots and leaves alike, take the exclusions of the table's root and remove them from the table's supported column list.
    - A table with exclusions always gets an explicit column list. If its supported list was `*`, it is expanded to all columns first, since `*` would let Debezium stream the excluded ones.
    - A table with no exclusions keeps its list unchanged, including `*`.
@@ -367,7 +367,7 @@ type ExcludedColumnsRecord struct {
 | Offline | Flag rejected. Unsupported columns follow the old path. | n/a |
 | Live (snapshot + changes) | Flag applies to streaming. Snapshot copies every column. | n/a |
 | Changes-only | Same as live; there is no snapshot, so excluded columns are never copied. | n/a |
-| Live with fall-back | As live. | Inherits `FromSource` from the MSR; own flag only for YB-connector-only columns. Effective set is `FromSource` ∪ own (§5.6, §5.11). Checked against the YB connector in use. |
+| Live with fall-back | As live. | Inherits `FromSource` from the MSR when the flag is not passed; a passed list must include every `FromSource` column plus the YB-connector-only ones. Effective set is `FromSource` ∪ own (§5.6, §5.11). Checked against the YB connector in use. |
 | Live with fall-forward | As live. | Same as fall-back, towards the replica. |
 | Iterative cutover | Each iteration's source exporter gets `FromSource` through the spawned command line and the copied MSR. | `FromTarget` is copied with the MSR and passed on the spawned command line, so iterations after the first need no user action. In CLI mode the first iteration's target exporter still gets no flag (§14). |
 
@@ -421,7 +421,7 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 | Keyless partitioned root | `TestExcludeColumnsOnPartitionedRootWithoutPrimaryKey` (`cmd`, unit) | The root takes its partitions' key; excluding a column of that key is rejected; an unsupported column in it is reported as a primary-key table. |
 | Target merge | `TestHandleExcludedColumnForTargetExporter` (`cmd`, unit, temp metaDB) | `FromSource` is added per root table and leaves are skipped; after the merge only a `tsquery` column the source did not exclude is left as unsupported. |
 | Matcher | `TestFindBestMatchingColumnName` (`sqlname`, unit) | Exact, quoted, case-insensitive, lowercase (PG/YB) and uppercase (Oracle) preference, ambiguous, not found. |
-| Orchestrator | `TestFinalizeColumnListForLiveMigration` (`cmd`, unit, stub `SourceDB`, temp metaDB, in-memory name registry) | Source exporter: first run with a case-sensitive table and a case-insensitive column, `*` expanded, set recorded; resume with the value `startExportDataFromSourceOnNextIteration` renders; changed set refused; flag problems and leftover unsupported columns record nothing. Target exporter: inherits `FromSource` and adds its own column. |
+| Orchestrator | `TestFinalizeColumnListForLiveMigration` (`cmd`, unit, stub `SourceDB`, temp metaDB, in-memory name registry) | Source exporter: first run with a case-sensitive table and a case-insensitive column, `*` expanded, set recorded; resume with the value `startExportDataFromSourceOnNextIteration` renders; changed set refused; flag problems and leftover unsupported columns record nothing. Target exporter: a passed list naming `FromSource` adds its own column. `TestHandleExcludedColumnForTargetExporter`: no flag inherits `FromSource`; a list missing `FromSource` columns returns them with the full set. `TestBuildUnsupportedColumnsError` and the orchestrator test cover the combined error. |
 | Table lookup | `TestLookupPerTableFlagTables` (`cmd`, unit, in-memory name registry) | Not found, name matching tables that differ only in case, invalid name, quoted exact name resolving. |
 | Shared guardrails | `TestParseCdcPartitionKeyOverrides`, `TestResolveCdcPartitionKeyOverrides` (`cmd`, unit) | Shared parser and lookup through the import flag, including quoted separators and aggregated table problems. |
 | Catalog | `TestPostgresGetTableColumns` (`srcdb`, integration) | Column names in definition order for a case-sensitive schema and table, with a dropped column, a reserved-word column, a domain and an array column; partition root and leaf. |
@@ -453,14 +453,10 @@ Not on a hot path. The new path runs once per `export data` start: one catalog q
 
 ## 14\. Open questions
 
-1. **Extra YB-only columns for the first spawned target exporter (§5.11).** Columns excluded on the source are already inherited, and from the second iteration on the target exporter's own list is passed from `FromTarget`; only the first iteration in CLI mode is at issue. Options:
-   - **Cutover-time check (proposed).** `initiate cutover to target` with fall-back or fall-forward fails early with the suggested target value, and can take a value for CLI users to save in the MSR and pass to the spawned command.
-   - **Keep the manual restart in CLI mode.** The target exporter fails at startup with the exact value, and the user restarts it with the flag.
-   - **For CI now:** run the gRPC `pg/datatypes` fall-back and fall-forward migtests in config-file mode with `EXPORT_FROM_TARGET_EX_COLUMN_LIST` set. This needs no product change.
-2. **Column names containing `"`.** Treated as unsupported (§10). Fixing it needs both the matcher to un-escape `""` and the importer's `%q` quoting in `QuoteAttributeName` to double the quote instead; the latter is a separate, pre-existing import bug.
-3. **Entries for tables voyager skipped.** Should they be ignored with a message (the plan) rather than fail as "not part of this export"?
-4. **Status output.** Show the excluded columns in `export data status`.
-5. **Catch it earlier.** `assess-migration` already reports `unsupportedDataTypesForLiveMigrationWithFForFB`. Should it also print suggested `exclude-column-list` values for both exporters?
-6. **Import-time check.** Fail `import data` early when an excluded column is NOT NULL without a default on the receiving side?
-7. **File variant.** Is an `--exclude-column-list-file-path` needed? Proposed: no, for now.
-8. **Issue text.** Issue \#3911 still describes `|` separators and automatic skipping; update it to match this spec.
+1. **Column names containing `"`.** Treated as unsupported (§10). Fixing it needs both the matcher to un-escape `""` and the importer's `%q` quoting in `QuoteAttributeName` to double the quote instead; the latter is a separate, pre-existing import bug.
+2. **Entries for tables voyager skipped.** Should they be ignored with a message (the plan) rather than fail as "not part of this export"?
+3. **Status output.** Show the excluded columns in `export data status`.
+4. **Catch it earlier.** `assess-migration` already reports `unsupportedDataTypesForLiveMigrationWithFForFB`. Should it also print suggested `exclude-column-list` values for both exporters?
+5. **Import-time check.** Fail `import data` early when an excluded column is NOT NULL without a default on the receiving side?
+6. **File variant.** Is an `--exclude-column-list-file-path` needed? Proposed: no, for now.
+7. **Issue text.** Issue \#3911 still describes `|` separators and automatic skipping; update it to match this spec.

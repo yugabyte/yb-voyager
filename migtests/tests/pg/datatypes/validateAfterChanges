@@ -452,6 +452,23 @@ def build_expected_values(ff_fb_enabled: bool):
 
     return expected
 
+# With the gRPC connector, EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR also excludes these columns on the source exporter,
+# so rows inserted during streaming land with NULLs and source updates to them never reach the forward-streamed DBs.
+EXTRA_HSTORE_VALUES_GRPC_EXCLUDED = [
+    '"weight"=>"11.2 ounces", "ISBN-13"=>"978-1449370000", "language"=>"English", "paperback"=>"243", "publisher"=>"postgresqltutorial.com"',
+    '"key1"=>"value1", "key2"=>"value2"',
+    '"key7"=>"value7", "key8"=>"123", "key9"=>"true"',
+]
+
+def apply_grpc_excluded_columns(expected):
+    expected = dict(expected)
+    expected["hstore_values"] = EXPECTED_HSTORE_VALUES + EXTRA_HSTORE_VALUES_GRPC_EXCLUDED
+    expected["composite_types"] = ['(City1I,"Street 1I",1)', '(City2I,"Street 2I",2)', None]
+    expected["extension_hstore_types"] = ['"key1"=>"1"', '"key2"=>"2"', '"key3"=>"3"', None]
+    expected["extension_citext_types"] = ['text_1', 'text_2', 'text_3', None]
+    expected["extension_ltree_types"] = ['Top.1', 'Top.2', 'Top.3', 'None']
+    return expected
+
 #=============================================================================
 
 def run_migration_checks(db_type: str, expected, ff_fb_enabled: bool = False):
@@ -667,12 +684,15 @@ def main():
 
     if test_type_flags['ff_enabled'] == 'true':
         expected = build_expected_values(ff_fb_enabled=True)
+        if is_grpc_connector():
+            expected = apply_grpc_excluded_columns(expected)
         run_migration_checks("yb", expected, ff_fb_enabled=True)
         run_migration_checks("source_replica", expected, ff_fb_enabled=True)
 
     elif test_type_flags['fb_enabled'] == 'true':
         expected = build_expected_values(ff_fb_enabled=True)
-        run_migration_checks("yb", expected, ff_fb_enabled=True)
+        expected_on_yb = apply_grpc_excluded_columns(expected) if is_grpc_connector() else expected
+        run_migration_checks("yb", expected_on_yb, ff_fb_enabled=True)
         run_migration_checks("source", expected, ff_fb_enabled=True)
 
     else:

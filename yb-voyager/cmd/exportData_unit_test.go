@@ -440,6 +440,25 @@ Restart 'export data from target' with these columns excluded:
   --exclude-column-list 'public.sales:Geo'
 Changes made on the target to excluded columns are not exported: the source database keeps their values from before cutover, and rows inserted after cutover get NULL in them. If any of them has a NOT NULL constraint in the source database, remove it.`, err.Error())
 	})
+
+	t.Run("target exporter: source-excluded columns missing from the list and unsupported columns in one error", func(t *testing.T) {
+		originalRole := exporterRole
+		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
+		t.Cleanup(func() { exporterRole = originalRole })
+
+		report := unsupportedColumnsReport{
+			otherTables:           map[string][]string{"public.sales": {"Geo"}},
+			missingSourceExcluded: map[string][]string{"public.orders": {"doc"}},
+		}
+		err := buildUnsupportedColumnsError(report, map[string][]string{"public.orders": {"doc", "note"}})
+		assert.Equal(t, `The following columns were excluded by 'export data from source' and must also be in --exclude-column-list, since their values on the target are not kept up to date:
+  public.orders: doc
+The following columns have datatypes not supported for this migration:
+  public.sales: Geo
+Restart 'export data from target' with these columns excluded:
+  --exclude-column-list 'public.orders:doc,note;public.sales:Geo'
+Changes made on the target to excluded columns are not exported: the source database keeps their values from before cutover, and rows inserted after cutover get NULL in them. If any of them has a NOT NULL constraint in the source database, remove it.`, err.Error())
+	})
 }
 
 // useExcludeColumnsTestMetaDB points the metaDB and exporterRole globals at a fresh export dir for
@@ -518,21 +537,50 @@ func TestHandleExcludedColumnForTargetExporter(t *testing.T) {
 	e := newExcludeColumnsTestExport()
 	finalTableList := e.exportTables.tableList
 	leafToRoot := e.exportTables.leafToRoot
-	userExcluded := excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note"}})
-
-	t.Run("the target exporter adds the source's set per root table, skipping leaves", func(t *testing.T) {
+	setSourceExcluded := func(t *testing.T) {
 		useExcludeColumnsTestMetaDB(t, TARGET_DB_EXPORTER_FB_ROLE)
 		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
 			r.ExcludedColumns.FromSource = map[string][]string{e.orders.ForKey(): {"doc", "note"}, e.sales.ForKey(): {"Geo"}}
 		}))
+	}
 
-		excluded, err := handleExcludedColumnForTargetExporter(userExcluded, finalTableList, leafToRoot)
+	t.Run("without the flag the target exporter inherits the source's set per root table, skipping leaves", func(t *testing.T) {
+		setSourceExcluded(t)
+
+		excluded, missing, err := handleExcludedColumnForTargetExporter(utils.NewStructMap[sqlname.NameTuple, []string](), finalTableList, leafToRoot)
 		require.NoError(t, err)
+		assert.Empty(t, missing)
 		ordersColumns, _ := excluded.Get(e.orders)
 		assert.Equal(t, []string{"doc", "note"}, ordersColumns)
 		salesColumns, _ := excluded.Get(e.sales)
 		assert.Equal(t, []string{"Geo"}, salesColumns)
 		assert.ElementsMatch(t, []string{e.orders.ForKey(), e.sales.ForKey()}, lo.Map(excluded.ActualKeys(), func(t sqlname.NameTuple, _ int) string { return t.ForKey() }))
+	})
+
+	t.Run("a passed list that names every source-excluded column is accepted with its own additions", func(t *testing.T) {
+		setSourceExcluded(t)
+		userExcluded := excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note", "doc", "search"}, e.sales: {"Geo"}})
+
+		excluded, missing, err := handleExcludedColumnForTargetExporter(userExcluded, finalTableList, leafToRoot)
+		require.NoError(t, err)
+		assert.Empty(t, missing)
+		ordersColumns, _ := excluded.Get(e.orders)
+		assert.ElementsMatch(t, []string{"doc", "note", "search"}, ordersColumns)
+		salesColumns, _ := excluded.Get(e.sales)
+		assert.Equal(t, []string{"Geo"}, salesColumns)
+	})
+
+	t.Run("a passed list missing source-excluded columns reports them and still returns the full set", func(t *testing.T) {
+		setSourceExcluded(t)
+		userExcluded := excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note", "search"}})
+
+		excluded, missing, err := handleExcludedColumnForTargetExporter(userExcluded, finalTableList, leafToRoot)
+		require.NoError(t, err)
+		assert.Equal(t, map[string][]string{"public.orders": {"doc"}, "public.sales": {"Geo"}}, missing)
+		ordersColumns, _ := excluded.Get(e.orders)
+		assert.Equal(t, []string{"doc", "note", "search"}, ordersColumns)
+		salesColumns, _ := excluded.Get(e.sales)
+		assert.Equal(t, []string{"Geo"}, salesColumns)
 	})
 
 	t.Run("only the columns the target connector cannot stream and the source did not exclude are left", func(t *testing.T) {
@@ -556,7 +604,7 @@ func TestHandleExcludedColumnForTargetExporter(t *testing.T) {
 		}
 		exportTables.unsupportedColumns = unsupported
 
-		excluded, err := handleExcludedColumnForTargetExporter(utils.NewStructMap[sqlname.NameTuple, []string](), finalTableList, leafToRoot)
+		excluded, _, err := handleExcludedColumnForTargetExporter(utils.NewStructMap[sqlname.NameTuple, []string](), finalTableList, leafToRoot)
 		require.NoError(t, err)
 		_, report, err := applyExcludedColumns(excluded, exportTables)
 		require.NoError(t, err)
@@ -733,7 +781,7 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 		assert.Equal(t, metadb.ExcludedColumnsRecord{}, excludedColumnsRecord(t))
 	})
 
-	t.Run("target exporter: inherits the source's columns and adds its own", func(t *testing.T) {
+	t.Run("target exporter: a passed list names the source's columns and adds its own", func(t *testing.T) {
 		f := newFinalizeExcludeColumnsTest(t, TARGET_DB_EXPORTER_FB_ROLE)
 		fromSource := map[string][]string{f.orders.ForKey(): {"doc"}}
 		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
@@ -741,7 +789,7 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 		}))
 		f.unsupported.Put(f.salesOrders, []string{"note"})
 
-		columnList, err := f.run(t, `"Sales"."Orders":note`)
+		columnList, err := f.run(t, `public.orders:doc;"Sales"."Orders":note`)
 		require.NoError(t, err)
 		ordersColumns, _ := columnList.Get(f.orders)
 		assert.Equal(t, []string{"id", "note"}, ordersColumns)
@@ -750,6 +798,25 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 		record := excludedColumnsRecord(t)
 		assert.Equal(t, fromSource, record.FromSource)
 		assert.Equal(t, map[string][]string{f.orders.ForKey(): {"doc"}, f.salesOrders.ForKey(): {"note"}}, record.FromTarget)
+	})
+
+	t.Run("target exporter: a list missing source columns and unsupported columns fails once, recording nothing", func(t *testing.T) {
+		f := newFinalizeExcludeColumnsTest(t, TARGET_DB_EXPORTER_FB_ROLE)
+		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
+			r.ExcludedColumns.FromSource = map[string][]string{f.orders.ForKey(): {"doc"}}
+		}))
+		f.unsupported.Put(f.salesOrders, []string{"note"})
+
+		_, err := f.run(t, `public.orders:note`)
+		require.Error(t, err)
+		assert.Equal(t, `The following columns were excluded by 'export data from source' and must also be in --exclude-column-list, since their values on the target are not kept up to date:
+  public.orders: doc
+The following columns have datatypes not supported for this migration:
+  "Sales"."Orders": note
+Restart 'export data from target' with these columns excluded:
+  --exclude-column-list '"Sales"."Orders":note;public.orders:doc,note'
+Changes made on the target to excluded columns are not exported: the source database keeps their values from before cutover, and rows inserted after cutover get NULL in them. If any of them has a NOT NULL constraint in the source database, remove it.`, err.Error())
+		assert.Nil(t, excludedColumnsRecord(t).FromTarget)
 	})
 }
 func TestLookupPerTableFlagTables(t *testing.T) {

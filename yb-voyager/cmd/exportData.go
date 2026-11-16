@@ -2917,10 +2917,13 @@ type unsupportedColumnsReport struct {
 	otherTables      map[string][]string
 	// tables whose every column is excluded
 	tablesWithNoColumns []sqlname.NameTuple
+	// target exporter only: root table (as ForOutput) -> columns the source exporter excluded that
+	// the user's --exclude-column-list leaves out
+	missingSourceExcluded map[string][]string
 }
 
 func (r unsupportedColumnsReport) isEmpty() bool {
-	return len(r.primaryKeyTables) == 0 && len(r.otherTables) == 0 && len(r.tablesWithNoColumns) == 0
+	return len(r.primaryKeyTables) == 0 && len(r.otherTables) == 0 && len(r.tablesWithNoColumns) == 0 && len(r.missingSourceExcluded) == 0
 }
 
 // applyExcludedColumns removes the excluded columns, given per root table, from the column list of
@@ -3019,29 +3022,35 @@ func buildUnsupportedColumnsError(report unsupportedColumnsReport, userExcluded 
 		}
 		msg.WriteString(fmt.Sprintf("  --exclude-table-list '%s'\n\n", tableNames))
 	}
+	suggested := maps.Clone(userExcluded)
+	if suggested == nil {
+		suggested = map[string][]string{}
+	}
+	for table, columns := range report.otherTables {
+		suggested[table] = append(slices.Clone(suggested[table]), columns...)
+	}
+	if len(report.missingSourceExcluded) > 0 {
+		msg.WriteString("The following columns were excluded by 'export data from source' and must also be in --exclude-column-list, " +
+			"since their values on the target are not kept up to date:\n")
+		msg.WriteString(describeColumns(report.missingSourceExcluded))
+	}
 	if len(report.otherTables) > 0 {
-		suggested := maps.Clone(userExcluded)
-		if suggested == nil {
-			suggested = map[string][]string{}
-		}
-		for table, columns := range report.otherTables {
-			suggested[table] = append(slices.Clone(suggested[table]), columns...)
-		}
 		msg.WriteString("The following columns have datatypes not supported for this migration:\n")
 		msg.WriteString(describeColumns(report.otherTables))
-		if isTargetExporter {
-			msg.WriteString("Restart 'export data from target' with these columns excluded:\n")
-			msg.WriteString(fmt.Sprintf("  --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
-			msg.WriteString(excludedColumnsNote() + "\n")
-		} else {
-			tableNames := strings.Join(slices.Sorted(maps.Keys(report.otherTables)), ",")
-			msg.WriteString("To proceed, do one of the following:\n")
-			msg.WriteString("  1. Exclude these columns with --exclude-column-list:\n")
-			msg.WriteString(fmt.Sprintf("       --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
-			msg.WriteString("     " + excludedColumnsNote() + "\n")
-			msg.WriteString("  2. Exclude these tables with --exclude-table-list:\n")
-			msg.WriteString(fmt.Sprintf("       --exclude-table-list '%s'\n", tableNames))
-		}
+	}
+	if isTargetExporter && (len(report.otherTables) > 0 || len(report.missingSourceExcluded) > 0) {
+		msg.WriteString("Restart 'export data from target' with these columns excluded:\n")
+		msg.WriteString(fmt.Sprintf("  --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
+		msg.WriteString(excludedColumnsNote() + "\n")
+	}
+	if len(report.otherTables) > 0 && !isTargetExporter {
+		tableNames := strings.Join(slices.Sorted(maps.Keys(report.otherTables)), ",")
+		msg.WriteString("To proceed, do one of the following:\n")
+		msg.WriteString("  1. Exclude these columns with --exclude-column-list:\n")
+		msg.WriteString(fmt.Sprintf("       --exclude-column-list '%s'\n", formatExcludeColumnList(suggested)))
+		msg.WriteString("     " + excludedColumnsNote() + "\n")
+		msg.WriteString("  2. Exclude these tables with --exclude-table-list:\n")
+		msg.WriteString(fmt.Sprintf("       --exclude-table-list '%s'\n", tableNames))
 	}
 	return goerrors.Errorf("%s", strings.TrimRight(msg.String(), "\n"))
 }
@@ -3089,8 +3098,9 @@ func finalizeColumnListForLiveMigration(sourceDB srcdb.SourceDB, rootOfTable fun
 	}
 
 	finalExcluded := userExcluded
+	var missingSourceExcluded map[string][]string
 	if isTargetDBExporter(exporterRole) {
-		finalExcluded, err = handleExcludedColumnForTargetExporter(userExcluded, finalTableList, partitionsToRootTableMap)
+		finalExcluded, missingSourceExcluded, err = handleExcludedColumnForTargetExporter(userExcluded, finalTableList, partitionsToRootTableMap)
 		if err != nil {
 			return nil, err
 		}
@@ -3099,6 +3109,7 @@ func finalizeColumnListForLiveMigration(sourceDB srcdb.SourceDB, rootOfTable fun
 	if err != nil {
 		return nil, err
 	}
+	report.missingSourceExcluded = missingSourceExcluded
 	if !report.isEmpty() {
 		userExcludedForOutput := map[string][]string{}
 		err = finalExcluded.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
@@ -3130,29 +3141,37 @@ func finalizeColumnListForLiveMigration(sourceDB srcdb.SourceDB, rootOfTable fun
 
 // handleExcludedColumnForTargetExporter adds, for the target exporter, the columns the source exporter
 // excluded. Those columns are not kept up to date on the target, so exporting them back would
-// overwrite the source(-replica)'s current values with stale ones.
+// overwrite the source(-replica)'s current values with stale ones. Without the flag they are inherited;
+// a passed list must name them too, so that it is the full set the target exporter streams without. The
+// columns a passed list leaves out are returned as root table (as ForOutput) -> columns.
 func handleExcludedColumnForTargetExporter(userExcluded *utils.StructMap[sqlname.NameTuple, []string], finalTableList []sqlname.NameTuple,
-	partitionsToRootTableMap map[string]string) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	partitionsToRootTableMap map[string]string) (*utils.StructMap[sqlname.NameTuple, []string], map[string][]string, error) {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, fmt.Errorf("get migration status record: %w", err)
+		return nil, nil, fmt.Errorf("get migration status record: %w", err)
 	}
 	if msr == nil {
-		return nil, goerrors.Errorf("migration status record not found")
+		return nil, nil, goerrors.Errorf("migration status record not found")
 	}
+	userPassedList := len(userExcluded.Keys()) > 0
 	excluded := utils.NewStructMap[sqlname.NameTuple, []string]()
+	missingFromUserList := map[string][]string{}
 	for _, table := range finalTableList {
 		if _, isLeaf := partitionsToRootTableMap[table.AsQualifiedCatalogName()]; isLeaf {
 			continue
 		}
-		columns, _ := userExcluded.Get(table)
-		columns = lo.Union(msr.ExcludedColumns.FromSource[table.ForKey()], columns)
+		userColumns, _ := userExcluded.Get(table)
+		sourceExcludedColumns := msr.ExcludedColumns.FromSource[table.ForKey()]
+		if missing := lo.Without(sourceExcludedColumns, userColumns...); userPassedList && len(missing) > 0 {
+			missingFromUserList[table.ForOutput()] = missing
+		}
+		columns := lo.Union(sourceExcludedColumns, userColumns)
 		if len(columns) > 0 {
 			excluded.Put(table, columns)
 		}
 	}
-	return excluded, nil
+	return excluded, missingFromUserList, nil
 }
 
 // recordExcludedColumns stores this exporter's resolved --exclude-column-list on its first run, and
