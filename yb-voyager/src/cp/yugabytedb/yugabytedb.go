@@ -49,7 +49,6 @@ func New(exportDir string) *YugabyteDB {
 	return &YugabyteDB{}
 }
 
-// Initialize the connection to the yugabytedb control plane DB
 func (cp *YugabyteDB) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []controlPlane.TableMetrics, 200)
@@ -97,7 +96,6 @@ func (cp *YugabyteDB) rowCountUpdateEventPublisher() {
 	}
 }
 
-// payload is a JSON document, or "" when the event carries none.
 func (cp *YugabyteDB) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
 	migrationEvent := MigrationEvent{
