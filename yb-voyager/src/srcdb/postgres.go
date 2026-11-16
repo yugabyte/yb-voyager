@@ -1137,7 +1137,7 @@ ORDER BY array_position(i.indkey, a.attnum);`
 
 func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	if len(tables) == 0 {
-		return nil, nil
+		return utils.NewStructMap[sqlname.NameTuple, []string](), nil
 	}
 
 	catalogTableToTuple := make(map[string]sqlname.NameTuple)

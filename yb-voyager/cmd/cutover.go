@@ -172,6 +172,10 @@ func initializeNextIteration() error {
 	if err != nil {
 		return fmt.Errorf("failed to set up next iteration MSR: %w", err)
 	}
+	err = copyExcludedColumnsToNextIteration(metaDB, nextIterationMetaDB)
+	if err != nil {
+		return err
+	}
 
 	//Copying the name registry file to the next iteration so that we don't re-register the names again
 	currNameRegFile := fmt.Sprintf("%s/metainfo/name_registry.json", exportDir)
@@ -230,7 +234,6 @@ func setUpNextIterationMSR(parentMetaDB *metadb.MetaDB, iterationNo int, current
 		record.SourceExportedTableListWithLeafPartitions = currentMSR.SourceExportedTableListWithLeafPartitions
 		record.SourceRenameTablesMap = currentMSR.SourceRenameTablesMap
 		record.TargetRenameTablesMap = currentMSR.TargetRenameTablesMap
-		record.ExcludedColumns = currentMSR.ExcludedColumns
 
 		//sequence mapping is required for the next iteration to restore sequences
 		record.SourceColumnToSequenceMapping = currentMSR.SourceColumnToSequenceMapping

@@ -429,8 +429,12 @@ func startExportDataFromSourceOnNextIteration() {
 		//If these are overridden by CLI/Config file then pass it to the command always
 		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
 	}
-	if len(currentMsr.ExcludedColumns.FromSource) > 0 {
-		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(currentMsr.ExcludedColumns.FromSource))
+	sourceExcluded, err := getSourceExporterExcludedColumns(metaDB)
+	if err != nil {
+		utils.ErrExit("%w", err)
+	}
+	if len(sourceExcluded) > 0 {
+		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(sourceExcluded))
 	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
@@ -704,7 +708,11 @@ func startExportDataFromTargetIfRequired() {
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
-	cmd := generateExportDataFromTargetCommand(msr)
+	targetExcluded, err := getTargetExporterExcludedColumns(metaDB)
+	if err != nil {
+		utils.ErrExit("%w", err)
+	}
+	cmd := generateExportDataFromTargetCommand(msr, targetExcluded)
 
 	cmdStr := "TARGET_DB_PASSWORD=*** " + utils.ShellQuoteCommand(cmd)
 
@@ -731,7 +739,7 @@ func startExportDataFromTargetIfRequired() {
 	}
 }
 
-func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []string {
+func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord, targetExcluded map[string][]string) []string {
 	cmd := []string{"yb-voyager", "export", "data", "from", "target"}
 
 	arguments := generateGlobalExportImportArguments()
@@ -748,9 +756,9 @@ func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []st
 			cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
 		}
 	}
-	// setUpNextIterationMSR copies FromTarget, and the target exporter refuses a different set on resume.
-	if len(msr.ExcludedColumns.FromTarget) > 0 {
-		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(msr.ExcludedColumns.FromTarget))
+	// copyExcludedColumnsToNextIteration carries this set over, and the target exporter refuses a different set on resume.
+	if len(targetExcluded) > 0 {
+		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(targetExcluded))
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")

@@ -470,11 +470,17 @@ func useExcludeColumnsTestMetaDB(t *testing.T, role string) {
 	exporterRole = role
 }
 
-func excludedColumnsRecord(t *testing.T) metadb.ExcludedColumnsRecord {
-	msr, err := metaDB.GetMigrationStatusRecord()
+type recordedExcludedColumns struct {
+	FromSource map[string][]string
+	FromTarget map[string][]string
+}
+
+func excludedColumnsRecord(t *testing.T) recordedExcludedColumns {
+	fromSource, err := getSourceExporterExcludedColumns(metaDB)
 	require.NoError(t, err)
-	require.NotNil(t, msr)
-	return msr.ExcludedColumns
+	fromTarget, err := getTargetExporterExcludedColumns(metaDB)
+	require.NoError(t, err)
+	return recordedExcludedColumns{FromSource: fromSource, FromTarget: fromTarget}
 }
 
 func TestRecordExcludedColumns(t *testing.T) {
@@ -483,7 +489,7 @@ func TestRecordExcludedColumns(t *testing.T) {
 	t.Run("first run records the set sorted, and a re-run with the same set in another order passes", func(t *testing.T) {
 		useExcludeColumnsTestMetaDB(t, SOURCE_DB_EXPORTER_ROLE)
 		require.NoError(t, recordExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note", "doc"}, e.sales: {"Geo"}})))
-		expected := metadb.ExcludedColumnsRecord{
+		expected := recordedExcludedColumns{
 			FromSource: map[string][]string{e.orders.ForKey(): {"doc", "note"}, e.sales.ForKey(): {"Geo"}},
 		}
 		assert.Equal(t, expected, excludedColumnsRecord(t))
@@ -515,22 +521,46 @@ func TestRecordExcludedColumns(t *testing.T) {
 
 		err := recordExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"doc"}}))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "started with: ''")
+		assert.Equal(t, "--exclude-column-list cannot change once export data has started.\n"+
+			"  started with: ''\n"+
+			"  now:          '"+formatExcludeColumnList(map[string][]string{e.orders.ForKey(): {"doc"}})+"'\n"+
+			"Re-run with the value it started with.", err.Error())
 	})
 
 	t.Run("the target exporter records its own set without touching the source's", func(t *testing.T) {
 		useExcludeColumnsTestMetaDB(t, TARGET_DB_EXPORTER_FB_ROLE)
 		fromSource := map[string][]string{e.orders.ForKey(): {"doc"}}
-		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
-			r.ExcludedColumns.FromSource = fromSource
+		require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+			r.ExcludedColumns = fromSource
 		}))
 
 		require.NoError(t, recordExcludedColumns(excludedColumnsMap(map[sqlname.NameTuple][]string{e.orders: {"note"}})))
-		assert.Equal(t, metadb.ExcludedColumnsRecord{
+		assert.Equal(t, recordedExcludedColumns{
 			FromSource: fromSource,
 			FromTarget: map[string][]string{e.orders.ForKey(): {"note"}},
 		}, excludedColumnsRecord(t))
 	})
+}
+
+func TestCopyExcludedColumnsToNextIteration(t *testing.T) {
+	e := newExcludeColumnsTestExport()
+	useExcludeColumnsTestMetaDB(t, SOURCE_DB_EXPORTER_ROLE)
+	fromSource := map[string][]string{e.orders.ForKey(): {"doc"}}
+	fromTarget := map[string][]string{e.orders.ForKey(): {"doc", "search"}}
+	require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+		r.ExcludedColumns = fromSource
+	}))
+	require.NoError(t, metaDB.UpdateExportDataTargetDBExporterStatusRecord(func(r *metadb.ExportDataTargetDBExporterStatusRecord) {
+		r.ExcludedColumns = fromTarget
+	}))
+	nextIterationMetaDB := initMetaDB(t.TempDir())
+
+	require.NoError(t, copyExcludedColumnsToNextIteration(metaDB, nextIterationMetaDB))
+	// a re-run of iteration setup copies the same sets again
+	require.NoError(t, copyExcludedColumnsToNextIteration(metaDB, nextIterationMetaDB))
+
+	metaDB = nextIterationMetaDB
+	assert.Equal(t, recordedExcludedColumns{FromSource: fromSource, FromTarget: fromTarget}, excludedColumnsRecord(t))
 }
 
 func TestHandleExcludedColumnForTargetExporter(t *testing.T) {
@@ -539,8 +569,8 @@ func TestHandleExcludedColumnForTargetExporter(t *testing.T) {
 	leafToRoot := e.exportTables.leafToRoot
 	setSourceExcluded := func(t *testing.T) {
 		useExcludeColumnsTestMetaDB(t, TARGET_DB_EXPORTER_FB_ROLE)
-		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
-			r.ExcludedColumns.FromSource = map[string][]string{e.orders.ForKey(): {"doc", "note"}, e.sales.ForKey(): {"Geo"}}
+		require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+			r.ExcludedColumns = map[string][]string{e.orders.ForKey(): {"doc", "note"}, e.sales.ForKey(): {"Geo"}}
 		}))
 	}
 
@@ -585,8 +615,8 @@ func TestHandleExcludedColumnForTargetExporter(t *testing.T) {
 
 	t.Run("only the columns the target connector cannot stream and the source did not exclude are left", func(t *testing.T) {
 		useExcludeColumnsTestMetaDB(t, TARGET_DB_EXPORTER_FB_ROLE)
-		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
-			r.ExcludedColumns.FromSource = map[string][]string{e.orders.ForKey(): {"doc"}, e.sales.ForKey(): {"Geo"}}
+		require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+			r.ExcludedColumns = map[string][]string{e.orders.ForKey(): {"doc"}, e.sales.ForKey(): {"Geo"}}
 		}))
 		exportTables := e.exportTables
 		columns := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -744,7 +774,7 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 		salesOrdersColumns, _ := columnList.Get(f.salesOrders)
 		assert.Equal(t, []string{"id", "region"}, salesOrdersColumns, `"*" is expanded so that the excluded column is left out`)
 		recorded := map[string][]string{f.orders.ForKey(): {"doc"}, f.salesOrders.ForKey(): {"note"}}
-		assert.Equal(t, metadb.ExcludedColumnsRecord{FromSource: recorded}, excludedColumnsRecord(t))
+		assert.Equal(t, recordedExcludedColumns{FromSource: recorded}, excludedColumnsRecord(t))
 
 		// startExportDataFromSourceOnNextIteration passes the recorded set back in this form
 		_, err = f.run(t, formatExcludeColumnList(recorded))
@@ -756,7 +786,7 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 			"  started with: '"+formatExcludeColumnList(recorded)+"'\n"+
 			"  now:          '"+formatExcludeColumnList(map[string][]string{f.orders.ForKey(): {"doc"}})+"'\n"+
 			"Re-run with the value it started with.", err.Error())
-		assert.Equal(t, metadb.ExcludedColumnsRecord{FromSource: recorded}, excludedColumnsRecord(t))
+		assert.Equal(t, recordedExcludedColumns{FromSource: recorded}, excludedColumnsRecord(t))
 	})
 
 	t.Run("source exporter: problems in the value fail before anything is recorded", func(t *testing.T) {
@@ -767,7 +797,7 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 			"  \"Sales\".missing: table not found\n"+
 			"  public.orders: column \"foo\" does not exist\n"+
 			"  public.orders: column \"id\" is part of the primary key and cannot be excluded", err.Error())
-		assert.Equal(t, metadb.ExcludedColumnsRecord{}, excludedColumnsRecord(t))
+		assert.Equal(t, recordedExcludedColumns{}, excludedColumnsRecord(t))
 	})
 
 	t.Run("source exporter: an unsupported column left on a case-sensitive table fails and records nothing", func(t *testing.T) {
@@ -775,17 +805,22 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 		f.unsupported.Put(f.salesOrders, []string{"region"})
 		_, err := f.run(t, "public.orders:doc")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "  "+f.salesOrders.ForOutput()+": region\n")
-		assert.Contains(t, err.Error(), "--exclude-column-list '"+f.salesOrders.ForOutput()+":region;public.orders:doc'")
-		assert.Contains(t, err.Error(), "--exclude-table-list '"+f.salesOrders.ForOutput()+"'")
-		assert.Equal(t, metadb.ExcludedColumnsRecord{}, excludedColumnsRecord(t))
+		assert.Equal(t, `The following columns have datatypes not supported for this migration:
+  "Sales"."Orders": region
+To proceed, do one of the following:
+  1. Exclude these columns with --exclude-column-list:
+       --exclude-column-list '"Sales"."Orders":region;public.orders:doc'
+     Changes to excluded columns are not streamed: the target keeps their snapshot phase of migration, and rows inserted during streaming get NULL in them. If any of them has a NOT NULL constraint in the target database, remove it.
+  2. Exclude these tables with --exclude-table-list:
+       --exclude-table-list '"Sales"."Orders"'`, err.Error())
+		assert.Equal(t, recordedExcludedColumns{}, excludedColumnsRecord(t))
 	})
 
 	t.Run("target exporter: a passed list names the source's columns and adds its own", func(t *testing.T) {
 		f := newFinalizeExcludeColumnsTest(t, TARGET_DB_EXPORTER_FB_ROLE)
 		fromSource := map[string][]string{f.orders.ForKey(): {"doc"}}
-		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
-			r.ExcludedColumns.FromSource = fromSource
+		require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+			r.ExcludedColumns = fromSource
 		}))
 		f.unsupported.Put(f.salesOrders, []string{"note"})
 
@@ -802,8 +837,8 @@ func TestFinalizeColumnListForLiveMigration(t *testing.T) {
 
 	t.Run("target exporter: a list missing source columns and unsupported columns fails once, recording nothing", func(t *testing.T) {
 		f := newFinalizeExcludeColumnsTest(t, TARGET_DB_EXPORTER_FB_ROLE)
-		require.NoError(t, metaDB.UpdateMigrationStatusRecord(func(r *metadb.MigrationStatusRecord) {
-			r.ExcludedColumns.FromSource = map[string][]string{f.orders.ForKey(): {"doc"}}
+		require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+			r.ExcludedColumns = map[string][]string{f.orders.ForKey(): {"doc"}}
 		}))
 		f.unsupported.Put(f.salesOrders, []string{"note"})
 

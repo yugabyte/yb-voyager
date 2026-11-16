@@ -634,9 +634,11 @@ export-data-from-target:
   # transaction-ordering: true 
 
   ### Semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes exported from the target.
-  ### Use it for columns whose datatype the YugabyteDB connector does not support. Columns excluded in export-data-from-source are always excluded here as well.
+  ### Use it for columns whose datatype the YugabyteDB connector does not support.
+  ### If not set, the columns excluded in export-data-from-source are excluded here as well. If set, it is the complete list:
+  ### it must also name every column excluded in export-data-from-source.
   ### Changes made on the target to these columns are not exported. For partitioned tables, specify the root table. Primary key columns cannot be excluded.
-  # exclude-column-list: 'public.orders:search_query'
+  # exclude-column-list: 'public.orders:note,search_query'
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.

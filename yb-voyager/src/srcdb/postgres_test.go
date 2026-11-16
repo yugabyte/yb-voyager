@@ -903,6 +903,10 @@ func TestPostgresGetPrimaryKeyColumns(t *testing.T) {
 	actualPKColumns, err := testPostgresSource.DB().GetPrimaryKeyColumns(inputTables)
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
+	emptyPKColumns, err := testPostgresSource.DB().GetPrimaryKeyColumns(nil)
+	assert.NilError(t, err)
+	assert.Assert(t, emptyPKColumns != nil && len(emptyPKColumns.Keys()) == 0, "expected an empty map for no tables")
+
 	expectedPKColumns := utils.NewStructMap[sqlname.NameTuple, []string]()
 	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName("test_schema.simple_pk", "test_schema", "postgresql"), []string{"id"})
 	expectedPKColumns.Put(testutils.CreateNameTupleWithSourceName("\"TestSchemaCase\".composite_pk", "TestSchemaCase", "postgresql"), []string{"region", "id"})

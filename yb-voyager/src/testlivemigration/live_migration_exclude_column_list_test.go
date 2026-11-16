@@ -138,15 +138,8 @@ func TestExportDataFromSourceExcludeColumnListGuardrails(t *testing.T) {
 		"  test_schema.orders: column \"nope\" does not exist\n"+
 		"  test_schema.orders: column \"id\" is part of the primary key and cannot be excluded")
 
-	err = lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
-		msr, err := mdb.GetMigrationStatusRecord()
-		if err != nil {
-			return err
-		}
-		assert.Nil(t, msr.ExcludedColumns.FromSource, "failed runs must not record an excluded set")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to read migration status record")
+	fromSource, _ := readExcludedColumns(t, lm, 0)
+	assert.Nil(t, fromSource, "failed runs must not record an excluded set")
 
 	err = lm.StartExportData(true, map[string]string{"--exclude-column-list": "test_schema.orders:REMINDER"})
 	testutils.FatalIfError(t, err, "failed to start export data")
@@ -180,15 +173,8 @@ func TestExportDataFromSourceExcludeColumnListGuardrails(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to validate target rows")
 
-	err = lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
-		msr, err := mdb.GetMigrationStatusRecord()
-		if err != nil {
-			return err
-		}
-		assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"reminder"}}, msr.ExcludedColumns.FromSource)
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to read migration status record")
+	fromSource, _ = readExcludedColumns(t, lm, 0)
+	assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"reminder"}}, fromSource)
 
 	err = lm.StopExportData()
 	testutils.FatalIfError(t, err, "failed to stop export data")
@@ -280,15 +266,8 @@ func TestExportDataFromTargetExcludeColumnListGuardrails(t *testing.T) {
 		"Restart 'export data from target' with these columns excluded:\n"+
 		"  --exclude-column-list 'test_schema.orders:reminder,note,query'\n")
 
-	err = lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
-		msr, err := mdb.GetMigrationStatusRecord()
-		if err != nil {
-			return err
-		}
-		assert.Nil(t, msr.ExcludedColumns.FromTarget, "failed runs must not record an excluded set")
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to read migration status record")
+	_, fromTarget := readExcludedColumns(t, lm, 0)
+	assert.Nil(t, fromTarget, "failed runs must not record an excluded set")
 
 	err = lm.StartExportDataFromTarget(true, map[string]string{"--exclude-column-list": "test_schema.orders:reminder,query"})
 	testutils.FatalIfError(t, err, "failed to start export data from target")
@@ -321,16 +300,9 @@ func TestExportDataFromTargetExcludeColumnListGuardrails(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err, "failed to validate source rows")
 
-	err = lm.WithMetaDB(0, func(mdb *metadb.MetaDB) error {
-		msr, err := mdb.GetMigrationStatusRecord()
-		if err != nil {
-			return err
-		}
-		assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"reminder"}}, msr.ExcludedColumns.FromSource)
-		assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"query", "reminder"}}, msr.ExcludedColumns.FromTarget)
-		return nil
-	})
-	testutils.FatalIfError(t, err, "failed to read migration status record")
+	fromSource, fromTarget := readExcludedColumns(t, lm, 0)
+	assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"reminder"}}, fromSource)
+	assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"query", "reminder"}}, fromTarget)
 
 	err = lm.StopExportDataFromTarget()
 	testutils.FatalIfError(t, err, "failed to stop export data from target")
@@ -421,16 +393,9 @@ func TestExcludeColumnListAcrossCutoverIterations(t *testing.T) {
 		err = lm.WaitForCutoverSourceComplete(iteration-1, 120)
 		testutils.FatalIfError(t, err, "failed to wait for cutover to source complete")
 
-		err = lm.WithMetaDB(iteration, func(mdb *metadb.MetaDB) error {
-			msr, err := mdb.GetMigrationStatusRecord()
-			if err != nil {
-				return err
-			}
-			assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"reminder"}}, msr.ExcludedColumns.FromSource, "iteration %d", iteration)
-			assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"query", "reminder"}}, msr.ExcludedColumns.FromTarget, "iteration %d", iteration)
-			return nil
-		})
-		testutils.FatalIfError(t, err, "failed to read iteration migration status record")
+		fromSource, fromTarget := readExcludedColumns(t, lm, iteration)
+		assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"reminder"}}, fromSource, "iteration %d", iteration)
+		assert.Equal(t, map[string][]string{excludeColumnsOrdersTable: {"query", "reminder"}}, fromTarget, "iteration %d", iteration)
 
 		if iteration == 1 {
 			// the spawned export data from source runs changes-only on the parent export dir
@@ -501,4 +466,28 @@ func TestExcludeColumnListAcrossCutoverIterations(t *testing.T) {
 	testutils.FatalIfError(t, err, "failed to initiate final cutover to source")
 	err = lm.WaitForCutoverSourceComplete(numIterations, 120)
 	testutils.FatalIfError(t, err, "failed to wait for final cutover to source complete")
+}
+
+// readExcludedColumns returns the excluded columns recorded by the source and the target exporter
+// in the given iteration's metaDB; nil means that exporter has not recorded a set.
+func readExcludedColumns(t *testing.T, lm *LiveMigrationTest, iteration int) (fromSource map[string][]string, fromTarget map[string][]string) {
+	err := lm.WithMetaDB(iteration, func(mdb *metadb.MetaDB) error {
+		sourceRecord, err := mdb.GetExportDataSourceDBExporterStatusRecord()
+		if err != nil {
+			return err
+		}
+		if sourceRecord != nil {
+			fromSource = sourceRecord.ExcludedColumns
+		}
+		targetRecord, err := mdb.GetExportDataTargetDBExporterStatusRecord()
+		if err != nil {
+			return err
+		}
+		if targetRecord != nil {
+			fromTarget = targetRecord.ExcludedColumns
+		}
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to read excluded columns from metaDB")
+	return fromSource, fromTarget
 }

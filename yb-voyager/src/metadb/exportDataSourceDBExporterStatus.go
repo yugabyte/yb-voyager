@@ -26,8 +26,7 @@ import (
 // metaDB in the export dir), so it lets import use authoritative *source* facts without
 // opening a source connection of its own.
 //
-// Today it carries only the per-table STORED generated columns; the record is intentionally
-// a small extensible bag for other source-exporter-derived state in the future.
+// The record is intentionally a small extensible bag for other source-exporter-derived state.
 type ExportDataSourceDBExporterStatusRecord struct {
 	// TableToGeneratedStoredColumns maps a table (by NameTuple.ForKey()) to the names of its
 	// STORED generated columns on the source. Names only — whether a column participates in
@@ -35,6 +34,12 @@ type ExportDataSourceDBExporterStatusRecord struct {
 	// hybrid resolution in cmd/live_migration_cdc_partition_strategy.go). A table with no
 	// generated columns is simply absent from the map.
 	TableToGeneratedStoredColumns map[string][]string `json:"tableToGeneratedStoredColumns"`
+
+	// ExcludedColumns is the --exclude-column-list the source exporter resolved on its first run,
+	// as root table (NameTuple.ForKey()) -> excluded column names. Nil means the source exporter
+	// has not recorded one yet; an empty map means it ran with no exclusions. The target exporter
+	// reads it to inherit these exclusions.
+	ExcludedColumns map[string][]string `json:"excludedColumns"`
 }
 
 const EXPORT_DATA_SOURCE_DB_EXPORTER_STATUS_KEY = "export_data_source_db_exporter_status"

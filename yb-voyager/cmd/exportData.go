@@ -2164,11 +2164,20 @@ func clearMigrationStateIfRequired() {
 			record.TargetExportedTableListWithLeafPartitions = nil
 			record.TargetColumnToSequenceMapping = nil
 			record.TargetRenameTablesMap = nil
-			record.ExcludedColumns = metadb.ExcludedColumnsRecord{}
 			record.ExportTypeFromSource = ""
 		})
 		if err != nil {
 			utils.ErrExit("Failed to update migration status record: %w", err)
+		}
+		err = metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(record *metadb.ExportDataSourceDBExporterStatusRecord) {
+			record.ExcludedColumns = nil
+		})
+		if err != nil {
+			utils.ErrExit("Failed to reset excluded columns of export data from source: %w", err)
+		}
+		err = metaDB.DeleteJsonObject(metadb.EXPORT_DATA_TARGET_DB_EXPORTER_STATUS_KEY)
+		if err != nil {
+			utils.ErrExit("Failed to reset excluded columns of export data from target: %w", err)
 		}
 
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
@@ -2413,8 +2422,7 @@ func finalizeTableAndColumnList(finalTableList []sqlname.NameTuple, partitionsTo
 	if err != nil {
 		utils.ErrExit("get columns with supported types: %w", err)
 	}
-	isPGOrYBStreaming := (source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB) && changeStreamingIsEnabled(exportType)
-	if isPGOrYBStreaming {
+	if changeStreamingIsEnabled(exportType) && migrationSourceIsPostgreSQL() {
 		tablesColumnList, err = finalizeColumnListForLiveMigration(source.DB(), GetRootTableOfPartition, finalTableList, partitionsToRootTableMap, tablesColumnList, unsupportedTableColumnsMap)
 		if err != nil {
 			utils.ErrExit("%s", err)
@@ -2776,7 +2784,7 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 var excludeColumnList string
 
 const excludeColumnListFlagHelp = "semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes streamed in live migration. " +
-	"The snapshot still copies these columns. Only for PostgreSQL source databases and 'export data from target'.\n" +
+	"The snapshot still copies these columns. Only for PostgreSQL source databases, including 'export data from target' of a PostgreSQL migration.\n" +
 	"For partitioned tables, specify the root table; the columns are excluded from all its partitions. Primary key columns cannot be excluded.\n" +
 	"Column names are matched ignoring case; if the table has columns differing only in case, write the column's exact case. " +
 	"In case the table names are case sensitive, double-quote them.\n" +
@@ -2788,7 +2796,7 @@ func validateExcludeColumnListFlag() error {
 	if excludeColumnList == "" {
 		return nil
 	}
-	if source.DBType != POSTGRESQL && source.DBType != YUGABYTEDB {
+	if !migrationSourceIsPostgreSQL() {
 		return goerrors.Errorf("--exclude-column-list is supported only for PostgreSQL source databases")
 	}
 	if !changeStreamingIsEnabled(exportType) {
@@ -2797,6 +2805,15 @@ func validateExcludeColumnListFlag() error {
 	var err error
 	userSpecifiedExcludeColumnListEntries, err = parseTableColumnsFlag(excludeColumnListFlagName, excludeColumnList)
 	return err
+}
+
+// migrationSourceIsPostgreSQL reports whether the migration's source database is PostgreSQL. The target
+// exporter has source.DBType set to YUGABYTEDB, so for it the original source is read from the MSR.
+func migrationSourceIsPostgreSQL() bool {
+	if isTargetDBExporter(exporterRole) {
+		return GetSourceDBTypeFromMSR() == POSTGRESQL
+	}
+	return source.DBType == POSTGRESQL
 }
 
 const excludeColumnListFlagName = "exclude-column-list"
@@ -3147,12 +3164,9 @@ func finalizeColumnListForLiveMigration(sourceDB srcdb.SourceDB, rootOfTable fun
 func handleExcludedColumnForTargetExporter(userExcluded *utils.StructMap[sqlname.NameTuple, []string], finalTableList []sqlname.NameTuple,
 	partitionsToRootTableMap map[string]string) (*utils.StructMap[sqlname.NameTuple, []string], map[string][]string, error) {
 
-	msr, err := metaDB.GetMigrationStatusRecord()
+	sourceExcluded, err := getSourceExporterExcludedColumns(metaDB)
 	if err != nil {
-		return nil, nil, fmt.Errorf("get migration status record: %w", err)
-	}
-	if msr == nil {
-		return nil, nil, goerrors.Errorf("migration status record not found")
+		return nil, nil, err
 	}
 	userPassedList := len(userExcluded.Keys()) > 0
 	excluded := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -3162,7 +3176,7 @@ func handleExcludedColumnForTargetExporter(userExcluded *utils.StructMap[sqlname
 			continue
 		}
 		userColumns, _ := userExcluded.Get(table)
-		sourceExcludedColumns := msr.ExcludedColumns.FromSource[table.ForKey()]
+		sourceExcludedColumns := sourceExcluded[table.ForKey()]
 		if missing := lo.Without(sourceExcludedColumns, userColumns...); userPassedList && len(missing) > 0 {
 			missingFromUserList[table.ForOutput()] = missing
 		}
@@ -3174,23 +3188,20 @@ func handleExcludedColumnForTargetExporter(userExcluded *utils.StructMap[sqlname
 	return excluded, missingFromUserList, nil
 }
 
-// recordExcludedColumns stores this exporter's resolved --exclude-column-list on its first run, and
-// on later runs fails if it changed: the column set Debezium streams has to stay the same for the
-// whole migration.
-func recordExcludedColumns(userExcluded *utils.StructMap[sqlname.NameTuple, []string]) error {
+// recordExcludedColumns stores this exporter's effective excluded columns on its first run, and on
+// later runs fails if they changed: the column set Debezium streams has to stay the same for the
+// whole migration. For the target exporter, excluded already includes the source exporter's columns.
+func recordExcludedColumns(excluded *utils.StructMap[sqlname.NameTuple, []string]) error {
 	current := map[string][]string{}
-	_ = userExcluded.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+	_ = excluded.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
 		current[table.ForKey()] = slices.Sorted(slices.Values(columns))
 		return true, nil
 	})
-	msr, err := metaDB.GetMigrationStatusRecord()
+	isTargetExporter := isTargetDBExporter(exporterRole)
+	recorded, err := lo.Ternary(isTargetExporter, getTargetExporterExcludedColumns, getSourceExporterExcludedColumns)(metaDB)
 	if err != nil {
-		return fmt.Errorf("get migration status record: %w", err)
+		return err
 	}
-	if msr == nil {
-		return goerrors.Errorf("migration status record not found")
-	}
-	recorded := lo.Ternary(isTargetDBExporter(exporterRole), msr.ExcludedColumns.FromTarget, msr.ExcludedColumns.FromSource)
 	if recorded != nil {
 		if !maps.EqualFunc(recorded, current, slices.Equal[[]string]) {
 			return goerrors.Errorf("--exclude-column-list cannot change once export data has started.\n"+
@@ -3199,15 +3210,66 @@ func recordExcludedColumns(userExcluded *utils.StructMap[sqlname.NameTuple, []st
 		}
 		return nil
 	}
-	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if isTargetDBExporter(exporterRole) {
-			record.ExcludedColumns.FromTarget = current
-		} else {
-			record.ExcludedColumns.FromSource = current
-		}
+	if isTargetExporter {
+		err = metaDB.UpdateExportDataTargetDBExporterStatusRecord(func(record *metadb.ExportDataTargetDBExporterStatusRecord) {
+			record.ExcludedColumns = current
+		})
+	} else {
+		err = metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(record *metadb.ExportDataSourceDBExporterStatusRecord) {
+			record.ExcludedColumns = current
+		})
+	}
+	if err != nil {
+		return fmt.Errorf("record excluded columns in export data status record: %w", err)
+	}
+	return nil
+}
+
+func getSourceExporterExcludedColumns(mdb *metadb.MetaDB) (map[string][]string, error) {
+	record, err := mdb.GetExportDataSourceDBExporterStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get export data source db exporter status record: %w", err)
+	}
+	if record == nil {
+		return nil, nil
+	}
+	return record.ExcludedColumns, nil
+}
+
+func getTargetExporterExcludedColumns(mdb *metadb.MetaDB) (map[string][]string, error) {
+	record, err := mdb.GetExportDataTargetDBExporterStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get export data target db exporter status record: %w", err)
+	}
+	if record == nil {
+		return nil, nil
+	}
+	return record.ExcludedColumns, nil
+}
+
+// copyExcludedColumnsToNextIteration carries both exporters' excluded columns into the next
+// iteration's metaDB. generateExportDataFromTargetCommand reads the target exporter's set there
+// before that iteration's target exporter has run.
+func copyExcludedColumnsToNextIteration(currentMetaDB *metadb.MetaDB, nextIterationMetaDB *metadb.MetaDB) error {
+	sourceExcluded, err := getSourceExporterExcludedColumns(currentMetaDB)
+	if err != nil {
+		return err
+	}
+	targetExcluded, err := getTargetExporterExcludedColumns(currentMetaDB)
+	if err != nil {
+		return err
+	}
+	err = nextIterationMetaDB.UpdateExportDataSourceDBExporterStatusRecord(func(record *metadb.ExportDataSourceDBExporterStatusRecord) {
+		record.ExcludedColumns = sourceExcluded
 	})
 	if err != nil {
-		return fmt.Errorf("record excluded columns in migration status record: %w", err)
+		return fmt.Errorf("copy source exporter's excluded columns to next iteration: %w", err)
+	}
+	err = nextIterationMetaDB.UpdateExportDataTargetDBExporterStatusRecord(func(record *metadb.ExportDataTargetDBExporterStatusRecord) {
+		record.ExcludedColumns = targetExcluded
+	})
+	if err != nil {
+		return fmt.Errorf("copy target exporter's excluded columns to next iteration: %w", err)
 	}
 	return nil
 }
