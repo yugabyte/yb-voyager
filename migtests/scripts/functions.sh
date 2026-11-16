@@ -718,6 +718,13 @@ get_expected_event_count() {
     local expected_count=""
     case "$exporter_db" in
         "source")
+            # Matches export_data: with the gRPC connector, fall-back/fall-forward exclude EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR on the source.
+            if [ "${USE_YB_GRPC_CONNECTOR}" = true ] && [ "${VOYAGER_WORKFLOW}" != "live-migration" ] \
+               && jq -e 'has("source_delta_events_grpc_connector")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.source_delta_events_grpc_connector' "$metadata_file"
+                return 0
+            fi
+
             if jq -e 'has("source_delta_events")' "$metadata_file" >/dev/null 2>&1; then
                 jq -r '.source_delta_events' "$metadata_file"
                 return 0
