@@ -73,7 +73,7 @@ var envVarValuesToObfuscateInLogs = []string{
 	"SOURCE_DB_PASSWORD",
 	"TARGET_DB_PASSWORD",
 	"SOURCE_REPLICA_DB_PASSWORD",
-	"YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING",
+	yugabytedb.DB_CONN_STRING_ENV_VAR,
 }
 
 var configKeyValuesToObfuscateInLogs = []string{

@@ -103,8 +103,7 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 	// Wait for the database to be ready
 	err = testutils.WaitForDBToBeReady(db)
 	assert.NoError(t, err)
-	// Export the database connection string to env variable YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING
-	err = os.Setenv("YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING", dsn)
+	err = os.Setenv(DB_CONN_STRING_ENV_VAR, dsn)
 	assert.NoError(t, err)
 
 	exportDir := filepath.Join(os.TempDir(), "yugabytedb")
@@ -222,6 +221,61 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 			BaseEvent: rejected("EXPORT SCHEMA"), TableName: "bad_event_type", Status: "IN PROGRESS"}},
 	})
 	flush()
+
+	t.Run("rejections name their cause", func(t *testing.T) {
+		migrationEvent := func(eventType, status, payload string) MigrationEvent {
+			return MigrationEvent{MigrationUUID: rejectedUUID, EventType: eventType, Status: status, Payload: payload}
+		}
+		for _, tc := range []struct {
+			event   MigrationEvent
+			wantErr string
+		}{
+			{migrationEvent("NOT A PHASE", STATUS_IN_PROGRESS, ""), `unknown migration event type "NOT A PHASE"`},
+			{migrationEvent("ASSESS MIGRATION", "PAUSED", ""), `unknown migration event status "PAUSED"`},
+			{migrationEvent("ASSESS MIGRATION", STATUS_COMPLETED, ""), "ASSESS MIGRATION completed without its assessment document"},
+			{migrationEvent("ASSESS MIGRATION", STATUS_COMPLETED, `{"MigrationComplexity":"LOW"}`), "payload has no PayloadVersion"},
+			{migrationEvent("ASSESS MIGRATION", STATUS_COMPLETED, `not json`), "parse payload"},
+		} {
+			assert.ErrorContains(t, controlPlane.sendMigrationEvent(tc.event), tc.wantErr)
+		}
+		for _, tc := range []struct {
+			progress TableProgress
+			wantErr  string
+		}{
+			{TableProgress{MigrationUUID: rejectedUUID, EventType: "IMPORT DATA", TableName: "bad_status", Status: "PAUSED"},
+				`unknown row count status "PAUSED" for table bad_status`},
+			{TableProgress{MigrationUUID: rejectedUUID, EventType: "EXPORT SCHEMA", TableName: "bad_event_type", Status: STATUS_IN_PROGRESS},
+				`unknown row count event type "EXPORT SCHEMA" for table bad_event_type`},
+		} {
+			assert.ErrorContains(t, controlPlane.sendTableDataProgress([]TableProgress{tc.progress}), tc.wantErr)
+		}
+	})
+
+	// The entry names are spelled out here, not read from migrationPhases, so a
+	// typo in that map fails.
+	t.Run("state entries per phase", func(t *testing.T) {
+		for _, tc := range []struct {
+			eventType, payload, startedEntry, doneEntry string
+		}{
+			{"ASSESS MIGRATION", `{"PayloadVersion":"1.8"}`, "assessment.started", "assessment.completed"},
+			{"EXPORT SCHEMA", "", "schema.export_started", "schema.exported"},
+			{"ANALYZE SCHEMA", `{}`, "schema.analysis_started", "schema.analyzed"},
+			{"EXPORT DATA", "", "data.export_started", "data.exported"},
+			{"IMPORT SCHEMA", "", "schema.import_started", "schema.imported"},
+			{"IMPORT DATA", "", "data.import_started", "data.imported"},
+		} {
+			phaseUUID := uuid.New()
+			require.NoError(t, controlPlane.sendMigrationEvent(MigrationEvent{
+				MigrationUUID: phaseUUID, EventType: tc.eventType, Status: STATUS_IN_PROGRESS}))
+			require.NoError(t, controlPlane.sendMigrationEvent(MigrationEvent{
+				MigrationUUID: phaseUUID, EventType: tc.eventType, Status: STATUS_COMPLETED, Payload: tc.payload}))
+			var names string
+			err := db.QueryRow(`SELECT string_agg(name, ',' ORDER BY set_at, id)
+				FROM voyager_core.migration_state WHERE migration_id = $1 AND value`, phaseUUID).Scan(&names)
+			require.NoError(t, err)
+			assert.Equal(t, tc.startedEntry+","+tc.doneEntry, names, tc.eventType)
+		}
+	})
 
 	// A statement that fails on every attempt must surface its error.
 	err = controlPlane.exec(`SELECT 1/0`)
@@ -373,19 +427,18 @@ func TestYugabyteDBStructs(t *testing.T) {
 		testutils.CompareStructs(t, reflect.TypeOf(MigrationEvent{}), reflect.TypeOf(expectedMigrationEvent), "MigrationEvent")
 	})
 
-	expectedTableMetrics := struct {
-		MigrationUUID       uuid.UUID `json:"migration_uuid"`
-		TableName           string    `json:"table_name"`
-		SchemaName          string    `json:"schema_name"`
-		MigrationPhase      int       `json:"migration_phase"`
-		Status              int       `json:"status"`
-		CountLiveRows       int64     `json:"count_live_rows"`
-		CountTotalRows      int64     `json:"count_total_rows"`
-		InvocationTimestamp string    `json:"invocation_timestamp"`
+	expectedTableProgress := struct {
+		MigrationUUID     uuid.UUID
+		EventType         string
+		SchemaName        string
+		TableName         string
+		Status            string
+		TotalRowCount     int64
+		CompletedRowCount int64
 	}{}
 
-	t.Run("Validate TableMetrics Struct Definition", func(t *testing.T) {
-		testutils.CompareStructs(t, reflect.TypeOf(cp.TableMetrics{}), reflect.TypeOf(expectedTableMetrics), "TableMetrics")
+	t.Run("Validate TableProgress Struct Definition", func(t *testing.T) {
+		testutils.CompareStructs(t, reflect.TypeOf(TableProgress{}), reflect.TypeOf(expectedTableProgress), "TableProgress")
 	})
 
 	expectedYugabyteDB := struct {

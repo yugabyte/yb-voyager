@@ -88,7 +88,7 @@ func (cp *YugabyteDB) eventPublisher() {
 		event := <-cp.eventChan
 		err := cp.sendMigrationEvent(event)
 		if err != nil {
-			log.Warnf("Couldn't send migration event to the control plane. %s", err)
+			log.Errorf("Couldn't send migration event to the control plane. %s", err)
 		}
 		cp.waitGroup.Done()
 	}
@@ -100,7 +100,7 @@ func (cp *YugabyteDB) rowCountUpdateEventPublisher() {
 		event := <-cp.rowCountUpdateEventChan
 		err := cp.sendTableDataProgress(event)
 		if err != nil {
-			log.Warnf("Couldn't send table data progress to the control plane. %s", err)
+			log.Errorf("Couldn't send table data progress to the control plane. %s", err)
 		}
 		cp.waitGroup.Done()
 	}
@@ -206,7 +206,7 @@ func (cp *YugabyteDB) UpdateExportedRowCount(
 
 		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName]
 
-		if updateExportedRowCountEvent.Status == "COMPLETED" {
+		if updateExportedRowCountEvent.Status == STATUS_COMPLETED {
 			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !check {
 			cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName] = time.Now()
@@ -251,7 +251,7 @@ func (cp *YugabyteDB) UpdateImportedRowCount(
 
 		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName]
 
-		if updateImportedRowCountEvent.Status == "COMPLETED" {
+		if updateImportedRowCountEvent.Status == STATUS_COMPLETED {
 			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !check {
 			cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName] = time.Now()
@@ -278,26 +278,32 @@ func (cp *YugabyteDB) panicHandler() {
 	}
 }
 
-// checkTables fails when a table this control plane writes is missing or not
-// writable. Voyager does not create them, and a write that fails later is only
-// logged, so this is the one point where the command can still stop.
+// checkTables fails when a table this control plane writes is missing or lacks
+// a privilege the writes use. Voyager does not create them, and a write that
+// fails later is only logged, so this is the one point where the command can
+// still stop.
 func (cp *YugabyteDB) checkTables() error {
 	for _, table := range []string{
 		QUALIFIED_MIGRATION_STATE_TABLE_NAME,
 		QUALIFIED_METADATA_TABLE_NAME,
 		QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME,
 	} {
-		var canInsert *bool
+		// One call per privilege: a comma-separated list is true when any one
+		// of them is held.
+		var canWrite *bool
 		err := cp.connPool.QueryRow(context.Background(),
-			`SELECT has_table_privilege(to_regclass($1)::oid, 'INSERT')`, table).Scan(&canInsert)
+			`SELECT has_table_privilege(t.oid, 'INSERT')
+				AND has_table_privilege(t.oid, 'SELECT')
+				AND has_table_privilege(t.oid, 'UPDATE')
+			FROM (SELECT to_regclass($1)::oid AS oid) t`, table).Scan(&canWrite)
 		if err != nil {
 			return fmt.Errorf("check table %s on yugabytedb control plane db: %w", table, err)
 		}
-		if canInsert == nil {
+		if canWrite == nil {
 			return goerrors.Errorf("table %s does not exist on the yugabytedb control plane db", table)
 		}
-		if !*canInsert {
-			return goerrors.Errorf("no INSERT privilege on table %s of the yugabytedb control plane db", table)
+		if !*canWrite {
+			return goerrors.Errorf("INSERT, SELECT and UPDATE privileges are needed on table %s of the yugabytedb control plane db", table)
 		}
 	}
 	return nil
@@ -482,10 +488,10 @@ var tableProgressStreams = map[string]struct{ dbRole, direction string }{
 
 // Keyed by the status of controlPlane.BaseUpdateRowCountEvent.
 var tableProgressStatuses = map[string]string{
-	"NOT STARTED": "not_started",
-	"IN PROGRESS": "in_progress",
-	"DONE":        "done",
-	"COMPLETED":   "completed",
+	"NOT STARTED":      "not_started",
+	STATUS_IN_PROGRESS: "in_progress",
+	"DONE":             "done",
+	STATUS_COMPLETED:   "completed",
 }
 
 func (cp *YugabyteDB) sendTableDataProgress(tableProgressList []TableProgress) error {
