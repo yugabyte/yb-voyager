@@ -52,7 +52,7 @@ var controlPlaneSchemaDDL = []string{
 		detail       jsonb,
 		set_at       timestamptz NOT NULL DEFAULT now()
 	)`,
-	`CREATE INDEX migration_state_latest_idx
+	`CREATE INDEX migration_state_current_idx
 		ON voyager_core.migration_state (migration_id, name, scope, set_at DESC, id DESC)`,
 	`CREATE TABLE voyager_core.metadata (
 		id              bigserial PRIMARY KEY,
@@ -62,7 +62,7 @@ var controlPlaneSchemaDDL = []string{
 		payload_version text NOT NULL,
 		generated_at    timestamptz NOT NULL DEFAULT now()
 	)`,
-	`CREATE INDEX metadata_latest_idx
+	`CREATE INDEX metadata_current_idx
 		ON voyager_core.metadata (migration_id, kind, generated_at DESC, id DESC)`,
 	`CREATE TABLE voyager_core.table_data_progress (
 		migration_id            uuid NOT NULL,
