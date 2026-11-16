@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -362,7 +363,7 @@ var confParamEnvVarPairs = map[string]string{
 	"tns-admin":                              "TNS_ADMIN",
 	"send-diagnostics":                       "YB_VOYAGER_SEND_DIAGNOSTICS",
 
-	"yugabytedb-control-plane.db-conn-string": "YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING",
+	"yugabytedb-control-plane.db-conn-string": yugabytedb.DB_CONN_STRING_ENV_VAR,
 
 	"source.db-password": "SOURCE_DB_PASSWORD",
 

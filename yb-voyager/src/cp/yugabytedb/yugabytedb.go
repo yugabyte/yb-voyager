@@ -32,6 +32,10 @@ import (
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 )
 
+// DB_CONN_STRING_ENV_VAR names the env var holding the control plane DB conn string.
+// cmd sets it from the yugabytedb-control-plane.db-conn-string config param.
+const DB_CONN_STRING_ENV_VAR = "YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING"
+
 type YugabyteDB struct {
 	sync.Mutex
 	waitGroup               sync.WaitGroup
@@ -48,7 +52,6 @@ func New(exportDir string) *YugabyteDB {
 	return &YugabyteDB{}
 }
 
-// Initialize the connection to the yugabytedb control plane DB
 func (cp *YugabyteDB) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []TableProgress, 200)
@@ -103,7 +106,6 @@ func (cp *YugabyteDB) rowCountUpdateEventPublisher() {
 	}
 }
 
-// payload is a JSON document, or "" when the event carries none.
 func (cp *YugabyteDB) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
 	migrationEvent := MigrationEvent{
@@ -271,7 +273,7 @@ func (cp *YugabyteDB) MigrationEnded(migrationEndedEvent *controlPlane.Migration
 func (cp *YugabyteDB) panicHandler() {
 	if r := recover(); r != nil {
 		// Handle the panic for eventPublishers
-		log.Errorf("Panic occurred: %v. No further events will be published to YugabyteDB DB.\n"+
+		log.Errorf("Panic occurred: %v. No further events will be published to yugabytedb control plane DB.\n"+
 			"Stack trace of panic location:\n%s", r, string(debug.Stack()))
 	}
 }
@@ -305,7 +307,7 @@ func (cp *YugabyteDB) getConnPool() (*pgxpool.Pool, error) {
 	var err error
 	err = nil
 	if cp.connPool == nil {
-		log.Warnf("No Connections to YugabyteDB DB found. Creating a connection pool...")
+		log.Warnf("No Connections to yugabytedb control plane DB found. Creating a connection pool...")
 		err = cp.connect()
 	}
 
@@ -330,13 +332,13 @@ func (cp *YugabyteDB) connect() error {
 	if cp.connPool != nil {
 		return nil
 	}
-	connectionUri := os.Getenv("YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING")
+	connectionUri := os.Getenv(DB_CONN_STRING_ENV_VAR)
 
 	connPool, err := pgxpool.New(context.Background(), connectionUri)
 	if err != nil {
 		return fmt.Errorf("error while connecting to yugabytedb control plane db. error: %w", err)
 	}
-	// pgxpool.New does not dial; ping so a bad YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING fails here rather than on first use.
+	// pgxpool.New does not dial; ping so a bad conn string fails here rather than on first use.
 	err = connPool.Ping(context.Background())
 	if err != nil {
 		connPool.Close()
