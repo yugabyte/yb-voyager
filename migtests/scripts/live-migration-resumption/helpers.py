@@ -1043,10 +1043,27 @@ class Resumer:
                     self._safe_restart(proc, final=True)
                     return
 
-                proc = self._safe_restart(proc)
-                if not proc:
-                    return
                 attempt += 1
+                proc = self._safe_restart(proc)
+                while not proc and attempt < self.policy.max_restarts:
+                    retry_delay = self._rng.randint(
+                        self.policy.min_restart_wait_seconds,
+                        self.policy.max_restart_wait_seconds,
+                    )
+                    self._log(
+                        f"retrying restart in {retry_delay}s (attempt {attempt + 1}/{self.policy.max_restarts})",
+                        event="scheduled_restart_retry",
+                        retry_delay_sec=retry_delay,
+                        next_attempt=attempt + 1,
+                    )
+                    if self._wait(retry_delay):
+                        self._safe_restart(proc, final=True)
+                        return
+                    attempt += 1
+                    proc = self._safe_restart(proc)
+                if not proc:
+                    self._log("restart attempts exhausted; exiting resumer", event="restarts_exhausted")
+                    return
         finally:
             self._deregister()
 
