@@ -1165,6 +1165,13 @@ def stop_resumptions_for_command(cmd: str, ctx: Context, timeout_sec: int = 30) 
         return
     resumer.stop(timeout_sec)
     log_resumption_event(ctx, cmd, "resumptions stopped", event="stopped")
+    with ctx.process_lock:
+        self_exits = [e for e in ctx.found_exited_events if e["command"] == cmd]
+    if self_exits:
+        raise RuntimeError(
+            f"{cmd} exited on its own {len(self_exits)} time(s) while under resumption: "
+            + ", ".join(f"pid={e['pid']} exit_code={e['exit_code']} at {e['ts']}" for e in self_exits)
+        )
 
 
 # -------------------------
