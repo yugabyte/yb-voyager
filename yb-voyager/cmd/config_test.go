@@ -33,6 +33,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -270,6 +271,8 @@ profile: true
 control-plane-type: yugabyte
 yugabyted-control-plane:
   db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+yugabytedb-control-plane:
+  db-conn-string: postgres://cp_user:cp_password@localhost:5433/cp_db?sslmode=require
 java-home: /path/to/java/home
 local-call-home-service-host: localhost
 local-call-home-service-port: 8080
@@ -334,6 +337,7 @@ func TestAssessMigration_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "postgres://cp_user:cp_password@localhost:5433/cp_db?sslmode=require", os.Getenv(yugabytedb.DB_CONN_STRING_ENV_VAR), "yugabytedb control plane DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
 	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
 	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
@@ -456,6 +460,7 @@ func TestAssessMigration_EnvOverridesConfig(t *testing.T) {
 	// env related to global flags
 	os.Setenv("CONTROL_PLANE_TYPE", "yugabyte2")
 	os.Setenv("YUGABYTED_DB_CONN_STRING", "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require")
+	os.Setenv(yugabytedb.DB_CONN_STRING_ENV_VAR, "postgres://cp_user2:cp_password2@localhost:5433/cp_db?sslmode=require")
 	os.Setenv("JAVA_HOME", "/path/to/java/home2")
 	os.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", "localhost2")
 	os.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", "8081")
@@ -480,6 +485,7 @@ func TestAssessMigration_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
+	assert.Equal(t, "postgres://cp_user2:cp_password2@localhost:5433/cp_db?sslmode=require", os.Getenv(yugabytedb.DB_CONN_STRING_ENV_VAR), "yugabytedb control plane DB connection string should be overridden by env var")
 	assert.Equal(t, "/path/to/java/home2", os.Getenv("JAVA_HOME"), "Java home should be overridden by env var")
 	assert.Equal(t, "localhost2", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should be overridden by env var")
 	assert.Equal(t, "8081", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should be overridden by env var")

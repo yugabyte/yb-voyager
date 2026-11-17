@@ -24,7 +24,7 @@ When adding new code, place it in the appropriate package:
 - `errs` — Structured error types for export and import flows.
 - `issue` — Migration issue definitions (type, description, impact, minimum fix versions).
 - `utils` — General helpers (paths, exec, regex, struct maps, logging). Sub-packages: `sqlname` (identifier quoting/case), `csv`, `jsonfile`, `s3`, `gcs`, `az`, `httpclient`, `schemareg`.
-- `cp` — Control-plane interface for reporting migration events. Implementations: `yugabyted`, `ybaeon`, `noopcp`.
+- `cp` — Control-plane interface for reporting migration events. Implementations: `yugabyted`, `yugabytedb`, `ybaeon`, `noopcp`.
 - `adaptiveparallelism` — Adjusts import data parallelism dynamically based on target cluster load.
 - `monitor` — Monitors target YugabyteDB health (disk usage, replication lag, node status).
 - `compareperf` — Compares source vs target query performance.
