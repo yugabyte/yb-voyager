@@ -200,7 +200,11 @@ main() {
 	finalize_schema_post_data_import
 
 	step "Run snapshot validations."
+	echo "DEBUG validate start: $(date '+%F %T.%6N')"
+	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
+	echo "DEBUG after validate: $(date '+%F %T.%6N')"
+	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
