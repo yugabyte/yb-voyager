@@ -9,7 +9,7 @@ You may obtain a copy of the License at
 
 	http://www.apache.org/licenses/LICENSE-2.0
 
-Unless assertd by applicable law or agreed to in writing, software
+Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParsingIndexWhereClausePredicates(t *testing.T) {
@@ -170,20 +170,75 @@ func TestParsingIndexWhereClausePredicates(t *testing.T) {
 	}
 	for sql, expClauses := range expectedWhereClausePredicates {
 		tree, err := pg_query.Parse(sql)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		ip := NewIndexProcessor()
 		indexNode, ok := GetCreateIndexStmtNode(tree)
-		assert.True(t, ok)
+		require.True(t, ok)
 
 		clauses := ip.parseWhereClause(indexNode.IndexStmt.WhereClause)
 
-		assert.Equal(t, len(expClauses), len(clauses))
+		require.Equal(t, len(expClauses), len(clauses))
 		for _, expClause := range expClauses {
 			found := slices.ContainsFunc(clauses, func(clause WhereClausePredicate) bool {
 				return cmp.Equal(expClause, clause)
 			})
-			assert.True(t, found, "Expected clause not found: %v in statement: %s and actual clauses: %s", expClause, sql, clauses)
+			require.True(t, found, "Expected clause not found: %v in statement: %s and actual clauses: %s", expClause, sql, clauses)
 		}
 	}
+}
+
+func TestProcessRangeType(t *testing.T) {
+	testCases := []struct {
+		name     string
+		sql      string
+		expected *CreateType
+	}{
+		{
+			name:     "multirange name derived by inserting multi before range",
+			sql:      `CREATE TYPE public.float_range AS RANGE (subtype = float8);`,
+			expected: &CreateType{TypeName: "float_range", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "float_multirange"},
+		},
+		{
+			name:     "multirange name derived by appending _multirange",
+			sql:      `CREATE TYPE public."Span" AS RANGE (subtype = int4);`,
+			expected: &CreateType{TypeName: "Span", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "Span_multirange"},
+		},
+		{
+			name:     "qualified multirange_type_name",
+			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = other."SpanSet");`,
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "other", MultirangeTypeName: "SpanSet"},
+		},
+		{
+			name:     "unqualified multirange_type_name is in the range type's schema",
+			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = span_set);`,
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "Sch", MultirangeTypeName: "span_set"},
+		},
+		{
+			name:     "string literal multirange_type_name is one unqualified name",
+			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = 'Span.Set');`,
+			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", IsRange: true, MultirangeSchemaName: "Sch", MultirangeTypeName: "Span.Set"},
+		},
+		{
+			name:     "reserved keyword multirange_type_name is one unqualified name",
+			sql:      `CREATE TYPE public.span AS RANGE (subtype = int4, multirange_type_name = user);`,
+			expected: &CreateType{TypeName: "span", SchemaName: "public", IsRange: true, MultirangeSchemaName: "public", MultirangeTypeName: "user"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tree, err := pg_query.Parse(tc.sql)
+			require.NoError(t, err)
+			ddlObj, err := ProcessDDL(tree)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, ddlObj)
+		})
+	}
+}
+
+func TestProcessRangeTypeWithUnrecognizedMultirangeTypeName(t *testing.T) {
+	tree, err := pg_query.Parse(`CREATE TYPE public.span AS RANGE (subtype = int4, multirange_type_name = 42);`)
+	require.NoError(t, err)
+	_, err = ProcessDDL(tree)
+	require.ErrorContains(t, err, "unrecognized multirange_type_name of range type public.span")
 }

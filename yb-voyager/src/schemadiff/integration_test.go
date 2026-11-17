@@ -32,6 +32,8 @@ import (
 
 const driftSchema = "diff_it"
 
+const refSchema = "diff_it_ref"
+
 // TestDiff_EndToEnd starts a real PostgreSQL container, captures two schema
 // snapshots with DDL mutations in between, and asserts that schemadiff.Diff
 // produces the expected findings including rename detection, column changes,
@@ -50,6 +52,8 @@ func TestDiff_EndToEnd(t *testing.T) {
 	// ── Baseline DDL — snapshot A ──────────────────────────────────────────────
 	pg.ExecuteSqls(
 		`CREATE SCHEMA `+driftSchema,
+		`CREATE SCHEMA `+refSchema,
+		`CREATE TABLE `+refSchema+`.parent (id int PRIMARY KEY)`,
 		`CREATE TABLE `+driftSchema+`.orders (
 			id       integer NOT NULL,
 			customer text,
@@ -68,6 +72,38 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`CREATE TABLE `+driftSchema+`.base_y (a int)`,
 		`CREATE TABLE `+driftSchema+`.base_z (a int)`,
 		`CREATE TABLE `+driftSchema+`.kid (a int) INHERITS (`+driftSchema+`.base_x, `+driftSchema+`.base_y)`,
+		`CREATE TABLE `+driftSchema+`."Pk_Added" ("Id" int)`,
+		`CREATE TABLE `+driftSchema+`.pk_dropped (id int PRIMARY KEY)`,
+		`CREATE TABLE `+driftSchema+`.pk_renamed (id int CONSTRAINT old_pk PRIMARY KEY)`,
+		`CREATE TABLE `+driftSchema+`."Uq_Added" (a int)`,
+		`CREATE TABLE `+driftSchema+`.uq_dropped (a int CONSTRAINT uq_dropped_key UNIQUE)`,
+		`CREATE TABLE `+driftSchema+`.uq_renamed (a int CONSTRAINT old_uq UNIQUE)`,
+		`CREATE TABLE `+driftSchema+`."Ck_Added" (a int)`,
+		`CREATE TABLE `+driftSchema+`.ck_dropped (a int CONSTRAINT ck_dropped_check CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`.ck_renamed (a int CONSTRAINT old_ck CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`."Fk_Added" (x int)`,
+		`CREATE TABLE `+driftSchema+`.fk_dropped (x int CONSTRAINT fk_dropped_fkey REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
+		`CREATE TABLE `+driftSchema+`.fk_renamed (x int CONSTRAINT old_fk REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE)`,
+		`CREATE TABLE `+driftSchema+`."Ix_Added" (a int, b text)`,
+		`CREATE TABLE `+driftSchema+`.ix_dropped (a int, b text)`,
+		`CREATE INDEX ix_dropped_a_idx ON `+driftSchema+`.ix_dropped (a)`,
+		`CREATE UNIQUE INDEX ix_dropped_b_uq ON `+driftSchema+`.ix_dropped (lower(b)) WHERE b IS NOT NULL`,
+		`CREATE TABLE `+driftSchema+`.ix_renamed (a int, b text)`,
+		`CREATE INDEX old_ix ON `+driftSchema+`.ix_renamed (a)`,
+		`CREATE UNIQUE INDEX old_uix ON `+driftSchema+`.ix_renamed (lower(b)) WHERE b IS NOT NULL`,
+		`CREATE TABLE `+driftSchema+`.pk_part (id int) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a PARTITION OF `+driftSchema+`.pk_part FOR VALUES FROM (1) TO (10) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.pk_part_a1 PARTITION OF `+driftSchema+`.pk_part_a FOR VALUES FROM (1) TO (5)`,
+		`CREATE TABLE `+driftSchema+`.part_root (id int, a int) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.part_mid PARTITION OF `+driftSchema+`.part_root FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+driftSchema+`.part_leaf PARTITION OF `+driftSchema+`.part_mid FOR VALUES FROM (0) TO (50)`,
+		`CREATE TABLE `+driftSchema+`.inh_base (a int CONSTRAINT inh_ck CHECK (a > 0))`,
+		`CREATE TABLE `+driftSchema+`.inh_kid (b int) INHERITS (`+driftSchema+`.inh_base)`,
+		`CREATE TABLE `+refSchema+`.pparent (id int PRIMARY KEY) PARTITION BY RANGE (id)`,
+		`CREATE TABLE `+refSchema+`.pparent_p1 PARTITION OF `+refSchema+`.pparent FOR VALUES FROM (0) TO (100)`,
+		`CREATE TABLE `+driftSchema+`.fk_to_partitioned (x int CONSTRAINT fk_to_partitioned_fkey REFERENCES `+refSchema+`.pparent(id))`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned (x int CONSTRAINT fk_from_partitioned_fkey REFERENCES `+refSchema+`.parent(id)) PARTITION BY RANGE (x)`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned_p1 PARTITION OF `+driftSchema+`.fk_from_partitioned FOR VALUES FROM (0) TO (100)`,
 	)
 
 	db, err := pg.GetConnection()
@@ -110,6 +146,32 @@ func TestDiff_EndToEnd(t *testing.T) {
 		`ALTER TABLE `+driftSchema+`.metrics_b ATTACH PARTITION `+driftSchema+`.metrics_p FOR VALUES FROM (1) TO (100)`,
 		`ALTER TABLE `+driftSchema+`.kid NO INHERIT `+driftSchema+`.base_x`,
 		`ALTER TABLE `+driftSchema+`.kid INHERIT `+driftSchema+`.base_z`,
+		`ALTER TABLE `+driftSchema+`."Pk_Added" ADD CONSTRAINT "Pk_Added_Pkey" PRIMARY KEY ("Id")`,
+		`ALTER TABLE `+driftSchema+`.pk_dropped DROP CONSTRAINT pk_dropped_pkey`,
+		`ALTER TABLE `+driftSchema+`.pk_renamed RENAME CONSTRAINT old_pk TO "New_Pk"`,
+		`ALTER TABLE `+driftSchema+`."Uq_Added" ADD CONSTRAINT "Uq_Added_Key" UNIQUE (a)`,
+		`ALTER TABLE `+driftSchema+`.uq_dropped DROP CONSTRAINT uq_dropped_key`,
+		`ALTER TABLE `+driftSchema+`.uq_renamed RENAME CONSTRAINT old_uq TO "New_Uq"`,
+		`ALTER TABLE `+driftSchema+`."Ck_Added" ADD CONSTRAINT "Ck_Added_Check" CHECK (a > 0)`,
+		`ALTER TABLE `+driftSchema+`.ck_dropped DROP CONSTRAINT ck_dropped_check`,
+		`ALTER TABLE `+driftSchema+`.ck_renamed RENAME CONSTRAINT old_ck TO "New_Ck"`,
+		`ALTER TABLE `+driftSchema+`."Fk_Added" ADD CONSTRAINT "Fk_Added_Fkey" FOREIGN KEY (x) REFERENCES `+refSchema+`.parent(id) ON DELETE CASCADE`,
+		`ALTER TABLE `+driftSchema+`.fk_dropped DROP CONSTRAINT fk_dropped_fkey`,
+		`ALTER TABLE `+driftSchema+`.fk_renamed RENAME CONSTRAINT old_fk TO "New_Fk"`,
+		`CREATE INDEX "Ix_Added_A_Idx" ON `+driftSchema+`."Ix_Added" (a)`,
+		`CREATE UNIQUE INDEX "Ix_Added_B_Uq" ON `+driftSchema+`."Ix_Added" (lower(b)) WHERE b IS NOT NULL`,
+		`DROP INDEX `+driftSchema+`.ix_dropped_a_idx`,
+		`DROP INDEX `+driftSchema+`.ix_dropped_b_uq`,
+		`ALTER INDEX `+driftSchema+`.old_ix RENAME TO "New_Ix"`,
+		`ALTER INDEX `+driftSchema+`.old_uix RENAME TO "New_Uix"`,
+		`ALTER TABLE `+driftSchema+`.pk_part ADD PRIMARY KEY (id)`,
+		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_uq UNIQUE (id)`,
+		`ALTER TABLE `+driftSchema+`.part_root ADD CONSTRAINT part_root_ck CHECK (a > 0)`,
+		`CREATE INDEX part_root_a_idx ON `+driftSchema+`.part_root (a)`,
+		`CREATE UNIQUE INDEX part_root_id_a_uix ON `+driftSchema+`.part_root (id, a)`,
+		`ALTER TABLE `+driftSchema+`.inh_base DROP CONSTRAINT inh_ck`,
+		`CREATE TABLE `+refSchema+`.pparent_p2 PARTITION OF `+refSchema+`.pparent FOR VALUES FROM (100) TO (200)`,
+		`CREATE TABLE `+driftSchema+`.fk_from_partitioned_p2 PARTITION OF `+driftSchema+`.fk_from_partitioned FOR VALUES FROM (100) TO (200)`,
 	)
 
 	db2, err := pg.GetConnection()
@@ -280,6 +342,63 @@ func TestDiff_EndToEnd(t *testing.T) {
 		return d.Type == schemadiff.TablePartitionChildrenChanged && identKey(d, constants.POSTGRESQL) == driftSchema+".events"
 	})
 	require.Len(t, partChanged, 1, "expected exactly one TablePartitionChildrenChanged for diff_it.events")
+
+	// ── 10b. Constraint findings ────────────────────────────────────────────────
+	constraintFindings := findDiffs(func(d schemadiff.Difference) bool { return d.ObjectType == schemadiff.ObjectTypeConstraint })
+	type constraintFinding struct {
+		Type   schemadiff.DiffType
+		Object string
+		Old    any
+		New    any
+	}
+	gotConstraints := make([]constraintFinding, len(constraintFindings))
+	for i, d := range constraintFindings {
+		gotConstraints[i] = constraintFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
+	}
+	fkDefinition := `FOREIGN KEY (x) REFERENCES ` + refSchema + `.parent(id) ON DELETE CASCADE`
+	assert.ElementsMatch(t, []constraintFinding{
+		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.Pk_Added.Pk_Added_Pkey`, New: `PRIMARY KEY ("Id")`},
+		{Type: schemadiff.PrimaryKeyDropped, Object: driftSchema + `.pk_dropped.pk_dropped_pkey`, Old: `PRIMARY KEY (id)`},
+		{Type: schemadiff.PrimaryKeyNameChanged, Object: driftSchema + `.pk_renamed.old_pk`, Old: "old_pk", New: "New_Pk"},
+		{Type: schemadiff.UniqueAdded, Object: driftSchema + `.Uq_Added.Uq_Added_Key`, New: `UNIQUE (a)`},
+		{Type: schemadiff.UniqueDropped, Object: driftSchema + `.uq_dropped.uq_dropped_key`, Old: `UNIQUE (a)`},
+		{Type: schemadiff.UniqueNameChanged, Object: driftSchema + `.uq_renamed.old_uq`, Old: "old_uq", New: "New_Uq"},
+		{Type: schemadiff.CheckAdded, Object: driftSchema + `.Ck_Added.Ck_Added_Check`, New: `CHECK (a > 0)`},
+		{Type: schemadiff.CheckDropped, Object: driftSchema + `.ck_dropped.ck_dropped_check`, Old: `CHECK (a > 0)`},
+		{Type: schemadiff.CheckNameChanged, Object: driftSchema + `.ck_renamed.old_ck`, Old: "old_ck", New: "New_Ck"},
+		{Type: schemadiff.ForeignKeyAdded, Object: driftSchema + `.Fk_Added.Fk_Added_Fkey`, New: fkDefinition},
+		{Type: schemadiff.ForeignKeyDropped, Object: driftSchema + `.fk_dropped.fk_dropped_fkey`, Old: fkDefinition},
+		{Type: schemadiff.ForeignKeyNameChanged, Object: driftSchema + `.fk_renamed.old_fk`, Old: "old_fk", New: "New_Fk"},
+		// The key's copies on pk_part_a and pk_part_a1 report nothing.
+		{Type: schemadiff.PrimaryKeyAdded, Object: driftSchema + `.pk_part.pk_part_pkey`, New: `PRIMARY KEY (id)`},
+		// The copies on part_mid, part_leaf and inh_kid report nothing.
+		{Type: schemadiff.UniqueAdded, Object: driftSchema + `.part_root.part_root_uq`, New: `UNIQUE (id)`},
+		{Type: schemadiff.CheckAdded, Object: driftSchema + `.part_root.part_root_ck`, New: `CHECK (a > 0)`},
+		{Type: schemadiff.CheckDropped, Object: driftSchema + `.inh_base.inh_ck`, Old: `CHECK (a > 0)`},
+		// New partitions on either side of fk_to_partitioned_fkey and fk_from_partitioned_fkey report nothing.
+	}, gotConstraints)
+
+	// ── 10c. Index findings ─────────────────────────────────────────────────────
+	indexFindings := findDiffs(func(d schemadiff.Difference) bool { return d.ObjectType == schemadiff.ObjectTypeIndex })
+	gotIndexes := make([]constraintFinding, len(indexFindings))
+	for i, d := range indexFindings {
+		gotIndexes[i] = constraintFinding{Type: d.Type, Object: identKey(d, constants.POSTGRESQL), Old: d.SideAValue, New: d.SideBValue}
+	}
+	const (
+		plainIndexDefinition  = `USING btree (a)`
+		uniqueIndexDefinition = `USING btree (lower(b)) WHERE (b IS NOT NULL)`
+	)
+	assert.ElementsMatch(t, []constraintFinding{
+		{Type: schemadiff.IndexAdded, Object: driftSchema + `.Ix_Added.Ix_Added_A_Idx`, New: plainIndexDefinition},
+		{Type: schemadiff.IndexDropped, Object: driftSchema + `.ix_dropped.ix_dropped_a_idx`, Old: plainIndexDefinition},
+		{Type: schemadiff.IndexNameChanged, Object: driftSchema + `.ix_renamed.old_ix`, Old: "old_ix", New: "New_Ix"},
+		{Type: schemadiff.UniqueIndexAdded, Object: driftSchema + `.Ix_Added.Ix_Added_B_Uq`, New: uniqueIndexDefinition},
+		{Type: schemadiff.UniqueIndexDropped, Object: driftSchema + `.ix_dropped.ix_dropped_b_uq`, Old: uniqueIndexDefinition},
+		{Type: schemadiff.UniqueIndexNameChanged, Object: driftSchema + `.ix_renamed.old_uix`, Old: "old_uix", New: "New_Uix"},
+		// The indexes' copies on part_mid and part_leaf report nothing.
+		{Type: schemadiff.IndexAdded, Object: driftSchema + `.part_root.part_root_a_idx`, New: plainIndexDefinition},
+		{Type: schemadiff.UniqueIndexAdded, Object: driftSchema + `.part_root.part_root_id_a_uix`, New: `USING btree (id, a)`},
+	}, gotIndexes)
 
 	// ── 11. Scope filtering: Tables=["diff_it.purchases"] (new name) ───────────
 	// Rename/move alias handling is TEMPORARILY DISABLED in FilterByScope (see

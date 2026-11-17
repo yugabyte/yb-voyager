@@ -1109,6 +1109,7 @@ func NewTypeProcessor() *TypeProcessor {
 func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	compositeNode, isComposite := getCompositeTypeStmtNode(parseTree)
 	enumNode, isEnum := getEnumTypeStmtNode(parseTree)
+	rangeNode, isRange := getRangeTypeStmtNode(parseTree)
 
 	switch {
 	case isComposite:
@@ -1139,6 +1140,19 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 			IsEnum:     true,
 		}
 		return createType, nil
+	case isRange:
+		typeSchemaName, typeName := getSchemaAndObjectName(rangeNode.CreateRangeStmt.GetTypeName())
+		createType := &CreateType{
+			TypeName:   typeName,
+			SchemaName: typeSchemaName,
+			IsRange:    true,
+		}
+		multirangeSchemaName, multirangeTypeName, err := getMultirangeTypeName(rangeNode.CreateRangeStmt, typeSchemaName, typeName)
+		if err != nil {
+			return nil, err
+		}
+		createType.MultirangeSchemaName, createType.MultirangeTypeName = multirangeSchemaName, multirangeTypeName
+		return createType, nil
 
 	default:
 		return nil, goerrors.Errorf("not CREATE TYPE statement")
@@ -1147,10 +1161,45 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 }
 
 type CreateType struct {
-	TypeName        string
-	SchemaName      string
-	IsEnum          bool
-	CompositeFields []TableColumn
+	TypeName   string
+	SchemaName string
+	IsEnum     bool
+	IsRange    bool
+	// the multirange type PostgreSQL creates along with a range type
+	MultirangeSchemaName string
+	MultirangeTypeName   string
+	CompositeFields      []TableColumn
+}
+
+// getMultirangeTypeName returns the multirange_type_name option if given, else the name PostgreSQL
+// derives (makeMultirangeTypeName): "multi" inserted before the first "range", or "_multirange"
+// appended. An unqualified name is assumed to be in the range type's schema (pg_dump always qualifies it)
+func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName string, rangeTypeName string) (string, string, error) {
+	for _, param := range stmt.GetParams() {
+		defElem := param.GetDefElem()
+		if defElem == nil || defElem.GetDefname() != "multirange_type_name" {
+			continue
+		}
+		var schemaName, typeName string
+		// mirrors PG's defGetQualifiedName: a string literal or keyword is one unqualified name
+		switch arg := defElem.GetArg(); {
+		case arg.GetTypeName() != nil:
+			schemaName, typeName = getSchemaAndObjectName(arg.GetTypeName().GetNames())
+		case arg.GetString_() != nil:
+			typeName = arg.GetString_().GetSval()
+		}
+		if typeName == "" {
+			return "", "", goerrors.Errorf("unrecognized multirange_type_name of range type %s: %v", utils.BuildObjectName(rangeSchemaName, rangeTypeName), defElem.GetArg())
+		}
+		if schemaName == "" {
+			schemaName = rangeSchemaName
+		}
+		return schemaName, typeName, nil
+	}
+	if idx := strings.Index(rangeTypeName, "range"); idx >= 0 {
+		return rangeSchemaName, rangeTypeName[:idx] + "multi" + rangeTypeName[idx:], nil
+	}
+	return rangeSchemaName, rangeTypeName + "_multirange", nil
 }
 
 func (c *CreateType) GetObjectName() string {
@@ -1449,7 +1498,7 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 		return NewPolicyProcessor(), nil
 	case PG_QUERY_CREATE_TRIG_STMT:
 		return NewTriggerProcessor(), nil
-	case PG_QUERY_COMPOSITE_TYPE_STMT, PG_QUERY_ENUM_TYPE_STMT:
+	case PG_QUERY_COMPOSITE_TYPE_STMT, PG_QUERY_ENUM_TYPE_STMT, PG_QUERY_CREATE_RANGE_STMT_NODE:
 		return NewTypeProcessor(), nil
 	case PG_QUERY_CREATE_DOMAIN_STMT_NODE:
 		return NewDomainProcessor(), nil

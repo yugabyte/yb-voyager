@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -81,6 +82,10 @@ var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedYugabytedControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"db-conn-string",
+)
+
+var allowedYugabyteDBControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"db-conn-string",
 )
 
@@ -233,6 +238,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"source-replica":                   allowedSourceReplicaConfigKeys,
 	"target":                           allowedTargetConfigKeys,
 	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
+	"yugabytedb-control-plane":         allowedYugabyteDBControlPlaneConfigKeys,
 	"ybaeon-control-plane":             allowedYBAeonControlPlaneConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
@@ -359,6 +365,8 @@ var confParamEnvVarPairs = map[string]string{
 	"tns-admin":                              "TNS_ADMIN",
 	"send-diagnostics":                       "YB_VOYAGER_SEND_DIAGNOSTICS",
 
+	"yugabytedb-control-plane.db-conn-string": yugabytedb.DB_CONN_STRING_ENV_VAR,
+
 	"source.db-password": "SOURCE_DB_PASSWORD",
 
 	"target.db-password": "TARGET_DB_PASSWORD",
@@ -484,6 +492,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) (map[string]string, 
 			strings.HasPrefix(confKey, "source-replica.") ||
 			strings.HasPrefix(confKey, "target.") ||
 			strings.HasPrefix(confKey, "yugabyted-control-plane.") ||
+			strings.HasPrefix(confKey, "yugabytedb-control-plane.") ||
 			len(strings.Split(confKey, ".")) == 1 {
 
 			// Skip if env var already exported
@@ -861,6 +870,7 @@ func loadControlPlaneConfig(v *viper.Viper) {
 	// Read all control plane config keys directly from viper
 	controlPlaneKeys := []string{
 		"yugabyted-control-plane.db-conn-string",
+		"yugabytedb-control-plane.db-conn-string",
 		"ybaeon-control-plane.domain",
 		"ybaeon-control-plane.account-id",
 		"ybaeon-control-plane.project-id",

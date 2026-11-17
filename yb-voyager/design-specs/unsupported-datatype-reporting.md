@@ -38,7 +38,7 @@ Before this work each phase decided "unsupported" differently. Only the declared
 
 **Non-goals**
 
-- Changing which types are unsupported. The per-flow lists in `srcdb` stay as they are.
+- Changing which types are unsupported. The one list change is adding the built-in ranges to `PostgresUnsupportedDataTypesForDbzm` (D1), which export already skipped by `typtype`. The other per-flow lists in `srcdb` stay as they are.
 - Oracle and MySQL catalog paths. Oracle keeps its own catalog path in assessment and export (§5.2.3). The analyze-schema detectors are source-agnostic, though, so Oracle and MySQL analyze-schema also pick up the new walk (§5.1.4).
 - Import-side value conversion. §6.2 lists where it constrains export, but this design does not change it.
 - The deprecated `UnsupportedDataTypes` and datatype `MigrationCaveats` fields of the assessment report. For PG they are no longer filled (§8).
@@ -99,7 +99,7 @@ The walk is depth-first and keeps a visited set, so a type reached twice is list
 ### 3.2 Parser walk (`queryissue.GetUnderlyingTypes`)
 
 ```go
-type TypeKind int // TypeKindOther, TypeKindDomain, TypeKindComposite, TypeKindEnum
+type TypeKind int // TypeKindBuiltIn, TypeKindDomain, TypeKindComposite, TypeKindEnum, TypeKindRange
 
 type UnderlyingType struct {
     Name string   // qualified for types defined in the exported schema
@@ -112,8 +112,8 @@ func (t UnderlyingType) BaseName() string // unqualified, no "[]", canonical spe
 
 - **Inputs.** `ParseAndProcessDDL` records every `CREATE DOMAIN` and `CREATE TYPE` before any `CREATE TABLE` is checked. The object-type order of the first pass guarantees this: SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, ....
 - **Name lookup.** A name is looked up exactly as written and is never qualified with a schema. pg_dump sets `search_path` to empty and qualifies every user type, and PG searches `pg_catalog` first. So an unqualified name is a built-in, even when the table's schema defines a domain or type of that name. For example, `x xml` next to `CREATE DOMAIN public.xml` is the built-in XML.
-- **Types not in the schema.** Built-ins, extension types (`geometry`, `lo`, `hstore`) and types from schemas that were not exported come out as `TypeKindOther`, named as written. They are never walked further.
-- **List matching.** Only `TypeKindOther` types are matched against the lists, by `BaseName()`. A domain, composite or enum defined in the schema never matches by its own name, so `public.point` or `public.xml` is judged by what it is built from.
+- **Types not in the schema.** Built-ins, extension types (`geometry`, `lo`, `hstore`) and types from schemas that were not exported come out as `TypeKindBuiltIn`, named as written. They are never walked further.
+- **List matching.** Only `TypeKindBuiltIn` types are matched against the lists, by `BaseName()`. A domain, composite or enum defined in the schema never matches by its own name, so `public.point` or `public.xml` is judged by what it is built from.
 
 ### 3.3 Catalog walk (`srcdb.columnUnderlyingTypesQuery`)
 
@@ -135,8 +135,8 @@ All lists live in `src/srcdb` and are the single source of truth for both walks.
 | Flow | List | Notes |
 | :---- | :---- | :---- |
 | Offline | `PostgresUnsupportedDataTypes` | Types YugabyteDB cannot store, e.g. `pg_lsn`, `xml`, `geometry`, `lo`, multiranges. |
-| Live (PG source, Debezium) | `PostgresUnsupportedDataTypesForDbzm` (`GetPGLiveMigrationUnsupportedDatatypes`) | Superset of offline. Adds geometric types, `vector`, `timetz`, `cid`, `refcursor`. |
-| Live with fall-forward / fall-back | `GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes` | `YugabyteUnsupportedDataTypesForDbzmLogical` minus the live list, i.e. today `tsquery`. Plus the outermost composite type of a column (§4.2), to be dropped per D2. |
+| Live (PG source, Debezium) | `PostgresUnsupportedDataTypesForDbzm` (`GetPGLiveMigrationUnsupportedDatatypes`) | Superset of offline. Adds geometric types, `vector`, `timetz`, `cid`, `refcursor` and the built-in ranges (`int4range`, `int8range`, `numrange`, `tsrange`, `tstzrange`, `daterange`). |
+| Live with fall-forward / fall-back | `GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes` | `YugabyteUnsupportedDataTypesForDbzmLogical` minus the live list, i.e. today `tsquery`. |
 | Export from YB (logical connector) | `YugabyteUnsupportedDataTypesForDbzmLogical` | Used by the FF/FB exporter. |
 | Export from YB (gRPC connector) | `YugabyteUnsupportedDataTypesForDbzmGrpc` | Adds `hstore`, `citext`, `ltree`, `tsvector`. |
 
@@ -146,12 +146,16 @@ Some types are unsupported by kind rather than by name:
 
 | Kind | analyze / assess | export data |
 | :---- | :---- | :---- |
-| Composite | Unsupported under FF/FB (`UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED`), for the outermost composite only. A composite nested in it is part of the same value. To change: only its fields are checked (D2). | Skipped only by the YB gRPC exporter (`typtype = 'c'`). |
-| Range (`typtype = 'r'`) | Not reported. | Skipped by every Debezium export (PG and YB): the importer's value converter cannot handle ranges. |
-| Multirange (`typtype = 'm'`) | Reported by name (built-in multiranges are in the lists). | Skipped by `typtype`, which also covers user-defined multiranges. |
+| Composite | Never unsupported by itself: only its fields are checked (D2). | Skipped only by the YB gRPC exporter (`typtype = 'c'`). |
+| Range (`typtype = 'r'`) | Live issue `UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE`. Built-in ranges match by name; a user-defined range is `TypeKindRange` (D1). | Skipped by every Debezium export (PG and YB): the importer's value converter cannot handle ranges. |
+| Multirange (`typtype = 'm'`) | Built-in multiranges by name, with their own issues. The multirange created with a user-defined range is `TypeKindRange` and gets the range issue. | Skipped by `typtype`, which also covers user-defined multiranges. |
 | Enum | Leaf. Never unsupported by itself. | Same. gRPC: tables with arrays of enums or UDTs are dropped whole by `FilterUnsupportedTables`. |
 
-The differences in this table are deliberate in the current code but not all are justified. §6.2 lists them.
+The remaining differences are listed in §6.2.
+
+Indexes and primary or unique keys follow a separate kind rule. YugabyteDB rejects an index on a composite, range or multirange column as `user_defined_type`, also through a domain over one, so these are reported as `INDEX_ON_USER_DEFINED_DATATYPE` and `PK_UK_ON_USER_DEFINED_DATATYPE`. The check follows the column type through `GetUnderlyingTypes`. Enums, and domains over enums, can be indexed. A column whose underlying types include a built-in in `UnsupportedIndexDatatypes`, also through a domain, gets that built-in's index and PK/UK issue, such as `INDEX_ON_INT4RANGE_DATATYPE` for a domain over `int4range`.
+
+The parser learns user-defined ranges from `CREATE TYPE ... AS RANGE`. It also records the multirange type PostgreSQL creates with each one: the `multirange_type_name` option if given (pg_dump always writes it), else the name PostgreSQL derives by inserting `multi` before the first `range`, or appending `_multirange`. PostgreSQL 13 and older create no multirange, so a user type that already has that name, or is defined later, keeps it.
 
 ## 5\. Behaviour by phase
 
@@ -164,15 +168,16 @@ The differences in this table are deliberate in the current code but not all are
 ```go
 for _, col := range d.getColumnsWithTypes(table) {
     support := d.GetColumnDatatypeSupport(col.GetFullTypeName())
-    // each of support.UnsupportedInOffline → ReportUnsupportedDatatypes(...)
-    // each of support.UnsupportedInLive    → ReportUnsupportedDatatypesInLive(...)
-    // if UnsupportedInLive is empty, each of support.UnsupportedInLiveWithFFOrFB:
-    //      Kind == Composite               → NewUserDefinedDatatypeIssue(..., type name, column)
-    //      otherwise                       → ReportUnsupportedDatatypesInLiveWithFFOrFB(...)
+    // support.UnsupportedInOffline        → ReportUnsupportedDatatypes(...)
+    // support.UnsupportedInLive
+    //      Kind == Range                  → NewRangeLiveMigrationDatatypeIssue(..., type name, column)
+    //      otherwise                      → ReportUnsupportedDatatypesInLive(...)
+    // if UnsupportedInLive is empty, each of support.UnsupportedInLiveWithFFOrFB
+    //                                     → ReportUnsupportedDatatypesInLiveWithFFOrFB(...)
 }
 ```
 
-`GetColumnDatatypeSupport` returns, for each flow, every distinct type in the tree that the flow does not support. Types not defined in the exported schema are deduplicated by base name, so `xml` and `pg_catalog.xml` in one tree raise one issue. Under FF/FB only the outermost composite is reported: a composite nested in it is part of the same value. The FF/FB issue is raised only when the column is supported in plain live migration, because an unsupported live column already blocks FF/FB.
+`GetColumnDatatypeSupport` returns, for each flow, every distinct type in the tree that the flow does not support. Types not defined in the exported schema are deduplicated by base name, so `xml` and `pg_catalog.xml` in one tree raise one issue. The FF/FB issue is raised only when the column is supported in plain live migration, because an unsupported live column already blocks FF/FB.
 
 `ForeignTableIssueDetector` checks offline support only, since live migration does not stream foreign tables.
 
@@ -276,13 +281,14 @@ The export table list is what Debezium streams, so for partitioned tables it hol
 
 For a schema where every type a column uses is defined in the exported schemas, and for the PG source exporter:
 
-> A column appears as a live-migration datatype issue in analyze/assess **if and only if** export data from the source skips it by name, ignoring ranges (§6.2 D1) and user domains, enums or base types named like a list entry (D5).
+> A column appears as a live-migration datatype issue in analyze/assess **if and only if** export data from the source skips it, except for user domains, enums or base types named like a list entry, such as `public.xml` or `public.daterange` (D5).
 
 Both sides use the same list, both walk domains, arrays and composites, and both stop at enums. Tests that change either walk must keep this true for:
 
 - a domain over an unsupported type, and a domain over a domain over one
 - an array of an unsupported type, a domain over that array, and an array of that domain
 - a composite with an unsupported field, and a composite nesting that composite
+- a built-in range, a user-defined range, its multirange, and a domain or composite over a range
 - each of the above with case-sensitive schema, type, table and column names
 - a partitioned root with a multi-level hierarchy, where analyze reports it on the root and on every partition, and export skips it on every leaf
 
@@ -290,11 +296,11 @@ Both sides use the same list, both walk domains, arrays and composites, and both
 
 | \# | Case | analyze / assess | export data | Proposed resolution |
 | :---- | :---- | :---- | :---- | :---- |
-| D1 | Built-in or user range column (`int4range`, `tsrange`, a `CREATE TYPE ... AS RANGE`) | Not reported. | Skipped in every Debezium export. | Report ranges as live issues, or teach the importer ranges and drop `r` from export. Follow-up. |
-| D2 | Composite column, FF/FB with logical connector | Reported as user-defined type under FF/FB. | Not skipped. | The logical connector is the default and streams composites, so align analyze/assess with export. Stop reporting every composite under FF/FB: drop the `TypeKindComposite` rule from `UnsupportedInLiveWithFFOrFB` and retire `UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED`. A composite is reported only when the walk finds an unsupported type among its fields, as the field type's issue. Separate PR. |
+| D1 | Built-in or user range column (`int4range`, `tsrange`, a `CREATE TYPE ... AS RANGE`) | Was not reported. | Skipped in every Debezium export. | **Fixed.** Ranges and user-defined multiranges are reported as `UNSUPPORTED_DATATYPE_LIVE_MIGRATION_RANGE`. |
+| D2 | Composite column, FF/FB with logical connector | Was reported as user-defined type under FF/FB. | Not skipped. | **Fixed.** The logical connector is the default and streams composites. `UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED` is retired. A composite is reported only when the walk finds an unsupported type among its fields, as the field type's issue. |
 | D3 | `hstore`, `citext`, `ltree`, `tsvector` with the gRPC connector | Not reported: FF/FB issues assume the logical connector. | Skipped only when the FF/FB target exporter uses the gRPC connector. The PG source exporter and the logical connector stream them. | Acceptable while logical is the default. Document it. |
 | D4 | Domain or composite defined in a schema that was not exported, including the type of a typed table | Missed: the parser cannot walk it and sees only the outer name. | Skipped: the catalog sees every schema. | Accept. Export is the safety net. |
-| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` or `CREATE DOMAIN public.xml AS text` | Not matched: only types outside the exported schema are matched by name (§3.2). | Composite or range: not matched, because the name is qualified. Domain, enum or user base type: matched, because the catalog returns a bare `typname`. So a `public.xml` domain over `text` is skipped by export but not reported. | Fix in the catalog walk: match names only for `pg_catalog` and extension-owned types, as `typeOidsQuery` already does, or qualify every user type. Follow-up on #3897. |
+| D5 | User type named like a list entry, e.g. `CREATE TYPE public.point AS (...)` or `CREATE DOMAIN public.xml AS text` | Not matched: only types outside the exported schema are matched by name (§3.2). | Composite or range: not matched, because the name is qualified. Domain, enum or user base type: matched, because the catalog returns a bare `typname`. So a `public.xml` or `public.daterange` domain over `text` is skipped by export but not reported. Adding the built-in range names to the live list (D1) widens this to user domains, enums and base types named `int4range`, `int8range`, `numrange`, `tsrange`, `tstzrange` or `daterange`. | Fix in the catalog walk: match names only for `pg_catalog` and extension-owned types, as `typeOidsQuery` already does, or qualify every user type. Follow-up on #3897. |
 | D6 | Schema drift after `export schema` | Reflects the exported files. | Reflects the live catalog. | By design. Drift is covered by `schema detect-drift`. |
 
 
@@ -330,7 +336,7 @@ analyze-schema and assess-migration cannot know which flow the user will pick, s
 | Base name in a list but missing from the `ReportUnsupportedDatatypes*` switch | `utils.ErrExit("Unrecognized unsupported data type ...")`. A unit test should iterate every list and assert each name has a constructor, so this fails in CI rather than at a customer. That test does not exist yet (§11). |
 | Catalog walk query fails | `export data` exits with `get columns with supported types: ...`. |
 | Catalog returns a table that was not requested | Error. It means the `NameTuple` round-trip is broken, and guessing would skip the wrong columns. |
-| Domain or type referenced but not defined in the exported schema | Treated as `TypeKindOther`. Not an error, because extension and cross-schema types are normal (D4). |
+| Domain or type referenced but not defined in the exported schema | Treated as `TypeKindBuiltIn`. Not an error, because extension and cross-schema types are normal (D4). |
 | Cyclic or self-referencing composites | Visited set in both walks. Each type is reported once. |
 
 ## 10\. Performance
@@ -341,9 +347,12 @@ None of this is on a hot path. The parser walk runs once per column during analy
 
 | Layer | Test | Covers |
 | :---- | :---- | :---- |
-| Type walk | `TestGetUnderlyingTypes` (`queryissue`) | Domains, stacked domains, arrays, nested composites, enums, case-sensitive names. An unqualified name stays a built-in when a schema defines a type of that name. No cycle case yet. |
+| Type walk | `TestGetUnderlyingTypes` (`queryissue`) | Domains, stacked domains, arrays, nested composites, enums, ranges and their multiranges, unqualified names never qualified with a schema (an unqualified name next to a user type of that name stays a built-in), case-sensitive names. No cycle case yet. |
 | Detection | `TestDatatypeIssuesInPartitionAndInheritanceHierarchy` (`queryissue`) | Case-sensitive partitioned root with a cross-schema domain and composite. A pg_dump-style partition (`CREATE TABLE` plus `ATTACH PARTITION`) is reported. A `PARTITION OF` partition is not. Inheritance parent and children. |
-| Detection | `TestDomainOverUnsupportedDatatypeThroughGetDDLIssues` (`queryissue`) | Unqualified `point`, `xml` and `lo` next to user types of those names get the built-in issues. Typed tables: case-sensitive names with column options, a nested composite, and a composite outside the exported schema. A column built from several unsupported types, including `xml` and `pg_catalog.xml`. A nested composite under FF/FB. |
+| Detection | `TestDomainOverUnsupportedDatatypeThroughGetDDLIssues` (`queryissue`) | Unqualified `point`, `xml` and `lo` next to user types of those names get the built-in issues. Typed tables: case-sensitive names with column options, a nested composite, and a composite outside the exported schema. A column built from several unsupported types, including `xml` and `pg_catalog.xml`. Composites of supported fields, nested or behind a domain, are not reported.. |
+| Index on user-defined types | `TestIndexOnUserDefinedTypes` (`queryissue`) | A user-defined range or multirange counts as a user-defined type for index and PK/UK issues, like a composite, since YugabyteDB rejects both as `user_defined_type`. The same through a domain, a stacked domain, and an expression cast to a domain. An enum, or a domain over one, does not. |
+| Index on a domain over a built-in | `TestIndexOnDomainOverUnsupportedIndexDatatype` (`queryissue`) | A domain or stacked domain over a type in `UnsupportedIndexDatatypes` gets that type's index and PK/UK issue, also through an expression cast to the domain. A domain over a supported type does not. |
+| Parser | `TestProcessRangeType` (`queryparser`) | Range types and the derived or explicit multirange name. |
 | Detection | Existing `parser_issue_detector_test.go` datatype cases | Per-type issue constructors, offline/live/FF-FB split, live issue suppressed by offline. |
 | Detection | Unit test that every name in each list has an issue constructor (§9) | **Missing on the branch; to add.** |
 | Detection | Oracle analyze-schema test with an ora2pg object type (§5.1.4) | **Missing on the branch; to add.** |
@@ -365,7 +374,6 @@ None of this is on a hot path. The parser walk runs once per column during analy
 
 ## 13\. Open questions
 
-1. D1: should range columns be reported as live issues, or should the importer support ranges?
-2. Do the new callhome values for PG datatype issues (`object_type` TABLE, table `object_name`, filled `sql_statement`) require a payload version bump?
-3. Should `GetUnderlyingTypes` and `UnderlyingType` stay exported? Today only `queryissue` uses them.
-4. Should views get an informational issue that points at the source table's column? Today they get nothing.
+1. Does changing what `object_name` holds for PG datatype issues require a callhome payload version bump?
+2. Should `GetUnderlyingTypes` and `UnderlyingType` stay exported? Today only `queryissue` uses them.
+3. Should views get an informational issue that points at the source table's column? Today they get nothing.

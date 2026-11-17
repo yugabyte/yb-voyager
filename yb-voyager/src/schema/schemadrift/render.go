@@ -22,6 +22,7 @@ import (
 	"html/template"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	goerrors "github.com/go-errors/errors"
 
@@ -454,8 +455,8 @@ func kindLabel(diffType schemadiff.DiffType) string {
 }
 
 // objectPath splits an object identity into the muted qualifier (q) and the
-// highlighted subject (s). A COLUMN finding qualifies down to the
-// column, a table-level one to the table.
+// highlighted subject (s). A COLUMN, CONSTRAINT or INDEX finding qualifies down to
+// the column, constraint or index, a table-level one to the table.
 //
 // Every part is minimally quoted, so a special identifier renders as valid SQL
 // (sales."MixedCase", not the ambiguous sales.MixedCase). q+s equals ForDisplay.
@@ -463,9 +464,10 @@ func objectPath(d DriftEntry, dbType string) (q, s string, err error) {
 	if d.Object.Schema == "" || d.Object.Name == "" {
 		return "", "", goerrors.Errorf("object identity %+v has an empty schema or name", d.Object)
 	}
-	if d.ObjectType == schemadiff.ObjectTypeColumn {
+	switch d.ObjectType {
+	case schemadiff.ObjectTypeColumn, schemadiff.ObjectTypeConstraint, schemadiff.ObjectTypeIndex:
 		if d.SubObject == "" {
-			return "", "", goerrors.Errorf("column finding on %s has no column name", d.Object.ForDisplay(dbType))
+			return "", "", goerrors.Errorf("%s finding on %s has no object name", d.ObjectType, d.Object.ForDisplay(dbType))
 		}
 		return d.Object.ForDisplay(dbType) + ".", minQuoted(d.SubObject, dbType), nil
 	}
@@ -522,6 +524,62 @@ func severityLabel(sev Severity) (string, error) {
 	return s, nil
 }
 
+type namedDef struct {
+	name string
+	def  string
+}
+
+// Partition and inheritance copies are left out: creating the table with its
+// PARTITION OF or INHERITS link brings them.
+func ownKeyAndIndexDefs(t schemasnapshot.Table, dbType string) (keys, indexes []namedDef) {
+	if t.PrimaryKey != nil && !t.PrimaryKey.FromParent {
+		keys = append(keys, namedDef{minQuoted(t.PrimaryKey.Name, dbType), t.PrimaryKey.Definition})
+	}
+	for _, constraints := range [][]schemasnapshot.Constraint{t.UniqueKeys, t.Checks, t.ForeignKeys} {
+		for _, c := range constraints {
+			if !c.FromParent {
+				keys = append(keys, namedDef{minQuoted(c.Name, dbType), c.Definition})
+			}
+		}
+	}
+	for _, idx := range t.UniqueIndexes {
+		if !idx.FromParent {
+			indexes = append(indexes, namedDef{minQuoted(idx.Name, dbType), "UNIQUE " + idx.Definition})
+		}
+	}
+	for _, idx := range t.Indexes {
+		if !idx.FromParent {
+			indexes = append(indexes, namedDef{minQuoted(idx.Name, dbType), idx.Definition})
+		}
+	}
+	return keys, indexes
+}
+
+// writeDefSection writes a heading, then one indented row per item with the
+// definitions lined up after the longest name. It writes nothing for no rows.
+func writeDefSection(b *strings.Builder, heading string, rows []namedDef) {
+	if len(rows) == 0 {
+		return
+	}
+	if b.Len() > 0 {
+		b.WriteByte('\n')
+	}
+	b.WriteString(heading)
+	width := 0
+	for _, r := range rows {
+		width = max(width, utf8.RuneCountInString(r.name))
+	}
+	for _, r := range rows {
+		b.WriteString("\n  ")
+		b.WriteString(r.name)
+		if r.def == "" {
+			continue
+		}
+		b.WriteString(strings.Repeat(" ", width-utf8.RuneCountInString(r.name)+2))
+		b.WriteString(r.def)
+	}
+}
+
 // stringifyValue renders a DriftEntry.OldValue/NewValue (an `any` whose
 // dynamic type tracks attribute, per Difference's field docs) as display
 // text:
@@ -532,11 +590,11 @@ func severityLabel(sev Severity) (string, error) {
 //   - schemasnapshot.ObjectRef                -> "schema.name"
 //   - []schemasnapshot.ObjectRef              -> "schema.name, schema.name, ..."
 //   - schemasnapshot.Column                    -> the column's definition
-//     (COLUMN_ADDED/DROPPED's whole added/dropped column), e.g.
-//     "integer NOT NULL DEFAULT 0"
-//   - schemasnapshot.Table                     -> the table's full column list
-//     (TABLE_ADDED/DROPPED's whole added/dropped table), e.g.
-//     "id integer NOT NULL, email text"; "no columns" when it has none
+//     (COLUMN_ADDED's whole added column), e.g. "integer NOT NULL DEFAULT 0"
+//   - schemasnapshot.Table                     -> TABLE_ADDED's whole added table, one
+//     item per line under "Columns", "Partition of", "Inherits from", "Constraints"
+//     and "Indexes", each name followed by its definition, e.g.
+//     "Columns\n  id     integer NOT NULL\n  email  text\nConstraints\n  users_pkey  PRIMARY KEY (id)"
 //   - anything else                          -> an error
 func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (string, error) {
 	switch v := value.(type) {
@@ -566,14 +624,27 @@ func stringifyValue(attribute schemadiff.Attribute, value any, dbType string) (s
 	case schemasnapshot.Column:
 		return stringifyColumnDef(v), nil
 	case schemasnapshot.Table:
-		if len(v.Columns) == 0 {
-			return "no columns", nil
+		columns := []namedDef{{name: "no columns"}}
+		if len(v.Columns) > 0 {
+			columns = make([]namedDef, len(v.Columns))
+			for i, c := range v.Columns {
+				columns[i] = namedDef{minQuoted(c.Name, dbType), stringifyColumnDef(c)}
+			}
 		}
-		parts := make([]string, len(v.Columns))
-		for i, c := range v.Columns {
-			parts[i] = minQuoted(c.Name, dbType) + " " + stringifyColumnDef(c)
+		var b strings.Builder
+		writeDefSection(&b, "Columns", columns)
+		if v.PartitionParent != nil {
+			writeDefSection(&b, "Partition of", []namedDef{{name: v.PartitionParent.ForDisplay(dbType)}})
 		}
-		return strings.Join(parts, ", "), nil
+		parents := make([]namedDef, len(v.InheritsFrom))
+		for i, ref := range v.InheritsFrom {
+			parents[i] = namedDef{name: ref.ForDisplay(dbType)}
+		}
+		writeDefSection(&b, "Inherits from", parents)
+		keys, indexes := ownKeyAndIndexDefs(v, dbType)
+		writeDefSection(&b, "Constraints", keys)
+		writeDefSection(&b, "Indexes", indexes)
+		return b.String(), nil
 	default:
 		return "", goerrors.Errorf("unexpected value type %T for attribute %q", value, attribute)
 	}

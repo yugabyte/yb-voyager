@@ -304,6 +304,13 @@ export-schema:
   ### Path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema                       
   # assessment-report-path: <assessment-report-path>
 
+  ### Disable the best-effort capture of schema snapshots during export schema.
+  ### 'schema detect-drift' compares these snapshots to report schema changes on the source database.
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  # disable-schema-snapshot-capture: false
+
   ### Run guardrails checks before the command is run. 
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
@@ -432,6 +439,18 @@ export-data-from-source:
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # disable-pb: false  
+
+  ### Disable the best-effort capture of schema snapshots during export data.
+  ### 'schema detect-drift' compares these snapshots to report schema changes on the source database.
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  # disable-schema-snapshot-capture: false
+
+  ### Interval (in minutes, at least 1) at which a source schema snapshot is captured periodically throughout export data.
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Default - 60
+  # schema-snapshot-capture-interval: 60
 
   ### Run guardrails checks before the command is run. 
   ### Note - This is only valid for PostgreSQL source database.
@@ -772,9 +791,9 @@ export-data-from-target:
   # table-list: <table-list>
   # exclude-table-list: <exclude-table-list>
 
-  ### Comma-separated list of object types to compare: (TABLE, COLUMN).
+  ### Comma-separated list of object types to compare: (TABLE, COLUMN, CONSTRAINT, INDEX).
   ### Only one of object-type-list and exclude-object-type-list can be specified.
-  # object-type-list: TABLE,COLUMN
+  # object-type-list: TABLE,COLUMN,CONSTRAINT,INDEX
   # exclude-object-type-list: <exclude-object-type-list>
 
   ### Log level for the command
