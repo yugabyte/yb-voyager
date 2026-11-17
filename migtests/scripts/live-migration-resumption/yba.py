@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
-"""YugabyteDB Anywhere client used by the live-migration resumption orchestrator.
+"""YugabyteDB Anywhere (YBA) helper for the upgrade / rolling-restart live-migration tests.
 
-Connection details come from the environment only (YBA_URL, YBA_API_TOKEN,
-YBA_UNIVERSE_UUID, optional YBA_CA_FILE): the rendered scenario file is archived
-by Jenkins, so the token must never be written into it.
+Two things live here:
 
-    yba.py resolve-versions [--latest] [--skip-yba-check]
+1. `YBAClient`: the small REST client the orchestrator actions `yba_cluster_event`,
+   `yba_wait_task` and `yba_check_version` use to drive the target universe mid-migration.
+   It covers only what the tests need: read the universe record, register a release,
+   run the software-upgrade precheck, start a rolling software upgrade / finalize /
+   rolling restart, and poll the resulting task. It is written against the YBA REST API
+   (`/universes/{uuid}/upgrade/*`, `/tasks/{uuid}`, `/ybdb_release`), the same endpoints
+   perf-devops' perfstudio uses for its Upgrade Universe step. Only GET and POST are
+   allowed on purpose: the token is shared with the perf team and must never delete.
 
-prints OLD_VERSION=... and NEW_VERSION=... for the pipeline to export before it
-creates the universe.
+   Connection details come from the environment only (YBA_URL, YBA_API_TOKEN,
+   YBA_UNIVERSE_UUID, optional YBA_CA_FILE): the rendered scenario file is archived by
+   Jenkins, so the token must never be written into it.
+
+2. `yba.py resolve-versions`: picks the pair of builds the pipeline upgrades between and
+   prints `OLD_VERSION=...` / `NEW_VERSION=...` for Jenkins to export before it creates
+   the universe. NEW is the latest released build of the newest stable branch and OLD the
+   latest released build of the previous one, both from release.dev.yugabyte.com. Nothing
+   else is consulted: the upgrade stage registers NEW on the YBA itself if it is missing,
+   and YBA's own precheck rejects a pair it cannot upgrade.
 """
 
 import argparse
@@ -23,6 +36,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 RELEASE_SERVICE_URL = "https://release.dev.yugabyte.com"
+RELEASE_PACKAGE_URL = "https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/{build}/yugabyte-{build}-centos-x86_64.tar.gz"
 HTTP_TIMEOUT_SEC = 60
 GET_ATTEMPTS = 3
 GET_RETRY_SLEEP_SEC = 5
@@ -32,16 +46,9 @@ STABLE_BRANCH_RE = re.compile(r"^\d{4}\.\d+$")
 # Release tarballs report -b0 from `select version()`, so only the version number is usable.
 YB_SERVER_VERSION_RE = re.compile(r"-YB-(\d+\.\d+\.\d+\.\d+)-b\d+")
 
-# The released pair latest-2025.2 -> latest-2026.1 is rejected by YBA's CheckUpgrade until
-# 2026.1.3.0 ships (2025.2.7.0 carries YSQL migration 30566, 2026.1.2.0 does not), so the
-# nightly runs a pinned supported pair; `--latest` switches back to the release-service pick.
-PINNED_OLD_VERSION = "2025.2.6.0-b111"
-PINNED_NEW_VERSION = "2026.1.2.0-b137"
-
 TASK_STATUS_SUCCESS = "Success"
 TASK_STATUS_TERMINAL_FAILURE = {"Failure", "Aborted", "Abort", "Unknown"}
 
-UPGRADE_STATE_READY = "Ready"
 UPGRADE_STATE_PRE_FINALIZE = "PreFinalize"
 
 
@@ -108,12 +115,12 @@ class YBAClient:
             self._ssl.verify_mode = ssl.CERT_NONE
 
     @classmethod
-    def from_env(cls, require_universe: bool = True) -> "YBAClient":
-        required = ["YBA_URL", "YBA_API_TOKEN"] + (["YBA_UNIVERSE_UUID"] if require_universe else [])
+    def from_env(cls) -> "YBAClient":
+        required = ["YBA_URL", "YBA_API_TOKEN", "YBA_UNIVERSE_UUID"]
         missing = [k for k in required if not os.environ.get(k)]
         if missing:
             raise RuntimeError(f"missing environment variables: {', '.join(missing)}")
-        return cls(os.environ["YBA_URL"], os.environ["YBA_API_TOKEN"], os.environ.get("YBA_UNIVERSE_UUID"))
+        return cls(os.environ["YBA_URL"], os.environ["YBA_API_TOKEN"], os.environ["YBA_UNIVERSE_UUID"])
 
     def _request(self, method: str, path: str, body: Any = None) -> Any:
         if method not in ("GET", "POST"):
@@ -156,8 +163,6 @@ class YBAClient:
         return self._customer_uuid
 
     def _universe_path(self, suffix: str = "") -> str:
-        if not self.universe_uuid:
-            raise RuntimeError("YBA_UNIVERSE_UUID is not set")
         return f"/customers/{self.customer_uuid}/universes/{self.universe_uuid}{suffix}"
 
     def universe(self) -> Dict[str, Any]:
@@ -182,18 +187,24 @@ class YBAClient:
             raise RuntimeError("universe details carry no softwareUpgradeState; this YBA cannot report finalize state")
         return details["softwareUpgradeState"]
 
-    @staticmethod
-    def tserver_private_ips(universe: Dict[str, Any]) -> List[str]:
-        return [
-            n["cloudInfo"]["private_ip"]
-            for n in universe["universeDetails"]["nodeDetailsSet"]
-            if n.get("isTserver")
-        ]
+    def register_release(self, build: str) -> None:
+        """Make `build` installable on this YBA, the way perf-devops' PortalOps does: one POST
+        with the releases.yugabyte.com tarball URL; an already registered build is fine."""
+        version_key(build)
+        body = {
+            "version": build,
+            "release_tag": "",
+            "yb_type": "YBDB",
+            "artifacts": [{"platform": "LINUX", "architecture": "x86_64", "package_url": RELEASE_PACKAGE_URL.format(build=build)}],
+            "release_type": "PREVIEW",
+        }
+        try:
+            self._request("POST", f"/customers/{self.customer_uuid}/ybdb_release", body)
+        except RuntimeError as exc:
+            if "already exists" not in str(exc):
+                raise
 
-    def release_versions(self) -> List[str]:
-        return [r["version"] for r in self._request("GET", f"/customers/{self.customer_uuid}/ybdb_release")]
-
-    def _rolling_payload(self, universe: Dict[str, Any], sleep_between_servers_sec: int) -> Dict[str, Any]:
+    def _rolling_payload(self, universe: Dict[str, Any]) -> Dict[str, Any]:
         details = universe["universeDetails"]
         if details.get("updateInProgress"):
             raise RuntimeError(
@@ -205,18 +216,16 @@ class YBAClient:
             "nodePrefix": details["nodePrefix"],
             "clusters": details["clusters"],
             "upgradeOption": "Rolling",
-            "sleepAfterMasterRestartMillis": sleep_between_servers_sec * 1000,
-            "sleepAfterTServerRestartMillis": sleep_between_servers_sec * 1000,
         }
 
     def software_upgrade_precheck(self, version: str) -> Dict[str, Any]:
         version_key(version)
         return self._request("POST", self._universe_path("/upgrade/software/precheck"), {"ybSoftwareVersion": version})
 
-    def start_upgrade(self, version: str, sleep_between_servers_sec: int) -> str:
+    def start_upgrade(self, version: str) -> str:
         version_key(version)
         universe = self.universe()
-        payload = self._rolling_payload(universe, sleep_between_servers_sec)
+        payload = self._rolling_payload(universe)
         payload.update(
             {
                 "taskType": "Software",
@@ -226,8 +235,8 @@ class YBAClient:
         )
         return self._request("POST", self._universe_path("/upgrade/db_version"), payload)["taskUUID"]
 
-    def start_restart(self, sleep_between_servers_sec: int) -> str:
-        payload = self._rolling_payload(self.universe(), sleep_between_servers_sec)
+    def start_restart(self) -> str:
+        payload = self._rolling_payload(self.universe())
         payload["ybSoftwareVersion"] = None
         return self._request("POST", self._universe_path("/upgrade/restart"), payload)["taskUUID"]
 
@@ -242,42 +251,7 @@ class YBAClient:
         return resp.get("failedSubTasks", [])
 
 
-def _build_on_yba(released: str, on_yba: List[str], report) -> str:
-    """Return the released build when the YBA has it, else the highest YBA build of the same version.
-
-    The perf YBA often carries only in-development builds of a released version, so the
-    version is what the test holds fixed and the build is reported, not required.
-    """
-    if released in on_yba:
-        return released
-    number = version_number(released)
-    same_version = sorted(
-        (b for b in on_yba if YB_BUILD_RE.match(b) and version_number(b) == number),
-        key=version_key,
-    )
-    if not same_version:
-        raise RuntimeError(f"no build of {number} is imported into the YBA (released build is {released})")
-    report(f"WARNING: released build {released} is not on the YBA; using {same_version[-1]} (released: {released})")
-    return same_version[-1]
-
-
-def pinned_versions(yba: Optional[YBAClient], report=print) -> Dict[str, str]:
-    report(f"pinned pair: OLD={PINNED_OLD_VERSION} NEW={PINNED_NEW_VERSION}")
-    if yba is not None:
-        on_yba = set(yba.release_versions())
-        missing = [v for v in (PINNED_OLD_VERSION, PINNED_NEW_VERSION) if v not in on_yba]
-        if missing:
-            raise RuntimeError(f"pinned builds not imported into YBA {yba.base_url}: {missing}")
-        report(f"both builds present on {yba.base_url}")
-    return {
-        "OLD_VERSION": PINNED_OLD_VERSION,
-        "NEW_VERSION": PINNED_NEW_VERSION,
-        "OLD_VERSION_RELEASED": PINNED_OLD_VERSION,
-        "NEW_VERSION_RELEASED": PINNED_NEW_VERSION,
-    }
-
-
-def resolve_versions(yba: Optional[YBAClient], report=print) -> Dict[str, str]:
+def resolve_versions(report=print) -> Dict[str, str]:
     branches = stable_branches()
     report(f"stable branches from {RELEASE_SERVICE_URL}/version/active/json: {branches}")
     released: List[str] = []
@@ -289,41 +263,17 @@ def resolve_versions(yba: Optional[YBAClient], report=print) -> Dict[str, str]:
     released.sort(key=version_key, reverse=True)
     if len(released) < 2:
         raise RuntimeError(f"need released builds on two branches, found {released}")
-    new_released, old_released = released[0], released[1]
-    new, old = new_released, old_released
-    if yba is not None:
-        on_yba = yba.release_versions()
-        new = _build_on_yba(new_released, on_yba, report)
-        old = _build_on_yba(old_released, on_yba, report)
-        report(f"builds to use from {yba.base_url}: OLD={old} NEW={new}")
-    return {
-        "OLD_VERSION": old,
-        "NEW_VERSION": new,
-        "OLD_VERSION_RELEASED": old_released,
-        "NEW_VERSION_RELEASED": new_released,
-    }
+    return {"OLD_VERSION": released[1], "NEW_VERSION": released[0]}
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    resolve = sub.add_parser("resolve-versions", help="print the OLD_VERSION/NEW_VERSION pair for the upgrade tests")
-    resolve.add_argument(
-        "--latest",
-        action="store_true",
-        help="pick latest released builds from the release service instead of the pinned pair",
-    )
-    resolve.add_argument(
-        "--skip-yba-check",
-        action="store_true",
-        help="do not confirm the builds exist on the YBA (no YBA_* env needed)",
-    )
+    sub.add_parser("resolve-versions", help="print the OLD_VERSION/NEW_VERSION pair for the upgrade tests")
     args = parser.parse_args(argv)
 
     if args.command == "resolve-versions":
-        yba = None if args.skip_yba_check else YBAClient.from_env(require_universe=False)
-        pick = resolve_versions if args.latest else pinned_versions
-        versions = pick(yba, report=lambda m: print(m, file=sys.stderr))
+        versions = resolve_versions(report=lambda m: print(m, file=sys.stderr))
         for name, value in versions.items():
             print(f"{name}={value}")
         return 0

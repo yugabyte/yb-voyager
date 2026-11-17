@@ -1306,31 +1306,6 @@ def run_psql(
         )
 
 
-def yb_node_server_versions(cfg: Dict[str, Any], hosts: List[str]) -> List[Dict[str, Any]]:
-    """Run `select version()` on each host with the target credentials.
-
-    Returns one record per host: {"host", "output", "error"}; an unreachable host has
-    output None and the connection error text, so the caller decides whether that is fatal.
-    """
-    db = cfg["target"]
-    results: List[Dict[str, Any]] = []
-    for host in hosts:
-        try:
-            with psycopg2.connect(
-                host=host,
-                port=int(db["port"]),
-                dbname=str(db["database"]),
-                user=str(db["user"]),
-                password=str(db.get("password")),
-                connect_timeout=15,
-            ) as conn, conn.cursor() as cur:
-                cur.execute("select version()")
-                results.append({"host": host, "output": cur.fetchone()[0], "error": None})
-        except psycopg2.OperationalError as exc:
-            results.append({"host": host, "output": None, "error": str(exc).strip()})
-    return results
-
-
 def fetchall(cfg: Dict[str, Any], role: str, query: str, params=()) -> list[tuple]:
     """Generic helper for SELECT queries."""
     with db_connection(cfg, role) as conn, conn.cursor() as cur:

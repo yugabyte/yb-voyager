@@ -163,6 +163,14 @@ stages:
     action: yba_wait_task
     timeout_sec: 1800
 
+  - name: check_version_after_finalize
+    action: yba_check_version
+    expected: ${NEW_VERSION}
+
+  - name: stream_after_finalize
+    action: sleep
+    seconds: 120
+
   - name: rolling_restart_target_universe
     action: yba_cluster_event
     event: restart
@@ -170,10 +178,6 @@ stages:
   - name: wait_rolling_restart_task
     action: yba_wait_task
     timeout_sec: 3600
-
-  - name: check_version_after_restart
-    action: yba_check_version
-    expected: ${NEW_VERSION}
 
   - name: stream_after_restart
     action: sleep

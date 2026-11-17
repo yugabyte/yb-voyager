@@ -91,7 +91,9 @@ if FAKER_SEED is not None:
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
 
-RECONNECT_ATTEMPTS = 60
+# A rolling restart takes the node this generator is pinned to away for a minute or two;
+# 15 attempts with this backoff give up after about 9.5 minutes, inside the post-restart soak.
+RECONNECT_ATTEMPTS = 15
 RECONNECT_INITIAL_WAIT_SECONDS = 10
 RECONNECT_MAX_WAIT_SECONDS = 60
 RECONNECT_BACKOFF_STEP_SECONDS = 5
@@ -108,9 +110,10 @@ def reconnect():
             return
         except psycopg2.OperationalError as e:
             print(f"Reconnect attempt {attempt}/{RECONNECT_ATTEMPTS} failed: {e}")
+            if attempt == RECONNECT_ATTEMPTS:
+                raise RuntimeError(f"could not reconnect to the database after {RECONNECT_ATTEMPTS} attempts") from e
             time.sleep(wait)
             wait = min(wait + RECONNECT_BACKOFF_STEP_SECONDS, RECONNECT_MAX_WAIT_SECONDS)
-    raise RuntimeError(f"could not reconnect to the database after {RECONNECT_ATTEMPTS} attempts")
 
 # Detect database flavor (PostgreSQL vs YugabyteDB)
 DB_FLAVOR = detect_db_flavor(cursor)

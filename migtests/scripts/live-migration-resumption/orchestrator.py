@@ -579,15 +579,32 @@ def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
     Stage keys:
       - event: upgrade | restart | finalize
       - version: build string for upgrade; ${VAR} references are expanded
-      - sleep_between_servers_sec: YBA pause after each master/tserver restart (default 180)
     """
     event = stage["event"]
     ctx.yba_task = None
     client = yba.YBAClient.from_env()
-    sleep_sec = int(stage.get("sleep_between_servers_sec", 180))
-    version = os.path.expandvars(stage.get("version", ""))
 
+    def started(task_uuid: str, suffix: str = "") -> None:
+        ctx.yba_task = {"event": event, "uuid": task_uuid}
+        H.log_yba_event(
+            ctx,
+            f"{event}: started YBA task {task_uuid} on universe {client.universe_uuid}{suffix}",
+            event=f"{event}_started",
+            task_uuid=task_uuid,
+        )
+
+    if event == "restart":
+        started(client.start_restart())
+        return
+    if event == "finalize":
+        state = client.software_upgrade_state(client.universe())
+        if state != yba.UPGRADE_STATE_PRE_FINALIZE:
+            raise RuntimeError(f"finalize: universe softwareUpgradeState is {state}, expected {yba.UPGRADE_STATE_PRE_FINALIZE}")
+        started(client.start_finalize())
+        return
     if event == "upgrade":
+        version = os.path.expandvars(stage["version"])
+        client.register_release(version)
         precheck = client.software_upgrade_precheck(version)
         H.log_yba_event(
             ctx,
@@ -596,28 +613,9 @@ def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
             version=version,
             precheck=precheck,
         )
-        task_uuid = client.start_upgrade(version, sleep_sec)
-    elif event == "restart":
-        task_uuid = client.start_restart(sleep_sec)
-    elif event == "finalize":
-        state = client.software_upgrade_state(client.universe())
-        if state == yba.UPGRADE_STATE_READY:
-            H.log_yba_event(ctx, f"finalize: not required, softwareUpgradeState={state}", event="finalize_not_required")
-            return
-        if state != yba.UPGRADE_STATE_PRE_FINALIZE:
-            raise RuntimeError(f"finalize: universe softwareUpgradeState is {state}, expected {yba.UPGRADE_STATE_PRE_FINALIZE}")
-        task_uuid = client.start_finalize()
-    else:
-        raise ValueError(f"unknown yba event: {event}")
-
-    ctx.yba_task = {"event": event, "uuid": task_uuid}
-    H.log_yba_event(
-        ctx,
-        f"{event}: started YBA task {task_uuid} on universe {client.universe_uuid}"
-        + (f" to {version}" if version else ""),
-        event=f"{event}_started",
-        task_uuid=task_uuid,
-    )
+        started(client.start_upgrade(version), f" to {version}")
+        return
+    raise ValueError(f"unknown yba event: {event}")
 
 
 @action("yba_wait_task")
@@ -627,12 +625,11 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
     A task that ends in failure raises with its failed subtasks, and so does any voyager
     process that exited on its own while the task ran, whether a resumer found it dead
     or nobody was watching it: the migration is expected to ride out the restarts on its
-    own retries. A finalize that was not required started no task and is a no-op.
+    own retries.
     """
     task = ctx.yba_task
     if not task:
-        H.log_yba_event(ctx, "wait: no task was started, nothing to wait for", event="wait_skipped")
-        return
+        raise RuntimeError("yba_wait_task: no YBA task was started by a preceding yba_cluster_event stage")
     with ctx.process_lock:
         found_exited_before = len(ctx.found_exited_events)
     timeout_sec = int(stage.get("timeout_sec", 0))
@@ -691,69 +688,37 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
 
 @action("yba_check_version")
 def yba_check_version_action(stage: Dict[str, Any], ctx: Any) -> None:
-    """Assert the universe runs the expected build: YBA record plus `select version()` on every tserver.
+    """Assert the universe runs the expected build: the YBA record and `select version()`
+    on the target host (release builds report -b0 there, so only the version number is compared).
 
     Stage key:
       - expected: build string, ${VAR} references are expanded
     """
     expected = os.path.expandvars(stage["expected"])
-    yba.version_key(expected)
-
-    client = yba.YBAClient.from_env()
-    universe = client.universe()
-    universe_version = client.universe_version(universe)
-    upgrade_state = client.software_upgrade_state(universe)
-    hosts = client.tserver_private_ips(universe)
-    if not hosts:
-        raise RuntimeError("yba_check_version: the universe record lists no tserver nodes")
-    node_results = H.yb_node_server_versions(ctx.cfg, hosts)
-
     expected_number = yba.version_number(expected)
-    lines = [f"yba_check_version: expected={expected} (nodes report the version number only)"]
-    mismatches: list[str] = []
-    unreachable: list[str] = []
-    node_versions: Dict[str, Any] = {}
-    for rec in node_results:
-        host = rec["host"]
-        if rec["error"] is not None:
-            unreachable.append(host)
-            node_versions[host] = None
-            lines.append(f"  node {host:<16} select version() -> UNREACHABLE ({rec['error']})")
-            continue
-        actual = yba.parse_server_version_number(rec["output"])
-        node_versions[host] = actual
-        verdict = "OK" if actual == expected_number else "MISMATCH"
-        if verdict == "MISMATCH":
-            mismatches.append(f"{host}={actual}")
-        lines.append(f"  node {host:<16} select version() -> {actual}  {verdict}")
-    universe_verdict = "OK" if universe_version == expected else "MISMATCH"
-    if universe_verdict == "MISMATCH":
-        mismatches.append(f"yba={universe_version}")
-    lines.append(f"  yba universe ybSoftwareVersion -> {universe_version}  {universe_verdict}")
-    lines.append(f"  yba universe softwareUpgradeState -> {upgrade_state}")
-    task = ctx.yba_task
-    if task and task.get("duration_sec") is not None:
-        lines.append(
-            f"  last task {task['event']} {task['uuid']}: Success, "
-            f"{task['duration_sec'] // 60}m{task['duration_sec'] % 60:02d}s"
-        )
 
-    outcome = "FAILED" if mismatches or unreachable else "OK"
+    universe = yba.YBAClient.from_env().universe()
+    universe_version = yba.YBAClient.universe_version(universe)
+    server_version = yba.parse_server_version_number(H.fetchall(ctx.cfg, "target", "select version()")[0][0])
+
+    mismatches = []
+    if universe_version != expected:
+        mismatches.append(f"yba ybSoftwareVersion={universe_version}")
+    if server_version != expected_number:
+        mismatches.append(f"target select version()={server_version}")
+    outcome = "FAILED" if mismatches else "OK"
     H.log_yba_event(
         ctx,
-        "\n".join(lines) + f"\n  result: {outcome}",
+        f"yba_check_version: expected={expected}, yba ybSoftwareVersion={universe_version}, "
+        f"target select version()={server_version}: {outcome}",
         event="check_version",
         expected=expected,
         universe_version=universe_version,
-        software_upgrade_state=upgrade_state,
-        node_versions=node_versions,
-        unreachable=unreachable,
+        server_version=server_version,
         result=outcome,
     )
     if mismatches:
         raise RuntimeError(f"yba_check_version: expected {expected}, got {', '.join(mismatches)}")
-    if unreachable:
-        raise RuntimeError(f"yba_check_version: nodes unreachable: {', '.join(unreachable)}")
 
 
 # -------------------------
