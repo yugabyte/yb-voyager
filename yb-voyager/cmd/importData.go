@@ -708,6 +708,9 @@ func startExportDataFromTargetIfRequired() {
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
+	//for the main iteration we won't get any target excluded columns here so it will no op
+	//but for the case where fallback is starting here for the iterations we will have it stored and hence it will fetch
+	//and use that
 	targetExcluded, err := getTargetExporterExcludedColumns(metaDB)
 	if err != nil {
 		utils.ErrExit("%w", err)

@@ -2884,10 +2884,8 @@ func (t exportTableColumnMetadata) addPrimaryKeyToRootTableIfRequired() error {
 	return nil
 }
 
-// validateExcludedColumns checks every user-given table whether it exists in namereg or not and column against the export, replacing
-// each column in excluded with the table column it matches (see sqlname.FindBestMatchingColumnName). rootOfTable
-// resolves the root of any table, including ones not being exported, so that naming a partition is
-// reported as such.
+// validateExcludedColumns resolves userExcludeEntries against the exported tables and replaces each
+// given column with the catalog column it matches; rootOfTable lets a named partition be reported as such.
 func validateExcludedColumns(userExcludeEntries map[string][]string, lookupTable func(string) (sqlname.NameTuple, error), exportTables exportTableColumnMetadata,
 	rootOfTable func(sqlname.NameTuple) (sqlname.NameTuple, error), excludeTableHint string) (*utils.StructMap[sqlname.NameTuple, []string], []string, error) {
 
