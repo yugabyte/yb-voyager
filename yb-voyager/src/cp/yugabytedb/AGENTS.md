@@ -31,5 +31,14 @@ The type is internal: it is not in the config templates or in the
   queued event, so an unreachable control plane delays the command's exit.
 - **A panic in a publisher hangs `Finalize`.** The publisher goroutine exits
   without marking its event done, and later events queue with no reader.
+- **`snapshot_rows_estimated` is never NULL for "unknown".** On export it is
+  0 until the source's estimate is read, and that estimate can itself be -1
+  (PostgreSQL 14+ `reltuples` for a table never vacuumed or analyzed). 0
+  therefore also reads as an empty table, and -1 makes a progress percentage
+  meaningless.
+- **`done` and `completed` are both written as table statuses.** `done` is
+  export only and transient: the table's data is dumped but its final row
+  count is not in yet. `completed` is the terminal status for both
+  directions. The schema doc lists both without saying so.
 - **`SCHEMA_ANALYSIS_PAYLOAD_VERSION` is bumped by hand** when
   `utils.SchemaReport` changes shape; nothing checks it.
