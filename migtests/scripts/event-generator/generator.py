@@ -91,9 +91,10 @@ if FAKER_SEED is not None:
 conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
 cursor = conn.cursor()
 
-# A rolling restart takes the node this generator is pinned to away for a minute or two;
-# 15 attempts with this backoff give up after about 9.5 minutes, inside the post-restart soak.
-RECONNECT_ATTEMPTS = 15
+# A rolling restart takes the node this generator is pinned to away for a minute or two.
+# The deadline is below the 300s post-restart soak so a generator that cannot come back
+# has exited by the time the scenario stops it.
+RECONNECT_TIMEOUT_SECONDS = 240
 RECONNECT_INITIAL_WAIT_SECONDS = 10
 RECONNECT_MAX_WAIT_SECONDS = 60
 RECONNECT_BACKOFF_STEP_SECONDS = 5
@@ -102,16 +103,19 @@ RECONNECT_BACKOFF_STEP_SECONDS = 5
 def reconnect():
     global conn, cursor
     wait = RECONNECT_INITIAL_WAIT_SECONDS
-    for attempt in range(1, RECONNECT_ATTEMPTS + 1):
+    deadline = time.time() + RECONNECT_TIMEOUT_SECONDS
+    attempt = 0
+    while True:
+        attempt += 1
         try:
             conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
             cursor = conn.cursor()
             print(f"Reconnected to the database on attempt {attempt}")
             return
         except psycopg2.OperationalError as e:
-            print(f"Reconnect attempt {attempt}/{RECONNECT_ATTEMPTS} failed: {e}")
-            if attempt == RECONNECT_ATTEMPTS:
-                raise RuntimeError(f"could not reconnect to the database after {RECONNECT_ATTEMPTS} attempts") from e
+            print(f"Reconnect attempt {attempt} failed: {e}")
+            if time.time() + wait > deadline:
+                raise RuntimeError(f"could not reconnect to the database within {RECONNECT_TIMEOUT_SECONDS}s") from e
             time.sleep(wait)
             wait = min(wait + RECONNECT_BACKOFF_STEP_SECONDS, RECONNECT_MAX_WAIT_SECONDS)
 

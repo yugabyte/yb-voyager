@@ -32,6 +32,11 @@ def merge_env(base: Dict[str, str], override: Dict[str, str] | None) -> Dict[str
     return env
 
 
+DB_ROLES = ("source", "target", "source_replica")
+DB_REACHABLE_WAIT_SEC = 600
+DB_REACHABLE_POLL_SEC = 5
+
+
 class Context:
     def __init__(self, cfg: Dict[str, Any], env: Dict[str, str], test_root: str | None = None):
         self.cfg = cfg
@@ -1044,6 +1049,9 @@ class Resumer:
                     return
 
                 attempt += 1
+                if self._wait_for_databases():
+                    self._safe_restart(proc, final=True)
+                    return
                 proc = self._safe_restart(proc)
                 while not proc and attempt < self.policy.max_restarts:
                     retry_delay = self._rng.randint(
@@ -1056,7 +1064,7 @@ class Resumer:
                         retry_delay_sec=retry_delay,
                         next_attempt=attempt + 1,
                     )
-                    if self._wait(retry_delay):
+                    if self._wait(retry_delay) or self._wait_for_databases():
                         self._safe_restart(proc, final=True)
                         return
                     attempt += 1
@@ -1098,6 +1106,23 @@ class Resumer:
     def _current_process(self) -> subprocess.Popen | None:
         with self.ctx.process_lock:
             return self.ctx.processes.get(self.cmd)
+
+    def _wait_for_databases(self) -> bool:
+        """Hold a relaunch while a database is unreachable (a node down for a rolling restart):
+        a voyager started then would die on its first connect and count as a crash. Returns True
+        when a stop was requested meanwhile."""
+        deadline = time.time() + DB_REACHABLE_WAIT_SEC
+        while not self._should_stop():
+            unreachable = [role for role in DB_ROLES if role in self.ctx.cfg and not db_reachable(self.ctx.cfg, role)]
+            if not unreachable:
+                return False
+            if time.time() > deadline:
+                self._log(f"{', '.join(unreachable)} still unreachable after {DB_REACHABLE_WAIT_SEC}s; restarting anyway", event="db_unreachable")
+                return False
+            self._log(f"waiting for {', '.join(unreachable)} to accept connections before restart", event="db_wait")
+            if self._wait(DB_REACHABLE_POLL_SEC):
+                return True
+        return True
 
     def _wait(self, seconds: int) -> bool:
         if seconds <= 0:
@@ -1160,18 +1185,21 @@ def start_resumptions_for_stage(resumption_cfg: Dict[str, Any] | None, ctx: Cont
 def stop_resumptions_for_command(cmd: str, ctx: Context, timeout_sec: int = 30) -> None:
     with ctx.process_lock:
         resumer = ctx.active_resumers.pop(cmd, None)
-    if not resumer:
+    if resumer:
+        resumer.stop(timeout_sec)
+        log_resumption_event(ctx, cmd, "resumptions stopped", event="stopped")
+    else:
         log_resumption_event(ctx, cmd, "no resumer threads to stop", event="no_threads")
-        return
-    resumer.stop(timeout_sec)
-    log_resumption_event(ctx, cmd, "resumptions stopped", event="stopped")
     with ctx.process_lock:
         self_exits = [e for e in ctx.found_exited_events if e["command"] == cmd]
+        proc = ctx.processes.get(cmd)
     if self_exits:
         raise RuntimeError(
             f"{cmd} exited on its own {len(self_exits)} time(s) while under resumption: "
             + ", ".join(f"pid={e['pid']} exit_code={e['exit_code']} at {e['ts']}" for e in self_exits)
         )
+    if proc is None or proc.poll() is not None:
+        raise RuntimeError(f"{cmd} is not running when its resumptions were stopped")
 
 
 # -------------------------
@@ -1267,7 +1295,7 @@ def prepare_paths(export_dir: str, artifacts_dir: str) -> None:
 # SQL execution
 # -------------------------
 
-def db_connection(cfg: Dict[str, Any], role: str) -> psycopg2.extensions.connection:
+def db_connection(cfg: Dict[str, Any], role: str, connect_timeout: int | None = None) -> psycopg2.extensions.connection:
     """Generic connection helper for source/target DBs."""
     db = cfg[role]
     return psycopg2.connect(
@@ -1276,7 +1304,17 @@ def db_connection(cfg: Dict[str, Any], role: str) -> psycopg2.extensions.connect
         dbname=str(db["database"]),
         user=str(db["user"]),
         password=str(db.get("password")),
+        connect_timeout=connect_timeout,
     )
+
+
+def db_reachable(cfg: Dict[str, Any], role: str) -> bool:
+    try:
+        with db_connection(cfg, role, connect_timeout=DB_REACHABLE_POLL_SEC) as conn, conn.cursor() as cur:
+            cur.execute("select 1")
+        return True
+    except psycopg2.Error:
+        return False
 
 
 def run_psql(
