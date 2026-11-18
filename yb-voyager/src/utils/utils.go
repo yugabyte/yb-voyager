@@ -1182,3 +1182,16 @@ func InstanceQualifiedDomain(name string) string {
 func normalizeDNSName(name string) string {
 	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".")
 }
+
+var shellSafeArgRegex = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+
+// ShellQuoteCommand joins args into a command line that a POSIX shell splits back into the same args,
+// single-quoting any argument with characters the shell would interpret, such as ; or ".
+func ShellQuoteCommand(args []string) string {
+	return strings.Join(lo.Map(args, func(arg string, _ int) string {
+		if shellSafeArgRegex.MatchString(arg) {
+			return arg
+		}
+		return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+	}), " ")
+}

@@ -435,6 +435,11 @@ export_data() {
           "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-forward" || \
           "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-back" ]]; then
         args="${args} --export-type snapshot-and-changes"
+        if [ "${VOYAGER_WORKFLOW}" != "live-migration" ] && [ "${USE_YB_GRPC_CONNECTOR}" = "true" ] && [ "${EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR}" != "" ]; then
+            args="${args} --exclude-column-list ${EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR}"
+        elif [ "${EXPORT_EX_COLUMN_LIST}" != "" ]; then
+            args="${args} --exclude-column-list ${EXPORT_EX_COLUMN_LIST}"
+        fi
     fi
 
     yb-voyager export data ${args} "$@"
@@ -713,6 +718,13 @@ get_expected_event_count() {
     local expected_count=""
     case "$exporter_db" in
         "source")
+            # Matches export_data: with the gRPC connector, fall-back/fall-forward exclude EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR on the source.
+            if [ "${USE_YB_GRPC_CONNECTOR}" = true ] && [ "${VOYAGER_WORKFLOW}" != "live-migration" ] \
+               && jq -e 'has("source_delta_events_grpc_connector")' "$metadata_file" >/dev/null 2>&1; then
+                jq -r '.source_delta_events_grpc_connector' "$metadata_file"
+                return 0
+            fi
+
             if jq -e 'has("source_delta_events")' "$metadata_file" >/dev/null 2>&1; then
                 jq -r '.source_delta_events' "$metadata_file"
                 return 0
