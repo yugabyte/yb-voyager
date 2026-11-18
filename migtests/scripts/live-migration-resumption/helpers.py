@@ -1391,15 +1391,21 @@ def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str
 
 
 def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
-    metainfo_dir = os.path.join(export_dir, "metainfo")
-    dest_dir = os.path.join(artifacts_dir, "metainfo")
-    shutil.copytree(metainfo_dir, dest_dir, dirs_exist_ok=True)
+    _copy_export_subdir(export_dir, artifacts_dir, "metainfo")
 
 
 def copy_logs_directory(export_dir: str, artifacts_dir: str) -> None:
-    logs_dir = os.path.join(export_dir, "logs")
-    dest_dir = os.path.join(artifacts_dir, "logs")
-    shutil.copytree(logs_dir, dest_dir, dirs_exist_ok=True)
+    _copy_export_subdir(export_dir, artifacts_dir, "logs")
+
+
+def _copy_export_subdir(export_dir: str, artifacts_dir: str, name: str) -> None:
+    """A run that failed before voyager ever ran has no metainfo/logs; skip instead of
+    burying the real failure under a FileNotFoundError traceback."""
+    src = os.path.join(export_dir, name)
+    if not os.path.isdir(src):
+        log(f"artifacts: no {name}/ under the export dir yet, nothing to copy")
+        return
+    shutil.copytree(src, os.path.join(artifacts_dir, name), dirs_exist_ok=True)
 
 
 def append_stage_summary(artifacts_dir: str, stage_name: str, start_ts: str, end_ts: str, status: str, error: str | None = None) -> None:
