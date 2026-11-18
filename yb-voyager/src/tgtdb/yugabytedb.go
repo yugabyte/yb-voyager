@@ -1691,7 +1691,11 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 		sessionVars = append(sessionVars, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ)
 	}
 
-	// enable `set yb_fast_path_for_colocated_copy` only if opted for IGNORE or UPDATE as PK conflict action
+	// enable `set yb_fast_path_for_colocated_copy` only if opted for IGNORE or UPDATE as PK conflict action.
+	// Currently unreachable: --on-primary-key-conflict is no longer user-settable and voyager pins
+	// ERROR-POLICY, because this fast path can silently drop rows / accept duplicate keys against
+	// partial or still-building indexes (yugabyte-db#38214). Kept dormant for when YB enables
+	// yb_fast_path_for_colocated_copy by default, at which point voyager can re-expose IGNORE.
 	if (tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE) &&
 		checkSessionVariableSupport(tconf, SET_YB_FAST_PATH_FOR_COLOCATED_COPY) {
 		sessionVars = append(sessionVars, SET_YB_FAST_PATH_FOR_COLOCATED_COPY)

@@ -757,11 +757,14 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
 
-	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR-POLICY",
-		`Action to take on primary key conflict during data import during snapshot phase.
-Supported values:
-ERROR-POLICY(default): Handle error as per configured error-policy, if any primary key conflict is encountered.
-IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
+	// --on-primary-key-conflict is intentionally not registered as a user-facing flag.
+	// Its only non-default value, IGNORE, turned on yb_fast_path_for_colocated_copy, which
+	// can silently drop rows or accept duplicate keys against partial / still-building
+	// indexes (yugabyte-db#38214). There is no clear use-case, so the flow is disabled in
+	// voyager until YB enables the fast path by default. The internal IGNORE machinery is
+	// kept dormant; pin the safe action here (the former flag default) so every downstream
+	// branch takes the ERROR-POLICY path.
+	tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR_POLICY
 
 	mustMarkFlagHidden(cmd, "skip-disk-usage-health-checks")
 	mustMarkFlagHidden(cmd, "skip-node-health-checks")

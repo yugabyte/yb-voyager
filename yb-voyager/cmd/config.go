@@ -151,7 +151,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"target-endpoints", "truncate-tables", "error-policy-snapshot",
 	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
-	"on-primary-key-conflict", "disable-transactional-writes",
+	"disable-transactional-writes",
 	"truncate-splits", "prometheus-metrics-port", "metrics-port",
 	"use-partition-root", "disable-sequential-scan-on-update-deletes",
 
@@ -190,7 +190,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
 	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
-	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
+	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"prometheus-metrics-port", "metrics-port",
 	// environment variables keys
