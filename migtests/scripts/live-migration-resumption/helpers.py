@@ -35,6 +35,8 @@ def merge_env(base: Dict[str, str], override: Dict[str, str] | None) -> Dict[str
 DB_ROLES = ("source", "target", "source_replica")
 DB_REACHABLE_WAIT_SEC = 600
 DB_REACHABLE_POLL_SEC = 5
+RESTART_GRACE_SEC = 30
+MAX_RETRIED_EARLY_EXITS = 2
 
 
 class Context:
@@ -66,6 +68,9 @@ class Context:
         # Appended by a Resumer that finds its process already dead; `yba_wait_task`
         # fails on any entry added while a cluster task ran.
         self.found_exited_events: list[Dict[str, Any]] = []
+        # Appended by a Resumer whose relaunch died within RESTART_GRACE_SEC; retried and
+        # reported, not failed on; one more in a row past MAX_RETRIED_EARLY_EXITS is a self-exit.
+        self.early_exit_events: list[Dict[str, Any]] = []
 
 
 def apply_effective_export_dir(ctx: Context) -> None:
@@ -965,6 +970,8 @@ class Resumer:
         self.stop_flag = threading.Event()
         self._thread: threading.Thread | None = None
         self._rng = rng or random.Random()
+        self._launched_at: float | None = None
+        self._early_exits_in_a_row = 0
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -1006,23 +1013,15 @@ class Resumer:
                     max_restarts=self.policy.max_restarts,
                     interrupt_delay_sec=interrupt_delay,
                 )
-                if self._wait(interrupt_delay):
+                if self._wait_unless_exited(proc, interrupt_delay):
                     self._log("stop requested before interrupt; exiting resumer", event="stop_before_interrupt")
                     return
 
                 exit_code = proc.poll()
                 if exit_code is not None:
-                    self._log(
-                        f"process pid={proc.pid} had already exited with code {exit_code} before the scheduled interrupt",
-                        event="found_exited",
-                        pid=proc.pid,
-                        exit_code=exit_code,
-                    )
-                    with self.ctx.process_lock:
-                        self.ctx.found_exited_events.append(
-                            {"ts": _ts(), "command": self.cmd, "pid": proc.pid, "exit_code": exit_code}
-                        )
+                    self._record_exit(proc, exit_code)
                 else:
+                    self._early_exits_in_a_row = 0
                     kill(proc)
                     self._log(
                         f"killed process pid={proc.pid}",
@@ -1089,6 +1088,7 @@ class Resumer:
             )
             return None
 
+        self._launched_at = time.time()
         if final:
             self._log(
                 "final restart complete; exiting resumer",
@@ -1102,6 +1102,50 @@ class Resumer:
                 pid=proc.pid,
             )
         return proc
+
+    def _record_exit(self, proc: subprocess.Popen, exit_code: int) -> None:
+        """A relaunch can pass the reachability probe and still die seconds later when its node
+        starts shutting down: Debezium validates its first connection without retrying, so voyager
+        exits 1. That is a failed restart, not voyager crashing mid-stream."""
+        lived = None if self._launched_at is None else int(time.time() - self._launched_at)
+        if lived is not None and lived < RESTART_GRACE_SEC and self._early_exits_in_a_row < MAX_RETRIED_EARLY_EXITS:
+            self._early_exits_in_a_row += 1
+            self._log(
+                f"relaunched process pid={proc.pid} exited with code {exit_code} {lived}s after launch "
+                f"({self._early_exits_in_a_row} in a row); restarting it as a failed restart",
+                event="restart_exited_early",
+                pid=proc.pid,
+                exit_code=exit_code,
+                lived_sec=lived,
+            )
+            with self.ctx.process_lock:
+                self.ctx.early_exit_events.append(
+                    {"ts": _ts(), "command": self.cmd, "pid": proc.pid, "exit_code": exit_code, "lived_sec": lived}
+                )
+            return
+        self._early_exits_in_a_row = 0
+        self._log(
+            f"process pid={proc.pid} exited on its own with code {exit_code}"
+            + ("" if lived is None else f" {lived}s after launch"),
+            event="found_exited",
+            pid=proc.pid,
+            exit_code=exit_code,
+            lived_sec=lived,
+        )
+        with self.ctx.process_lock:
+            self.ctx.found_exited_events.append(
+                {"ts": _ts(), "command": self.cmd, "pid": proc.pid, "exit_code": exit_code}
+            )
+
+    def _wait_unless_exited(self, proc: subprocess.Popen, seconds: int) -> bool:
+        """Like `_wait`, but returns as soon as *proc* exits so its lifetime is measured, not
+        the time until the next scheduled interrupt."""
+        deadline = time.time() + seconds
+        while not self._should_stop():
+            if proc.poll() is not None or time.time() >= deadline:
+                return False
+            time.sleep(min(deadline - time.time(), 1.0))
+        return True
 
     def _current_process(self) -> subprocess.Popen | None:
         with self.ctx.process_lock:
