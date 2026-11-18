@@ -61,7 +61,8 @@ class Context:
         # Set by the `pick_random_custom_key` orchestrator action; consumed by
         # `validate_picked_custom_key_conflicts`.
         self.picked_custom_key: Dict[str, Any] | None = None
-        # Set by `yba_cluster_event`; consumed by `yba_wait_task` and `yba_check_version`.
+        # Set by `yba_cluster_event` with the migration window it opens; consumed by
+        # `yba_wait_task`, `check_migration_progress` and the failure summary.
         self.yba_task: Dict[str, Any] | None = None
         # Appended by a Resumer that finds its process already dead; `yba_wait_task`
         # fails on any entry added while a cluster task ran.
@@ -1214,14 +1215,150 @@ def _iter_log_files(logs_dir: str):
             yield os.path.join(root, f)
 
 
+# -------------------------
+# Migration progress (used around YBA cluster events)
+# -------------------------
+
+LOG_SCAN_PATTERNS = [
+    "ERROR",
+    "FATAL",
+    "WARN",
+    "Discrepancy in committed batch",
+    "unexpected rows affected for event with",
+]
+
+EVENT_CHANNELS_TABLE = "ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo"
+
+
+def active_migration_direction(ctx: Context) -> Dict[str, str]:
+    """Name the exporter/importer pair currently streaming, from the processes the orchestrator started."""
+    with ctx.process_lock:
+        names = set(ctx.processes)
+    if "export_from_target" in names and "import_to_source" in names:
+        return {"exporter_cmd": "export_from_target", "importer_cmd": "import_to_source",
+                "exporter_role": "target_db_exporter_fb", "importer_db": "source"}
+    if "export_from_target" in names and "import_to_source_replica" in names:
+        return {"exporter_cmd": "export_from_target", "importer_cmd": "import_to_source_replica",
+                "exporter_role": "target_db_exporter_ff", "importer_db": "source_replica"}
+    if "export_data" in names and "import_data" in names:
+        return {"exporter_cmd": "export_data", "importer_cmd": "import_data",
+                "exporter_role": "source_db_exporter", "importer_db": "target"}
+    raise RuntimeError(f"no streaming exporter/importer pair among started processes: {sorted(names)}")
+
+
+def exported_event_count(export_dir: str, exporter_role: str) -> int:
+    meta_db = os.path.join(export_dir, "metainfo", "meta.db")
+    proc = subprocess.run(
+        ["sqlite3", "-cmd", ".timeout 5000", meta_db,
+         f"select coalesce(sum(num_total), 0) from exported_events_stats where exporter_role='{exporter_role}';"],
+        capture_output=True, text=True, check=True,
+    )
+    return int(proc.stdout.strip())
+
+
+def imported_event_count(cfg: Dict[str, Any], role: str) -> int | None:
+    """Events applied by the importer, read from its own progress table; None while the DB is unreachable."""
+    try:
+        rows = fetchall(cfg, role, f"select coalesce(sum(num_inserts + num_updates + num_deletes), 0) from {EVENT_CHANNELS_TABLE}")
+    except psycopg2.OperationalError:
+        return None
+    return int(rows[0][0])
+
+
+def migration_progress(ctx: Context, direction: Dict[str, str]) -> Dict[str, int | None]:
+    return {
+        "exported": exported_event_count(ctx.iteration_export_dir, direction["exporter_role"]),
+        "imported": imported_event_count(ctx.cfg, direction["importer_db"]),
+    }
+
+
+def format_progress(now: Dict[str, int | None], base: Dict[str, int | None]) -> str:
+    def one(key: str) -> str:
+        if now[key] is None:
+            return f"{key}=unreachable"
+        if base.get(key) is None:
+            return f"{key}={now[key]}"
+        return f"{key}={now[key]} (+{now[key] - base[key]})"
+    return f"{one('exported')} {one('imported')}"
+
+
+def process_states(ctx: Context) -> str:
+    with ctx.process_lock:
+        items = list(ctx.processes.items())
+        resumed = set(ctx.active_resumers)
+    parts = []
+    for name, proc in items:
+        code = proc.poll()
+        state = f"running pid={proc.pid}" if code is None else f"exited code={code}"
+        if name in resumed:
+            state += " (under resumption)"
+        parts.append(f"{name}: {state}")
+    return ", ".join(parts) if parts else "none"
+
+
+def dead_processes(ctx: Context, names: List[str]) -> Dict[str, str]:
+    """Processes in *names* that are missing or exited and not about to be restarted by a resumer."""
+    with ctx.process_lock:
+        dead: Dict[str, str] = {}
+        for name in names:
+            proc = ctx.processes.get(name)
+            if proc is None:
+                dead[name] = "not running"
+            elif proc.poll() is not None and name not in ctx.active_resumers:
+                dead[name] = f"exited code={proc.returncode}"
+    return dead
+
+
+def log_file_offsets(export_dir: str) -> Dict[str, int]:
+    offsets: Dict[str, int] = {}
+    for fp in _iter_log_files(os.path.join(export_dir, "logs")):
+        try:
+            offsets[fp] = os.path.getsize(fp)
+        except OSError:
+            continue
+    return offsets
+
+
+def scan_logs_since(export_dir: str, artifacts_dir: str, offsets: Dict[str, int], label: str) -> Dict[str, Dict[str, int]]:
+    """Grep only the log bytes written after *offsets* and file the hits under log_scans/<label>/."""
+    scan_dir = os.path.join(artifacts_dir, "log_scans", label)
+    os.makedirs(scan_dir, exist_ok=True)
+    patterns = [(p, p.lower()) for p in LOG_SCAN_PATTERNS]
+    counts: Dict[str, Dict[str, int]] = {}
+    for fp in _iter_log_files(os.path.join(export_dir, "logs")):
+        hits: list[str] = []
+        per_pattern: Dict[str, int] = {}
+        try:
+            with open(fp, "r", errors="ignore") as f:
+                f.seek(offsets.get(fp, 0))
+                for line in f:
+                    lowered = line.lower()
+                    matched = [p for p, lp in patterns if lp in lowered]
+                    if not matched:
+                        continue
+                    hits.append(line.rstrip())
+                    for p in matched:
+                        per_pattern[p] = per_pattern.get(p, 0) + 1
+        except OSError:
+            continue
+        if hits:
+            with open(os.path.join(scan_dir, f"{os.path.basename(fp)}.scan.txt"), "w") as out:
+                out.write("\n".join(hits) + "\n")
+            counts[os.path.basename(fp)] = per_pattern
+    return counts
+
+
+def format_scan_counts(counts: Dict[str, Dict[str, int]]) -> str:
+    if not counts:
+        return "no ERROR/WARN lines"
+    return "; ".join(
+        f"{name}: " + ", ".join(f"{p}={n}" for p, n in sorted(per.items()))
+        for name, per in sorted(counts.items())
+    )
+
+
 def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str] | None = None) -> None:
-    base_patterns = patterns or [
-        "ERROR",
-        "FATAL",
-        "WARN",
-        "Discrepancy in committed batch",
-        "unexpected rows affected for event with",
-    ]
+    base_patterns = patterns or LOG_SCAN_PATTERNS
     logs_dir = os.path.join(export_dir, "logs")
     scan_dir = os.path.join(artifacts_dir, "log_scans")
     os.makedirs(scan_dir, exist_ok=True)
