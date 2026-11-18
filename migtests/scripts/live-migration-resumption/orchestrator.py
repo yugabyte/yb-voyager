@@ -643,6 +643,7 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
         raise RuntimeError("yba_wait_task: no YBA task was started by a preceding yba_cluster_event stage")
     with ctx.process_lock:
         found_exited_before = len(ctx.found_exited_events)
+        early_exits_before = len(ctx.early_exit_events)
     timeout_sec = int(stage.get("timeout_sec", 0))
     interval_sec = int(stage.get("poll_interval_sec", 30))
     client = yba.YBAClient.from_env()
@@ -692,6 +693,7 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
             if name not in ctx.active_resumers and proc.poll() is not None
         }
         found_exited = ctx.found_exited_events[found_exited_before:]
+        early_exits = ctx.early_exit_events[early_exits_before:]
     exited.update({f"{e['command']} pid={e['pid']}": e["exit_code"] for e in found_exited})
     task["ended_at"] = H._ts()
     task["progress_at_end"] = H.migration_progress(ctx, direction)
@@ -699,13 +701,15 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
     H.log_yba_event(
         ctx,
         f"during {task['event']}: {H.format_progress(task['progress_at_end'], progress_at_start)}, "
-        f"process exits: {len(exited)}, voyager log scan: {H.format_scan_counts(scan_counts)} "
+        f"process exits: {len(exited)}, relaunches retried after an early exit: {len(early_exits)}, "
+        f"voyager log scan: {H.format_scan_counts(scan_counts)} "
         f"(details under artifacts/log_scans/during_{task['event']}/)",
         event=f"{task['event']}_window",
         duration_sec=duration,
         progress_at_start=progress_at_start,
         progress_at_end=task["progress_at_end"],
         process_exits=exited,
+        early_exits=early_exits,
         log_scan=scan_counts,
     )
     if exited:
@@ -837,6 +841,9 @@ def _log_failure_summary(ctx: H.Context, failed_stage: Dict[str, str]) -> None:
     self_exits = ctx.found_exited_events
     if self_exits:
         lines.append("self exits   : " + ", ".join(f"{e['command']} pid={e['pid']} code={e['exit_code']}" for e in self_exits))
+    if ctx.early_exit_events:
+        lines.append("early exits  : " + ", ".join(
+            f"{e['command']} pid={e['pid']} code={e['exit_code']} after {e['lived_sec']}s (retried)" for e in ctx.early_exit_events))
     lines.append(f"artifacts    : {ctx.artifacts_dir}/{{stage_summary.ndjson, yba_events.ndjson, resumption_events.ndjson, log_scans/, logs/}}")
     lines.append("=========================================================")
     for line in lines:
