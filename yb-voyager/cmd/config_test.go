@@ -1737,7 +1737,6 @@ import-data:
   truncate-tables: true
   skip-node-health-checks: true
   skip-disk-usage-health-checks: true
-  # on-primary-key-conflict: IGNORE  # deprecated/removed: yugabyte-db#38214
   disable-transactional-writes: true
   truncate-splits: false
   csv-reader-max-buffer-size-bytes: 10485760
@@ -1813,8 +1812,6 @@ func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipNodeHealthChecks, "Skip node health checks for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should match the config")
-	// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-	// assert.Equal(t, "IGNORE", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.DisableTransactionalWrites, "Disable transaction writes for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(false), truncateSplits, "Truncate splits for importing data should match the config")
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the config")
@@ -1865,8 +1862,6 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--truncate-tables", "false",
 		"--skip-node-health-checks", "false",
 		"--skip-disk-usage-health-checks", "false",
-		// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-		// "--on-primary-key-conflict", "ERROR-POLICY",
 		"--disable-transactional-writes", "false",
 		"--truncate-splits", "true",
 		"--error-policy-snapshot", "abort",
@@ -1928,8 +1923,6 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipNodeHealthChecks, "Skip node health checks for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should be overridden by CLI")
-	// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-	// assert.Equal(t, "ERROR-POLICY", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.DisableTransactionalWrites, "Disable transaction writes for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(true), truncateSplits, "Truncate splits for importing data should be overridden by CLI")
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the config")
@@ -2023,8 +2016,6 @@ func TestImportDataConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipNodeHealthChecks, "Skip node health checks for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should match the config")
-	// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-	// assert.Equal(t, "IGNORE", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.DisableTransactionalWrites, "Disable transaction writes for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(false), truncateSplits, "Truncate splits for importing data should match the config")
 	assert.Equal(t, "20971520", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the config")
@@ -2353,7 +2344,6 @@ import-data-file:
   skip-replication-checks: true
   skip-node-health-checks: true
   skip-disk-usage-health-checks: true
-  # on-primary-key-conflict: IGNORE  # deprecated/removed: yugabyte-db#38214
   error-policy: stash-and-continue
   csv-reader-max-buffer-size-bytes: 10485760
   ybvoyager-max-colocated-batches-in-progress: 5
@@ -2429,8 +2419,6 @@ func TestImportDataFileConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipNodeHealthChecks, "Skip node health checks for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should match the config")
-	// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-	// assert.Equal(t, "IGNORE", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should match the config")
 	assert.Equal(t, importdata.StashAndContinueErrorPolicy, errorPolicySnapshotFlag, "error-policy should match the config")
 
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the config")
@@ -2481,8 +2469,6 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--skip-replication-checks", "false",
 		"--skip-node-health-checks", "false",
 		"--skip-disk-usage-health-checks", "false",
-		// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-		// "--on-primary-key-conflict", "ERROR-POLICY",
 		"--error-policy", "abort",
 		"--target-db-host", "localhost2",
 		"--target-db-port", "5433",
@@ -2549,8 +2535,6 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), skipReplicationChecks, "Skip replication checks for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipNodeHealthChecks, "Skip node health checks for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should be overridden by CLI")
-	// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-	// assert.Equal(t, "ERROR-POLICY", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should be overridden by CLI")
 	assert.Equal(t, importdata.AbortErrorPolicy, errorPolicySnapshotFlag, "error-policy should be overridden by the CLI")
 
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should be overridden by CLI")
@@ -2640,8 +2624,6 @@ func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipNodeHealthChecks, "Skip node health checks for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipDiskUsageHealthChecks, "Skip disk usage health checks for importing data should match the config")
-	// on-primary-key-conflict deprecated/removed (yugabyte-db#38214); re-enable with the flag:
-	// assert.Equal(t, "IGNORE", tconf.OnPrimaryKeyConflictAction, "On primary key conflict for importing data should match the config")
 	assert.Equal(t, importdata.StashAndContinueErrorPolicy, errorPolicySnapshotFlag, "error-policy should match the config")
 
 	assert.Equal(t, "20971520", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the env var")
