@@ -20,8 +20,6 @@ package yugabytedb
 import (
 	"context"
 	"database/sql"
-	"os"
-	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
@@ -87,35 +85,17 @@ func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 	ctx := context.Background()
 
 	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err := yugabyteDBContainer.Start(ctx)
-	if err != nil {
-		utils.ErrExit("Failed to start yugabytedb container: %v", err)
-	}
+	require.NoError(t, yugabyteDBContainer.Start(ctx), "Failed to start yugabytedb container")
 	defer testcontainers.TerminateAllContainers()
-	assert.NoError(t, err, "Failed to start YugabyteDB container")
 
-	// Connect to the database
 	dsn := yugabyteDBContainer.GetConnectionString()
 	db, err := sql.Open("pgx", dsn)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer db.Close()
 
-	// Wait for the database to be ready
-	err = testutils.WaitForDBToBeReady(db)
-	assert.NoError(t, err)
-	err = os.Setenv(DB_CONN_STRING_ENV_VAR, dsn)
-	assert.NoError(t, err)
-
-	exportDir := filepath.Join(os.TempDir(), "yugabytedb")
-
-	// Create a temporary export directory for testing
-	err = os.MkdirAll(exportDir, 0755)
-	assert.NoError(t, err, "Failed to create temporary export directory")
-	// Ensure the directory is removed after the test
-	defer func() {
-		err := os.RemoveAll(exportDir)
-		assert.NoError(t, err, "Failed to remove temporary export directory")
-	}()
+	require.NoError(t, testutils.WaitForDBToBeReady(db))
+	t.Setenv(DB_CONN_STRING_ENV_VAR, dsn)
+	exportDir := t.TempDir()
 
 	controlPlane := New(exportDir)
 
