@@ -1165,7 +1165,8 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 type CreateTypeKind int
 
 const (
-	CreateTypeComposite CreateTypeKind = iota
+	CreateTypeUnknown CreateTypeKind = iota
+	CreateTypeComposite
 	CreateTypeEnum
 	CreateTypeRange
 	// not parsed from a statement: the multirange PostgreSQL creates along with a range type
@@ -1182,9 +1183,17 @@ type CreateType struct {
 	CompositeFields      []TableColumn
 }
 
+func (c *CreateType) GetObjectName() string {
+	return utils.BuildObjectName(c.SchemaName, c.TypeName)
+}
+func (c *CreateType) GetSchemaName() string { return c.SchemaName }
+
+func (c *CreateType) GetObjectType() string { return TYPE_OBJECT_TYPE }
+
 // getMultirangeTypeName returns the multirange_type_name option if given, else the name PostgreSQL
 // derives (makeMultirangeTypeName): "multi" inserted before the first "range", or "_multirange"
-// appended to the name cut to 52 bytes, clipped to 63 bytes. An unqualified name is assumed to be in the range type's schema (pg_dump always qualifies it)
+// appended to the first 52 bytes of the name; either result is clipped to 63 bytes. An unqualified
+// name is assumed to be in the range type's schema (pg_dump always qualifies it).
 func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName string, rangeTypeName string) (string, string, error) {
 	for _, param := range stmt.GetParams() {
 		defElem := param.GetDefElem()
@@ -1229,13 +1238,6 @@ func clipIdentifier(name string) string {
 	}
 	return name[:end]
 }
-
-func (c *CreateType) GetObjectName() string {
-	return utils.BuildObjectName(c.SchemaName, c.TypeName)
-}
-func (c *CreateType) GetSchemaName() string { return c.SchemaName }
-
-func (c *CreateType) GetObjectType() string { return TYPE_OBJECT_TYPE }
 
 //===========================DOMAIN PROCESSOR===================
 

@@ -220,6 +220,11 @@ func TestProcessRangeType(t *testing.T) {
 			expected: &CreateType{TypeName: "r3_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaarangeé", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "r3_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaamultirange"},
 		},
 		{
+			name:     "_multirange is appended to the first 52 bytes even inside a multibyte character",
+			sql:      `CREATE TYPE public."r4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaé" AS RANGE (subtype = int4);`,
+			expected: &CreateType{TypeName: "r4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaé", SchemaName: "public", Kind: CreateTypeRange, MultirangeSchemaName: "public", MultirangeTypeName: "r4_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\xc3_multirange"},
+		},
+		{
 			name:     "qualified multirange_type_name",
 			sql:      `CREATE TYPE "Sch"."Span" AS RANGE (subtype = int4, multirange_type_name = other."SpanSet");`,
 			expected: &CreateType{TypeName: "Span", SchemaName: "Sch", Kind: CreateTypeRange, MultirangeSchemaName: "other", MultirangeTypeName: "SpanSet"},
@@ -247,6 +252,28 @@ func TestProcessRangeType(t *testing.T) {
 			ddlObj, err := ProcessDDL(tree)
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, ddlObj)
+		})
+	}
+}
+
+func TestProcessTypeSetsKind(t *testing.T) {
+	testCases := []struct {
+		sql      string
+		expected CreateTypeKind
+	}{
+		{`CREATE TYPE public.address AS (street text);`, CreateTypeComposite},
+		{`CREATE TYPE public.mood AS ENUM ('happy', 'sad');`, CreateTypeEnum},
+		{`CREATE TYPE public.span AS RANGE (subtype = int4);`, CreateTypeRange},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.sql, func(t *testing.T) {
+			tree, err := pg_query.Parse(tc.sql)
+			require.NoError(t, err)
+			ddlObj, err := ProcessDDL(tree)
+			require.NoError(t, err)
+			createType, ok := ddlObj.(*CreateType)
+			require.True(t, ok)
+			require.Equal(t, tc.expected, createType.Kind)
 		})
 	}
 }

@@ -901,10 +901,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	if index.AccessMethod == queryparser.BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
-				unsupportedIndexDatatype := d.getUnsupportedIndexDatatype(param.GetFullExprCastTypeName())
-				if param.IsExprCastArrayType {
-					unsupportedIndexDatatype = "array"
-				}
+				unsupportedIndexDatatype := d.getUnsupportedIndexDatatype(param.GetFullExprCastTypeName(), param.IsExprCastArrayType)
 				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
 				if unsupportedIndexDatatype != "" {
 					issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
@@ -1156,11 +1153,11 @@ func reportIndexOrConstraintIssuesOnComplexDatatypes(objType string, objName str
 		queryIssue = lo.Ternary(isPkorUk,
 			NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objType, objName, "", typeName, constraintName),
 			NewIndexOnTxidSnapshotDatatypeIssue(objType, objName, ""))
-	case "array":
+	case UNSUPPORTED_INDEX_DATATYPE_ARRAY:
 		queryIssue = lo.Ternary(isPkorUk,
 			NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objType, objName, "", typeName, constraintName),
 			NewIndexOnArrayDatatypeIssue(objType, objName, ""))
-	case "user_defined_type":
+	case UNSUPPORTED_INDEX_DATATYPE_USER_DEFINED_TYPE:
 		queryIssue = lo.Ternary(isPkorUk,
 			NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objType, objName, "", typeName, constraintName),
 			NewIndexOnUserDefinedTypeIssue(objType, objName, ""))

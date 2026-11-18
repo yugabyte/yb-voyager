@@ -366,16 +366,19 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-// getUnsupportedIndexDatatype returns the datatype an index on a non-array typeName is reported
-// under: "user_defined_type" for a composite or range type, else the type in UnsupportedIndexDatatypes
-// it is built from, also through a domain, else "". YugabyteDB indexes enums but rejects composite
-// and range types as 'user_defined_type'.
-func (p *ParserIssueDetector) getUnsupportedIndexDatatype(typeName string) string {
+// getUnsupportedIndexDatatype returns the datatype an index on typeName is reported under: "array"
+// for an array, "user_defined_type" for a composite or range type, else the type in
+// UnsupportedIndexDatatypes it is built from, also through a domain, else "". YugabyteDB indexes
+// enums but rejects composite and range types as 'user_defined_type'.
+func (p *ParserIssueDetector) getUnsupportedIndexDatatype(typeName string, isArray bool) string {
+	if isArray {
+		return UNSUPPORTED_INDEX_DATATYPE_ARRAY
+	}
 	types := p.GetUnderlyingTypes(typeName)
 	if slices.ContainsFunc(types, func(t UnderlyingType) bool {
 		return t.Kind == TypeKindComposite || t.Kind == TypeKindRange
 	}) {
-		return "user_defined_type"
+		return UNSUPPORTED_INDEX_DATATYPE_USER_DEFINED_TYPE
 	}
 	for _, t := range types {
 		if isListedDatatype(t, UnsupportedIndexDatatypes) {
@@ -989,17 +992,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			meta.DataTypeMods = col.TypeMods
 			meta.IsArray = col.IsArrayType
 
-			unsupportedIndexDatatype := p.getUnsupportedIndexDatatype(col.GetFullTypeName())
-			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
-
-			switch {
-			case col.IsArrayType:
-				meta.UnsupportedIndexDatatype = "array"
-
-			case unsupportedIndexDatatype != "":
-				meta.UnsupportedIndexDatatype = unsupportedIndexDatatype
-
-			case isHotspotType:
+			meta.UnsupportedIndexDatatype = p.getUnsupportedIndexDatatype(col.GetFullTypeName(), col.IsArrayType)
+			if meta.UnsupportedIndexDatatype == "" && slices.Contains(hotspotRangeIndexesTypes, col.TypeName) {
 				meta.IsHotspotForRangeIndex = true
 			}
 
@@ -1030,6 +1024,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// Process primary keys and unique constraints as indexes for foreign key detection
 		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
+		if ddlObj.Kind == queryparser.CreateTypeUnknown {
+			return goerrors.Errorf("type %s has no kind", ddlObj.GetObjectName())
+		}
 		p.userDefinedTypes[ddlObj.GetObjectName()] = ddlObj
 		if ddlObj.Kind == queryparser.CreateTypeRange {
 			multirange := &queryparser.CreateType{
