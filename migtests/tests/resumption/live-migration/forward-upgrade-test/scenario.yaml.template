@@ -1,4 +1,4 @@
-name: fallback-forward-upgrade-test
+name: forward-upgrade-test
 
 env:
   LOG_LEVEL: info
