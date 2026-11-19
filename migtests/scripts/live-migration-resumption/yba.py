@@ -18,8 +18,10 @@ Two things live here:
 
 2. `yba.py resolve-versions`: picks the pair of builds the pipeline upgrades between and
    prints `OLD_VERSION=...` / `NEW_VERSION=...` for Jenkins to export before it creates
-   the universe. NEW is the latest released build of the newest stable branch and OLD the
-   latest released build of the previous one, both from release.dev.yugabyte.com. Nothing
+   the universe. NEW is the latest released build of the newest stable branch that has a
+   release and OLD the latest released build of the next such branch, both from
+   release.dev.yugabyte.com; a branch listed as active before its first release is skipped,
+   and the console shows every branch and what it returned. Nothing
    else is consulted: the upgrade stage registers NEW on the YBA itself if it is missing,
    and YBA's own precheck rejects a pair it cannot upgrade.
 """
