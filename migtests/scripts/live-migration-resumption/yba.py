@@ -18,7 +18,8 @@ Two things live here:
 
 2. `yba.py resolve-versions`: picks the pair of builds the pipeline upgrades between and
    prints `OLD_VERSION=...` / `NEW_VERSION=...` for Jenkins to export before it creates
-   the universe. NEW is the latest released build of the newest stable branch. OLD is the
+   the universe. NEW is the latest released build of the newest stable branch that has a
+   release (a branch listed as active before its first release is skipped). OLD is the
    newest released build of the previous branch that YBA can upgrade to NEW: YBA's
    CheckUpgrade refuses a target that lacks a YSQL migration the source already carries,
    which happens when a fix is backported to the older branch first (2025.2.7.0 carried
