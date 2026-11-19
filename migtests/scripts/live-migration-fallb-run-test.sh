@@ -60,6 +60,12 @@ if [ "${run_via_config_file}" = true ]; then
 	generate_voyager_config "$CONFIG_TEMPLATE"
 fi
 
+debug_timeline() {
+	echo "DEBUG after validate: $(date '+%F %T.%6N')"
+	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
+	grep -E "Start time|required permissions|YugabyteDB version|Time taken" "${EXPORT_DIR}/logs/yb-voyager-finalize-schema-post-data-import.log" || true
+}
+
 main() {
 
 	echo "Deleting the parent export-dir present in the test directory"
@@ -199,21 +205,22 @@ main() {
 	archive_changes &
 
 	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	echo "DEBUG line found: $(date '+%F %T.%6N')"
 	echo "Snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
+	echo "DEBUG after finalize: $(date '+%F %T.%6N')"
 	
 	step "Run snapshot validations."
 	echo "DEBUG validate start: $(date '+%F %T.%6N')"
-	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'true' || {
+			debug_timeline
 			tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "yb-voyager-export-data-from-source.log"
 			exit 1
 		} 
-	echo "DEBUG after validate: $(date '+%F %T.%6N')"
-	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
+	debug_timeline
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql

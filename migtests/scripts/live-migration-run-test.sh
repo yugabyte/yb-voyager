@@ -61,6 +61,12 @@ if [ "${run_via_config_file}" = true ]; then
 	generate_voyager_config "$CONFIG_TEMPLATE"
 fi
 
+debug_timeline() {
+	echo "DEBUG after validate: $(date '+%F %T.%6N')"
+	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
+	grep -E "Start time|required permissions|YugabyteDB version|Time taken" "${EXPORT_DIR}/logs/yb-voyager-finalize-schema-post-data-import.log" || true
+}
+
 main() {
 
 	echo "Deleting the parent export-dir present in the test directory"
@@ -194,17 +200,17 @@ main() {
 	# 1. 'import data status' is designed for offline migration and returns exit code 1 in live migration mode
 	# 2. 'get data-migration-report' is for final reporting but doesn't indicate snapshot completion status
 	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
+	echo "DEBUG line found: $(date '+%F %T.%6N')"
 	echo "Snapshot data import complete"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
+	echo "DEBUG after finalize: $(date '+%F %T.%6N')"
 
 	step "Run snapshot validations."
 	echo "DEBUG validate start: $(date '+%F %T.%6N')"
-	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
-	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
-	echo "DEBUG after validate: $(date '+%F %T.%6N')"
-	grep -E "snapshot data import complete|disabling generated always|Executing ALTER TABLE|retrying after|error in altering columns|streaming changes to" "${EXPORT_DIR}/logs/yb-voyager-import-data.log" || true
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false' || { debug_timeline; exit 1; }
+	debug_timeline
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
