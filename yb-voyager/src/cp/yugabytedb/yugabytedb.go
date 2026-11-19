@@ -40,9 +40,12 @@ type YugabyteDB struct {
 	sync.Mutex
 	waitGroup               sync.WaitGroup
 	eventChan               chan (MigrationEvent)
-	rowCountUpdateEventChan chan ([]controlPlane.TableMetrics)
-	connPool                *pgxpool.Pool
-	lastRowCountUpdate      map[string]time.Time
+	rowCountUpdateEventChan chan ([]TableProgress)
+	// connMutex guards connPool: both publisher goroutines and Finalize use it,
+	// and a failed write replaces it.
+	connMutex          sync.Mutex
+	connPool           *pgxpool.Pool
+	lastRowCountUpdate map[string]time.Time
 }
 
 func New(exportDir string) *YugabyteDB {
@@ -51,10 +54,15 @@ func New(exportDir string) *YugabyteDB {
 
 func (cp *YugabyteDB) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
-	cp.rowCountUpdateEventChan = make(chan []controlPlane.TableMetrics, 200)
+	cp.rowCountUpdateEventChan = make(chan []TableProgress, 200)
 
 	err := cp.connect()
 	if err != nil {
+		return err
+	}
+	err = cp.checkTables()
+	if err != nil {
+		cp.disconnect()
 		return err
 	}
 
@@ -69,6 +77,8 @@ func (cp *YugabyteDB) Init() error {
 // Wait for events to publish and Close the connection.
 func (cp *YugabyteDB) Finalize() {
 	cp.waitGroup.Wait()
+	cp.connMutex.Lock()
+	defer cp.connMutex.Unlock()
 	cp.disconnect()
 }
 
@@ -78,7 +88,7 @@ func (cp *YugabyteDB) eventPublisher() {
 		event := <-cp.eventChan
 		err := cp.sendMigrationEvent(event)
 		if err != nil {
-			log.Warnf("Couldn't send migration event to the control plane. %s", err)
+			log.Errorf("Couldn't send migration event to the control plane. %s", err)
 		}
 		cp.waitGroup.Done()
 	}
@@ -90,7 +100,7 @@ func (cp *YugabyteDB) rowCountUpdateEventPublisher() {
 		event := <-cp.rowCountUpdateEventChan
 		err := cp.sendTableDataProgress(event)
 		if err != nil {
-			log.Warnf("Couldn't send table data progress to the control plane. %s", err)
+			log.Errorf("Couldn't send table data progress to the control plane. %s", err)
 		}
 		cp.waitGroup.Done()
 	}
@@ -99,73 +109,70 @@ func (cp *YugabyteDB) rowCountUpdateEventPublisher() {
 func (cp *YugabyteDB) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
 	migrationEvent := MigrationEvent{
-		MigrationUUID:  event.MigrationUUID,
-		MigrationPhase: controlPlane.MIGRATION_PHASE_MAP[event.EventType],
-		Payload:        payload,
-		Status:         status,
+		MigrationUUID: event.MigrationUUID,
+		EventType:     event.EventType,
+		Payload:       payload,
+		Status:        status,
 	}
 
+	// Add before the send: the publisher may call Done as soon as it receives.
+	cp.waitGroup.Add(1)
 	select {
 	case cp.eventChan <- migrationEvent:
-		cp.waitGroup.Add(1)
 	default:
+		cp.waitGroup.Done()
 		log.Warnf("Could not publish migration event %v", migrationEvent)
 	}
 }
 
 func (cp *YugabyteDB) createAndSendUpdateRowCountEvent(events []*controlPlane.BaseUpdateRowCountEvent) {
 
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-	var rowCountUpdateEvent []controlPlane.TableMetrics
+	var rowCountUpdateEvent []TableProgress
 
 	for _, event := range events {
-		snapshotMigrateTableMetrics := controlPlane.TableMetrics{
-			MigrationUUID:       event.MigrationUUID,
-			TableName:           event.TableName,
-			SchemaName:          strings.Join(event.SchemaNames, "|"),
-			MigrationPhase:      controlPlane.MIGRATION_PHASE_MAP[event.EventType],
-			Status:              controlPlane.UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
-			CountLiveRows:       event.CompletedRowCount,
-			CountTotalRows:      event.TotalRowCount,
-			InvocationTimestamp: timestamp,
-		}
-
-		rowCountUpdateEvent = append(rowCountUpdateEvent,
-			snapshotMigrateTableMetrics)
+		rowCountUpdateEvent = append(rowCountUpdateEvent, TableProgress{
+			MigrationUUID:     event.MigrationUUID,
+			EventType:         event.EventType,
+			SchemaName:        strings.Join(event.SchemaNames, "|"),
+			TableName:         event.TableName,
+			Status:            event.Status,
+			TotalRowCount:     event.TotalRowCount,
+			CompletedRowCount: event.CompletedRowCount,
+		})
 	}
 
+	cp.waitGroup.Add(1)
 	select {
 	case cp.rowCountUpdateEventChan <- rowCountUpdateEvent:
-		cp.waitGroup.Add(1)
 	default:
+		cp.waitGroup.Done()
 		log.Warnf("Could not publish row count update event %v", rowCountUpdateEvent)
 	}
 }
 
 func (cp *YugabyteDB) MigrationAssessmentStarted(ev *controlPlane.MigrationAssessmentStartedEvent) {
-	cp.createAndSendEvent(&ev.BaseEvent, "IN PROGRESS", "")
+	cp.createAndSendEvent(&ev.BaseEvent, STATUS_IN_PROGRESS, "")
 }
 
 func (cp *YugabyteDB) MigrationAssessmentCompleted(ev *controlPlane.MigrationAssessmentCompletedEvent) {
 	payloadStr, ok := ev.Report.(string)
 	if !ok {
-		log.Warnf("Expected Report to be a string for YugabyteDB control plane, got %T", ev.Report)
-		payloadStr = ""
+		log.Errorf("Assessment report not sent to the yugabytedb control plane: expected a JSON string, got %T", ev.Report)
+		return
 	}
-	cp.createAndSendEvent(&ev.BaseEvent, "COMPLETED", payloadStr)
+	cp.createAndSendEvent(&ev.BaseEvent, STATUS_COMPLETED, payloadStr)
 }
 
 func (cp *YugabyteDB) ExportSchemaStarted(exportSchemaEvent *controlPlane.ExportSchemaStartedEvent) {
-	cp.createAndSendEvent(&exportSchemaEvent.BaseEvent, "IN PROGRESS", "")
+	cp.createAndSendEvent(&exportSchemaEvent.BaseEvent, STATUS_IN_PROGRESS, "")
 }
 
 func (cp *YugabyteDB) ExportSchemaCompleted(exportSchemaEvent *controlPlane.ExportSchemaCompletedEvent) {
-	cp.createAndSendEvent(&exportSchemaEvent.BaseEvent, "COMPLETED", "")
+	cp.createAndSendEvent(&exportSchemaEvent.BaseEvent, STATUS_COMPLETED, "")
 }
 
 func (cp *YugabyteDB) SchemaAnalysisStarted(schemaAnalysisEvent *controlPlane.SchemaAnalysisStartedEvent) {
-	cp.createAndSendEvent(&schemaAnalysisEvent.BaseEvent, "IN PROGRESS", "")
+	cp.createAndSendEvent(&schemaAnalysisEvent.BaseEvent, STATUS_IN_PROGRESS, "")
 }
 
 func (cp *YugabyteDB) SchemaAnalysisIterationCompleted(schemaAnalysisReport *controlPlane.SchemaAnalysisIterationCompletedEvent) {
@@ -177,15 +184,15 @@ func (cp *YugabyteDB) SchemaAnalysisIterationCompleted(schemaAnalysisReport *con
 	}
 	payload := string(jsonBytes)
 
-	cp.createAndSendEvent(&schemaAnalysisReport.BaseEvent, "COMPLETED", payload)
+	cp.createAndSendEvent(&schemaAnalysisReport.BaseEvent, STATUS_COMPLETED, payload)
 }
 
 func (cp *YugabyteDB) SnapshotExportStarted(snapshotExportEvent *controlPlane.SnapshotExportStartedEvent) {
-	cp.createAndSendEvent(&snapshotExportEvent.BaseEvent, "IN PROGRESS", "")
+	cp.createAndSendEvent(&snapshotExportEvent.BaseEvent, STATUS_IN_PROGRESS, "")
 }
 
 func (cp *YugabyteDB) SnapshotExportCompleted(snapshotExportEvent *controlPlane.SnapshotExportCompletedEvent) {
-	cp.createAndSendEvent(&snapshotExportEvent.BaseEvent, "COMPLETED", "")
+	cp.createAndSendEvent(&snapshotExportEvent.BaseEvent, STATUS_COMPLETED, "")
 }
 
 func (cp *YugabyteDB) UpdateExportedRowCount(
@@ -199,7 +206,7 @@ func (cp *YugabyteDB) UpdateExportedRowCount(
 
 		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName]
 
-		if updateExportedRowCountEvent.Status == "COMPLETED" {
+		if updateExportedRowCountEvent.Status == STATUS_COMPLETED {
 			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !check {
 			cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName] = time.Now()
@@ -218,19 +225,19 @@ func (cp *YugabyteDB) UpdateExportedRowCount(
 }
 
 func (cp *YugabyteDB) ImportSchemaStarted(importSchemaEvent *controlPlane.ImportSchemaStartedEvent) {
-	cp.createAndSendEvent(&importSchemaEvent.BaseEvent, "IN PROGRESS", "")
+	cp.createAndSendEvent(&importSchemaEvent.BaseEvent, STATUS_IN_PROGRESS, "")
 }
 
 func (cp *YugabyteDB) ImportSchemaCompleted(importSchemaEvent *controlPlane.ImportSchemaCompletedEvent) {
-	cp.createAndSendEvent(&importSchemaEvent.BaseEvent, "COMPLETED", "")
+	cp.createAndSendEvent(&importSchemaEvent.BaseEvent, STATUS_COMPLETED, "")
 }
 
 func (cp *YugabyteDB) SnapshotImportStarted(snapshotImportEvent *controlPlane.SnapshotImportStartedEvent) {
-	cp.createAndSendEvent(&snapshotImportEvent.BaseEvent, "IN PROGRESS", "")
+	cp.createAndSendEvent(&snapshotImportEvent.BaseEvent, STATUS_IN_PROGRESS, "")
 }
 
 func (cp *YugabyteDB) SnapshotImportCompleted(snapshotImportEvent *controlPlane.SnapshotImportCompletedEvent) {
-	cp.createAndSendEvent(&snapshotImportEvent.BaseEvent, "COMPLETED", "")
+	cp.createAndSendEvent(&snapshotImportEvent.BaseEvent, STATUS_COMPLETED, "")
 }
 
 func (cp *YugabyteDB) UpdateImportedRowCount(
@@ -244,7 +251,7 @@ func (cp *YugabyteDB) UpdateImportedRowCount(
 
 		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName]
 
-		if updateImportedRowCountEvent.Status == "COMPLETED" {
+		if updateImportedRowCountEvent.Status == STATUS_COMPLETED {
 			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !check {
 			cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName] = time.Now()
@@ -269,6 +276,37 @@ func (cp *YugabyteDB) panicHandler() {
 		log.Errorf("Panic occurred: %v. No further events will be published to yugabytedb control plane DB.\n"+
 			"Stack trace of panic location:\n%s", r, string(debug.Stack()))
 	}
+}
+
+// checkTables fails when a table this control plane writes is missing or lacks
+// a privilege the writes use. Voyager does not create them, and a write that
+// fails later is only logged, so this is the one point where the command can
+// still stop.
+func (cp *YugabyteDB) checkTables() error {
+	for _, table := range []string{
+		QUALIFIED_MIGRATION_STATE_TABLE_NAME,
+		QUALIFIED_METADATA_TABLE_NAME,
+		QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME,
+	} {
+		// One call per privilege: a comma-separated list is true when any one
+		// of them is held.
+		var canWrite *bool
+		err := cp.connPool.QueryRow(context.Background(),
+			`SELECT has_table_privilege(t.oid, 'INSERT')
+				AND has_table_privilege(t.oid, 'SELECT')
+				AND has_table_privilege(t.oid, 'UPDATE')
+			FROM (SELECT to_regclass($1)::oid AS oid) t`, table).Scan(&canWrite)
+		if err != nil {
+			return fmt.Errorf("check table %s on yugabytedb control plane db: %w", table, err)
+		}
+		if canWrite == nil {
+			return goerrors.Errorf("table %s does not exist on the yugabytedb control plane db", table)
+		}
+		if !*canWrite {
+			return goerrors.Errorf("INSERT, SELECT and UPDATE privileges are needed on table %s of the yugabytedb control plane db", table)
+		}
+	}
+	return nil
 }
 
 func (cp *YugabyteDB) getConnPool() (*pgxpool.Pool, error) {
@@ -337,194 +375,201 @@ const QUALIFIED_MIGRATION_STATE_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + MIGRAT
 const QUALIFIED_METADATA_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + METADATA_TABLE
 const QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + TABLE_DATA_PROGRESS_TABLE
 
-// Keyed by controlPlane.MIGRATION_PHASE_MAP.
-const MIGRATION_PHASES_VALUES = `(VALUES
-			(1, 'assessment.started',      'assessment.completed', 'assessment'),
-			(2, 'schema.export_started',   'schema.exported',      NULL),
-			(3, 'schema.analysis_started', 'schema.analyzed',      'schema_analysis'),
-			(4, 'data.export_started',     'data.exported',        NULL),
-			(5, 'schema.import_started',   'schema.imported',      NULL),
-			(6, 'data.import_started',     'data.imported',        NULL)
-		) AS phases (migration_phase, started_entry, done_entry, metadata_kind)`
+const STATUS_IN_PROGRESS = "IN PROGRESS"
+const STATUS_COMPLETED = "COMPLETED"
 
-func (cp *YugabyteDB) sendMigrationEvent(
-	migrationEvent MigrationEvent) error {
-	cmd := fmt.Sprintf(`
-		WITH event AS (
-			SELECT
-				$1::uuid AS migration_id,
-				phases.started_entry,
-				phases.done_entry,
-				phases.metadata_kind,
-				$3::text AS status,
-				NULLIF($4::text, '')::jsonb AS payload
-			FROM %[3]s
-			WHERE phases.migration_phase = $2::int
-		), started AS (
+// The schema analysis report carries no version of its own, so its document
+// format is versioned here. Bump it when utils.SchemaReport changes shape.
+const SCHEMA_ANALYSIS_PAYLOAD_VERSION = "1.0"
+
+// migrationPhase is what one voyager command reports: the migration_state
+// entries set when it starts and completes and, when it produces a document,
+// that document's metadata kind and how to find its version.
+type migrationPhase struct {
+	startedEntry   string
+	doneEntry      string
+	metadataKind   string
+	payloadVersion func(payload string) (string, error)
+}
+
+// Keyed by the event type of controlPlane.BaseEvent.
+var migrationPhases = map[string]migrationPhase{
+	"ASSESS MIGRATION": {"assessment.started", "assessment.completed", "assessment", payloadVersionFromDocument},
+	"EXPORT SCHEMA":    {"schema.export_started", "schema.exported", "", nil},
+	"ANALYZE SCHEMA":   {"schema.analysis_started", "schema.analyzed", "schema_analysis", schemaAnalysisPayloadVersion},
+	"EXPORT DATA":      {"data.export_started", "data.exported", "", nil},
+	"IMPORT SCHEMA":    {"schema.import_started", "schema.imported", "", nil},
+	"IMPORT DATA":      {"data.import_started", "data.imported", "", nil},
+}
+
+func payloadVersionFromDocument(payload string) (string, error) {
+	var document struct {
+		PayloadVersion string
+	}
+	err := json.Unmarshal([]byte(payload), &document)
+	if err != nil {
+		return "", fmt.Errorf("parse payload: %w", err)
+	}
+	if document.PayloadVersion == "" {
+		return "", goerrors.Errorf("payload has no PayloadVersion")
+	}
+	return document.PayloadVersion, nil
+}
+
+func schemaAnalysisPayloadVersion(string) (string, error) {
+	return SCHEMA_ANALYSIS_PAYLOAD_VERSION, nil
+}
+
+func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
+	phase, ok := migrationPhases[migrationEvent.EventType]
+	if !ok {
+		return goerrors.Errorf("unknown migration event type %q", migrationEvent.EventType)
+	}
+	migrationID := migrationEvent.MigrationUUID.String()
+
+	log.Infof("Sending migration event to the yugabytedb control plane: %s %s for migration %s",
+		migrationEvent.EventType, migrationEvent.Status, migrationID)
+
+	switch migrationEvent.Status {
+	case STATUS_IN_PROGRESS:
+		cmd := fmt.Sprintf(`
+			WITH started AS (
+				INSERT INTO %[1]s (migration_id, name, value)
+				VALUES ($1::uuid, $2::text, true)
+			)
 			INSERT INTO %[1]s (migration_id, name, value)
-			SELECT migration_id, started_entry, true
-			FROM event
-			WHERE status = 'IN PROGRESS'
-		), done_unset AS (
-			INSERT INTO %[1]s (migration_id, name, value)
-			SELECT migration_id, done_entry, false
-			FROM event
-			WHERE status = 'IN PROGRESS'
-			  -- a re-run: unset the done entry if it is currently set. Newest is by
-			  -- set_at, since cached sequence blocks mean ids don't follow write order.
-			  AND (SELECT ms.value FROM %[1]s ms
-			       WHERE ms.migration_id = event.migration_id
-			         AND ms.name = event.done_entry AND ms.scope = ''
+			SELECT $1::uuid, $3::text, false
+			-- a re-run: unset the done entry if it is currently set. Newest is by
+			-- set_at, since cached sequence blocks mean ids don't follow write order.
+			WHERE (SELECT ms.value FROM %[1]s ms
+			       WHERE ms.migration_id = $1::uuid
+			         AND ms.name = $3::text AND ms.scope = ''
 			       ORDER BY ms.set_at DESC, ms.id DESC LIMIT 1)
-		), done AS (
-			INSERT INTO %[1]s (migration_id, name, value)
-			SELECT migration_id, done_entry, true
-			FROM event
-			WHERE status = 'COMPLETED'
-		)
-		INSERT INTO %[2]s (migration_id, kind, payload, payload_version)
-		SELECT migration_id, metadata_kind, payload,
-			COALESCE(payload->>'PayloadVersion', payload->>'VoyagerVersion', '')
-		FROM event
-		WHERE status = 'COMPLETED' AND payload IS NOT NULL AND metadata_kind IS NOT NULL
-	`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME, MIGRATION_PHASES_VALUES)
+		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME)
+		return cp.exec(cmd, migrationID, phase.startedEntry, phase.doneEntry)
 
-	var maxAttempts = 5
-
-	var err error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		err = cp.executeInsertQuery(cmd, migrationEvent)
-		if err == nil {
-			break
-		} else {
-			if attempt == maxAttempts {
-				return goerrors.Errorf("error while sending migration event data to yugabytedb control plane for %d max attempts"+
-					" query: %s. migration event data: %v. error: %w", maxAttempts, cmd, migrationEvent, err)
-			}
+	case STATUS_COMPLETED:
+		if phase.metadataKind == "" {
+			cmd := fmt.Sprintf(`
+				INSERT INTO %s (migration_id, name, value)
+				VALUES ($1::uuid, $2::text, true)
+			`, QUALIFIED_MIGRATION_STATE_TABLE_NAME)
+			return cp.exec(cmd, migrationID, phase.doneEntry)
 		}
-	}
+		// The done entry and the document are one statement, so a phase is
+		// never recorded as done without the document it produced.
+		if migrationEvent.Payload == "" {
+			return goerrors.Errorf("%s completed without its %s document", migrationEvent.EventType, phase.metadataKind)
+		}
+		payloadVersion, err := phase.payloadVersion(migrationEvent.Payload)
+		if err != nil {
+			return fmt.Errorf("payload version of the %s document: %w", phase.metadataKind, err)
+		}
+		cmd := fmt.Sprintf(`
+			WITH done AS (
+				INSERT INTO %[1]s (migration_id, name, value)
+				VALUES ($1::uuid, $2::text, true)
+			)
+			INSERT INTO %[2]s (migration_id, kind, payload, payload_version)
+			VALUES ($1::uuid, $3::text, $4::jsonb, $5::text)
+		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME)
+		return cp.exec(cmd, migrationID, phase.doneEntry, phase.metadataKind, migrationEvent.Payload, payloadVersion)
 
-	return nil
+	default:
+		return goerrors.Errorf("unknown migration event status %q", migrationEvent.Status)
+	}
 }
 
-func (cp *YugabyteDB) sendTableDataProgress(
-	tableMetricsList []controlPlane.TableMetrics) error {
-
-	cmd := fmt.Sprintf("INSERT INTO %s ("+
-		"migration_id, "+
-		"db_role, "+
-		"direction, "+
-		"schema_name, "+
-		"table_name, "+
-		"status, "+
-		"snapshot_rows_estimated, "+
-		"snapshot_rows, "+
-		"updated_at"+
-		") SELECT "+
-		"m.migration_uuid::uuid, "+
-		"CASE m.migration_phase WHEN 4 THEN 'source' ELSE 'target' END, "+
-		"CASE m.migration_phase WHEN 4 THEN 'export' ELSE 'import' END, "+
-		"m.schema_name, "+
-		"m.table_name, "+
-		"CASE m.status WHEN 1 THEN 'in_progress' WHEN 2 THEN 'done' WHEN 3 THEN 'completed' ELSE 'not_started' END, "+
-		"m.count_total_rows::bigint, "+
-		"m.count_live_rows::bigint, "+
-		"now() "+
-		"FROM (VALUES ", QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME)
-
-	var valuesList []string
-	for _, metrics := range tableMetricsList {
-		value := fmt.Sprintf("('%s', '%s', '%s', %d, %d, %d, %d, '%s')",
-			metrics.MigrationUUID,
-			metrics.TableName,
-			metrics.SchemaName,
-			metrics.MigrationPhase,
-			metrics.Status,
-			metrics.CountLiveRows,
-			metrics.CountTotalRows,
-			metrics.InvocationTimestamp)
-
-		valuesList = append(valuesList, value)
-	}
-
-	cmd += strings.Join(valuesList, ",")
-
-	cmd += fmt.Sprintf(") AS m (migration_uuid, table_name, schema_name, migration_phase, status, " +
-		"count_live_rows, count_total_rows, invocation_timestamp) " +
-		"ON CONFLICT (migration_id, db_role, direction, schema_name, table_name) " +
-		"DO UPDATE " +
-		"SET " +
-		"status = EXCLUDED.status," +
-		"snapshot_rows_estimated = EXCLUDED.snapshot_rows_estimated," +
-		"snapshot_rows = EXCLUDED.snapshot_rows," +
-		"updated_at = EXCLUDED.updated_at;")
-
-	return cp.executeCmdOnTarget(cmd)
+// Keyed by the event type of controlPlane.BaseUpdateRowCountEvent.
+var tableProgressStreams = map[string]struct{ dbRole, direction string }{
+	"EXPORT DATA": {"source", "export"},
+	"IMPORT DATA": {"target", "import"},
 }
 
-func (cp *YugabyteDB) executeInsertQuery(cmd string,
-	migrationEvent MigrationEvent) error {
-
-	cp.Mutex.Lock()
-	defer cp.Mutex.Unlock()
-
-	var err error
-
-	log.Infof("Executing on yugabytedb control plane DB: [%s] for [%+v]", cmd, migrationEvent)
-	connPool, err := cp.getConnPool()
-	if err != nil {
-		return err
-	}
-
-	_, err = connPool.Exec(context.Background(), cmd,
-		migrationEvent.MigrationUUID,
-		migrationEvent.MigrationPhase,
-		migrationEvent.Status,
-		migrationEvent.Payload)
-
-	if err == nil {
-		return nil
-	}
-	log.Warnf("Error while running [%s]: %s", cmd, err)
-	time.Sleep(time.Second)
-	err2 := cp.reconnect()
-	if err2 != nil {
-		log.Warnf("Failed to reconnect to the yugabytedb control plane database: %s", err2)
-	}
-
-	if err != nil {
-		return fmt.Errorf("couldn't execute command %s on yugabytedb control plane db. error: %w", cmd, err)
-	}
-
-	return nil
+// Keyed by the status of controlPlane.BaseUpdateRowCountEvent.
+var tableProgressStatuses = map[string]string{
+	"NOT STARTED":      "not_started",
+	STATUS_IN_PROGRESS: "in_progress",
+	"DONE":             "done",
+	STATUS_COMPLETED:   "completed",
 }
 
-// Function to execute any cmd on yugabytedb control plane DB.
-func (cp *YugabyteDB) executeCmdOnTarget(cmd string) error {
+func (cp *YugabyteDB) sendTableDataProgress(tableProgressList []TableProgress) error {
+	// One array per column, so table and schema names are bound, not spliced
+	// into the statement.
+	cmd := fmt.Sprintf(`
+		INSERT INTO %s (
+			migration_id, db_role, direction, schema_name, table_name,
+			status, snapshot_rows_estimated, snapshot_rows, updated_at
+		)
+		SELECT m.migration_id::uuid, m.db_role, m.direction, m.schema_name, m.table_name,
+			m.status, m.total_rows, m.completed_rows, now()
+		FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bigint[], $8::bigint[])
+			AS m (migration_id, db_role, direction, schema_name, table_name, status, total_rows, completed_rows)
+		ON CONFLICT (migration_id, db_role, direction, schema_name, table_name)
+		DO UPDATE SET
+			status = EXCLUDED.status,
+			snapshot_rows_estimated = EXCLUDED.snapshot_rows_estimated,
+			snapshot_rows = EXCLUDED.snapshot_rows,
+			updated_at = EXCLUDED.updated_at
+	`, QUALIFIED_TABLE_DATA_PROGRESS_TABLE_NAME)
+
+	n := len(tableProgressList)
+	migrationIDs := make([]string, 0, n)
+	dbRoles := make([]string, 0, n)
+	directions := make([]string, 0, n)
+	schemaNames := make([]string, 0, n)
+	tableNames := make([]string, 0, n)
+	statuses := make([]string, 0, n)
+	totalRows := make([]int64, 0, n)
+	completedRows := make([]int64, 0, n)
+	for _, progress := range tableProgressList {
+		stream, ok := tableProgressStreams[progress.EventType]
+		if !ok {
+			return goerrors.Errorf("unknown row count event type %q for table %s", progress.EventType, progress.TableName)
+		}
+		status, ok := tableProgressStatuses[progress.Status]
+		if !ok {
+			return goerrors.Errorf("unknown row count status %q for table %s", progress.Status, progress.TableName)
+		}
+		migrationIDs = append(migrationIDs, progress.MigrationUUID.String())
+		dbRoles = append(dbRoles, stream.dbRole)
+		directions = append(directions, stream.direction)
+		schemaNames = append(schemaNames, progress.SchemaName)
+		tableNames = append(tableNames, progress.TableName)
+		statuses = append(statuses, status)
+		totalRows = append(totalRows, progress.TotalRowCount)
+		completedRows = append(completedRows, progress.CompletedRowCount)
+	}
+
+	return cp.exec(cmd, migrationIDs, dbRoles, directions, schemaNames, tableNames, statuses, totalRows, completedRows)
+}
+
+// exec runs cmd on the control plane database. A failed connect or statement
+// is retried on a fresh connection, and the last error is returned if every
+// attempt fails.
+func (cp *YugabyteDB) exec(cmd string, args ...any) error {
+	cp.connMutex.Lock()
+	defer cp.connMutex.Unlock()
+
 	maxAttempts := 5
 	var err error
-
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		log.Infof("Executing on yugabytedb control plane DB: [%s]", cmd)
-		connPool, err := cp.getConnPool()
-		if err != nil {
-			return err
-		}
-
-		_, err = connPool.Exec(context.Background(), cmd)
+		var connPool *pgxpool.Pool
+		connPool, err = cp.getConnPool()
 		if err == nil {
-			return nil
+			_, err = connPool.Exec(context.Background(), cmd, args...)
+			if err == nil {
+				return nil
+			}
 		}
 		log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
 		time.Sleep(time.Second)
-		err2 := cp.reconnect()
-		if err2 != nil {
-			log.Warnf("Failed to reconnect to the yugabytedb control plane database: %s", err2)
-			break
+		// A failed reconnect leaves no pool, so the next attempt connects again.
+		reconnectErr := cp.reconnect()
+		if reconnectErr != nil {
+			log.Warnf("Failed to reconnect to the yugabytedb control plane database: %s", reconnectErr)
 		}
 	}
-	if err != nil {
-		return fmt.Errorf("couldn't execute command %s on yugabytedb control plane db. error: %w", cmd, err)
-	}
-	return nil
+	return fmt.Errorf("couldn't execute command %s on yugabytedb control plane db. error: %w", cmd, err)
 }

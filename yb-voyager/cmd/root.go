@@ -73,12 +73,14 @@ var envVarValuesToObfuscateInLogs = []string{
 	"SOURCE_DB_PASSWORD",
 	"TARGET_DB_PASSWORD",
 	"SOURCE_REPLICA_DB_PASSWORD",
+	yugabytedb.DB_CONN_STRING_ENV_VAR,
 }
 
 var configKeyValuesToObfuscateInLogs = []string{
 	"source.db-password",
 	"target.db-password",
 	"source-replica.db-password",
+	"yugabytedb-control-plane.db-conn-string",
 }
 
 var rootCmd = &cobra.Command{
