@@ -126,6 +126,8 @@ const (
 	INDEX     = "INDEX"
 	YUGABYTED = "yugabyted"
 	YBAEON    = "ybaeon"
+	// YUGABYTEDB_CONTROL_PLANE is the control plane type that reports to a YugabyteDB/PostgreSQL database.
+	YUGABYTEDB_CONTROL_PLANE = "yugabytedb"
 
 	// assess-migration-bulk
 	SOURCE_DB_TYPE     = "source-db-type"

@@ -152,6 +152,24 @@ func getTablesColumnTypes(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlnam
 	return result, rows.Err()
 }
 
+// getTablesToColumns returns the columns of every table in tableList, in table
+// definition order.
+func getTablesToColumns(db *sql.DB, tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	tablesColumnTypes, err := getTablesColumnTypes(tableList, db)
+	if err != nil {
+		return nil, fmt.Errorf("fetching table column types: %w", err)
+	}
+	result := utils.NewStructMap[sqlname.NameTuple, []string]()
+	for _, tableName := range tableList {
+		info, ok := tablesColumnTypes[tableName]
+		if !ok {
+			return nil, goerrors.Errorf("no columns found for table %s", tableName.ForOutput())
+		}
+		result.Put(tableName, slices.Clone(info.Columns))
+	}
+	return result, nil
+}
+
 // isColumnTypeUnsupported reports whether any type the column is built from is unsupported,
 // so a domain, array, or composite over an unsupported type is filtered like that type itself.
 func isColumnTypeUnsupported(columnTypes []columnType, unsupportedTypeNames []string, unsupportedTypTypes []string) bool {

@@ -161,7 +161,10 @@ type ImportBatchArgs struct {
 	RowsPerTransaction int64
 }
 
-// Fast Path can be used to import batch is when: Primary Key is present and user has selected IGNORE as PK conflict action
+// Fast Path can be used to import batch is when: Primary Key is present and user has selected IGNORE as PK conflict action.
+// Dormant: --on-primary-key-conflict is no longer user-settable (pinned to ERROR-POLICY), so PKConflictAction
+// is never IGNORE in production and this returns false. Retained for re-enablement once YB enables
+// yb_fast_path_for_colocated_copy by default (yugabyte-db#38214).
 func (args *ImportBatchArgs) ShouldUseFastPath() bool {
 	return len(args.PrimaryKeyColumns) > 0 &&
 		(args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE)

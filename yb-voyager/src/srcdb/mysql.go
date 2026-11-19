@@ -415,6 +415,10 @@ func (ms *MySQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
+func (ms *MySQL) GetTableToColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	panic("not implemented")
+}
+
 /*
 Only valid case is when the table has a auto increment column
 Note: a mysql table can have only one auto increment column

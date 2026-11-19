@@ -429,12 +429,19 @@ func startExportDataFromSourceOnNextIteration() {
 		//If these are overridden by CLI/Config file then pass it to the command always
 		cmd = append(cmd, "--exclude-table-list", currentMsr.SourceDBConf.ExcludeTableList)
 	}
+	sourceExcluded, err := getSourceExporterExcludedColumns(metaDB)
+	if err != nil {
+		utils.ErrExit("%w", err)
+	}
+	if len(sourceExcluded) > 0 {
+		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(sourceExcluded))
+	}
 
 	iterationExportDir := GetIterationExportDir(currentMsr.GetIterationsDir(exportDir), currentMsr.IterationNo+1)
 	utils.PrintAndLogfPhase("\nStarting export data from source on iteration %d at %s.", currentMsr.IterationNo+1, iterationExportDir)
 	fmt.Println()
 
-	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + utils.ShellQuoteCommand(cmd)
 
 	utils.PrintAndLogf("Starting export data from source with command:\n %s", color.GreenString(cmdStr))
 
@@ -701,9 +708,16 @@ func startExportDataFromTargetIfRequired() {
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
-	cmd := generateExportDataFromTargetCommand(msr)
+	//for the main iteration we won't get any target excluded columns here so it will no op
+	//but for the case where fallback is starting here for the iterations we will have it stored and hence it will fetch
+	//and use that
+	targetExcluded, err := getTargetExporterExcludedColumns(metaDB)
+	if err != nil {
+		utils.ErrExit("%w", err)
+	}
+	cmd := generateExportDataFromTargetCommand(msr, targetExcluded)
 
-	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+	cmdStr := "TARGET_DB_PASSWORD=*** " + utils.ShellQuoteCommand(cmd)
 
 	msg := "Starting fallback flow from target to source"
 	if msr.IterationNo > 0 {
@@ -728,7 +742,7 @@ func startExportDataFromTargetIfRequired() {
 	}
 }
 
-func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []string {
+func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord, targetExcluded map[string][]string) []string {
 	cmd := []string{"yb-voyager", "export", "data", "from", "target"}
 
 	arguments := generateGlobalExportImportArguments()
@@ -744,6 +758,10 @@ func generateExportDataFromTargetCommand(msr *metadb.MigrationStatusRecord) []st
 		if tconf.SSLRootCert != "" {
 			cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
 		}
+	}
+	// copyExcludedColumnsToNextIteration carries this set over, and the target exporter refuses a different set on resume.
+	if len(targetExcluded) > 0 {
+		cmd = append(cmd, "--exclude-column-list", formatExcludeColumnList(targetExcluded))
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
