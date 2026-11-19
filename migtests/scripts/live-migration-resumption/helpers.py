@@ -1308,6 +1308,7 @@ LOG_SCAN_PATTERNS = [
 ]
 
 EVENT_CHANNELS_TABLE = "ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo"
+PROGRESS_READ_TIMEOUT_SEC = 10
 
 
 def active_migration_direction(ctx: Context) -> Dict[str, str]:
@@ -1326,23 +1327,35 @@ def active_migration_direction(ctx: Context) -> Dict[str, str]:
     raise RuntimeError(f"no streaming exporter/importer pair among started processes: {sorted(names)}")
 
 
-def exported_event_count(export_dir: str, exporter_role: str) -> int:
+def exported_event_count(export_dir: str, exporter_role: str) -> int | None:
+    """Events the exporter wrote, from voyager's own stats table; None when meta.db cannot be read."""
     meta_db = os.path.join(export_dir, "metainfo", "meta.db")
-    proc = subprocess.run(
-        ["sqlite3", "-cmd", ".timeout 5000", meta_db,
-         f"select coalesce(sum(num_total), 0) from exported_events_stats where exporter_role='{exporter_role}';"],
-        capture_output=True, text=True, check=True,
-    )
-    return int(proc.stdout.strip())
+    try:
+        proc = subprocess.run(
+            ["sqlite3", "-readonly", "-cmd", ".timeout 5000", meta_db,
+             f"select coalesce(sum(num_total), 0) from exported_events_stats where exporter_role='{exporter_role}';"],
+            capture_output=True, text=True, check=True, timeout=PROGRESS_READ_TIMEOUT_SEC,
+        )
+        return int(proc.stdout.strip())
+    except (subprocess.SubprocessError, ValueError):
+        return None
 
 
 def imported_event_count(cfg: Dict[str, Any], role: str) -> int | None:
-    """Events applied by the importer, read from its own progress table; None while the DB is unreachable."""
+    """Events applied by the importer, read from its own progress table; None when the DB cannot be read."""
     try:
-        rows = fetchall(cfg, role, f"select coalesce(sum(num_inserts + num_updates + num_deletes), 0) from {EVENT_CHANNELS_TABLE}")
-    except psycopg2.OperationalError:
+        conn = db_connection(cfg, role, connect_timeout=PROGRESS_READ_TIMEOUT_SEC)
+    except psycopg2.Error:
         return None
-    return int(rows[0][0])
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"set statement_timeout = {PROGRESS_READ_TIMEOUT_SEC * 1000}")
+            cur.execute(f"select coalesce(sum(num_inserts + num_updates + num_deletes), 0) from {EVENT_CHANNELS_TABLE}")
+            return int(cur.fetchone()[0])
+    except psycopg2.Error:
+        return None
+    finally:
+        conn.close()
 
 
 def migration_progress(ctx: Context, direction: Dict[str, str]) -> Dict[str, int | None]:
@@ -1355,7 +1368,7 @@ def migration_progress(ctx: Context, direction: Dict[str, str]) -> Dict[str, int
 def format_progress(now: Dict[str, int | None], base: Dict[str, int | None]) -> str:
     def one(key: str) -> str:
         if now[key] is None:
-            return f"{key}=unreachable"
+            return f"{key}=unreadable"
         if base.get(key) is None:
             return f"{key}={now[key]}"
         return f"{key}={now[key]} (+{now[key] - base[key]})"
@@ -1410,7 +1423,10 @@ def scan_logs_since(export_dir: str, artifacts_dir: str, offsets: Dict[str, int]
         per_pattern: Dict[str, int] = {}
         try:
             with open(fp, "r", errors="ignore") as f:
-                f.seek(offsets.get(fp, 0))
+                offset = offsets.get(fp, 0)
+                if os.fstat(f.fileno()).st_size < offset:
+                    offset = 0
+                f.seek(offset)
                 for line in f:
                     lowered = line.lower()
                     matched = [p for p, lp in patterns if lp in lowered]
@@ -1420,6 +1436,7 @@ def scan_logs_since(export_dir: str, artifacts_dir: str, offsets: Dict[str, int]
                     for p in matched:
                         per_pattern[p] = per_pattern.get(p, 0) + 1
         except OSError:
+            counts[os.path.basename(fp)] = {"unreadable": 1}
             continue
         if hits:
             with open(os.path.join(scan_dir, f"{os.path.basename(fp)}.scan.txt"), "w") as out:
@@ -1470,19 +1487,21 @@ def scan_logs_for_errors(export_dir: str, artifacts_dir: str, patterns: list[str
                 outf.write("\n".join(findings) + "\n")
 
 
-def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str) -> None:
-    _copy_export_subdir(export_dir, artifacts_dir, "metainfo")
+def snapshot_msr_and_stats(export_dir: str, artifacts_dir: str, *, run_failed: bool) -> None:
+    _copy_export_subdir(export_dir, artifacts_dir, "metainfo", run_failed=run_failed)
 
 
 def copy_logs_directory(export_dir: str, artifacts_dir: str) -> None:
-    _copy_export_subdir(export_dir, artifacts_dir, "logs")
+    _copy_export_subdir(export_dir, artifacts_dir, "logs", run_failed=True)
 
 
-def _copy_export_subdir(export_dir: str, artifacts_dir: str, name: str) -> None:
+def _copy_export_subdir(export_dir: str, artifacts_dir: str, name: str, *, run_failed: bool) -> None:
     """A run that failed before voyager ever ran has no metainfo/logs; skip instead of
-    burying the real failure under a FileNotFoundError traceback."""
+    burying the real failure under a FileNotFoundError traceback. A run that passed must have them."""
     src = os.path.join(export_dir, name)
     if not os.path.isdir(src):
+        if not run_failed:
+            raise RuntimeError(f"artifacts: {src} is missing after a run that passed")
         log(f"artifacts: no {name}/ under the export dir yet, nothing to copy")
         return
     shutil.copytree(src, os.path.join(artifacts_dir, name), dirs_exist_ok=True)
