@@ -98,6 +98,7 @@ RECONNECT_TIMEOUT_SECONDS = 240
 RECONNECT_INITIAL_WAIT_SECONDS = 10
 RECONNECT_MAX_WAIT_SECONDS = 60
 RECONNECT_BACKOFF_STEP_SECONDS = 5
+RECONNECT_CONNECT_TIMEOUT_SECONDS = 10
 
 
 def reconnect():
@@ -108,7 +109,7 @@ def reconnect():
     while True:
         attempt += 1
         try:
-            conn = psycopg2.connect(**get_connection_kwargs_from_config(CONFIG))
+            conn = psycopg2.connect(**{**get_connection_kwargs_from_config(CONFIG), "connect_timeout": RECONNECT_CONNECT_TIMEOUT_SECONDS})
             cursor = conn.cursor()
             print(f"Reconnected to the database on attempt {attempt}")
             return

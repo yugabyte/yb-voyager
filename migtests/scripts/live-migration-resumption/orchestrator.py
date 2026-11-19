@@ -586,6 +586,7 @@ def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
 
     def started(task_uuid: str, suffix: str = "") -> None:
         ctx.yba_task = {"event": event, "uuid": task_uuid}
+        ctx.cluster_event_running = True
         H.log_yba_event(
             ctx,
             f"{event}: started YBA task {task_uuid} on universe {client.universe_uuid}{suffix}",
@@ -632,6 +633,7 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
         raise RuntimeError("yba_wait_task: no YBA task was started by a preceding yba_cluster_event stage")
     with ctx.process_lock:
         found_exited_before = len(ctx.found_exited_events)
+        retried_before = len(ctx.retried_restart_events)
     timeout_sec = int(stage.get("timeout_sec", 0))
     interval_sec = int(stage.get("poll_interval_sec", 30))
     client = yba.YBAClient.from_env()
@@ -662,6 +664,7 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
             raise TimeoutError(f"YBA {task['event']} task {task['uuid']} still {status} after {timeout_sec}s")
         time.sleep(interval_sec)
 
+    ctx.cluster_event_running = False
     duration = int(time.time() - started)
     task["duration_sec"] = duration
     H.log_yba_event(
@@ -678,7 +681,15 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
             if name not in ctx.active_resumers and proc.poll() is not None
         }
         found_exited = ctx.found_exited_events[found_exited_before:]
+        retried = ctx.retried_restart_events[retried_before:]
     exited.update({f"{e['command']} pid={e['pid']}": e["exit_code"] for e in found_exited})
+    H.log_yba_event(
+        ctx,
+        f"{task['event']}: relaunches retried after failing to come up: {len(retried)}, process exits: {len(exited)}",
+        event=f"{task['event']}_process_report",
+        retried_restarts=retried,
+        process_exits=exited,
+    )
     if exited:
         raise RuntimeError(
             f"voyager process(es) exited during the {task['event']} task: "
