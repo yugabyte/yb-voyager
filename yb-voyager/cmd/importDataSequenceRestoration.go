@@ -18,6 +18,8 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	goerrors "github.com/go-errors/errors"
@@ -109,6 +111,11 @@ func restoreSequencesInOfflineMigration(msr *metadb.MigrationStatusRecord, impor
 		}
 	}
 
+	err = correctSequenceLastValuesAgainstTableMax(sequenceNameTupleToLastValueMap)
+	if err != nil {
+		return fmt.Errorf("failed to correct sequence last values: %w", err)
+	}
+
 	//restore the sequence last value
 	err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
 	if err != nil {
@@ -131,11 +138,188 @@ func restoreSequencesInLiveMigration(sequenceLastValue map[string]int64) error {
 		}
 		sequenceNameTupleToLastValueMap.Put(sequenceTuple, lastValue)
 	}
-	err := tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
+	err := correctSequenceLastValuesAgainstTableMax(sequenceNameTupleToLastValueMap)
+	if err != nil {
+		return fmt.Errorf("failed to correct sequence last values: %w", err)
+	}
+	err = tdb.RestoreSequences(sequenceNameTupleToLastValueMap)
 	if err != nil {
 		return fmt.Errorf("failed to restore sequences: %w", err)
 	}
 	return nil
+}
+
+// StrictSequenceRestoreEnvVar turns the correction below into a hard failure instead of
+// a warning, so that a lagging exported sequence value can be surfaced loudly rather
+// than absorbed. Off by default; enable it when you want a lag to fail the run.
+const StrictSequenceRestoreEnvVar = "YB_VOYAGER_STRICT_SEQUENCE_RESTORE"
+
+type sequenceOwnerColumn struct {
+	table  sqlname.NameTuple
+	column string
+}
+
+/*
+correctSequenceLastValuesAgainstTableMax raises each sequence's restore value to the
+maximum value actually present in the column(s) that sequence feeds, whenever the
+exported value lags behind the data.
+
+The exported value is a running maximum of the values observed in the change stream. If
+the last events before cutover are not folded into it before it is read, setval() leaves
+the sequence at or below a value already present in the table, and the next insert that
+relies on the sequence default fails with a duplicate key error. Using
+GREATEST(exported, table max) makes restoration correct regardless of why the exported
+value lagged behind.
+
+Sequences whose exported value is 0 are left untouched, matching the convention in
+RestoreSequences that such values can be legitimate, for example cyclic sequences.
+*/
+func correctSequenceLastValuesAgainstTableMax(sequenceNameTupleToLastValueMap *utils.StructMap[sqlname.NameTuple, int64]) error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("get migration status record: %w", err)
+	}
+	sequenceToColumns, err := fetchSequenceToColumnListMap(msr)
+	if err != nil {
+		return fmt.Errorf("failed to fetch sequence to column list map: %w", err)
+	}
+
+	var laggedSequences []string
+	byKey := func(a, b sqlname.NameTuple) bool { return a.ForKey() < b.ForKey() }
+
+	err = sequenceNameTupleToLastValueMap.IterKVSorted(byKey, func(sequenceTuple sqlname.NameTuple, lastValue int64) (bool, error) {
+		if lastValue == 0 {
+			return true, nil
+		}
+		ownerColumns, ok := sequenceToColumns.Get(sequenceTuple)
+		if !ok {
+			return true, nil
+		}
+		tableMax := maxValueAcrossSequenceColumns(sequenceTuple, ownerColumns)
+		if tableMax <= lastValue {
+			return true, nil
+		}
+		laggedSequences = append(laggedSequences,
+			fmt.Sprintf("%s (exported=%d, data max=%d)", sequenceTuple.ForKey(), lastValue, tableMax))
+		utils.PrintAndLogfWarning("sequence %s: exported last value %d is behind the maximum value %d already present in the data; "+
+			"restoring the sequence to that maximum instead.", sequenceTuple.ForKey(), lastValue, tableMax)
+		sequenceNameTupleToLastValueMap.Put(sequenceTuple, tableMax)
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to compare sequence values against the data: %w", err)
+	}
+
+	if utils.GetEnvAsBool(StrictSequenceRestoreEnvVar, false) && len(laggedSequences) > 0 {
+		sort.Strings(laggedSequences)
+		return goerrors.Errorf("exported sequence values lagged behind the migrated data for %d sequence(s): %s (%s is enabled)",
+			len(laggedSequences), strings.Join(laggedSequences, ", "), StrictSequenceRestoreEnvVar)
+	}
+	return nil
+}
+
+// sequenceColumnMaxQuerier is overridden in tests.
+var sequenceColumnMaxQuerier = func(query string) (string, error) {
+	var value string
+	err := tdb.QueryRow(query).Scan(&value)
+	return value, err
+}
+
+func maxValueAcrossSequenceColumns(sequenceTuple sqlname.NameTuple, ownerColumns []sequenceOwnerColumn) int64 {
+	var maxValue int64
+	for _, ownerColumn := range ownerColumns {
+		if !ownerColumn.table.TargetTableAvailable() {
+			continue
+		}
+		columnMax, ok := maxValueOfSequenceColumn(sequenceTuple, ownerColumn)
+		if ok && columnMax > maxValue {
+			maxValue = columnMax
+		}
+	}
+	return maxValue
+}
+
+/*
+maxValueOfSequenceColumn reads the largest value in one column, reporting ok=false when
+it cannot be read.
+
+The mapping records the source-side spelling of the column and nothing maps it to the
+target, the way the name registry maps table names: a MySQL or Oracle source column
+arrives as ID or AlbumId while the target column is folded to lower case. Quoting keeps a
+genuinely case-sensitive name addressable, leaving it unquoted lets the target fold it,
+so both are attempted.
+
+A column whose maximum still cannot be read only costs the comparison for that column, so
+it is reported and skipped. Failing here would break migrations that work today, since
+the target spelling cannot be resolved for every source type.
+*/
+func maxValueOfSequenceColumn(sequenceTuple sqlname.NameTuple, ownerColumn sequenceOwnerColumn) (int64, bool) {
+	columnRefs := []string{quoteIdentifierIfUnquoted(ownerColumn.column)}
+	if ownerColumn.column != columnRefs[0] {
+		columnRefs = append(columnRefs, ownerColumn.column)
+	}
+
+	var lastErr error
+	for _, columnRef := range columnRefs {
+		query := fmt.Sprintf(`SELECT COALESCE(MAX(%s)::text, '0') FROM %s`, columnRef, ownerColumn.table.ForUserQuery())
+		raw, err := sequenceColumnMaxQuerier(query)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		columnMax, isInteger := parseSequenceColumnMax(raw)
+		if !isInteger {
+			log.Warnf("column %s of table %s feeding sequence %s does not hold integer values (max is %q); skipping it",
+				ownerColumn.column, ownerColumn.table.ForKey(), sequenceTuple.ForKey(), raw)
+			return 0, false
+		}
+		return columnMax, true
+	}
+
+	log.Warnf("could not read the maximum of column %s of table %s feeding sequence %s, so its exported value is used as is: %v",
+		ownerColumn.column, ownerColumn.table.ForKey(), sequenceTuple.ForKey(), lastErr)
+	return 0, false
+}
+
+func parseSequenceColumnMax(raw string) (int64, bool) {
+	value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+// fetchSequenceToColumnListMap maps each sequence to the columns it feeds. It reads the
+// source-side mapping and resolves both names through the name registry, which maps them
+// to the database being imported into, the same way fetchSequenceToTableListMap does.
+func fetchSequenceToColumnListMap(msr *metadb.MigrationStatusRecord) (*utils.StructMap[sqlname.NameTuple, []sequenceOwnerColumn], error) {
+	sequenceToColumns := utils.NewStructMap[sqlname.NameTuple, []sequenceOwnerColumn]()
+	for column, sequenceName := range msr.SourceColumnToSequenceMapping {
+		parts := strings.Split(column, ".") //column is qualified schema.tablename.colname
+		if len(parts) != 3 {
+			return nil, goerrors.Errorf("invalid qualified column name %q in column to sequence mapping", column)
+		}
+		tableName := fmt.Sprintf("%s.%s", parts[0], parts[1])
+		tableNameTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error looking up table name %q: %w", tableName, err)
+		}
+		sequenceTuple, err := namereg.NameReg.LookupTableNameAndIgnoreIfTargetNotFoundBasedOnRole(sequenceName)
+		if err != nil {
+			return nil, fmt.Errorf("error looking up sequence name %q: %w", sequenceName, err)
+		}
+		ownerColumn := sequenceOwnerColumn{table: tableNameTuple, column: parts[2]}
+		ownerColumns, _ := sequenceToColumns.Get(sequenceTuple)
+		sequenceToColumns.Put(sequenceTuple, append(ownerColumns, ownerColumn))
+	}
+	return sequenceToColumns, nil
+}
+
+func quoteIdentifierIfUnquoted(identifier string) string {
+	if sqlname.IsQuoted(identifier) {
+		return identifier
+	}
+	return fmt.Sprintf(`"%s"`, identifier)
 }
 
 func shouldFilterSequences(sourceType string) bool {
