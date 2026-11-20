@@ -166,6 +166,7 @@ FROM generate_series(1, 500000);`
 
 // Test import data command with interruptions and fast path, with primary key conflict action as IGNORE.
 func TestImportDataResumptionWithInterruptions_FastPath_OnPrimaryKeyConflictActionAsIgnore(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -272,6 +273,7 @@ with table already has same rows which are going to be imported
 Expectation: import process should ignore the rows which are already present in the table
 */
 func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_TableAlreadyHasData(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -351,6 +353,7 @@ CREATE TABLE test_schema.test_data (
 }
 
 func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_PartitionedTableAlreadyHasData(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -447,6 +450,7 @@ CREATE TABLE test_schema.emp_2 PARTITION OF test_schema.emp FOR VALUES WITH (MOD
 // This test uses Fast Path import with --on-primary-key-conflict=IGNORE
 // Focuses on testing the import of all data types via import batch recovery mode(INSERT ON CONFLICT DO NOTHING statements)
 func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -524,6 +528,7 @@ func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *t
 }
 
 func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_TableAlreadyHasData_MultiSchema(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -633,6 +638,7 @@ INSERT INTO public.foo (id, name) VALUES (%d, 'name_%d');`, i+1, i)
 
 // Data file without header
 func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData1(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -728,6 +734,7 @@ CREATE TABLE test_schema.test_data (
 
 // Data file with header - create a csv file with header so that import data file picks that up
 func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData2(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 	// Start YugabyteDB container.
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
@@ -831,6 +838,7 @@ CREATE table test_schema.test_data (
 
 // Import data file with fast path and primary key conflict action as IGNORE with default schema(public)
 func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData_DefaultSchema(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -928,6 +936,7 @@ CREATE TABLE public.foo (
 // If caused by other constraints, the import should fail and not retry/ignore
 // Testing with custom csv file with import data file command
 func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintViolationErrorExit(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -1019,6 +1028,7 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 
 // Similar to the above test, but with a unique constraint violation on primary key which should be ignored
 func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintViolationErrorIgnore(t *testing.T) {
+	t.Skip("--on-primary-key-conflict=IGNORE (fast path) is deprecated/removed pending yugabyte-db#38214; re-enable when YB enables yb_fast_path_for_colocated_copy by default")
 	ctx := context.Background()
 
 	// Create a temporary export directory.

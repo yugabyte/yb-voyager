@@ -24,7 +24,7 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 

@@ -17,6 +17,8 @@ package srcdb
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -33,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/mcuadros/go-version"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -55,7 +58,7 @@ const PG_STAT_STATEMENTS = "pg_stat_statements"
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
 var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
-var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ", "REFCURSOR"}
+var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR","HALFVEC", "SPARSEVEC","TIMETZ", "REFCURSOR", "INT4RANGE", "INT8RANGE", "NUMRANGE", "TSRANGE", "TSTZRANGE", "DATERANGE"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
 	return PostgresUnsupportedDataTypesForDbzm
@@ -661,6 +664,81 @@ func (pg *PostgreSQL) FetchDBID() error {
 	return nil
 }
 
+// getPgxServerCertificate returns the leaf certificate the server presented on an
+// already-established pgx connection. It only reads the TLS state the driver negotiated;
+// it does not open a new connection or change how the certificate is verified.
+// Returns (nil, nil) when the connection is not using TLS (sslmode=disable, or the
+// server declined TLS under sslmode=prefer/allow).
+func getPgxServerCertificate(db *sql.DB) (*x509.Certificate, error) {
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("get connection from pool: %w", err)
+	}
+	defer conn.Close()
+
+	var cert *x509.Certificate
+	// database/sql hides the driver connection; Raw exposes it so we can walk down
+	// stdlib.Conn -> pgx.Conn -> pgconn.PgConn -> net.Conn, which is a *tls.Conn
+	// only when TLS was negotiated.
+	err = conn.Raw(func(driverConn any) error {
+		stdlibConn, ok := driverConn.(*stdlib.Conn)
+		if !ok {
+			return goerrors.Errorf("unexpected driver connection type %T", driverConn)
+		}
+		tlsConn, ok := stdlibConn.Conn().PgConn().Conn().(*tls.Conn)
+		if !ok {
+			return nil
+		}
+		// PeerCertificates[0] is the server's own (leaf) certificate; the rest is the CA chain.
+		peerCerts := tlsConn.ConnectionState().PeerCertificates
+		if len(peerCerts) > 0 {
+			cert = peerCerts[0]
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cert, nil
+}
+
+// extractTLSCertDomain returns the instance-qualified domain (<instance>.*.<domain>) named by the
+// server's TLS certificate, used in callhome to identify the organisation running the migration.
+// The SANs are tried first, then the Subject CN (older or self-signed certs often carry the name
+// only there). A name carrying an instance label wins over one without, since managed-service
+// certs (RDS, Aurora) also list wildcard SANs. The certificate is usually unverified (default
+// sslmode=prefer), so this is reported next to the host's domain rather than replacing it.
+func extractTLSCertDomain(cert *x509.Certificate) string {
+	if cert == nil {
+		return ""
+	}
+	names := append([]string{}, cert.DNSNames...)
+	names = append(names, cert.Subject.CommonName)
+	var domainWithoutInstance string
+	for _, name := range names {
+		domain := utils.InstanceQualifiedDomain(name)
+		if domain == "" {
+			continue
+		}
+		if domain != utils.RegisteredDomain(name) {
+			return domain
+		}
+		if domainWithoutInstance == "" {
+			domainWithoutInstance = domain
+		}
+	}
+	return domainWithoutInstance
+}
+
+func (pg *PostgreSQL) FetchTLSCertDomainName() error {
+	cert, err := getPgxServerCertificate(pg.db)
+	if err != nil {
+		return fmt.Errorf("get source server TLS certificate: %w", err)
+	}
+	pg.source.TLSCertDomain = extractTLSCertDomain(cert)
+	return nil
+}
+
 func (pg *PostgreSQL) FetchSchemaOids() error {
 	var oids []int64
 	schemaList := sqlname.JoinIdentifiersUnquoted(pg.source.Schemas, "','")
@@ -717,104 +795,20 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) getAllUserDefinedRangeTypes(tableList []sqlname.NameTuple) ([]string, error) {
-	if len(tableList) == 0 {
-		return []string{}, nil
+func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
+	if !(useDebezium || isStreamingEnabled) {
+		return utils.NewStructMap[sqlname.NameTuple, []string](), utils.NewStructMap[sqlname.NameTuple, []string](), nil
 	}
-
-	// Build the IN clause with tuples for all tables
-	// eg: [('public', 'products'), ('public', 'users'), ('public', 'invoices')]
-	var tableTuples []string
-	for _, table := range tableList {
-		schema, name := table.ForCatalogQuery()
-		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
-	}
-	inClause := strings.Join(tableTuples, ", ")
-
-	query := fmt.Sprintf(`
-		SELECT DISTINCT
-			type_n.nspname || '.' || t.typname AS qualified_type_name
-		FROM
-			pg_attribute AS a
-		JOIN
-			pg_type AS t ON t.oid = a.atttypid
-		JOIN
-			pg_namespace AS type_n ON type_n.oid = t.typnamespace
-		JOIN
-			pg_class AS c ON c.oid = a.attrelid
-		JOIN
-			pg_namespace AS table_n ON table_n.oid = c.relnamespace
-		WHERE
-			(table_n.nspname, c.relname) IN (%s)
-			AND a.attnum > 0
-			AND t.typtype = 'r'
-		ORDER BY qualified_type_name;
-	`, inClause)
-
-	rows, err := pg.db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("error in querying source database for user defined columns: %q: %w\n", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	var userDefinedRangeTypes []string
-	for rows.Next() {
-		var qualifiedTypeName string
-		err = rows.Scan(&qualifiedTypeName)
-		if err != nil {
-			return nil, fmt.Errorf("error in scanning query rows for user defined columns: %w\n", err)
-		}
-		userDefinedRangeTypes = append(userDefinedRangeTypes, qualifiedTypeName)
-	}
-	return userDefinedRangeTypes, nil
+	// range and multirange values are not handled by the importer's value converter
+	return getColumnsWithSupportedTypes(pg.db, tableList, PostgresUnsupportedDataTypesForDbzm, []string{pgTypTypeRange, pgTypTypeMultirange})
 }
 
-func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
-	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	//USER DEFINED RANGE TYPE or MULTI RANGE type datatypes are not supported by importer value converter currently
-	userDefinedRangeTypes, err := pg.getAllUserDefinedRangeTypes(tableList)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error in getting user defined range types: %w", err)
-	}
-	unsupportedDatatypesList := append(PostgresUnsupportedDataTypesForDbzm, userDefinedRangeTypes...)
-	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, pg.db)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
-	}
-	for _, tableName := range tableList {
-		allTableColumnsInfo := allTablesColumnsInfo[tableName]
-		columns := allTableColumnsInfo.Columns
-		dataTypes := allTableColumnsInfo.DataTypes
-		var unsupportedColumnNames []string
-		var supportedColumnNames []string
-		for i, column := range columns {
-			if useDebezium || isStreamingEnabled {
-				// Use ContainsAnyStringFromSlice for string matching here because catalog table only contain base type names without modifiers. For example:
-				// - For VARCHAR(255), only "VARCHAR" is reported (no length/precision/scale in data_type column) in data_type column of the catalog table
-				// - For public.geometry(Point,4326), only "geometry" is reported in typename column of the catalog table
-				if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
-					unsupportedColumnNames = append(unsupportedColumnNames, column)
-				} else {
-					supportedColumnNames = append(supportedColumnNames, column)
-				}
-			}
-		}
-		if len(supportedColumnNames) == len(columns) {
-			supportedTableColumnsMap.Put(tableName, []string{"*"})
-		} else {
-			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
-			if len(unsupportedColumnNames) > 0 {
-				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
-			}
-		}
-	}
-	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+func (pg *PostgreSQL) GetTableToColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return getTablesToColumns(pg.db, tableList)
+}
+
+func (pg *PostgreSQL) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	return getTypeToOid(pg.db, typeNames)
 }
 
 // GetGeneratedStoredColumns returns, per table in tableList, the names of its STORED
@@ -956,37 +950,34 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 	return columnToSequenceMap
 }
 
+// TODO: merge with tgtdb.generateSSLQueryStringIfNotExists, which differs in empty and invalid sslmode
+// handling. SSLQueryString is only copied between source and target confs since the
+// --ssl-query-string flag was removed (#174), so the early return below never fires.
 func generateSSLQueryStringIfNotExists(s *Source) string {
-
-	if s.Uri == "" {
-		SSLQueryString := ""
-		if s.SSLQueryString == "" {
-
-			if s.SSLMode == "disable" || s.SSLMode == "allow" || s.SSLMode == "prefer" || s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-				SSLQueryString = "sslmode=" + s.SSLMode
-				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
-					if s.SSLCertPath != "" {
-						SSLQueryString += "&sslcert=" + s.SSLCertPath
-					}
-					if s.SSLKey != "" {
-						SSLQueryString += "&sslkey=" + s.SSLKey
-					}
-					if s.SSLRootCert != "" {
-						SSLQueryString += "&sslrootcert=" + s.SSLRootCert
-					}
-					if s.SSLCRL != "" {
-						SSLQueryString += "&sslcrl=" + s.SSLCRL
-					}
-				}
-			} else {
-				utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
-			}
-		} else {
-			SSLQueryString = s.SSLQueryString
+	if s.SSLQueryString != "" {
+		return s.SSLQueryString
+	}
+	switch s.SSLMode {
+	case "disable", "allow", "prefer":
+		return "sslmode=" + s.SSLMode
+	case "require", "verify-ca", "verify-full":
+		query := "sslmode=" + s.SSLMode
+		// File paths are user input and may contain URI syntax (spaces, '%', '&'); see utils.EscapeConnUriQueryValue.
+		if s.SSLCertPath != "" {
+			query += "&sslcert=" + utils.EscapeConnUriQueryValue(s.SSLCertPath)
 		}
-		return SSLQueryString
-	} else {
+		if s.SSLKey != "" {
+			query += "&sslkey=" + utils.EscapeConnUriQueryValue(s.SSLKey)
+		}
+		if s.SSLRootCert != "" {
+			query += "&sslrootcert=" + utils.EscapeConnUriQueryValue(s.SSLRootCert)
+		}
+		if s.SSLCRL != "" {
+			query += "&sslcrl=" + utils.EscapeConnUriQueryValue(s.SSLCRL)
+		}
+		return query
+	default:
+		utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
 		return ""
 	}
 }
@@ -1145,6 +1136,9 @@ WHERE (n.nspname, c.relname) IN (%s)
 ORDER BY array_position(i.indkey, a.attnum);`
 
 func (pg *PostgreSQL) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	if len(tables) == 0 {
+		return utils.NewStructMap[sqlname.NameTuple, []string](), nil
+	}
 
 	catalogTableToTuple := make(map[string]sqlname.NameTuple)
 	for _, table := range tables {

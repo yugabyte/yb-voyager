@@ -125,6 +125,10 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 		PartitionColumns: make([]string, 0),
 	}
 
+	if ofType := createTableNode.CreateStmt.GetOfTypename(); ofType != nil {
+		table.OfTypeName = utils.BuildObjectName(getSchemaAndObjectName(ofType.GetNames()))
+	}
+
 	// Populate IsInherited, IsPartitionOf, InheritedFrom, PartitionedFrom
 	tableProcessor.detectInheritanceAndPartition(table, createTableNode)
 
@@ -331,6 +335,7 @@ type Table struct {
 	IsPartitioned         bool     // true if this table is a partitioned table
 	IsPartitionOf         bool     // true if this table is a partition of a parent table
 	PartitionedFrom       string   // Name of the parent partitioned table if this is a partition
+	OfTypeName            string   // set for a typed table, CREATE TABLE t OF type; Columns then hold only column options, without types
 	Columns               []TableColumn
 	IsExpressionPartition bool
 	PartitionStrategy     pg_query.PartitionStrategy
@@ -1104,12 +1109,26 @@ func NewTypeProcessor() *TypeProcessor {
 func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
 	compositeNode, isComposite := getCompositeTypeStmtNode(parseTree)
 	enumNode, isEnum := getEnumTypeStmtNode(parseTree)
+	rangeNode, isRange := getRangeTypeStmtNode(parseTree)
 
 	switch {
 	case isComposite:
 		createType := &CreateType{
 			TypeName:   compositeNode.CompositeTypeStmt.Typevar.GetRelname(),
 			SchemaName: compositeNode.CompositeTypeStmt.Typevar.GetSchemaname(),
+		}
+		for _, element := range compositeNode.CompositeTypeStmt.GetColdeflist() {
+			colDef := element.GetColumnDef()
+			if colDef == nil {
+				continue
+			}
+			typeSchemaName, typeName := getSchemaAndObjectName(colDef.GetTypeName().GetNames())
+			createType.CompositeFields = append(createType.CompositeFields, TableColumn{
+				ColumnName:  colDef.GetColname(),
+				TypeName:    typeName,
+				TypeSchema:  typeSchemaName,
+				IsArrayType: isArrayType(colDef.GetTypeName()),
+			})
 		}
 		return createType, nil
 	case isEnum:
@@ -1120,6 +1139,19 @@ func (typeProcessor *TypeProcessor) Process(parseTree *pg_query.ParseResult) (DD
 			SchemaName: typeSchemaName,
 			IsEnum:     true,
 		}
+		return createType, nil
+	case isRange:
+		typeSchemaName, typeName := getSchemaAndObjectName(rangeNode.CreateRangeStmt.GetTypeName())
+		createType := &CreateType{
+			TypeName:   typeName,
+			SchemaName: typeSchemaName,
+			IsRange:    true,
+		}
+		multirangeSchemaName, multirangeTypeName, err := getMultirangeTypeName(rangeNode.CreateRangeStmt, typeSchemaName, typeName)
+		if err != nil {
+			return nil, err
+		}
+		createType.MultirangeSchemaName, createType.MultirangeTypeName = multirangeSchemaName, multirangeTypeName
 		return createType, nil
 
 	default:
@@ -1132,6 +1164,42 @@ type CreateType struct {
 	TypeName   string
 	SchemaName string
 	IsEnum     bool
+	IsRange    bool
+	// the multirange type PostgreSQL creates along with a range type
+	MultirangeSchemaName string
+	MultirangeTypeName   string
+	CompositeFields      []TableColumn
+}
+
+// getMultirangeTypeName returns the multirange_type_name option if given, else the name PostgreSQL
+// derives (makeMultirangeTypeName): "multi" inserted before the first "range", or "_multirange"
+// appended. An unqualified name is assumed to be in the range type's schema (pg_dump always qualifies it)
+func getMultirangeTypeName(stmt *pg_query.CreateRangeStmt, rangeSchemaName string, rangeTypeName string) (string, string, error) {
+	for _, param := range stmt.GetParams() {
+		defElem := param.GetDefElem()
+		if defElem == nil || defElem.GetDefname() != "multirange_type_name" {
+			continue
+		}
+		var schemaName, typeName string
+		// mirrors PG's defGetQualifiedName: a string literal or keyword is one unqualified name
+		switch arg := defElem.GetArg(); {
+		case arg.GetTypeName() != nil:
+			schemaName, typeName = getSchemaAndObjectName(arg.GetTypeName().GetNames())
+		case arg.GetString_() != nil:
+			typeName = arg.GetString_().GetSval()
+		}
+		if typeName == "" {
+			return "", "", goerrors.Errorf("unrecognized multirange_type_name of range type %s: %v", utils.BuildObjectName(rangeSchemaName, rangeTypeName), defElem.GetArg())
+		}
+		if schemaName == "" {
+			schemaName = rangeSchemaName
+		}
+		return schemaName, typeName, nil
+	}
+	if idx := strings.Index(rangeTypeName, "range"); idx >= 0 {
+		return rangeSchemaName, rangeTypeName[:idx] + "multi" + rangeTypeName[idx:], nil
+	}
+	return rangeSchemaName, rangeTypeName + "_multirange", nil
 }
 
 func (c *CreateType) GetObjectName() string {
@@ -1140,6 +1208,50 @@ func (c *CreateType) GetObjectName() string {
 func (c *CreateType) GetSchemaName() string { return c.SchemaName }
 
 func (c *CreateType) GetObjectType() string { return TYPE_OBJECT_TYPE }
+
+//===========================DOMAIN PROCESSOR===================
+
+type DomainProcessor struct{}
+
+func NewDomainProcessor() *DomainProcessor {
+	return &DomainProcessor{}
+}
+
+func (domainProcessor *DomainProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	domainNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateDomainStmt)
+	if !ok {
+		return nil, goerrors.Errorf("not CREATE DOMAIN statement")
+	}
+	domainSchemaName, domainName := getSchemaAndObjectName(domainNode.CreateDomainStmt.GetDomainname())
+	baseType := domainNode.CreateDomainStmt.GetTypeName()
+	baseTypeSchemaName, baseTypeName := getSchemaAndObjectName(baseType.GetNames())
+	return &CreateDomain{
+		DomainName:      domainName,
+		SchemaName:      domainSchemaName,
+		BaseTypeName:    baseTypeName,
+		BaseTypeSchema:  baseTypeSchemaName,
+		IsBaseTypeArray: isArrayType(baseType),
+	}, nil
+}
+
+type CreateDomain struct {
+	DomainName      string
+	SchemaName      string
+	BaseTypeName    string
+	BaseTypeSchema  string
+	IsBaseTypeArray bool
+}
+
+func (d *CreateDomain) GetObjectName() string {
+	return utils.BuildObjectName(d.SchemaName, d.DomainName)
+}
+func (d *CreateDomain) GetSchemaName() string { return d.SchemaName }
+
+func (d *CreateDomain) GetObjectType() string { return DOMAIN_OBJECT_TYPE }
+
+func (d *CreateDomain) GetFullBaseTypeName() string {
+	return utils.BuildObjectName(d.BaseTypeSchema, d.BaseTypeName)
+}
 
 //===========================VIEW PROCESSOR===================
 
@@ -1386,8 +1498,10 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 		return NewPolicyProcessor(), nil
 	case PG_QUERY_CREATE_TRIG_STMT:
 		return NewTriggerProcessor(), nil
-	case PG_QUERY_COMPOSITE_TYPE_STMT, PG_QUERY_ENUM_TYPE_STMT:
+	case PG_QUERY_COMPOSITE_TYPE_STMT, PG_QUERY_ENUM_TYPE_STMT, PG_QUERY_CREATE_RANGE_STMT_NODE:
 		return NewTypeProcessor(), nil
+	case PG_QUERY_CREATE_DOMAIN_STMT_NODE:
+		return NewDomainProcessor(), nil
 	case PG_QUERY_FOREIGN_TABLE_STMT:
 		return NewForeignTableProcessor(), nil
 	case PG_QUERY_VIEW_STMT:

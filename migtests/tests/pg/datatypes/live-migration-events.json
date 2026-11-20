@@ -1,5 +1,6 @@
 {
-  "source_delta_events": 128,
+  "source_delta_events": 125,
+  "source_delta_events_grpc_connector": 116,
   "target_delta_events": 45,
   "target_delta_events_logical_replication": 144
 }

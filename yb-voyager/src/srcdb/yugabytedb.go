@@ -41,12 +41,12 @@ import (
 )
 
 // Apart from these we also skip UDT columns. Array of enums, hstore, and tsvector are supported with logical connector (default).
-var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "REFCURSOR", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "REFCURSOR", "GEOMETRY", "GEOGRAPHY", "RASTER", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "HALFVEC", "SPARSEVEC", "TIMETZ"}
 
 // For the gRPC connector - datatypes like HSTORE/CITEXT/LTREE that are available by extensions, are not supported and the table of these needs to be skipped for the migration with grpc connector
 // but right now we are only skipping columns of that table and if there are DML on those tables the gRPC connector will error out.
 // TODO to handle that
-var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "REFCURSOR", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "TIMETZ"}
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "XML", "XID", "XID8", "CID", "REFCURSOR", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE", "CITEXT", "LTREE", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE", "VECTOR", "HALFVEC", "SPARSEVEC", "TIMETZ"}
 
 func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
 	if isGRPCConnector {
@@ -463,6 +463,15 @@ func (yb *YugabyteDB) FetchDBID() error {
 	return nil
 }
 
+func (yb *YugabyteDB) FetchTLSCertDomainName() error {
+	cert, err := getPgxServerCertificate(yb.db)
+	if err != nil {
+		return fmt.Errorf("get source server TLS certificate: %w", err)
+	}
+	yb.source.TLSCertDomain = extractTLSCertDomain(cert)
+	return nil
+}
+
 func (yb *YugabyteDB) FetchSchemaOids() error {
 	var oids []int64
 	schemaList := sqlname.JoinIdentifiersUnquoted(yb.source.Schemas, "','")
@@ -677,212 +686,25 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 	return nonEmptyTableList, emptyTableList
 }
 
-/*
-For gRPC
-UDTs other than enums and domain are unsupported and RANGE types are unsupported
-so we fetch
-i.e. typtype = 'c' (composite) or typtype = 'r' (range)
-
-With logical connector
-RANGE  types are unsupported so we fetch typtype = 'r'
-
-This function now accepts a slice of tables and returns a unique list of fully qualified
-unsupported user-defined type names (e.g., "hr.contact", "inventory.device_specs") by making a single database query.
-Qualified because same typename can be present in multiple schemas in completely different ways.
-*/
-func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableList []sqlname.NameTuple) []string {
-	if len(tableList) == 0 {
-		return []string{}
-	}
-
-	typesNotSupportedClause := "t.typtype = 'r'" // RANGE types are not supported for gRPC and Logical both  as its an import value converter issue
-
-	if yb.source.IsYBGrpcConnector {
-		typesNotSupportedClause = "(t.typtype = 'c' OR t.typtype = 'r')" // gRPC doesn't support types so fetch both composite and range types
-	}
-
-	// Build the IN clause with tuples for all tables
-	// eg: [('public', 'products'), ('public', 'users'), ('public', 'invoices')]
-	var tableTuples []string
-	for _, table := range tableList {
-		schema, name := table.ForCatalogQuery()
-		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
-	}
-	inClause := strings.Join(tableTuples, ", ")
-
-	query := fmt.Sprintf(`
-		SELECT DISTINCT
-			type_n.nspname || '.' || t.typname AS qualified_type_name
-		FROM
-			pg_attribute AS a
-		JOIN
-			pg_type AS t ON t.oid = a.atttypid
-		JOIN
-			pg_namespace AS type_n ON type_n.oid = t.typnamespace
-		JOIN
-			pg_class AS c ON c.oid = a.attrelid
-		JOIN
-			pg_namespace AS table_n ON table_n.oid = c.relnamespace
-		WHERE
-			(table_n.nspname, c.relname) IN (%s)
-			AND a.attnum > 0
-			AND %s
-		ORDER BY qualified_type_name;
-	`, inClause, typesNotSupportedClause)
-
-	rows, err := yb.db.Query(query)
-	if err != nil {
-		utils.ErrExit("error in querying source database for user defined columns: %q: %w\n", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	var userDefinedDataTypes []string
-	for rows.Next() {
-		var qualifiedTypeName string
-		err = rows.Scan(&qualifiedTypeName)
-		if err != nil {
-			utils.ErrExit("error in scanning query rows for user defined columns: %w\n", err)
-		}
-		userDefinedDataTypes = append(userDefinedDataTypes, qualifiedTypeName)
-	}
-	return userDefinedDataTypes
-}
-
-// tableColumnInfo holds columns and their data types information for a table
-type tableColumnInfo struct {
-	Columns   []string
-	DataTypes []string
-}
-
 func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
-	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
-
 	// offline migration case, we support all datatypes
 	if !(useDebezium || isStreamingEnabled) {
-		return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+		return utils.NewStructMap[sqlname.NameTuple, []string](), utils.NewStructMap[sqlname.NameTuple, []string](), nil
 	}
-
-	// Fetch all user-defined types for all tables in a single query and add them to the unsupported datatypes list
-	unsupportedUserDefinedTypes := yb.filterUnsupportedUserDefinedDatatypes(tableList)
-	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
-	unsupportedDatatypesList = append(unsupportedDatatypesList, unsupportedUserDefinedTypes...)
-
-	// Fetch all table columns in a single query
-	allTablesColumnsInfo, err := getAllTableColumnsInfo(tableList, yb.db)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching table columns: %w", err)
+	// range and multirange values are not handled by the importer's value converter with
+	// either connector; gRPC cannot stream composite types at all
+	unsupportedTypTypes := []string{pgTypTypeRange, pgTypTypeMultirange}
+	if yb.source.IsYBGrpcConnector {
+		unsupportedTypTypes = append(unsupportedTypTypes, pgTypTypeComposite)
 	}
-
-	for _, tableName := range tableList {
-		columnInfo := allTablesColumnsInfo[tableName]
-		columns := columnInfo.Columns
-		dataTypes := columnInfo.DataTypes
-
-		var supportedColumnNames []string
-		var unsupportedColumnNames []string
-		for i, column := range columns {
-			//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
-			// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
-			//of these types there are other columns available for these information so we just do string match of types with our list
-			if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
-				unsupportedColumnNames = append(unsupportedColumnNames, column)
-			} else {
-				supportedColumnNames = append(supportedColumnNames, column)
-			}
-		}
-		if len(supportedColumnNames) == len(columns) {
-			supportedTableColumnsMap.Put(tableName, []string{"*"})
-		} else {
-			supportedTableColumnsMap.Put(tableName, supportedColumnNames)
-			if len(unsupportedColumnNames) > 0 {
-				unsupportedTableColumnsMap.Put(tableName, unsupportedColumnNames)
-			}
-		}
-	}
-
-	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
+	return getColumnsWithSupportedTypes(yb.db, tableList, GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector), unsupportedTypTypes)
 }
 
-// getAllTableColumnsInfo fetches column information for all tables in a single database query
-func getAllTableColumnsInfo(tableList []sqlname.NameTuple, db *sql.DB) (map[sqlname.NameTuple]tableColumnInfo, error) {
-	var result = make(map[sqlname.NameTuple]tableColumnInfo)
-	if len(tableList) == 0 {
-		return result, nil
-	}
-
-	// Build IN clause AND create reverse lookup map for table name to NameTuple
-	var tableTuples []string
-	// Key: "schema.table" -> Value: original NameTuple
-	tableLookup := make(map[string]sqlname.NameTuple)
-
-	for _, table := range tableList {
-		schema, name := table.ForCatalogQuery()
-		tableTuples = append(tableTuples, fmt.Sprintf("('%s', '%s')", schema, name))
-
-		lookupKey := table.AsQualifiedCatalogName()
-		tableLookup[lookupKey] = table
-	}
-	inClause := strings.Join(tableTuples, ", ")
-	query := fmt.Sprintf(`
-		SELECT
-			n.nspname AS table_schema,
-			c.relname AS table_name,
-			a.attname AS column_name,
-			-- Qualify only composite types (UDTs) to distinguish same-named types across schemas.
-			-- Keep other types unqualified (hstore, int4, etc.) to match unsupported types list.
-			CASE
-				WHEN (t.typtype = 'c' OR t.typtype = 'r') THEN type_n.nspname || '.' || t.typname
-				ELSE t.typname
-			END AS data_type
-		FROM pg_attribute AS a
-		JOIN pg_type AS t ON t.oid = a.atttypid
-		JOIN pg_namespace AS type_n ON type_n.oid = t.typnamespace
-		JOIN pg_class AS c ON c.oid = a.attrelid
-		JOIN pg_namespace AS n ON n.oid = c.relnamespace
-		WHERE (n.nspname, c.relname) IN (%s)
-			AND a.attname NOT IN ('tableoid', 'cmax', 'xmax', 'cmin', 'xmin', 'ctid')
-			AND a.attnum > 0
-			AND NOT a.attisdropped
-		ORDER BY n.nspname, c.relname, a.attnum; -- attnum ensures columns appear in table definition order and keeps Columns[] and DataTypes[] arrays aligned deterministically
-	`, inClause)
-	rows, err := db.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("error querying table columns: %w", err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-
-	for rows.Next() {
-		var schema, table, column, dataType string
-		if err := rows.Scan(&schema, &table, &column, &dataType); err != nil {
-			return nil, fmt.Errorf("error scanning column info: %w", err)
-		}
-
-		lookupKey := fmt.Sprintf("%s.%s", schema, table)
-		matchingTable, exists := tableLookup[lookupKey]
-		if !exists {
-			// This shouldn't happen, but handle gracefully
-			log.Warnf("Received column info for unexpected table: %s.%s", schema, table)
-			continue
-		}
-
-		info := result[matchingTable]
-		info.Columns = append(info.Columns, column)
-		info.DataTypes = append(info.DataTypes, dataType)
-		result[matchingTable] = info
-	}
-
-	return result, rows.Err()
+func (yb *YugabyteDB) GetTableToColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	return getTablesToColumns(yb.db, tableList)
+}
+func (yb *YugabyteDB) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	return getTypeToOid(yb.db, typeNames)
 }
 
 func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
@@ -1051,6 +873,9 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 }
 
 func (yb *YugabyteDB) GetPrimaryKeyColumns(tables []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	if len(tables) == 0 {
+		return utils.NewStructMap[sqlname.NameTuple, []string](), nil
+	}
 	catalogTableToTuple := make(map[string]sqlname.NameTuple)
 	for _, table := range tables {
 		catalogTableToTuple[table.AsQualifiedCatalogName()] = table

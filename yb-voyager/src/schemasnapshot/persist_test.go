@@ -215,14 +215,14 @@ func TestLoadMissingNameNoTable(t *testing.T) {
 
 func TestDecodeSnapshotVersionTooNew(t *testing.T) {
 	schema := makeSchema()
-	schema.Version = 2 // future version
+	schema.Version = currentSnapshotVersion + 1
 	data, err := json.Marshal(schema)
 	require.NoError(t, err)
 
 	_, err = DecodeSnapshot(data)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "newer than this library understands")
-	assert.Contains(t, err.Error(), "expected Version 1")
+	assert.Contains(t, err.Error(), "expected Version 2")
 }
 
 func TestDecodeSnapshotVersionZero(t *testing.T) {
@@ -253,6 +253,8 @@ func TestDecodeSnapshotVersionOne(t *testing.T) {
 	got, err := DecodeSnapshot(data)
 	require.NoError(t, err)
 	assert.Equal(t, 1, got.Version)
+	assert.Nil(t, got.Tables[0].PrimaryKey)
+	assert.Empty(t, got.Tables[0].Indexes)
 }
 
 // ─── Name collision → error ───────────────────────────────────────────────────

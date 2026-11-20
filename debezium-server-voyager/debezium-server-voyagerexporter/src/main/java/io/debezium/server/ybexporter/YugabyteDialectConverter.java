@@ -7,6 +7,7 @@ package io.debezium.server.ybexporter;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -58,7 +59,7 @@ public class YugabyteDialectConverter {
                     case "POLYGON":
                     case "CIRCLE":
                         byte[] byteArr = ((ByteBuffer) fieldValue).array();
-                        return new String(byteArr);
+                        return new String(byteArr, StandardCharsets.UTF_8);
                 }
             }
         }

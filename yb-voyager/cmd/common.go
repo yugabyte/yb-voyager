@@ -53,6 +53,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -1230,6 +1231,46 @@ func getImportedSizeMap() (*utils.StructMap[sqlname.NameTuple, int64], error) { 
 		snapshotRowsMap.Put(nt, exisitingByteCount+byteCount)
 	}
 	return snapshotRowsMap, nil
+}
+
+func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList string, listName string) ([]sqlname.NameTuple, error) {
+	result := []sqlname.NameTuple{}
+	if flagTableList == "" {
+		return result, nil
+	}
+	findPatternMatchingTables := func(pattern string) ([]sqlname.NameTuple, error) {
+		var matched []sqlname.NameTuple
+		for _, tableName := range fullTableList {
+			ok, err := tableName.MatchesPattern(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid table name pattern %q: %w", pattern, err)
+			}
+			if ok {
+				matched = append(matched, tableName)
+			}
+		}
+		return matched, nil
+	}
+	tableList := utils.CsvStringToSlice(flagTableList)
+	var unknownTableNames []string
+	for _, pattern := range tableList {
+		tables, err := findPatternMatchingTables(pattern)
+		if err != nil {
+			return nil, err
+		}
+		if len(tables) == 0 {
+			unknownTableNames = append(unknownTableNames, pattern)
+		}
+		result = append(result, tables...)
+	}
+	if len(unknownTableNames) > 0 {
+		return nil, errs.NewUnknownTableErr(listName, unknownTableNames, lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
+			return tableName.ForOutput()
+		}))
+	}
+	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {
+		return tableName.ForKey()
+	}), nil
 }
 
 func storeTableListInMSR(tableList []sqlname.NameTuple) error {

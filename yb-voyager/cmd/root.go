@@ -40,6 +40,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/ybaeon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -72,12 +73,14 @@ var envVarValuesToObfuscateInLogs = []string{
 	"SOURCE_DB_PASSWORD",
 	"TARGET_DB_PASSWORD",
 	"SOURCE_REPLICA_DB_PASSWORD",
+	yugabytedb.DB_CONN_STRING_ENV_VAR,
 }
 
 var configKeyValuesToObfuscateInLogs = []string{
 	"source.db-password",
 	"target.db-password",
 	"source-replica.db-password",
+	"yugabytedb-control-plane.db-conn-string",
 }
 
 var rootCmd = &cobra.Command{
@@ -600,6 +603,18 @@ func setControlPlane(cpType string) error {
 			return fmt.Errorf("initialize yugabyted control plane for visualization: %w", err)
 		}
 		log.Infof("Yugabyted control plane initialized successfully")
+	case YUGABYTEDB_CONTROL_PLANE:
+		ybdbConnString := os.Getenv(yugabytedb.DB_CONN_STRING_ENV_VAR)
+		if ybdbConnString == "" {
+			return goerrors.Errorf("yugabytedb-control-plane.db-conn-string config param (or %s environment variable) needs to be set if control plane type is 'yugabytedb'.", yugabytedb.DB_CONN_STRING_ENV_VAR)
+		}
+		controlPlane = yugabytedb.New(exportDir)
+		log.Infof("Migration UUID %s", migrationUUID)
+		err := controlPlane.Init()
+		if err != nil {
+			return fmt.Errorf("initialize yugabytedb control plane for visualization: %w", err)
+		}
+		log.Infof("YugabyteDB control plane initialized successfully")
 	case YBAEON:
 		// Get YB-Aeon config from nested section
 		// Default to production domain if not specified in config

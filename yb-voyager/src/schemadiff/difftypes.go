@@ -15,9 +15,8 @@
 package schemadiff
 
 // DiffType is a string-typed enumeration of the kinds of schema changes that
-// can be detected between two snapshots. Only the V1-emitted set is declared
-// here: table-level and column-level findings produced by diffTables and
-// diffColumns respectively.
+// can be detected between two snapshots. Only the types the diff engine emits
+// are declared here.
 type DiffType string
 
 const (
@@ -27,24 +26,70 @@ const (
 	TableNameChanged              DiffType = "TABLE_NAME_CHANGED"
 	TableSchemaChanged            DiffType = "TABLE_SCHEMA_CHANGED"
 	TableKindChanged              DiffType = "TABLE_KIND_CHANGED"
-	TablePartitionParentChanged   DiffType = "TABLE_PARTITION_PARENT_CHANGED"
+	TablePartitionAttached        DiffType = "TABLE_PARTITION_ATTACHED"
+	TablePartitionDetached        DiffType = "TABLE_PARTITION_DETACHED"
 	TablePartitionChildrenChanged DiffType = "TABLE_PARTITION_CHILDREN_CHANGED"
-	TableInheritsChanged          DiffType = "TABLE_INHERITS_CHANGED"
-	TableInheritedByChanged       DiffType = "TABLE_INHERITED_BY_CHANGED"
+	TableInheritAdded             DiffType = "TABLE_INHERIT_ADDED"
+	TableInheritRemoved           DiffType = "TABLE_INHERIT_REMOVED"
+	TableInheritedByAdded         DiffType = "TABLE_INHERITED_BY_ADDED"
+	TableInheritedByRemoved       DiffType = "TABLE_INHERITED_BY_REMOVED"
 
 	// Column-level findings.
-	ColumnAdded              DiffType = "COLUMN_ADDED"
-	ColumnDropped            DiffType = "COLUMN_DROPPED"
-	ColumnNameChanged        DiffType = "COLUMN_NAME_CHANGED"
-	ColumnTypeChanged        DiffType = "COLUMN_TYPE_CHANGED"
-	ColumnNullabilityChanged DiffType = "COLUMN_NULLABILITY_CHANGED"
-	ColumnDefaultChanged     DiffType = "COLUMN_DEFAULT_CHANGED"
+	ColumnAdded          DiffType = "COLUMN_ADDED"
+	ColumnDropped        DiffType = "COLUMN_DROPPED"
+	ColumnNameChanged    DiffType = "COLUMN_NAME_CHANGED"
+	ColumnTypeChanged    DiffType = "COLUMN_TYPE_CHANGED"
+	ColumnNotNullSet     DiffType = "COLUMN_NOT_NULL_SET"
+	ColumnNotNullDropped DiffType = "COLUMN_NOT_NULL_DROPPED"
+	ColumnDefaultChanged DiffType = "COLUMN_DEFAULT_CHANGED"
+
+	// Key findings.
+	PrimaryKeyAdded       DiffType = "PRIMARY_KEY_ADDED"
+	PrimaryKeyDropped     DiffType = "PRIMARY_KEY_DROPPED"
+	PrimaryKeyNameChanged DiffType = "PRIMARY_KEY_NAME_CHANGED"
+	UniqueAdded           DiffType = "UNIQUE_ADDED"
+	UniqueDropped         DiffType = "UNIQUE_DROPPED"
+	UniqueNameChanged     DiffType = "UNIQUE_NAME_CHANGED"
+	CheckAdded            DiffType = "CHECK_ADDED"
+	CheckDropped          DiffType = "CHECK_DROPPED"
+	CheckNameChanged      DiffType = "CHECK_NAME_CHANGED"
+	ForeignKeyAdded       DiffType = "FOREIGN_KEY_ADDED"
+	ForeignKeyDropped     DiffType = "FOREIGN_KEY_DROPPED"
+	ForeignKeyNameChanged DiffType = "FOREIGN_KEY_NAME_CHANGED"
+
+	// Index findings.
+	UniqueIndexAdded       DiffType = "UNIQUE_INDEX_ADDED"
+	UniqueIndexDropped     DiffType = "UNIQUE_INDEX_DROPPED"
+	UniqueIndexNameChanged DiffType = "UNIQUE_INDEX_NAME_CHANGED"
+	IndexAdded             DiffType = "INDEX_ADDED"
+	IndexDropped           DiffType = "INDEX_DROPPED"
+	IndexNameChanged       DiffType = "INDEX_NAME_CHANGED"
 )
+
+// AllDiffTypes returns every DiffType the engine can emit, so consumers keyed by
+// DiffType can be checked for completeness.
+func AllDiffTypes() []DiffType {
+	return []DiffType{
+		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged, TableKindChanged,
+		TablePartitionAttached, TablePartitionDetached, TablePartitionChildrenChanged,
+		TableInheritAdded, TableInheritRemoved, TableInheritedByAdded, TableInheritedByRemoved,
+		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
+		ColumnNotNullSet, ColumnNotNullDropped, ColumnDefaultChanged,
+		PrimaryKeyAdded, PrimaryKeyDropped, PrimaryKeyNameChanged,
+		UniqueAdded, UniqueDropped, UniqueNameChanged,
+		CheckAdded, CheckDropped, CheckNameChanged,
+		ForeignKeyAdded, ForeignKeyDropped, ForeignKeyNameChanged,
+		UniqueIndexAdded, UniqueIndexDropped, UniqueIndexNameChanged,
+		IndexAdded, IndexDropped, IndexNameChanged,
+	}
+}
 
 // Operation is the kind of change a Difference records: an object added or
 // dropped, or one of its attributes changed. It is the decomposed verb of Type
 // (e.g. COLUMN_TYPE_CHANGED → OpChanged), surfaced as a first-class field so
-// consumers can group/filter by verb without parsing Type.
+// consumers can group/filter by verb without parsing Type. Type's suffix is not
+// always the verb: the split attribute types (COLUMN_NOT_NULL_DROPPED,
+// TABLE_PARTITION_ATTACHED, TABLE_INHERIT_ADDED, ...) are OpChanged.
 type Operation string
 
 const (
@@ -56,9 +101,9 @@ const (
 // ObjectType is the honest object type of the changed object and the user-facing
 // selector matched by --object-type-list. It is the decomposed noun of Type
 // (e.g. COLUMN_TYPE_CHANGED → ObjectTypeColumn), a first-class facet alongside
-// Operation and Attribute. v1 emits and filters TABLE and COLUMN findings, so both
-// are declared; the remaining selectors are re-enabled as the engine starts
-// emitting their findings.
+// Operation and Attribute. Only the object types the engine emits are declared;
+// the remaining selectors are re-enabled as the engine starts emitting their
+// findings.
 //
 // COLUMN is its own selector: a column change is filtered directly by
 // --object-type-list=COLUMN (it is NOT swept in under TABLE). Table-scoping is
@@ -68,18 +113,21 @@ type ObjectType string
 const (
 	ObjectTypeTable  ObjectType = "TABLE"
 	ObjectTypeColumn ObjectType = "COLUMN"
-	// Not yet emitted by the diff engine — uncomment each as its findings land
-	// (INDEX is its own selector but stays anchored to its host table for
-	// --table-list, like COLUMN):
-	// ObjectTypeIndex    ObjectType = "INDEX"
+	// ObjectTypeConstraint covers primary key, unique, check and foreign key
+	// constraints. Like COLUMN, it anchors to its host table for --table-list.
+	ObjectTypeConstraint ObjectType = "CONSTRAINT"
+	// ObjectTypeIndex is its own selector but stays anchored to its host table for
+	// --table-list, like COLUMN.
+	ObjectTypeIndex ObjectType = "INDEX"
+	// Not yet emitted by the diff engine — uncomment each as its findings land:
 	// ObjectTypeSequence ObjectType = "SEQUENCE"
 	// ObjectTypeView     ObjectType = "VIEW"
 	// ObjectTypeFunction ObjectType = "FUNCTION"
 	// ObjectTypeType     ObjectType = "TYPE"
 )
 
-// Attribute names the specific object attribute a *_CHANGED finding is about
-// (e.g. COLUMN_TYPE_CHANGED → AttrType). It is AttrNone for ADDED/DROPPED
+// Attribute names the specific object attribute an OpChanged finding is about
+// (e.g. COLUMN_TYPE_CHANGED → AttrType). It is AttrNone for OpAdded/OpDropped
 // findings, which concern the whole object rather than one attribute.
 type Attribute string
 
@@ -98,9 +146,9 @@ const (
 )
 
 // newDifference builds a Difference. Type is the single-string kind; op, objType,
-// and attr are its decomposed facets (attr is AttrNone for ADDED/DROPPED). objA/objB
-// are the side-A/side-B identities (nil on the absent side: objA nil for *_ADDED,
-// objB nil for *_DROPPED). Identities are value types, so they are copied into the
+// and attr are its decomposed facets (attr is AttrNone for OpAdded/OpDropped). objA/objB
+// are the side-A/side-B identities (nil on the absent side: objA nil for OpAdded,
+// objB nil for OpDropped). Identities are value types, so they are copied into the
 // interface — no aliasing with snapshot storage.
 func newDifference(t DiffType, op Operation, objType ObjectType, attr Attribute, objA, objB ObjectIdent, sideAVal, sideBVal any) Difference {
 	return Difference{

@@ -26,7 +26,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -56,7 +55,9 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 			ParserIssueDetector: *p,
 		}, nil
 	case *queryparser.ForeignTable:
-		return &ForeignTableIssueDetector{}, nil
+		return &ForeignTableIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
 	case *queryparser.View:
 		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
@@ -195,35 +196,23 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 		}
 	}
-	unsupportedDatatypes := srcdb.PostgresUnsupportedDataTypes
-	liveUnsupportedDatatypes := srcdb.PostgresUnsupportedDataTypesForDbzm
-	liveWithFfOrFbUnsupportedDatatypes := srcdb.GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes()
-	for _, col := range table.Columns {
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(unsupportedDatatypes, col.TypeName)
-		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, col.TypeName)
-
-		isUnsupportedDatatypeInLiveWithFFOrFBList := utils.ContainsAnyStringFromSlice(liveWithFfOrFbUnsupportedDatatypes, col.TypeName)
-		isUDTDatatype := utils.ContainsAnyStringFromSlice(d.compositeTypes, col.GetFullTypeName())
-		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype
-
-		if isUnsupportedDatatype {
-			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+	for _, col := range d.getColumnsWithTypes(table) {
+		support := d.GetColumnDatatypeSupport(col.GetFullTypeName())
+		for _, unsupportedType := range support.UnsupportedInOffline {
+			issues = append(issues, ReportUnsupportedDatatypes(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		}
-		if isUnsupportedDatatypeInLive {
-			issues = append(issues, ReportUnsupportedDatatypesInLive(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
-		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
-			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
-			reportTypeName := col.GetFullTypeName()
-			if isUDTDatatype {
-				issues = append(issues, NewUserDefinedDatatypeIssue(
-					obj.GetObjectType(),
-					table.GetObjectName(),
-					"",
-					reportTypeName,
-					col.ColumnName,
-				))
+		for _, unsupportedType := range support.UnsupportedInLive {
+			if unsupportedType.Kind == TypeKindRange {
+				issues = append(issues, NewRangeLiveMigrationDatatypeIssue(obj.GetObjectType(), table.GetObjectName(), "", unsupportedType.Name, col.ColumnName))
 			} else {
-				issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+				issues = append(issues, ReportUnsupportedDatatypesInLive(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
+			}
+		}
+		// a column already excluded from live migration needs no fall-forward/fall-back issue
+		if len(support.UnsupportedInLive) == 0 {
+			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
+			for _, unsupportedType := range support.UnsupportedInLiveWithFFOrFB {
+				issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 			}
 		}
 
@@ -572,7 +561,7 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			baseTypeName,
 			columnName,
 		)
-	case "vector":
+	case "vector", "halfvec", "sparsevec":
 		issue = NewVectorDatatypeIssue(
 			objType,
 			objName,
@@ -748,6 +737,14 @@ func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, ob
 			baseTypeName,
 			columnName,
 		)
+	case "int4range", "int8range", "numrange", "tsrange", "tstzrange", "daterange":
+		issue = NewRangeLiveMigrationDatatypeIssue(
+			objType,
+			objName,
+			"",
+			baseTypeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
@@ -780,7 +777,9 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName string, columnName 
 
 //ForeignTableIssueDetector handles detection Foreign table issues
 
-type ForeignTableIssueDetector struct{}
+type ForeignTableIssueDetector struct {
+	ParserIssueDetector
+}
 
 func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	foreignTable, ok := obj.(*queryparser.ForeignTable)
@@ -797,9 +796,8 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	))
 
 	for _, col := range foreignTable.Columns {
-		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
-		if isUnsupportedDatatype {
-			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
+		for _, unsupportedType := range f.GetColumnDatatypeSupport(col.GetFullTypeName()).UnsupportedInOffline {
+			issues = append(issues, ReportUnsupportedDatatypes(unsupportedType.BaseName(), col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
 		}
 	}
 
@@ -898,8 +896,8 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	if index.AccessMethod == queryparser.BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
-				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
-				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
+				unsupportedIndexDatatype, isUnsupportedType := d.getUnsupportedIndexDatatype(param.GetFullExprCastTypeName())
+				isUDTType := d.isUserDefinedTypeUnsupportedForIndex(param.GetFullExprCastTypeName())
 				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
 				if param.IsExprCastArrayType {
 					issues = append(issues, NewIndexOnArrayDatatypeIssue(
@@ -917,7 +915,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
 						obj.GetObjectType(),
 						index.GetObjectName(),
-						param.ExprCastTypeName,
+						unsupportedIndexDatatype,
 						false,
 						"",
 					))

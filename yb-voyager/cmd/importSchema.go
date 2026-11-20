@@ -25,7 +25,7 @@ import (
 
 	"github.com/fatih/color"
 	goerrors "github.com/go-errors/errors"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -101,7 +101,7 @@ func importSchema() error {
 	// so can't lookup before that so not any real use of namereg
 	tconf.Schemas = sqlname.ParseIdentifiersFromString(tconf.TargetDBType, tconf.SchemaConfig, ",")
 
-	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED {
+	if callhome.SendDiagnostics || getControlPlaneType() == YUGABYTED || getControlPlaneType() == YUGABYTEDB_CONTROL_PLANE {
 		tconfSchemas := tconf.Schemas
 		// setting the tconf schema to public here for initalisation to handle cases where non-public target schema
 		// is not created as it will be created with `createTargetSchemas` func, so not a problem in using public as it will be

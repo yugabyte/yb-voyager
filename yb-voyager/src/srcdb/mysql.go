@@ -295,6 +295,11 @@ func (ms *MySQL) FetchDBID() error {
 	return nil
 }
 
+// go-sql-driver/mysql does not expose the TLS connection, so callhome has only the host domain for MySQL.
+func (ms *MySQL) FetchTLSCertDomainName() error {
+	return nil
+}
+
 func (ms *MySQL) FetchSchemaOids() error {
 	return nil
 }
@@ -402,7 +407,15 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, use
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
+func (ms *MySQL) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	panic("not implemented")
+}
+
 func (ms *MySQL) ParentTableOfPartition(table sqlname.NameTuple) string {
+	panic("not implemented")
+}
+
+func (ms *MySQL) GetTableToColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	panic("not implemented")
 }
 

@@ -194,6 +194,8 @@ func anonymizeSourceDBDetails(source *srcdb.Source) callhome.SourceDBDetails {
 		DBSystemIdentifier: source.DBSystemIdentifier,
 		DBID:               source.DBID,
 		SourceDeployment:   source.SourceDeployment,
+		TLSCertDomain:      source.TLSCertDomain,
+		HostDomain:         utils.InstanceQualifiedDomain(source.Host),
 		SchemaOids:         source.SchemaOids,
 	}
 
@@ -258,7 +260,12 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 		}
 
 		if issue.Category == UNSUPPORTED_DATATYPES_CATEGORY {
-			anonymizedIssues[i].ObjectName, err = anonymizer.AnonymizeQualifiedColumnName(issue.ObjectName)
+			// PostgreSQL reports a datatype issue on its table, Oracle on the column
+			if issue.ObjectType == constants.COLUMN {
+				anonymizedIssues[i].ObjectName, err = anonymizer.AnonymizeQualifiedColumnName(issue.ObjectName)
+			} else {
+				anonymizedIssues[i].ObjectName, err = anonymizer.AnonymizeQualifiedTableName(issue.ObjectName)
+			}
 			if err != nil {
 				log.Warnf("failed to anonymize object name %s: %v", issue.ObjectName, err)
 				anonymizedIssues[i].ObjectName = constants.OBFUSCATE_STRING

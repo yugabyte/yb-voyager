@@ -2,14 +2,12 @@ package tgtdb
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	goerrors "github.com/go-errors/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 type AttributeNameRegistry struct {
@@ -101,51 +99,9 @@ func (reg *AttributeNameRegistry) QuoteAttributeNames(tableNameTup sqlname.NameT
 }
 
 func (reg *AttributeNameRegistry) FindBestMatchingColumnName(colName string, targetColumns []string) (string, error) {
-	if colName[0] == '"' && colName[len(colName)-1] == '"' {
-		colName = colName[1 : len(colName)-1]
-	}
-	if slices.Contains(targetColumns, colName) { // Exact match.
-		return colName, nil
-	}
-	// Case insensitive match.
-	candidates := []string{}
-	for _, targetCol := range targetColumns {
-		if strings.EqualFold(targetCol, colName) {
-			candidates = append(candidates, targetCol)
-		}
-	}
-	if len(candidates) == 1 {
-		return candidates[0], nil
-	}
-	if len(candidates) > 1 {
-		if reg.dbType == POSTGRESQL || reg.dbType == YUGABYTEDB {
-			if slices.Contains(candidates, strings.ToLower(colName)) {
-				return strings.ToLower(colName), nil
-			}
-		} else if reg.dbType == ORACLE {
-			if slices.Contains(candidates, strings.ToUpper(colName)) {
-				return strings.ToUpper(colName), nil
-			}
-		}
-		return "", &ErrAmbiguousColumnName{colName: colName, candidates: candidates}
-	}
-	return "", &ErrColumnNameNotFound{colName: colName, targetColumns: targetColumns}
+	return sqlname.FindBestMatchingColumnName(reg.dbType, colName, targetColumns)
 }
 
-type ErrAmbiguousColumnName struct {
-	colName    string
-	candidates []string
-}
+type ErrAmbiguousColumnName = sqlname.ErrAmbiguousColumnName
 
-func (e *ErrAmbiguousColumnName) Error() string {
-	return fmt.Sprintf("ambiguous column name %q in target table: found column names: %s", e.colName, strings.Join(e.candidates, ", "))
-}
-
-type ErrColumnNameNotFound struct {
-	colName       string
-	targetColumns []string
-}
-
-func (e *ErrColumnNameNotFound) Error() string {
-	return fmt.Sprintf("column name %q not found amongst table columns %v", e.colName, e.targetColumns)
-}
+type ErrColumnNameNotFound = sqlname.ErrColumnNameNotFound
