@@ -34,6 +34,9 @@ type SourceDB interface {
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
 	GetVersion() string
 	FetchDBID() error
+	// FetchTLSCertDomainName sets source.TLSCertDomain (callhome only) to the instance-qualified
+	// domain from the TLS certificate the server presented, or leaves it empty when there is none.
+	FetchTLSCertDomainName() error
 	FetchSchemaOids() error
 	GetAllSchemaNamesIdentifiers() ([]sqlname.Identifier, error)
 	GetAllTableNames() []*sqlname.SourceName
@@ -47,6 +50,11 @@ type SourceDB interface {
 	FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []sqlname.NameTuple, useDebezium bool) ([]sqlname.NameTuple, []sqlname.NameTuple)
 	FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple)
 	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error)
+	// Only for PostgreSQL and YugabyteDB, whose live migration exports apply --exclude-column-list.
+	GetTableToColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error)
+	// GetTypeToOid maps each of typeNames to the OID of the built-in or extension type with that name,
+	// leaving out types that do not exist. Only PostgreSQL and YugabyteDB implement it.
+	GetTypeToOid(typeNames []string) (map[string]int, error)
 	ParentTableOfPartition(table sqlname.NameTuple) string
 	GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string
 	GetSequencesLastValues(sequencesList []sqlname.NameTuple) (*utils.StructMap[sqlname.ObjectName, int64], error)

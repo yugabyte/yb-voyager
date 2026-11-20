@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -84,6 +85,10 @@ var allowedYugabytedControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"db-conn-string",
 )
 
+var allowedYugabyteDBControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"db-conn-string",
+)
+
 var allowedYBAeonControlPlaneConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"domain", "account-id", "project-id", "cluster-id", "api-key",
 )
@@ -117,6 +122,7 @@ var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "log-max-size-mb", "log-max-backups", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
+	"exclude-column-list",
 	"table-list-file-path", "parallel-jobs", "export-type",
 	"allow-oracle-clob-data-export", "metrics-port",
 	"disable-schema-snapshot-capture", "schema-snapshot-capture-interval",
@@ -127,6 +133,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "log-max-size-mb", "log-max-backups",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
+	"exclude-column-list",
 	"table-list-file-path", "transaction-ordering", "metrics-port",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
@@ -152,7 +159,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"target-endpoints", "truncate-tables", "error-policy-snapshot",
 	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"skip-node-health-checks", "skip-disk-usage-health-checks",
-	"on-primary-key-conflict", "disable-transactional-writes",
+	"disable-transactional-writes",
 	"truncate-splits", "prometheus-metrics-port", "metrics-port",
 	"use-partition-root", "disable-sequential-scan-on-update-deletes",
 
@@ -191,7 +198,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
 	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
-	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
+	"skip-node-health-checks", "skip-disk-usage-health-checks",
 	"max-concurrent-batch-productions", "enable-random-batch-production",
 	"prometheus-metrics-port", "metrics-port",
 	// environment variables keys
@@ -231,6 +238,7 @@ var allowedConfigSections = map[string]mapset.Set[string]{
 	"source-replica":                   allowedSourceReplicaConfigKeys,
 	"target":                           allowedTargetConfigKeys,
 	"yugabyted-control-plane":          allowedYugabytedControlPlaneConfigKeys,
+	"yugabytedb-control-plane":         allowedYugabyteDBControlPlaneConfigKeys,
 	"ybaeon-control-plane":             allowedYBAeonControlPlaneConfigKeys,
 	"assess-migration":                 allowedAssessMigrationConfigKeys,
 	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
@@ -357,6 +365,8 @@ var confParamEnvVarPairs = map[string]string{
 	"tns-admin":                              "TNS_ADMIN",
 	"send-diagnostics":                       "YB_VOYAGER_SEND_DIAGNOSTICS",
 
+	"yugabytedb-control-plane.db-conn-string": yugabytedb.DB_CONN_STRING_ENV_VAR,
+
 	"source.db-password": "SOURCE_DB_PASSWORD",
 
 	"target.db-password": "TARGET_DB_PASSWORD",
@@ -482,6 +492,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) (map[string]string, 
 			strings.HasPrefix(confKey, "source-replica.") ||
 			strings.HasPrefix(confKey, "target.") ||
 			strings.HasPrefix(confKey, "yugabyted-control-plane.") ||
+			strings.HasPrefix(confKey, "yugabytedb-control-plane.") ||
 			len(strings.Split(confKey, ".")) == 1 {
 
 			// Skip if env var already exported
@@ -859,6 +870,7 @@ func loadControlPlaneConfig(v *viper.Viper) {
 	// Read all control plane config keys directly from viper
 	controlPlaneKeys := []string{
 		"yugabyted-control-plane.db-conn-string",
+		"yugabytedb-control-plane.db-conn-string",
 		"ybaeon-control-plane.domain",
 		"ybaeon-control-plane.account-id",
 		"ybaeon-control-plane.project-id",

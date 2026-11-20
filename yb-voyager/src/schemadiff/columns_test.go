@@ -236,10 +236,10 @@ func TestDiffColumns_ColumnTypeChanged(t *testing.T) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test: Column nullability changed (false→true and true→false)
+// Test: NOT NULL set (false→true) and dropped (true→false)
 // ──────────────────────────────────────────────────────────────────────────────
 
-func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
+func TestDiffColumns_ColumnNotNullSet(t *testing.T) {
 	oldCol := makeColumn("public", "orders", "101:5", "qty", "integer")
 	oldCol.NotNull = false
 	newCol := makeColumn("public", "orders", "101:5", "qty", "integer")
@@ -256,8 +256,8 @@ func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
-	if d.Type != ColumnNullabilityChanged {
-		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
+	if d.Type != ColumnNotNullSet {
+		t.Errorf("expected ColumnNotNullSet, got %v", d.Type)
 	}
 	if d.SideAValue.(bool) != false {
 		t.Errorf("expected OldValue=false, got %v", d.SideAValue)
@@ -267,7 +267,7 @@ func TestDiffColumns_ColumnNullabilityChanged_FalseToTrue(t *testing.T) {
 	}
 }
 
-func TestDiffColumns_ColumnNullabilityChanged_TrueToFalse(t *testing.T) {
+func TestDiffColumns_ColumnNotNullDropped(t *testing.T) {
 	oldCol := makeColumn("public", "orders", "101:5", "qty", "integer")
 	oldCol.NotNull = true
 	newCol := makeColumn("public", "orders", "101:5", "qty", "integer")
@@ -284,8 +284,8 @@ func TestDiffColumns_ColumnNullabilityChanged_TrueToFalse(t *testing.T) {
 		assertAnchoredToObject(t, d)
 	}
 	d := got[0]
-	if d.Type != ColumnNullabilityChanged {
-		t.Errorf("expected ColumnNullabilityChanged, got %v", d.Type)
+	if d.Type != ColumnNotNullDropped {
+		t.Errorf("expected ColumnNotNullDropped, got %v", d.Type)
 	}
 	if d.SideAValue.(bool) != true {
 		t.Errorf("expected OldValue=true, got %v", d.SideAValue)

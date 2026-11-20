@@ -44,8 +44,8 @@ type SnapshotProvider interface {
 	DatabaseType() string
 
 	// TakeSnapshot captures the schema for the given schemas and returns a populated
-	// *SnapshotContent (Tables/Columns set by provider), the probed database version
-	// string (e.g. "16.4"), and an error. The header fields (Version, DatabaseType,
+	// *SnapshotContent, the probed database version string (e.g. "16.4"), and an
+	// error. The header fields (Version, DatabaseType,
 	// DBMetadata) are stamped by the Capture orchestrator after this call returns,
 	// so the provider must not set them.
 	//

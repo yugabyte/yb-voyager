@@ -244,6 +244,13 @@ export-schema:
   ### Path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema                       
   # assessment-report-path: <assessment-report-path>  
 
+  ### Disable the best-effort capture of schema snapshots during export schema.
+  ### 'schema detect-drift' compares these snapshots to report schema changes on the source database.
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  # disable-schema-snapshot-capture: false
+
   ### Run guardrails checks before the command is run. 
   ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
@@ -357,6 +364,13 @@ export-data-from-source:
   # table-list-file-path: <table-list-file-path>
   # exclude-table-list-file-path: <exclude-table-list-file-path>                    
 
+  ### Semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes streamed in live migration.
+  ### Export data fails if a column's datatype is not supported for live migration; list such columns here or exclude their tables with exclude-table-list.
+  ### The snapshot still copies these columns. Changes to them are not streamed: the target keeps their snapshot values, and rows inserted during streaming get NULL in them.
+  ### For partitioned tables, specify the root table. Primary key columns cannot be excluded.
+  ### Column names are matched ignoring case; if the table has columns differing only in case, write the column's exact case. Double-quote case-sensitive table names.
+  # exclude-column-list: 'public.orders:note,Meta;"Sales":geom'
+
   ### Number of Parallel Jobs to extract data from source database.
   ### Default - 4
   parallel-jobs: 4    
@@ -365,6 +379,18 @@ export-data-from-source:
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # disable-pb: false  
+
+  ### Disable the best-effort capture of schema snapshots during export data.
+  ### 'schema detect-drift' compares these snapshots to report schema changes on the source database.
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  # disable-schema-snapshot-capture: false
+
+  ### Interval (in minutes, at least 1) at which a source schema snapshot is captured periodically throughout export data.
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Default - 60
+  # schema-snapshot-capture-interval: 60
 
   ### Run guardrails checks before the command is run. 
   ### Note - This is only valid for PostgreSQL source database.
@@ -413,12 +439,6 @@ import-data-to-target:
   ### Size of batches in the number of rows generated for ingestion during import.
   ### Default - 20000
   # batch-size: 20000  
-
-  ### Action to take on primary key conflict during data import in snapshot phase.
-  ### Accepted values:
-  ###   ERROR-POLICY   : handle error as per configured error policy on any PK conflict (default)
-  ###   IGNORE         : skip rows where the primary key already exists and continue importing remaining data
-  # on-primary-key-conflict: ERROR-POLICY
 
   ### Truncate tables on target YugabyteDB before importing data. 
   ### Only applicable along with --start-clean true
@@ -626,6 +646,13 @@ export-data-from-target:
   ### Default - true
   # transaction-ordering: true 
 
+  ### Semicolon-separated list of '<table>:<column1>,<column2>,...' entries naming the columns to leave out of the changes exported from the target.
+  ### Use it for columns whose datatype the YugabyteDB connector does not support.
+  ### If not set, the columns excluded in export-data-from-source are excluded here as well. If set, it is the complete list:
+  ### it must also name every column excluded in export-data-from-source.
+  ### Changes made on the target to these columns are not exported. For partitioned tables, specify the root table. Primary key columns cannot be excluded.
+  # exclude-column-list: 'public.orders:note,search_query'
+
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
@@ -706,9 +733,9 @@ initiate-cutover-to-source:
   # table-list: <table-list>
   # exclude-table-list: <exclude-table-list>
 
-  ### Comma-separated list of object types to compare: (TABLE, COLUMN).
+  ### Comma-separated list of object types to compare: (TABLE, COLUMN, CONSTRAINT, INDEX).
   ### Only one of object-type-list and exclude-object-type-list can be specified.
-  # object-type-list: TABLE,COLUMN
+  # object-type-list: TABLE,COLUMN,CONSTRAINT,INDEX
   # exclude-object-type-list: <exclude-object-type-list>
 
   ### Log level for the command

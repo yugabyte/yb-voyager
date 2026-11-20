@@ -62,9 +62,10 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 		return nil, err
 	}
 
-	// REPEATABLE READ so every loader query (tables, columns, links) sees one
-	// consistent point-in-time catalog — concurrent DDL mid-capture can't make
-	// the multi-query snapshot internally inconsistent.
+	// REPEATABLE READ so every loader query (tables, columns, links) scans one
+	// consistent point-in-time catalog. Catalog functions such as pg_get_indexdef
+	// and regclass text read the latest committed catalog instead, so a concurrent
+	// rename or drop can still fail the capture; the provider reports that as an error.
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
@@ -89,7 +90,7 @@ func Capture(ctx context.Context, db *sql.DB, p CaptureParams) (*SchemaSnapshot,
 	}
 
 	// Stamp schema-level fields (content).
-	schema.Version = 1
+	schema.Version = currentSnapshotVersion
 	schema.DatabaseType = p.DatabaseType
 	schema.DBMetadata = p.DBMetadata
 

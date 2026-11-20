@@ -357,6 +357,11 @@ func (ora *Oracle) FetchDBID() error {
 	return nil
 }
 
+// godror connects through OCI, so the TLS connection is not visible from Go and callhome has only the host domain for Oracle.
+func (ora *Oracle) FetchTLSCertDomainName() error {
+	return nil
+}
+
 func (ora *Oracle) FetchSchemaOids() error {
 	return nil
 }
@@ -623,11 +628,19 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, u
 	return supportedTableColumnsMap, unsupportedTableColumnsMap, nil
 }
 
+func (ora *Oracle) GetTypeToOid(typeNames []string) (map[string]int, error) {
+	panic("not implemented")
+}
+
 func (ora *Oracle) GetServers() []string {
 	return []string{ora.source.Host}
 }
 
 func (ora *Oracle) GetPartitions(tableName sqlname.NameTuple) []string {
+	panic("not implemented")
+}
+
+func (ora *Oracle) GetTableToColumns(tableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, []string], error) {
 	panic("not implemented")
 }
 

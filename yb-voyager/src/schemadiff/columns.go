@@ -14,7 +14,11 @@
 
 package schemadiff
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+import (
+	"github.com/samber/lo"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/schemasnapshot"
+)
 
 // diffColumnsIn computes column-level differences between two column slices
 // (the nested columns of a matched table pair). Matched by chooseMatchKeys:
@@ -63,7 +67,8 @@ func compareMatchedColumns(cA, cB schemasnapshot.Column) []Difference {
 	}
 
 	if cA.NotNull != cB.NotNull {
-		diffs = append(diffs, newDifference(ColumnNullabilityChanged, OpChanged, ObjectTypeColumn, AttrNullability, cA.TableScopedObjectRef, cB.TableScopedObjectRef, cA.NotNull, cB.NotNull))
+		notNullType := lo.Ternary(cB.NotNull, ColumnNotNullSet, ColumnNotNullDropped)
+		diffs = append(diffs, newDifference(notNullType, OpChanged, ObjectTypeColumn, AttrNullability, cA.TableScopedObjectRef, cB.TableScopedObjectRef, cA.NotNull, cB.NotNull))
 	}
 
 	if cA.Default != cB.Default {

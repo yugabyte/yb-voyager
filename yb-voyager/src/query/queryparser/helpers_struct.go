@@ -238,6 +238,11 @@ func getEnumTypeStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Create
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateEnumStmt)
 	return node, ok
 }
+func getRangeTypeStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateRangeStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateRangeStmt)
+	return node, ok
+}
+
 func getForeignTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateForeignTableStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateForeignTableStmt)
 	return node, ok

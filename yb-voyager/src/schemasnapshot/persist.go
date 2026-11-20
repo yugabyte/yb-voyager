@@ -26,8 +26,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
-// currentSnapshotVersion is the snapshot JSON version this library understands.
-const currentSnapshotVersion = 1
+// currentSnapshotVersion is the snapshot JSON version this library writes, and the newest
+// it reads. It moves with every format change; each feature keeps its own threshold below.
+const currentSnapshotVersion = VersionWithKeysAndIndexes
+
+// VersionWithKeysAndIndexes is the first snapshot version that captures keys, checks
+// and indexes; an earlier snapshot holds tables and columns only. It stays 2 when
+// currentSnapshotVersion moves on, so a v2/v3 pair still compares keys.
+const VersionWithKeysAndIndexes = 2
 
 // Sentinel errors returned by LoadSnapshotByName.
 var (

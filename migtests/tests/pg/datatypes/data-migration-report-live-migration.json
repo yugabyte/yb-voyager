@@ -397,7 +397,7 @@
     "exported_deletes": 1,
     "exported_inserts": 3,
     "exported_snapshot_rows": 3,
-    "exported_updates": 1,
+    "exported_updates": 0,
     "final_row_count": 5,
     "imported_deletes": 0,
     "imported_inserts": 0,
@@ -416,7 +416,7 @@
     "imported_deletes": 1,
     "imported_inserts": 3,
     "imported_snapshot_rows": 3,
-    "imported_updates": 1,
+    "imported_updates": 0,
     "table_name": "\"public\".\"range_array_types\""
   },
   {
@@ -593,7 +593,7 @@
     "exported_deletes": 1,
     "exported_inserts": 1,
     "exported_snapshot_rows": 2,
-    "exported_updates": 1,
+    "exported_updates": 0,
     "final_row_count": 2,
     "imported_deletes": 0,
     "imported_inserts": 0,
@@ -612,7 +612,7 @@
     "imported_deletes": 1,
     "imported_inserts": 1,
     "imported_snapshot_rows": 2,
-    "imported_updates": 1,
+    "imported_updates": 0,
     "table_name": "\"public\".\"geometry_arrays\""
   },
   {
@@ -649,7 +649,7 @@
     "exported_deletes": 1,
     "exported_inserts": 1,
     "exported_snapshot_rows": 2,
-    "exported_updates": 1,
+    "exported_updates": 0,
     "final_row_count": 2,
     "imported_deletes": 0,
     "imported_inserts": 0,
@@ -668,7 +668,7 @@
     "imported_deletes": 1,
     "imported_inserts": 1,
     "imported_snapshot_rows": 2,
-    "imported_updates": 1,
+    "imported_updates": 0,
     "table_name": "\"public\".\"misc_arrays\""
   },
   {

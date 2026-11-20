@@ -263,6 +263,11 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 
 		If 2 fails due to already existing rows in table, then first ImportBatch() internally switch to Fast Path Recovery
 		If that also fails then batch gets executed as fast path recovery due to attempt > 0 from here.
+
+		NOTE: the IGNORE (Fast Path) cases are dormant in production: --on-primary-key-conflict is no
+		longer user-settable and voyager pins ERROR-POLICY (Normal Path) because the fast path can
+		silently lose rows against partial/still-building indexes (yugabyte-db#38214). The IGNORE
+		handling is retained for when YB enables yb_fast_path_for_colocated_copy by default.
 	*/
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)

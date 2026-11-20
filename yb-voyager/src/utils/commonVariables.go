@@ -146,20 +146,23 @@ type IndexInfo struct {
 }
 
 type TableColumnsDataTypes struct {
-	SchemaName  string `json:"SchemaName"`
-	TableName   string `json:"TableName"`
-	ColumnName  string `json:"ColumnName"`
-	DataType    string `json:"DataType"`
-	IsArrayType bool   `json:"-"`
-	IsEnumType  bool   `json:"-"`
-	IsUDTType   bool   `json:"-"`
+	SchemaName string `json:"SchemaName"`
+	TableName  string `json:"TableName"`
+	ColumnName string `json:"ColumnName"`
+	DataType   string `json:"DataType"`
 }
 
 func (colDatatype *TableColumnsDataTypes) GetBaseTypeNameFromDatatype() string {
-	splits := strings.Split(colDatatype.DataType, ".")
+	return GetBaseTypeName(colDatatype.DataType)
+}
+
+// GetBaseTypeName returns dataType without its schema and "[]" suffix, e.g. xml for xml[] and
+// geometry for public.geometry.
+func GetBaseTypeName(dataType string) string {
+	splits := strings.Split(dataType, ".")
 	typeName, ok := SliceLastElement(splits)
 	if !ok {
-		log.Warnf("failed to get typename from colinfo: %s", colDatatype.DataType)
+		log.Warnf("failed to get typename from datatype: %s", dataType)
 	}
 	typeName = strings.TrimSuffix(typeName, "[]")
 	// Normalize common multi-word PostgreSQL type spellings to their canonical names.

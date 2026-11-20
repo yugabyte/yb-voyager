@@ -41,11 +41,12 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/net/publicsuffix"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -498,6 +499,14 @@ func GetRedactedURLs(urlList []string) []string {
 		result = append(result, obj.Redacted())
 	}
 	return result
+}
+
+// EscapeConnUriQueryValue percent-encodes a value, such as an SSL cert path, for the query part of a postgresql:// URI.
+// In a URI, characters like space, '%', '&', '=' and '#' are syntax, not data: pasted raw, "/my certs/100%/ca.crt"
+// is rejected by pgx (>= v5.11) and libpq, or read as a different path. Encoded, the driver decodes the exact path back.
+// Spaces become %20, not url.QueryEscape's "+", because pgx and libpq read "+" in a URI as a literal plus.
+func EscapeConnUriQueryValue(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
 }
 
 func GetSqlStmtToPrint(stmt string) string {
@@ -1035,16 +1044,16 @@ func IsSetEqual(a, b []string) bool {
 	return setA.Equal(setB)
 }
 
-// ConvertPgTextArrayToStringSlice converts a pgtype.TextArray to a []string.
+// ConvertPgTextArrayToStringSlice converts a pgtype.Array[pgtype.Text] to a []string.
 // This utility function handles PostgreSQL text arrays returned from queries using array_agg() or similar functions.
-func ConvertPgTextArrayToStringSlice(textArray pgtype.TextArray) []string {
-	if textArray.Status != pgtype.Present {
+func ConvertPgTextArrayToStringSlice(textArray pgtype.Array[pgtype.Text]) []string {
+	if !textArray.Valid {
 		return []string{}
 	}
 
 	result := make([]string, 0, len(textArray.Elements))
 	for _, elem := range textArray.Elements {
-		if elem.Status == pgtype.Present {
+		if elem.Valid {
 			result = append(result, elem.String)
 		}
 		// Skip null elements - they won't be added to the result slice
@@ -1121,4 +1130,68 @@ func GetFloat64OrZero(data map[string]interface{}, keys ...string) float64 {
 		}
 	}
 	return 0.0
+}
+
+// RegisteredDomain reduces a DNS name to its ICANN registrable domain (pg01.db.acme.com -> acme.com).
+// Private PSL suffixes are skipped on purpose so managed services collapse to the provider
+// (amazonaws.com) rather than an account- or region-specific suffix.
+func RegisteredDomain(name string) string {
+	name = strings.TrimPrefix(normalizeDNSName(name), "*.")
+	if name == "" || net.ParseIP(name) != nil || !strings.Contains(name, ".") {
+		return ""
+	}
+
+	// Walk candidate suffixes from longest to shortest; the first one that is itself an
+	// ICANN public suffix is the longest such suffix. The registrable domain is that
+	// suffix plus the label immediately to its left.
+	labels := strings.Split(name, ".")
+	for i := range labels {
+		candidate := strings.Join(labels[i:], ".")
+		suffix, icann := publicsuffix.PublicSuffix(candidate)
+		if !icann || suffix != candidate {
+			continue
+		}
+		if i == 0 {
+			// The whole name is a public suffix (e.g. co.uk): no organisation label.
+			return ""
+		}
+		return strings.Join(labels[i-1:], ".")
+	}
+	return ""
+}
+
+// InstanceQualifiedDomain keeps the first label as the instance name and masks the labels
+// between it and the registered domain: mydb.cxyz.us-east-1.rds.amazonaws.com -> mydb.*.amazonaws.com.
+// Masking keeps out the account id and region, which with the instance name rebuild the endpoint.
+func InstanceQualifiedDomain(name string) string {
+	domain := RegisteredDomain(name)
+	if domain == "" {
+		return ""
+	}
+	name = normalizeDNSName(name)
+	if strings.HasPrefix(name, "*.") || name == domain {
+		return domain
+	}
+	instance, middle, _ := strings.Cut(strings.TrimSuffix(name, "."+domain), ".")
+	if middle == "" {
+		return instance + "." + domain
+	}
+	return instance + ".*." + domain
+}
+
+func normalizeDNSName(name string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".")
+}
+
+var shellSafeArgRegex = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+
+// ShellQuoteCommand joins args into a command line that a POSIX shell splits back into the same args,
+// single-quoting any argument with characters the shell would interpret, such as ; or ".
+func ShellQuoteCommand(args []string) string {
+	return strings.Join(lo.Map(args, func(arg string, _ int) string {
+		if shellSafeArgRegex.MatchString(arg) {
+			return arg
+		}
+		return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+	}), " ")
 }

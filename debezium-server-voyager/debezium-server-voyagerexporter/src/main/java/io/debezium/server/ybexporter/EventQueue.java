@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -306,7 +307,7 @@ public class EventQueue implements RecordWriter {
                         currentQueueSegmentIndex++;
                         continue;
                     }
-                    input = new BufferedReader(new FileReader(currentQueueSegmentPath));
+                    input = new BufferedReader(new FileReader(currentQueueSegmentPath, StandardCharsets.UTF_8));
                     // TODO: Move the logic for reading queue segment file to QueueSegment class and
                     // call something like queueSegment.getNextEvent()
                     // Ticket: https://yugabyte.atlassian.net/browse/DB-9873

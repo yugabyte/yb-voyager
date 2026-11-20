@@ -18,6 +18,7 @@ package schemadiff
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -56,7 +57,7 @@ func refPtr(schema, name string) *schemasnapshot.ObjectRef {
 }
 
 // identKey renders a finding's own identity key: side-A's key, falling back to
-// side-B for *_ADDED (where ObjectA is nil), in dbType's dialect. This is the
+// side-B for OpAdded (where ObjectA is nil), in dbType's dialect. This is the
 // direct replacement for the old pre-rendered Object.Key.
 func identKey(d Difference, dbType string) string {
 	if d.ObjectA != nil {
@@ -183,13 +184,13 @@ func TestSortDifferences_Ordering(t *testing.T) {
 
 // TestDifferenceDecompositionMatchesType verifies that every finding Diff emits
 // carries an (Operation, ObjectType, Attribute) triple consistent with its Type
-// string, and that a single rich scenario exercises all 15 V1 DiffTypes. The
+// string, and that a single rich scenario exercises every DiffType. The
 // expected facets are derived by parsing Type here — an independent oracle that
 // would disagree if any newDifference call site passed the wrong op/objtype/attr.
 func TestDifferenceDecompositionMatchesType(t *testing.T) {
 	// A matched table (OID "1") with every table attribute and a rich set of
 	// column changes, plus one dropped-only and one added-only table, so the diff
-	// spans all 15 DiffTypes.
+	// spans every DiffType.
 	tA := schemasnapshot.Table{
 		ObjectRef:         ref("s1", "t_old"),
 		ID:                "1",
@@ -201,6 +202,7 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		Columns: []schemasnapshot.Column{
 			makeColumn("s1", "t_old", "1:1", "col_keep", "integer", notNull(), withDefault("0")),
 			makeColumn("s1", "t_old", "1:2", "col_gone", "text"),
+			makeColumn("s1", "t_old", "1:4", "col_gains_not_null", "text"),
 		},
 	}
 	tB := schemasnapshot.Table{
@@ -215,17 +217,60 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 			// col "1:1" matches by ID; name+type+nullability+default all differ.
 			makeColumn("s2", "t_new", "1:1", "col_renamed", "bigint"),
 			makeColumn("s2", "t_new", "1:3", "col_added", "text"), // added
+			makeColumn("s2", "t_new", "1:4", "col_gains_not_null", "text", notNull()),
 		},
 	}
 
-	a := snapWithTables(tA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
-	b := snapWithTables(tB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
+	tA.PrimaryKey = makeConstraint("s1", "t_old", "10", "pk_old", "PRIMARY KEY (col_keep)")
+	tB.PrimaryKey = makeConstraint("s2", "t_new", "10", "pk_new", "PRIMARY KEY (col_renamed)")
+	pkDroppedA := makeTable("4", "s1", "pk_dropped", schemasnapshot.TableKindOrdinary)
+	pkDroppedA.PrimaryKey = makeConstraint("s1", "pk_dropped", "11", "pk_dropped_pkey", "PRIMARY KEY (id)")
+	pkDroppedB := makeTable("4", "s1", "pk_dropped", schemasnapshot.TableKindOrdinary)
+	pkAddedA := makeTable("5", "s1", "pk_added", schemasnapshot.TableKindOrdinary)
+	pkAddedB := makeTable("5", "s1", "pk_added", schemasnapshot.TableKindOrdinary)
+	pkAddedB.PrimaryKey = makeConstraint("s1", "pk_added", "12", "pk_added_pkey", "PRIMARY KEY (id)")
+
+	withKeys := func(id, table string, mutate func(*schemasnapshot.Table)) schemasnapshot.Table {
+		tbl := makeTable(id, "s1", table, schemasnapshot.TableKindOrdinary)
+		mutate(&tbl)
+		return tbl
+	}
+	uniqueA := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "21", "uq_old", "UNIQUE (a)"), *makeConstraint("s1", "uq", "22", "uq_dropped", "UNIQUE (b)")}
+		tbl.Checks = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "31", "ck_old", "CHECK (a > 0)"), *makeConstraint("s1", "uq", "32", "ck_dropped", "CHECK (b > 0)")}
+		tbl.ForeignKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "41", "fk_old", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makeConstraint("s1", "uq", "42", "fk_dropped", "FOREIGN KEY (b) REFERENCES s1.p(id)")}
+	})
+	uniqueB := withKeys("6", "uq", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "21", "uq_new", "UNIQUE (a)"), *makeConstraint("s1", "uq", "23", "uq_added", "UNIQUE (c)")}
+		tbl.Checks = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "31", "ck_new", "CHECK (a > 0)"), *makeConstraint("s1", "uq", "33", "ck_added", "CHECK (c > 0)")}
+		tbl.ForeignKeys = []schemasnapshot.Constraint{*makeConstraint("s1", "uq", "41", "fk_new", "FOREIGN KEY (a) REFERENCES s1.p(id)"), *makeConstraint("s1", "uq", "43", "fk_added", "FOREIGN KEY (c) REFERENCES s1.p(id)")}
+	})
+
+	mkIndex := func(table, id, name, definition string) schemasnapshot.Index {
+		return schemasnapshot.Index{TableScopedObjectRef: schemasnapshot.TableScopedObjectRef{Table: ref("s1", table), Name: name}, ID: id, Definition: definition}
+	}
+	indexA := withKeys("7", "ix", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueIndexes = []schemasnapshot.Index{mkIndex("ix", "51", "uix_old", "USING btree (a)"), mkIndex("ix", "52", "uix_dropped", "USING btree (b)")}
+		tbl.Indexes = []schemasnapshot.Index{mkIndex("ix", "61", "ix_old", "USING btree (a)"), mkIndex("ix", "62", "ix_dropped", "USING btree (b)")}
+	})
+	indexB := withKeys("7", "ix", func(tbl *schemasnapshot.Table) {
+		tbl.UniqueIndexes = []schemasnapshot.Index{mkIndex("ix", "51", "uix_new", "USING btree (a)"), mkIndex("ix", "53", "uix_added", "USING btree (c)")}
+		tbl.Indexes = []schemasnapshot.Index{mkIndex("ix", "61", "ix_new", "USING btree (a)"), mkIndex("ix", "63", "ix_added", "USING btree (c)")}
+	})
+
+	a := snapWithTables(tA, uniqueA, indexA, pkDroppedA, pkAddedA, makeTable("2", "s1", "dropped_only", schemasnapshot.TableKindOrdinary))
+	b := snapWithTables(tB, uniqueB, indexB, pkDroppedB, pkAddedB, makeTable("3", "s2", "added_only", schemasnapshot.TableKindOrdinary))
+	a.Version = schemasnapshot.VersionWithKeysAndIndexes
+	b.Version = schemasnapshot.VersionWithKeysAndIndexes
 
 	got := Diff(a, b)
 
 	seen := map[DiffType]bool{}
 	for _, d := range got {
 		seen[d.Type] = true
+		if !slices.Contains(AllDiffTypes(), d.Type) {
+			t.Errorf("emitted type %s is missing from AllDiffTypes", d.Type)
+		}
 
 		wantOp, wantOT, wantAttr := expectedFacets(t, d.Type)
 		if d.Operation != wantOp {
@@ -237,20 +282,13 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 		if d.Attribute != wantAttr {
 			t.Errorf("%s: Attribute=%q, want %q", d.Type, d.Attribute, wantAttr)
 		}
-		// Invariant: Attribute is set iff the finding is a *_CHANGED.
+		// Invariant: Attribute is set iff the finding is OpChanged.
 		if (d.Operation == OpChanged) != (d.Attribute != AttrNone) {
 			t.Errorf("%s: Attribute/Operation mismatch: op=%q attr=%q", d.Type, d.Operation, d.Attribute)
 		}
 	}
 
-	allTypes := []DiffType{
-		TableAdded, TableDropped, TableNameChanged, TableSchemaChanged, TableKindChanged,
-		TablePartitionParentChanged, TablePartitionChildrenChanged, TableInheritsChanged,
-		TableInheritedByChanged,
-		ColumnAdded, ColumnDropped, ColumnNameChanged, ColumnTypeChanged,
-		ColumnNullabilityChanged, ColumnDefaultChanged,
-	}
-	for _, dt := range allTypes {
+	for _, dt := range AllDiffTypes() {
 		if !seen[dt] {
 			t.Errorf("scenario did not emit %s — decomposition for it is unverified", dt)
 		}
@@ -262,6 +300,24 @@ func TestDifferenceDecompositionMatchesType(t *testing.T) {
 // independent oracle; production sets these explicitly at each call site.
 func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute) {
 	t.Helper()
+	// The direction-split types name a direction, not the verb, so their suffix
+	// cannot be parsed: they are all CHANGED on the attribute they split.
+	splitTypes := map[DiffType]struct {
+		ot   ObjectType
+		attr Attribute
+	}{
+		TablePartitionAttached:  {ObjectTypeTable, AttrPartitionParent},
+		TablePartitionDetached:  {ObjectTypeTable, AttrPartitionParent},
+		TableInheritAdded:       {ObjectTypeTable, AttrInherits},
+		TableInheritRemoved:     {ObjectTypeTable, AttrInherits},
+		TableInheritedByAdded:   {ObjectTypeTable, AttrInheritedBy},
+		TableInheritedByRemoved: {ObjectTypeTable, AttrInheritedBy},
+		ColumnNotNullSet:        {ObjectTypeColumn, AttrNullability},
+		ColumnNotNullDropped:    {ObjectTypeColumn, AttrNullability},
+	}
+	if f, ok := splitTypes[dt]; ok {
+		return OpChanged, f.ot, f.attr
+	}
 	s := string(dt)
 
 	var op Operation
@@ -276,20 +332,34 @@ func expectedFacets(t *testing.T, dt DiffType) (Operation, ObjectType, Attribute
 		t.Fatalf("unrecognized DiffType verb: %s", s)
 	}
 
+	prefixes := []struct {
+		prefix string
+		ot     ObjectType
+	}{
+		{"TABLE_", ObjectTypeTable},
+		{"COLUMN_", ObjectTypeColumn},
+		{"PRIMARY_KEY_", ObjectTypeConstraint},
+		{"UNIQUE_INDEX_", ObjectTypeIndex},
+		{"UNIQUE_", ObjectTypeConstraint},
+		{"CHECK_", ObjectTypeConstraint},
+		{"FOREIGN_KEY_", ObjectTypeConstraint},
+		{"INDEX_", ObjectTypeIndex},
+	}
 	var ot ObjectType
-	switch {
-	case strings.HasPrefix(s, "TABLE_"):
-		ot = ObjectTypeTable
-	case strings.HasPrefix(s, "COLUMN_"):
-		ot = ObjectTypeColumn
-	default:
+	rest := ""
+	for _, p := range prefixes {
+		if strings.HasPrefix(s, p.prefix) {
+			ot, rest = p.ot, strings.TrimPrefix(s, p.prefix)
+			break
+		}
+	}
+	if ot == "" {
 		t.Fatalf("unrecognized DiffType object prefix: %s", s)
 	}
 
 	attr := AttrNone
 	if op == OpChanged {
-		mid := strings.TrimSuffix(strings.TrimPrefix(s, string(ot)+"_"), "_CHANGED")
-		attr = Attribute(mid)
+		attr = Attribute(strings.TrimSuffix(rest, "_CHANGED"))
 	}
 	return op, ot, attr
 }

@@ -247,11 +247,11 @@ type ParserIssueDetector struct {
 	*/
 	columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string
 
-	// list of composite types with fully qualified typename in the exported schema
-	compositeTypes []string
+	// composite and enum types in the exported schema, keyed by the type name as written in its CREATE TYPE
+	userDefinedTypes map[string]*queryparser.CreateType
 
-	// list of enum types with fully qualified typename in the exported schema
-	enumTypes []string
+	// domains in the exported schema, keyed by the domain name as written in its CREATE DOMAIN
+	domains map[string]*queryparser.CreateDomain
 
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
@@ -285,8 +285,8 @@ type ParserIssueDetector struct {
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
 
-		compositeTypes:                          make([]string, 0),
-		enumTypes:                               make([]string, 0),
+		userDefinedTypes:                        make(map[string]*queryparser.CreateType),
+		domains:                                 make(map[string]*queryparser.CreateDomain),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 		columnStatistics:                        make(map[string]utils.ColumnStatistics),
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
@@ -363,12 +363,23 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-func (p *ParserIssueDetector) GetCompositeTypes() []string {
-	return p.compositeTypes
+// YugabyteDB indexes enums, but rejects composite and range types as 'user_defined_type', also
+// through a domain over one.
+func (p *ParserIssueDetector) isUserDefinedTypeUnsupportedForIndex(typeName string) bool {
+	return slices.ContainsFunc(p.GetUnderlyingTypes(typeName), func(t UnderlyingType) bool {
+		return t.Kind == TypeKindComposite || t.Kind == TypeKindRange
+	})
 }
 
-func (p *ParserIssueDetector) GetEnumTypes() []string {
-	return p.enumTypes
+// getUnsupportedIndexDatatype returns the type in UnsupportedIndexDatatypes that typeName is built
+// from, also through a domain over one.
+func (p *ParserIssueDetector) getUnsupportedIndexDatatype(typeName string) (string, bool) {
+	for _, t := range p.GetUnderlyingTypes(typeName) {
+		if isListedDatatype(t, UnsupportedIndexDatatypes) {
+			return strings.ToLower(t.BaseName()), true
+		}
+	}
+	return "", false
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
@@ -973,8 +984,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			meta.DataType = col.TypeName
 			meta.DataTypeMods = col.TypeMods
 
-			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
-			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
+			unsupportedIndexDatatype, isUnsupportedType := p.getUnsupportedIndexDatatype(col.GetFullTypeName())
+			isUDTType := p.isUserDefinedTypeUnsupportedForIndex(col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
 
 			switch {
@@ -988,6 +999,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				if isUDTType {
 					meta.IsUserDefinedType = true
 					meta.DataType = "user_defined_type"
+				} else {
+					meta.DataType = unsupportedIndexDatatype
 				}
 
 			case isHotspotType:
@@ -1021,12 +1034,20 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// Process primary keys and unique constraints as indexes for foreign key detection
 		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
-		typeObj := ddlObj
-		if typeObj.IsEnum {
-			p.enumTypes = append(p.enumTypes, typeObj.GetObjectName())
-		} else {
-			p.compositeTypes = append(p.compositeTypes, typeObj.GetObjectName())
+		p.userDefinedTypes[ddlObj.GetObjectName()] = ddlObj
+		if ddlObj.IsRange {
+			multirange := &queryparser.CreateType{
+				TypeName:   ddlObj.MultirangeTypeName,
+				SchemaName: ddlObj.MultirangeSchemaName,
+				IsRange:    true,
+			}
+			// PG 13 and older create no multirange, so a user type of that name keeps it, whichever comes first
+			if _, exists := p.userDefinedTypes[multirange.GetObjectName()]; !exists {
+				p.userDefinedTypes[multirange.GetObjectName()] = multirange
+			}
 		}
+	case *queryparser.CreateDomain:
+		p.domains[ddlObj.GetObjectName()] = ddlObj
 	case *queryparser.Index:
 		index := ddlObj
 		if index.AccessMethod == queryparser.GIN_ACCESS_METHOD {

@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/versions"
 )
 
@@ -63,6 +65,43 @@ type ContainerConfig struct {
 	// YugabyteDB Cluster-specific fields
 	NodeCount         int // Number of nodes in cluster (default: 1)
 	ReplicationFactor int // RF-1, RF-3, etc. (default: 1)
+	// MTLS, when set, starts a dedicated container that accepts only TLS connections
+	// authenticated by a client certificate.
+	MTLS *MTLSConfig
+}
+
+// MTLSConfig locks a container down to TLS connections that present a client certificate
+// signed by CACertPEM whose CN is the connecting role.
+type MTLSConfig struct {
+	CACertPEM     []byte
+	ServerCertPEM []byte
+	ServerKeyPEM  []byte
+	// Client-side files for the container's own connections (Start's readiness check, ExecuteSqls,
+	// Query, GetConnectionString): the server accepts no connection without a client certificate,
+	// so the container cannot even be set up without these. The certificate's CN must be
+	// ContainerConfig.User.
+	RootCertPath   string
+	ClientCertPath string
+	ClientKeyPath  string
+}
+
+// sslQueryParams returns the URI query for the container's own connections: the client
+// certificate for an mTLS container, which accepts nothing else, and plaintext for every other one.
+func sslQueryParams(mtls *MTLSConfig) string {
+	if mtls == nil {
+		return "sslmode=disable"
+	}
+	return fmt.Sprintf("sslmode=verify-full&sslrootcert=%s&sslcert=%s&sslkey=%s",
+		utils.EscapeConnUriQueryValue(mtls.RootCertPath),
+		utils.EscapeConnUriQueryValue(mtls.ClientCertPath),
+		utils.EscapeConnUriQueryValue(mtls.ClientKeyPath))
+}
+
+func withConnQuery(uri string, query string) string {
+	if query == "" {
+		return uri
+	}
+	return uri + "?" + query
 }
 
 func (config *ContainerConfig) buildContainerName(dbType string) string {
@@ -72,6 +111,11 @@ func (config *ContainerConfig) buildContainerName(dbType string) string {
 		containerName = fmt.Sprintf("%s-live-%s", dbType, config.DBVersion)
 	} else if config.NodeCount > 1 {
 		containerName = fmt.Sprintf("%s-cluster-%d-%s", dbType, config.NodeCount, config.DBVersion)
+	}
+	if config.MTLS != nil {
+		// Tests with different CAs must not share a container: the second would get the first one's PKI.
+		caHash := sha256.Sum256(config.MTLS.CACertPEM)
+		containerName += fmt.Sprintf("-mtls-%x", caHash[:6])
 	}
 	return containerName
 }
@@ -89,6 +133,10 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 		containerConfig = &ContainerConfig{}
 	}
 	setContainerConfigDefaultsIfNotProvided(dbType, containerConfig)
+	if containerConfig.MTLS != nil && dbType != POSTGRESQL && !(dbType == YUGABYTEDB && containerConfig.NodeCount <= 1) {
+		panic(fmt.Sprintf("MTLS is supported only for postgresql and single-node yugabytedb containers, not %q",
+			containerConfig.buildContainerName(dbType)))
+	}
 
 	// check if container is already created after fetching default configs
 	containerName := containerConfig.buildContainerName(dbType)

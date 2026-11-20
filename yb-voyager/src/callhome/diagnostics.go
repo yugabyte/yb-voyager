@@ -30,8 +30,7 @@ import (
 
 	goerrors "github.com/go-errors/errors"
 	"github.com/google/uuid"
-	"github.com/jackc/pgconn"
-	pgconnv5 "github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -95,8 +94,9 @@ Version History
 1.1: Added db_id (PostgreSQL/YugabyteDB: pg_database.oid; Oracle: v$database.dbid; MySQL: 0)
 1.2: Added schema_oids field (PostgreSQL/YugabyteDB: pg_namespace.oid)
 1.3: Added source_deployment_type field for source deployment identification(currently only implemented for Aurora and RDS)
+1.4: Added tls_cert_domain (registered domain from the source TLS certificate SAN/CN) and host_domain (registered domain of the source host) for organisation identification
 */
-var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.3"
+var SOURCE_DB_DETAILS_PAYLOAD_VERSION = "1.4"
 
 type SourceDBDetails struct {
 	PayloadVersion     string   `json:"payload_version"`
@@ -109,8 +109,10 @@ type SourceDBDetails struct {
 	DBID               int64    `json:"db_id,omitempty"`                // postgresql/yugabytedb: pg_database.oid;
 	DBName             string   `json:"db_name,omitempty"`              //Anonymized database name
 	SourceDeployment   string   `json:"source_deployment_type,omitempty"`
-	SchemaNames        []string `json:"schema_names,omitempty"` //Anonymized schema names
-	SchemaOids         []int64  `json:"schema_oids,omitempty"`  //Schema oids
+	TLSCertDomain      string   `json:"tls_cert_domain,omitempty"` // <instance>.*.<registered domain> (e.g. pg01.*.acme.com, mydb.*.amazonaws.com)
+	HostDomain         string   `json:"host_domain,omitempty"`     // <instance>.*.<registered domain> (e.g. pg01.*.acme.com, mydb.*.amazonaws.com)
+	SchemaNames        []string `json:"schema_names,omitempty"`    //Anonymized schema names
+	SchemaOids         []int64  `json:"schema_oids,omitempty"`     //Schema oids
 }
 
 // SHOULD NOT REMOVE THESE (host, db_version, node_count, total_cores) FIELDS of TargetDBDetails as parsing these specifically here
@@ -507,8 +509,9 @@ type ArchiveChangesPhasePayload struct {
 /*
 Version History
 1.0: Initial version
+1.1: drifts_by_type keys use the direction-split types (e.g. COLUMN_NOT_NULL_SET / _DROPPED); drifts_by_severity counts each change's severity for when it happened
 */
-var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.0"
+var SCHEMA_DRIFT_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 // SchemaDriftPhasePayload reports what a `schema detect-drift` run examined and
 // found. Counts and histograms only: schema, table and column names are
@@ -713,13 +716,6 @@ func addPostgreSQLErrorContext(err error, context map[string]string) {
 		// If the error is a pgconn.PgError, we can return a more
 		// specific error message that includes the SQLSTATE code
 		context["pg_error_code"] = pgErr.Code
-	}
-
-	var pgErrV5 *pgconnv5.PgError
-	if errors.As(err, &pgErrV5) {
-		// If the error is a pgconnv5.PgError, we can return
-		// a more specific error message that includes the SQLSTATE code
-		context["pg_error_code"] = pgErrV5.Code
 	}
 }
 

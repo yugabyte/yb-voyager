@@ -81,6 +81,11 @@ export-data-from-source:
   exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
+  {% if USE_YB_GRPC_CONNECTOR is defined and USE_YB_GRPC_CONNECTOR == "true" and EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR is defined and EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR != "" %}
+  exclude-column-list: '{{ EXPORT_EX_COLUMN_LIST_GRPC_CONNECTOR }}'
+  {% elif EXPORT_EX_COLUMN_LIST is defined and EXPORT_EX_COLUMN_LIST != "" %}
+  exclude-column-list: '{{ EXPORT_EX_COLUMN_LIST }}'
+  {% endif %}
 
 import-data-to-target:
   adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}disabled{% else %}balanced{% endif %}
@@ -99,6 +104,7 @@ initiate-cutover-to-target:
 
 export-data-from-target:
   disable-pb: true
+
 
 import-data-to-source-replica:
   disable-pb: true
