@@ -583,9 +583,20 @@ def yba_cluster_event_action(stage: Dict[str, Any], ctx: Any) -> None:
     event = stage["event"]
     ctx.yba_task = None
     client = yba.YBAClient.from_env()
+    direction = H.active_migration_direction(ctx)
+    window = {
+        "direction": direction,
+        "started_at": H._ts(),
+        "progress_at_start": H.migration_progress(ctx, direction),
+        "log_offsets": H.log_file_offsets(ctx.export_dir_base),
+    }
+    H.log(
+        f"[yba] {event}: migration before the event: {direction['exporter_cmd']} -> {direction['importer_cmd']}, "
+        f"{H.format_progress(window['progress_at_start'], {})}, processes: {H.process_states(ctx)}"
+    )
 
     def started(task_uuid: str, suffix: str = "") -> None:
-        ctx.yba_task = {"event": event, "uuid": task_uuid}
+        ctx.yba_task = {"event": event, "uuid": task_uuid, **window}
         ctx.cluster_event_running = True
         H.log_yba_event(
             ctx,
@@ -639,14 +650,14 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
     client = yba.YBAClient.from_env()
     started = time.time()
     deadline = started + timeout_sec if timeout_sec else None
-    last_percent = None
+    direction = task["direction"]
+    progress_at_start = task["progress_at_start"]
     while True:
         info = client.task(task["uuid"])
         status = info.get("status")
         percent = info.get("percent")
-        if percent != last_percent:
-            H.log(f"[yba] {task['event']} task {task['uuid']}: {status} {percent}%")
-            last_percent = percent
+        progress_text = H.format_progress(H.migration_progress(ctx, direction), progress_at_start)
+        H.log(f"[yba] {task['event']} task {task['uuid']}: {status} {percent}% | {progress_text} | {H.process_states(ctx)}")
         if status == yba.TASK_STATUS_SUCCESS:
             break
         if status in yba.TASK_STATUS_TERMINAL_FAILURE:
@@ -659,12 +670,13 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
                 status=status,
                 failed_subtasks=failed,
             )
+            _close_event_window(ctx, task, found_exited_before, retried_before)
             raise RuntimeError(f"YBA {task['event']} task {task['uuid']} ended with {status}")
         if deadline and time.time() > deadline:
+            _close_event_window(ctx, task, found_exited_before, retried_before)
             raise TimeoutError(f"YBA {task['event']} task {task['uuid']} still {status} after {timeout_sec}s")
         time.sleep(interval_sec)
 
-    ctx.cluster_event_running = False
     duration = int(time.time() - started)
     task["duration_sec"] = duration
     H.log_yba_event(
@@ -674,6 +686,18 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
         task_uuid=task["uuid"],
         duration_sec=duration,
     )
+    exited = _close_event_window(ctx, task, found_exited_before, retried_before)
+    if exited:
+        raise RuntimeError(
+            f"voyager process(es) exited during the {task['event']} task: "
+            + ", ".join(f"{name} (exit code {code})" for name, code in exited.items())
+        )
+
+
+def _close_event_window(ctx: Any, task: Dict[str, Any], found_exited_before: int, retried_before: int) -> Dict[str, Any]:
+    """Record what the migration did while the task ran, whatever the task's outcome, and return
+    the voyager processes that exited on their own meanwhile."""
+    ctx.cluster_event_running = False
     with ctx.process_lock:
         exited = {
             name: proc.returncode
@@ -682,19 +706,81 @@ def yba_wait_task_action(stage: Dict[str, Any], ctx: Any) -> None:
         }
         found_exited = ctx.found_exited_events[found_exited_before:]
         retried = ctx.retried_restart_events[retried_before:]
+        task["found_exited_seen"] = len(ctx.found_exited_events)
     exited.update({f"{e['command']} pid={e['pid']}": e["exit_code"] for e in found_exited})
+    label = f"during_{task['event']}_{task['uuid'][:8]}"
+    task["ended_at"] = H._ts()
+    task["progress_at_end"] = H.migration_progress(ctx, task["direction"])
+    scan_counts = H.scan_logs_since(ctx.export_dir_base, ctx.artifacts_dir, task["log_offsets"], label)
     H.log_yba_event(
         ctx,
-        f"{task['event']}: relaunches retried after failing to come up: {len(retried)}, process exits: {len(exited)}",
-        event=f"{task['event']}_process_report",
-        retried_restarts=retried,
+        f"during {task['event']}: {H.format_progress(task['progress_at_end'], task['progress_at_start'])}, "
+        f"process exits: {len(exited)}, relaunches retried after failing to come up: {len(retried)}, "
+        f"voyager log scan: {H.format_scan_counts(scan_counts)} (details under artifacts/log_scans/{label}/)",
+        event=f"{task['event']}_window",
+        progress_at_start=task["progress_at_start"],
+        progress_at_end=task["progress_at_end"],
         process_exits=exited,
+        retried_restarts=retried,
+        log_scan=scan_counts,
     )
-    if exited:
-        raise RuntimeError(
-            f"voyager process(es) exited during the {task['event']} task: "
-            + ", ".join(f"{name} (exit code {code})" for name, code in exited.items())
-        )
+    return exited
+
+
+@action("check_migration_progress")
+def check_migration_progress_action(stage: Dict[str, Any], ctx: Any) -> None:
+    """Prove the migration is alive after the last cluster event: exporter and importer must
+    both apply new events within timeout_sec, with their processes and the generators running.
+
+    Stage keys:
+      - timeout_sec: default 300
+      - poll_interval_sec: default 10
+    """
+    task = ctx.yba_task
+    if not task or "ended_at" not in task:
+        raise RuntimeError("check_migration_progress: no finished yba_cluster_event/yba_wait_task pair precedes this stage")
+    event = task["event"]
+    direction = task["direction"]
+    timeout_sec = int(stage.get("timeout_sec", 300))
+    interval_sec = int(stage.get("poll_interval_sec", 10))
+    watched = [direction["exporter_cmd"], direction["importer_cmd"]]
+    with ctx.process_lock:
+        watched += [name for name in ctx.processes if name.startswith("generator")]
+
+    base = H.migration_progress(ctx, direction)
+    H.log(f"[yba] after {event}: waiting up to {timeout_sec}s for exporter and importer to move past {H.format_progress(base, {})}")
+    deadline = time.time() + timeout_sec
+    while True:
+        dead = H.dead_processes(ctx, watched)
+        with ctx.process_lock:
+            self_exits = ctx.found_exited_events[task["found_exited_seen"]:]
+        dead.update({f"{e['command']} pid={e['pid']}": f"exited on its own code={e['exit_code']}" for e in self_exits})
+        if dead:
+            raise RuntimeError(
+                f"after {event}: " + ", ".join(f"{name} {state}" for name, state in dead.items())
+            )
+        now = H.migration_progress(ctx, direction)
+        for key in ("exported", "imported"):
+            if base[key] is None:
+                base[key] = now[key]
+        exporter_moved = None not in (base["exported"], now["exported"]) and now["exported"] > base["exported"]
+        importer_moved = None not in (base["imported"], now["imported"]) and now["imported"] > base["imported"]
+        if exporter_moved and importer_moved:
+            break
+        if time.time() > deadline:
+            stalled = [name for name, moved in (("exporter", exporter_moved), ("importer", importer_moved)) if not moved]
+            raise RuntimeError(
+                f"after {event}: {' and '.join(stalled)} made no progress in {timeout_sec}s: "
+                f"{H.format_progress(now, base)}; processes: {H.process_states(ctx)}"
+            )
+        time.sleep(interval_sec)
+
+    H.log_yba_event(
+        ctx,
+        f"after {event}: migration alive, {H.format_progress(now, base)}: OK",
+        event=f"{event}_migration_alive",
+        progress=now,
+    )
 
 
 @action("yba_check_version")
@@ -745,6 +831,37 @@ def _resolve_path(p: str | None, base_dir: str) -> str | None:
     return os.path.abspath(p)
 
 
+def _log_failure_summary(ctx: H.Context, failed_stage: Dict[str, str]) -> None:
+    lines = [
+        "==================== FAILURE SUMMARY ====================",
+        f"failed stage : {failed_stage['name']} (action {failed_stage['action']})",
+        f"error        : {failed_stage['error']}",
+    ]
+    task = ctx.yba_task
+    if task:
+        status = "finished" if "ended_at" in task else "not finished"
+        try:
+            status += f", YBA reports {yba.YBAClient.from_env().task(task['uuid']).get('status')}"
+        except Exception as exc:
+            status += f", YBA status lookup failed: {exc}"
+        lines.append(f"cluster event: {task['event']} task {task['uuid']} started {task['started_at']}, {status}")
+        if "progress_at_end" in task:
+            lines.append(f"               {H.format_progress(task['progress_at_end'], task['progress_at_start'])} during the event")
+    else:
+        lines.append("cluster event: none started")
+    lines.append(f"processes    : {H.process_states(ctx)}")
+    self_exits = ctx.found_exited_events
+    if self_exits:
+        lines.append("self exits   : " + ", ".join(f"{e['command']} pid={e['pid']} code={e['exit_code']}" for e in self_exits))
+    if ctx.retried_restart_events:
+        lines.append("retried      : " + ", ".join(
+            f"{e['command']} pid={e['pid']} code={e['exit_code']} after {e['lived_sec']}s" for e in ctx.retried_restart_events))
+    lines.append(f"artifacts    : {ctx.artifacts_dir}/{{stage_summary.ndjson, yba_events.ndjson, resumption_events.ndjson, log_scans/, logs/}}")
+    lines.append("=========================================================")
+    for line in lines:
+        H.log(line)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Live migration resiliency orchestrator")
     parser.add_argument("scenario", help="Path to scenario YAML")
@@ -770,6 +887,7 @@ def main() -> None:
     ctx = H.Context(cfg=cfg, env=env, test_root=test_root)
     had_failure = False
     completed = False
+    failed_stage: Dict[str, str] = {}
 
     stages = cfg["stages"]
     num_iterations = int(cfg.get("num_iterations", 1))
@@ -811,13 +929,19 @@ def main() -> None:
                 H.append_stage_summary(cfg["artifacts_dir"], stage_name, start_ts, end_ts, status="FAILED", error=str(e))
                 H.log_stage_end(stage_name, status=f"FAILED: {e}")
                 had_failure = True
+                failed_stage = {"name": stage_name, "action": stage["action"], "error": str(e)}
                 raise
         completed = True
     finally:
         H.log(f"RUN {'COMPLETE' if completed else 'FAILED' if had_failure else 'INTERRUPTED'}: {cfg['name']}")
+        if had_failure:
+            try:
+                _log_failure_summary(ctx, failed_stage)
+            except Exception as exc:
+                H.log(f"failure summary could not be built: {exc!r}")
         # Always capture artifacts/logs at the end regardless of success or failure
         H.scan_logs_for_errors(cfg["export_dir"], cfg["artifacts_dir"])
-        H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"])
+        H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"], run_failed=not completed)
         if had_failure:
             H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
 
