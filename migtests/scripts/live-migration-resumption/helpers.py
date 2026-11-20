@@ -32,6 +32,13 @@ def merge_env(base: Dict[str, str], override: Dict[str, str] | None) -> Dict[str
     return env
 
 
+DB_ROLES = ("source", "target", "source_replica")
+DB_REACHABLE_WAIT_SEC = 600
+DB_REACHABLE_POLL_SEC = 5
+RESTART_GRACE_SEC = 30
+MAX_RETRIED_FAILED_RESTARTS = 2
+
+
 class Context:
     def __init__(self, cfg: Dict[str, Any], env: Dict[str, str], test_root: str | None = None):
         self.cfg = cfg
@@ -56,6 +63,16 @@ class Context:
         # Set by the `pick_random_custom_key` orchestrator action; consumed by
         # `validate_picked_custom_key_conflicts`.
         self.picked_custom_key: Dict[str, Any] | None = None
+        # Set by `yba_cluster_event`; consumed by `yba_wait_task` and `yba_check_version`.
+        self.yba_task: Dict[str, Any] | None = None
+        # Appended by a Resumer that finds its process already dead; `yba_wait_task`
+        # fails on any entry added while a cluster task ran.
+        self.found_exited_events: list[Dict[str, Any]] = []
+        # True from `yba_cluster_event` starting a task until `yba_wait_task` sees it end; the
+        # only window in which a Resumer retries a relaunch that failed to come up.
+        self.cluster_event_running: bool = False
+        # Appended by a Resumer for each such retried relaunch; `yba_wait_task` reports them.
+        self.retried_restart_events: list[Dict[str, Any]] = []
 
 
 def apply_effective_export_dir(ctx: Context) -> None:
@@ -154,6 +171,19 @@ def log_resumption_event(ctx: Context, command: str, message: str | None = None,
         log(f"[resumption:{command}] failed to persist event: {exc}")
 
 
+def log_yba_event(ctx: Context, message: str, *, event: str, **fields: Any) -> None:
+    """Log the message to stdout and persist the structured event to artifacts."""
+    log(f"[yba] {message}")
+    record: Dict[str, Any] = {"ts": _ts(), "event": event, "message": message}
+    record.update(fields)
+    try:
+        os.makedirs(ctx.artifacts_dir, exist_ok=True)
+        with open(os.path.join(ctx.artifacts_dir, "yba_events.ndjson"), "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception as exc:
+        log(f"[yba] failed to persist event: {exc}")
+
+
 # -------------------------
 # Scenario validation
 # -------------------------
@@ -205,6 +235,14 @@ def validate_scenario(cfg: Dict[str, Any]) -> None:
             _ensure(st, "condition", str, sctx)
         if action == "voyager_stop_command":
             _ensure(st, "command", str, sctx)
+        if action == "yba_cluster_event":
+            event = _ensure(st, "event", str, sctx)
+            if event not in ("upgrade", "restart", "finalize"):
+                raise ValueError(f"Key 'event' in {sctx} must be one of upgrade, restart, finalize")
+            if event == "upgrade":
+                _ensure(st, "version", str, sctx)
+        if action == "yba_check_version":
+            _ensure(st, "expected", str, sctx)
 
 # -------------------------
 # Polling / Timeouts / Conditions
@@ -307,6 +345,13 @@ def _cmd_str(cmd: list[str]) -> str:
         return str(cmd)
 
 
+class SpawnFailed(RuntimeError):
+    def __init__(self, message: str, pid: int, returncode: int):
+        super().__init__(message)
+        self.pid = pid
+        self.returncode = returncode
+
+
 def spawn(cmd: list[str], env: Dict[str, str]) -> subprocess.Popen:
     log(f"spawn: {_cmd_str(cmd)}")
     proc = subprocess.Popen(
@@ -328,10 +373,12 @@ def spawn(cmd: list[str], env: Dict[str, str]) -> subprocess.Popen:
             _, stderr_text = proc.communicate(timeout=5)
         except Exception:
             pass
-        raise RuntimeError(
+        raise SpawnFailed(
             f"Command failed to start: {_cmd_str(cmd)}\n"
             f"Exit: {proc.returncode}\n"
-            f"STDERR:\n{stderr_text}"
+            f"STDERR:\n{stderr_text}",
+            proc.pid,
+            proc.returncode,
         )
 
     return proc
@@ -934,6 +981,9 @@ class Resumer:
         self.stop_flag = threading.Event()
         self._thread: threading.Thread | None = None
         self._rng = rng or random.Random()
+        self._last_launch: tuple[int, float] | None = None
+        self._failed_restarts_in_a_row = 0
+        self._last_restart_retryable = False
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -975,16 +1025,21 @@ class Resumer:
                     max_restarts=self.policy.max_restarts,
                     interrupt_delay_sec=interrupt_delay,
                 )
-                if self._wait(interrupt_delay):
+                if self._wait_unless_exited(proc, interrupt_delay):
                     self._log("stop requested before interrupt; exiting resumer", event="stop_before_interrupt")
                     return
 
-                kill(proc)
-                self._log(
-                    f"killed process pid={proc.pid}",
-                    event="killed",
-                    pid=proc.pid,
-                )
+                exit_code = proc.poll()
+                if exit_code is not None:
+                    self._record_exit(proc, exit_code)
+                else:
+                    self._failed_restarts_in_a_row = 0
+                    kill(proc)
+                    self._log(
+                        f"killed process pid={proc.pid}",
+                        event="killed",
+                        pid=proc.pid,
+                    )
 
                 restart_delay = self._rng.randint(
                     self.policy.min_restart_wait_seconds,
@@ -1004,14 +1059,39 @@ class Resumer:
                     self._safe_restart(proc, final=True)
                     return
 
-                proc = self._safe_restart(proc)
-                if not proc:
-                    return
                 attempt += 1
+                if self._wait_for_databases():
+                    self._safe_restart(proc, final=True)
+                    return
+                proc = self._safe_restart(proc)
+                while not proc:
+                    if not self._last_restart_retryable:
+                        self._log("restart failed and is not retried; exiting resumer", event="restart_not_retried")
+                        return
+                    if attempt >= self.policy.max_restarts:
+                        self._log("restart attempts exhausted; exiting resumer", event="restarts_exhausted")
+                        return
+                    retry_delay = self._rng.randint(
+                        self.policy.min_restart_wait_seconds,
+                        self.policy.max_restart_wait_seconds,
+                    )
+                    self._log(
+                        f"retrying restart in {retry_delay}s (attempt {attempt + 1}/{self.policy.max_restarts})",
+                        event="scheduled_restart_retry",
+                        retry_delay_sec=retry_delay,
+                        next_attempt=attempt + 1,
+                    )
+                    if self._wait(retry_delay) or self._wait_for_databases():
+                        self._safe_restart(proc, final=True)
+                        return
+                    attempt += 1
+                    proc = self._safe_restart(proc)
         finally:
             self._deregister()
 
     def _safe_restart(self, old_proc: subprocess.Popen | None, *, final: bool = False) -> subprocess.Popen | None:
+        launched = time.time()
+        self._last_restart_retryable = False
         try:
             proc = restart_like(self.cmd, old_proc, self.ctx)
             with self.ctx.process_lock:
@@ -1023,8 +1103,14 @@ class Resumer:
                 event=event,
                 error=str(exc),
             )
+            if isinstance(exc, SpawnFailed) and not final:
+                lived = int(time.time() - launched)
+                self._last_restart_retryable = self._retry_failed_restart(exc.pid, exc.returncode, lived)
+                if not self._last_restart_retryable:
+                    self._record_self_exit(exc.pid, exc.returncode, lived)
             return None
 
+        self._last_launch = (proc.pid, launched)
         if final:
             self._log(
                 "final restart complete; exiting resumer",
@@ -1039,9 +1125,84 @@ class Resumer:
             )
         return proc
 
+    def _record_exit(self, proc: subprocess.Popen, exit_code: int) -> None:
+        lived = None
+        if self._last_launch and self._last_launch[0] == proc.pid:
+            lived = int(time.time() - self._last_launch[1])
+        if lived is not None and lived < RESTART_GRACE_SEC and self._retry_failed_restart(proc.pid, exit_code, lived):
+            return
+        self._record_self_exit(proc.pid, exit_code, lived)
+
+    def _retry_failed_restart(self, pid: int, exit_code: int, lived: int) -> bool:
+        """A relaunch during a rolling restart or upgrade can pass the reachability probe and still
+        die seconds later when its node starts shutting down: Debezium validates its first
+        connection without retrying, so voyager exits 1. That is a failed restart, not a crash.
+        Outside a cluster event, or on the third in a row, it is not excused."""
+        if not self.ctx.cluster_event_running or self._failed_restarts_in_a_row >= MAX_RETRIED_FAILED_RESTARTS:
+            return False
+        self._failed_restarts_in_a_row += 1
+        self._log(
+            f"relaunched process pid={pid} exited with code {exit_code} {lived}s after launch during a cluster event "
+            f"({self._failed_restarts_in_a_row} in a row); retrying it as a failed restart",
+            event="restart_retried",
+            pid=pid,
+            exit_code=exit_code,
+            lived_sec=lived,
+        )
+        with self.ctx.process_lock:
+            self.ctx.retried_restart_events.append(
+                {"ts": _ts(), "command": self.cmd, "pid": pid, "exit_code": exit_code, "lived_sec": lived}
+            )
+        return True
+
+    def _record_self_exit(self, pid: int, exit_code: int, lived: int | None) -> None:
+        self._failed_restarts_in_a_row = 0
+        self._log(
+            f"process pid={pid} exited on its own with code {exit_code}"
+            + ("" if lived is None else f" {lived}s after launch"),
+            event="found_exited",
+            pid=pid,
+            exit_code=exit_code,
+            lived_sec=lived,
+        )
+        with self.ctx.process_lock:
+            self.ctx.found_exited_events.append(
+                {"ts": _ts(), "command": self.cmd, "pid": pid, "exit_code": exit_code}
+            )
+
+    def _wait_unless_exited(self, proc: subprocess.Popen, seconds: int) -> bool:
+        """Like `_wait`, but returns as soon as *proc* exits so its lifetime is measured, not
+        the time until the next scheduled interrupt."""
+        deadline = time.time() + seconds
+        while not self._should_stop():
+            if proc.poll() is not None:
+                return False
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                return False
+            time.sleep(min(remaining, 1.0))
+        return True
+
     def _current_process(self) -> subprocess.Popen | None:
         with self.ctx.process_lock:
             return self.ctx.processes.get(self.cmd)
+
+    def _wait_for_databases(self) -> bool:
+        """Hold a relaunch while a database is unreachable (a node down for a rolling restart):
+        a voyager started then would die on its first connect and count as a crash. Returns True
+        when a stop was requested meanwhile."""
+        deadline = time.time() + DB_REACHABLE_WAIT_SEC
+        while not self._should_stop():
+            unreachable = [role for role in DB_ROLES if role in self.ctx.cfg and not db_reachable(self.ctx.cfg, role)]
+            if not unreachable:
+                return False
+            if time.time() > deadline:
+                self._log(f"{', '.join(unreachable)} still unreachable after {DB_REACHABLE_WAIT_SEC}s; restarting anyway", event="db_unreachable")
+                return False
+            self._log(f"waiting for {', '.join(unreachable)} to accept connections before restart", event="db_wait")
+            if self._wait(DB_REACHABLE_POLL_SEC):
+                return True
+        return True
 
     def _wait(self, seconds: int) -> bool:
         if seconds <= 0:
@@ -1104,11 +1265,21 @@ def start_resumptions_for_stage(resumption_cfg: Dict[str, Any] | None, ctx: Cont
 def stop_resumptions_for_command(cmd: str, ctx: Context, timeout_sec: int = 30) -> None:
     with ctx.process_lock:
         resumer = ctx.active_resumers.pop(cmd, None)
-    if not resumer:
+    if resumer:
+        resumer.stop(timeout_sec)
+        log_resumption_event(ctx, cmd, "resumptions stopped", event="stopped")
+    else:
         log_resumption_event(ctx, cmd, "no resumer threads to stop", event="no_threads")
-        return
-    resumer.stop(timeout_sec)
-    log_resumption_event(ctx, cmd, "resumptions stopped", event="stopped")
+    with ctx.process_lock:
+        self_exits = [e for e in ctx.found_exited_events if e["command"] == cmd]
+        proc = ctx.processes.get(cmd)
+    if self_exits:
+        raise RuntimeError(
+            f"{cmd} exited on its own {len(self_exits)} time(s) while under resumption: "
+            + ", ".join(f"pid={e['pid']} exit_code={e['exit_code']} at {e['ts']}" for e in self_exits)
+        )
+    if proc is None or proc.poll() is not None:
+        raise RuntimeError(f"{cmd} is not running when its resumptions were stopped")
 
 
 # -------------------------
@@ -1204,7 +1375,7 @@ def prepare_paths(export_dir: str, artifacts_dir: str) -> None:
 # SQL execution
 # -------------------------
 
-def db_connection(cfg: Dict[str, Any], role: str) -> psycopg2.extensions.connection:
+def db_connection(cfg: Dict[str, Any], role: str, connect_timeout: int | None = None) -> psycopg2.extensions.connection:
     """Generic connection helper for source/target DBs."""
     db = cfg[role]
     return psycopg2.connect(
@@ -1213,7 +1384,17 @@ def db_connection(cfg: Dict[str, Any], role: str) -> psycopg2.extensions.connect
         dbname=str(db["database"]),
         user=str(db["user"]),
         password=str(db.get("password")),
+        connect_timeout=connect_timeout,
     )
+
+
+def db_reachable(cfg: Dict[str, Any], role: str) -> bool:
+    try:
+        with db_connection(cfg, role, connect_timeout=DB_REACHABLE_POLL_SEC) as conn, conn.cursor() as cur:
+            cur.execute("select 1")
+        return True
+    except psycopg2.Error:
+        return False
 
 
 def run_psql(
