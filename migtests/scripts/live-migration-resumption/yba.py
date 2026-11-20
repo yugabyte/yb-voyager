@@ -19,11 +19,15 @@ Two things live here:
 2. `yba.py resolve-versions`: picks the pair of builds the pipeline upgrades between and
    prints `OLD_VERSION=...` / `NEW_VERSION=...` for Jenkins to export before it creates
    the universe. NEW is the latest released build of the newest stable branch that has a
-   release and OLD the latest released build of the next such branch, both from
-   release.dev.yugabyte.com; a branch listed as active before its first release is skipped,
-   and the console shows every branch and what it returned. Nothing
-   else is consulted: the upgrade stage registers NEW on the YBA itself if it is missing,
-   and YBA's own precheck rejects a pair it cannot upgrade.
+   release (a branch listed as active before its first release is skipped). OLD is the
+   newest released build of the previous branch that YBA can upgrade to NEW: YBA's
+   CheckUpgrade refuses a target that lacks a YSQL migration the source already carries,
+   which happens when a fix is backported to the older branch first (2025.2.7.0 carried
+   migration 30566 before any 2026.1 release did), so the candidates are walked newest
+   first and the first one whose migrations are all in NEW wins. Migrations are read from
+   the yugabyte-db GitHub tree at each build's tag; set GITHUB_TOKEN to avoid the
+   unauthenticated rate limit. The upgrade stage registers NEW on the YBA itself if it
+   is missing.
 """
 
 import argparse
@@ -38,6 +42,8 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 RELEASE_SERVICE_URL = "https://release.dev.yugabyte.com"
+RELEASE_NOTES_URL = "https://docs.yugabyte.com/stable/releases/ybdb-releases"
+MIGRATIONS_API_URL = "https://api.github.com/repos/yugabyte/yugabyte-db/contents/src/yb/yql/pgwrapper/ysql_migrations"
 RELEASE_PACKAGE_URL = "https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/{build}/yugabyte-{build}-centos-x86_64.tar.gz"
 HTTP_TIMEOUT_SEC = 60
 GET_ATTEMPTS = 3
@@ -45,6 +51,7 @@ GET_RETRY_SLEEP_SEC = 5
 
 YB_BUILD_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)-b(\d+)$")
 STABLE_BRANCH_RE = re.compile(r"^\d{4}\.\d+$")
+RELEASE_NOTES_BUILD_RE = re.compile(r"Build:\s*(\d+\.\d+\.\d+\.\d+-b\d+)")
 # Release tarballs report -b0 from `select version()`, so only the version number is usable.
 YB_SERVER_VERSION_RE = re.compile(r"-YB-(\d+\.\d+\.\d+\.\d+)-b\d+")
 
@@ -52,6 +59,12 @@ TASK_STATUS_SUCCESS = "Success"
 TASK_STATUS_TERMINAL_FAILURE = {"Failure", "Aborted", "Abort", "Unknown"}
 
 UPGRADE_STATE_PRE_FINALIZE = "PreFinalize"
+
+
+class HTTPStatusError(RuntimeError):
+    def __init__(self, message: str, code: int):
+        super().__init__(message)
+        self.code = code
 
 
 def version_key(build: str) -> tuple:
@@ -77,9 +90,34 @@ def _branch_key(branch: str) -> tuple:
     return tuple(int(x) for x in branch.split("."))
 
 
+def _retryable_status(code: int) -> bool:
+    return code >= 500 or code == 429
+
+
+def _urlopen_with_retry(req: urllib.request.Request, label: str, attempts: int, context=None) -> bytes:
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC, context=context) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:2000]
+            error: RuntimeError = HTTPStatusError(f"{label}: HTTP {exc.code}: {detail}", exc.code)
+            retryable = _retryable_status(exc.code)
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            error = RuntimeError(f"{label}: {exc}")
+            retryable = True
+        if not retryable or attempt == attempts:
+            raise error from None
+        time.sleep(GET_RETRY_SLEEP_SEC)
+    raise AssertionError("unreachable")
+
+
+def _http_get(url: str, headers: Optional[Dict[str, str]] = None) -> bytes:
+    return _urlopen_with_retry(urllib.request.Request(url, headers=headers or {}), f"GET {url}", GET_ATTEMPTS)
+
+
 def _http_get_text(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=HTTP_TIMEOUT_SEC) as resp:
-        return resp.read().decode("utf-8", "replace")
+    return _http_get(url).decode("utf-8", "replace")
 
 
 def stable_branches() -> List[str]:
@@ -100,6 +138,70 @@ def released_build(branch: str) -> Optional[str]:
         return None
     version_key(answer)
     return answer
+
+
+def released_builds_for_branch(branch: str) -> List[str]:
+    """Every GA build of a branch, newest first, from the release notes page."""
+    page = re.sub(r"<[^>]+>", " ", _http_get_text(f"{RELEASE_NOTES_URL}/v{branch}/"))
+    builds = {b for b in RELEASE_NOTES_BUILD_RE.findall(page) if b.startswith(branch + ".")}
+    if not builds:
+        raise RuntimeError(f"no 'Build: <version>-b<n>' entries found on {RELEASE_NOTES_URL}/v{branch}/")
+    return sorted(builds, key=version_key, reverse=True)
+
+
+def ysql_migrations(build: str) -> set:
+    """Migration file names of a build, as YBA's CheckUpgrade compares them (without the V<n>__ prefix)."""
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        entries = json.loads(_http_get(f"{MIGRATIONS_API_URL}?ref={build}", headers))
+    except HTTPStatusError as exc:
+        if token or exc.code != 403:
+            raise
+        raise RuntimeError(
+            f"{exc} (GITHUB_TOKEN is unset; the unauthenticated GitHub API allows 60 requests per hour per IP)"
+        ) from None
+    return {e["name"].split("__", 1)[1] for e in entries if e["name"].startswith("V") and "__" in e["name"]}
+
+
+def compatible_old_build(new: str, old_branch: str, report=print) -> str:
+    """The newest released build of old_branch whose YSQL migrations are all present in `new`."""
+    new_migrations = ysql_migrations(new)
+    for candidate in released_builds_for_branch(old_branch):
+        try:
+            candidate_migrations = ysql_migrations(candidate)
+        except HTTPStatusError as exc:
+            if exc.code != 404:
+                raise
+            report(f"WARNING: {candidate}: no yugabyte-db tag to read migrations from; skipping it")
+            continue
+        missing = sorted(candidate_migrations - new_migrations)
+        if not missing:
+            report(f"  {candidate} -> {new}: compatible")
+            return candidate
+        report(
+            f"WARNING: {candidate} -> {new}: blocked by YBA CheckUpgrade, migrations missing in {new}: "
+            f"{missing}; trying an older {old_branch} build"
+        )
+    raise RuntimeError(f"no released {old_branch} build can upgrade to {new}")
+
+
+def resolve_versions(report=print) -> Dict[str, str]:
+    branches = stable_branches()
+    report(f"stable branches from {RELEASE_SERVICE_URL}/version/active/json: {branches}")
+    released: List[tuple] = []
+    for branch in branches:
+        build = released_build(branch)
+        report(f"  /version/released/{branch} -> {build}")
+        if build:
+            released.append((branch, build))
+    released.sort(key=lambda item: version_key(item[1]), reverse=True)
+    if len(released) < 2:
+        raise RuntimeError(f"need released builds on two branches, found {[b for _, b in released]}")
+    (_, new), (old_branch, _) = released[0], released[1]
+    return {"OLD_VERSION": compatible_old_build(new, old_branch, report), "NEW_VERSION": new}
 
 
 class YBAClient:
@@ -127,11 +229,9 @@ class YBAClient:
     def _request(self, method: str, path: str, body: Any = None) -> Any:
         if method not in ("GET", "POST"):
             raise ValueError(f"{method} is not allowed: the shared YBA token must never delete anything")
-        url = f"{self.base_url}/api/v1{path}"
-        data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(
-            url,
-            data=data,
+            f"{self.base_url}/api/v1{path}",
+            data=json.dumps(body).encode() if body is not None else None,
             method=method,
             headers={
                 "X-AUTH-YW-API-TOKEN": self._api_token,
@@ -141,22 +241,8 @@ class YBAClient:
         )
         # A POST is never retried: a repeated upgrade/restart would submit the task twice.
         attempts = GET_ATTEMPTS if method == "GET" else 1
-        for attempt in range(1, attempts + 1):
-            try:
-                with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SEC, context=self._ssl) as resp:
-                    raw = resp.read()
-                return json.loads(raw) if raw else {}
-            except urllib.error.HTTPError as exc:
-                detail = exc.read().decode("utf-8", "replace")[:2000]
-                error = RuntimeError(f"YBA {method} {path}: HTTP {exc.code}: {detail}")
-                retryable = exc.code >= 500
-            except (urllib.error.URLError, TimeoutError, OSError) as exc:
-                error = RuntimeError(f"YBA {method} {path}: {exc}")
-                retryable = True
-            if not retryable or attempt == attempts:
-                raise error from None
-            time.sleep(GET_RETRY_SLEEP_SEC)
-        raise AssertionError("unreachable")
+        raw = _urlopen_with_retry(req, f"YBA {method} {path}", attempts, context=self._ssl)
+        return json.loads(raw) if raw else {}
 
     @property
     def customer_uuid(self) -> str:
@@ -202,8 +288,8 @@ class YBAClient:
         }
         try:
             self._request("POST", f"/customers/{self.customer_uuid}/ybdb_release", body)
-        except RuntimeError as exc:
-            if "already exists" not in str(exc):
+        except HTTPStatusError as exc:
+            if exc.code != 400 or "already exists" not in str(exc):
                 raise
 
     def _rolling_payload(self, universe: Dict[str, Any]) -> Dict[str, Any]:
@@ -251,21 +337,6 @@ class YBAClient:
     def failed_subtasks(self, task_uuid: str) -> List[Dict[str, Any]]:
         resp = self._request("GET", f"/customers/{self.customer_uuid}/tasks/{task_uuid}/failed")
         return resp.get("failedSubTasks", [])
-
-
-def resolve_versions(report=print) -> Dict[str, str]:
-    branches = stable_branches()
-    report(f"stable branches from {RELEASE_SERVICE_URL}/version/active/json: {branches}")
-    released: List[str] = []
-    for branch in branches:
-        build = released_build(branch)
-        report(f"  /version/released/{branch} -> {build}")
-        if build:
-            released.append(build)
-    released.sort(key=version_key, reverse=True)
-    if len(released) < 2:
-        raise RuntimeError(f"need released builds on two branches, found {released}")
-    return {"OLD_VERSION": released[1], "NEW_VERSION": released[0]}
 
 
 def main(argv: Optional[List[str]] = None) -> int:
