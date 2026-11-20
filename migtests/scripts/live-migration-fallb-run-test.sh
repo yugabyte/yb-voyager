@@ -200,6 +200,7 @@ main() {
 
 	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "snapshot data import complete"
 	echo "Snapshot data import complete"
+	wait_for_string_in_file "${EXPORT_DIR}/logs/yb-voyager-import-data.log" "streaming changes to" 600 "Wait for identity columns flip and streaming start"
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import
