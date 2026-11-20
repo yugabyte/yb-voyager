@@ -425,7 +425,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	sourceDBType = POSTGRESQL
 
 	t.Run("global pk applies to all", func(t *testing.T) {
-		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, nil, nil, nil, YUGABYTEDB)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, nil, nil, nil, YUGABYTEDB, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_PK,
@@ -435,7 +435,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("global table applies to all", func(t *testing.T) {
-		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, nil, nil, nil, YUGABYTEDB)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_TABLE, nil, nil, nil, YUGABYTEDB, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_TABLE,
@@ -447,7 +447,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	t.Run("auto uses pk except expression-UK tables", func(t *testing.T) {
 		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
 		exprUK.Put(audit, true)
-		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, exprUK, nil, YUGABYTEDB)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, exprUK, nil, YUGABYTEDB, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_PK,
@@ -457,7 +457,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("auto on AMP forces table for all", func(t *testing.T) {
-		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, nil, nil, YUGABYTEDB_AMP)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", nil, nil, nil, YUGABYTEDB_AMP, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_TABLE,
@@ -469,7 +469,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	t.Run("overlay changes only listed tables", func(t *testing.T) {
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
-		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, nil, nil, YUGABYTEDB)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, PARTITION_BY_PK, overrides, nil, nil, YUGABYTEDB, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_TABLE,
@@ -482,7 +482,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(events, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
 		overrides.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
-		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", overrides, nil, nil, YUGABYTEDB)
+		got, err := resolveEffectiveCdcPartitionKeys(tables, "auto", overrides, nil, nil, YUGABYTEDB, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_TABLE,
@@ -494,7 +494,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	t.Run("rejects global pk on expression-UK table", func(t *testing.T) {
 		exprUK := utils.NewStructMap[sqlname.NameTuple, bool]()
 		exprUK.Put(audit, true)
-		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, exprUK, nil)
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, exprUK, nil, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expression-based unique index")
 		assert.Contains(t, err.Error(), "audit")
@@ -505,7 +505,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		exprUK.Put(audit, true)
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
-		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, exprUK, nil)
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, exprUK, nil, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expression-based unique index")
 	})
@@ -515,7 +515,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		exprUK.Put(audit, true)
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"col1"}})
-		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, exprUK, nil)
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, exprUK, nil, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expression-based unique index")
 		assert.Contains(t, err.Error(), PARTITION_BY_CUSTOM)
@@ -526,7 +526,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		exprUK.Put(audit, true)
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
-		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, exprUK, nil)
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, exprUK, nil, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, PARTITION_BY_TABLE, strategiesByTableName(got)["audit"])
 		assert.Equal(t, PARTITION_BY_PK, strategiesByTableName(got)["orders"])
@@ -537,7 +537,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		exprUK.Put(audit, true)
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
-		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, exprUK, nil)
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, exprUK, nil, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "expression-based unique index")
 		assert.Contains(t, err.Error(), "custom")
@@ -545,7 +545,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 
 	t.Run("generated column without UK: auto stays pk and global pk is allowed", func(t *testing.T) {
 		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
-		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, generated)
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, generated, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_PK,
@@ -553,7 +553,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 			"audit":  PARTITION_BY_PK,
 		}, strategiesByTableName(got))
 
-		got, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, generated)
+		got, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, generated, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, PARTITION_BY_PK, strategiesByTableName(got)["audit"])
 	})
@@ -561,7 +561,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	t.Run("UK on generated: auto uses table; pk and custom rejected; override table allowed", func(t *testing.T) {
 		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: true})
 		// auto force-tables the UK-on-generated table instead of rejecting.
-		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, generated)
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, generated, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]string{
 			"orders": PARTITION_BY_PK,
@@ -569,21 +569,21 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 			"audit":  PARTITION_BY_TABLE,
 		}, strategiesByTableName(got))
 
-		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, generated)
+		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, generated, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "has a unique index on a stored generated column")
 		assert.Contains(t, err.Error(), "audit")
 
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
-		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, nil, generated)
+		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, nil, generated, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "has a unique index on a stored generated column")
 		assert.Contains(t, err.Error(), "audit")
 
 		overrides = utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
-		got, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, generated)
+		got, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, generated, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, PARTITION_BY_TABLE, strategiesByTableName(got)["audit"])
 		assert.Equal(t, PARTITION_BY_PK, strategiesByTableName(got)["orders"])
@@ -593,12 +593,12 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"amount"}})
-		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, generated)
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, generated, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "custom key column(s) - [amount] are a stored generated column(s)")
 		assert.Contains(t, err.Error(), "audit")
 
-		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, generated)
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, generated, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, PARTITION_BY_PK, strategiesByTableName(got)["audit"])
 	})
@@ -607,7 +607,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		generated := generatedStoredColMap(audit, GeneratedStoredColumn{Name: "amount", InUniqueIndex: false})
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
-		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, generated)
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, generated, nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, PARTITION_BY_CUSTOM, strategiesByTableName(got)["audit"])
 		assert.Equal(t, PARTITION_BY_PK, strategiesByTableName(got)["orders"])
@@ -616,10 +616,110 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	t.Run("custom key column missing on table is rejected", func(t *testing.T) {
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"no_such_col"}})
-		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, nil, nil)
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, nil, nil, nil, nil)
 		require.Error(t, err)
 		assert.Equal(t, "invalid --cdc-partition-key-overrides:\n  test_schema.audit: column \"no_such_col\" does not exist", err.Error())
 	})
+
+	t.Run("unique index on an excluded column: auto uses table; pk and custom rejected; override table allowed", func(t *testing.T) {
+		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"email"}})
+		uniqueIndexes := uniqueIndexesMap(audit, tgtdb.UniqueIndex{IndexName: "audit_email_key", Columns: []string{"email"}})
+
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, nil, excluded, uniqueIndexes)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_PK,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_TABLE,
+		}, strategiesByTableName(got))
+
+		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, nil, excluded, uniqueIndexes)
+		require.Error(t, err)
+		assert.Equal(t, "cdc-partition-key pk is not allowed for table test_schema.audit because it has a unique index on an excluded column in the migration; "+
+			"use table (via --cdc-partition-key or --cdc-partition-key-overrides)", err.Error())
+
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
+		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, nil, nil, excluded, uniqueIndexes)
+		require.Error(t, err)
+		assert.Equal(t, "cdc-partition-key custom is not allowed for table test_schema.audit because it has a unique index on an excluded column in the migration; "+
+			"use table (via --cdc-partition-key or --cdc-partition-key-overrides)", err.Error())
+
+		overrides = utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
+		got, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, nil, excluded, uniqueIndexes)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_PK,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_TABLE,
+		}, strategiesByTableName(got))
+	})
+
+	t.Run("composite unique index with one excluded column forces table under auto", func(t *testing.T) {
+		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"region"}})
+		uniqueIndexes := uniqueIndexesMap(audit, tgtdb.UniqueIndex{IndexName: "audit_code_region_key", Columns: []string{"col1", "region"}})
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, nil, excluded, uniqueIndexes)
+		require.NoError(t, err)
+		assert.Equal(t, PARTITION_BY_TABLE, strategiesByTableName(got)["audit"])
+	})
+
+	t.Run("excluded column outside every unique index keeps pk", func(t *testing.T) {
+		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"amount"}})
+		uniqueIndexes := uniqueIndexesMap(audit, tgtdb.UniqueIndex{IndexName: "audit_email_key", Columns: []string{"email"}})
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, nil, excluded, uniqueIndexes)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_PK,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_PK,
+		}, strategiesByTableName(got))
+	})
+
+	t.Run("case-sensitive column names: only the exact column counts as excluded", func(t *testing.T) {
+		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"Email"}})
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, nil, excluded,
+			uniqueIndexesMap(audit, tgtdb.UniqueIndex{IndexName: "audit_email_key", Columns: []string{"email"}}))
+		require.NoError(t, err)
+		assert.Equal(t, PARTITION_BY_PK, strategiesByTableName(got)["audit"])
+
+		got, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, nil, excluded,
+			uniqueIndexesMap(audit, tgtdb.UniqueIndex{IndexName: "audit_Email_key", Columns: []string{"Email"}}))
+		require.NoError(t, err)
+		assert.Equal(t, PARTITION_BY_TABLE, strategiesByTableName(got)["audit"])
+
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"email"}})
+		got, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, nil, excluded, nil)
+		require.NoError(t, err)
+		assert.Equal(t, PARTITION_BY_CUSTOM, strategiesByTableName(got)["audit"])
+	})
+
+	t.Run("custom key on an excluded column is rejected; custom key on other columns allowed", func(t *testing.T) {
+		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"region", "Email"}})
+		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id", "region", "Email"}})
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, nil, excluded, nil)
+		require.Error(t, err)
+		assert.Equal(t, "cdc-partition-key custom is not allowed for table test_schema.audit because custom key column(s) - [region, Email] are excluded columns; "+
+			"use table (via --cdc-partition-key or --cdc-partition-key-overrides)", err.Error())
+
+		overrides = utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
+		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}})
+		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, nil, excluded, nil)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"orders": PARTITION_BY_PK,
+			"events": PARTITION_BY_PK,
+			"audit":  PARTITION_BY_CUSTOM,
+		}, strategiesByTableName(got))
+	})
+}
+
+func uniqueIndexesMap(t sqlname.NameTuple, indexes ...tgtdb.UniqueIndex) *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex] {
+	m := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+	m.Put(t, indexes)
+	return m
 }
 
 // mockTargetDBForCdcPartitionKeyValidation stubs the two target lookups that
@@ -658,13 +758,15 @@ func resolveAndValidateCdcPartitionKeysForTest(
 	overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride],
 	exprUK *utils.StructMap[sqlname.NameTuple, bool],
 	generated *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn],
+	excludeColumnList *utils.StructMap[sqlname.NameTuple, []string],
+	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex],
 ) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
 	t.Helper()
 	origTdb := tdb
-	tdb = &mockTargetDBForCdcPartitionKeyValidation{tableColumns: []string{"id", "col1", "amount", "customer_id", "region"}}
+	tdb = &mockTargetDBForCdcPartitionKeyValidation{tableColumns: []string{"id", "col1", "amount", "customer_id", "region", "email", "Email"}}
 	t.Cleanup(func() { tdb = origTdb })
 
-	resolved, err := resolveEffectiveCdcPartitionKeys(tables, globalKey, overrides, exprUK, generated, YUGABYTEDB)
+	resolved, err := resolveEffectiveCdcPartitionKeys(tables, globalKey, overrides, exprUK, generated, YUGABYTEDB, excludeColumnList, tableToUniqueIndexes)
 	require.NoError(t, err, "resolveEffectiveCdcPartitionKeys should not reject; rejections live in validateAndFinalizeCDCPartitionKeysPerTable")
 
 	// validateAndFinalizeCDCPartitionKeysPerTable does not nil-guard its map arguments (production
@@ -675,7 +777,13 @@ func resolveAndValidateCdcPartitionKeysForTest(
 	if generated == nil {
 		generated = utils.NewStructMap[sqlname.NameTuple, []GeneratedStoredColumn]()
 	}
-	return resolved, validateAndFinalizeCDCPartitionKeysPerTable(resolved, tables, exprUK, generated)
+	if excludeColumnList == nil {
+		excludeColumnList = utils.NewStructMap[sqlname.NameTuple, []string]()
+	}
+	if tableToUniqueIndexes == nil {
+		tableToUniqueIndexes = utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+	}
+	return resolved, validateAndFinalizeCDCPartitionKeysPerTable(resolved, tables, exprUK, generated, excludeColumnList, tableToUniqueIndexes)
 }
 
 func generatedStoredColMap(t sqlname.NameTuple, cols ...GeneratedStoredColumn) *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn] {
@@ -685,7 +793,7 @@ func generatedStoredColMap(t sqlname.NameTuple, cols ...GeneratedStoredColumn) *
 }
 
 // setupCdcOverridesNameRegistry installs an in-memory PG->YB name registry (via a
-// JSON file so no DB is needed) with tables test_schema.{orders,events,audit}, and
+// JSON file so no DB is needed) with tables test_schema.{orders,events,audit,"Shipments"}, and
 // restores the previous global registry on cleanup.
 func setupCdcOverridesNameRegistry(t *testing.T) {
 	t.Helper()
@@ -706,16 +814,83 @@ func setupCdcOverridesNameRegistry(t *testing.T) {
   "SourceDBType": "postgresql",
   "SourceDBSchemaNames": ["test_schema"],
   "DefaultSourceDBSchemaName": "test_schema",
-  "SourceDBTableNames": {"test_schema": ["orders", "events", "audit"]},
+  "SourceDBTableNames": {"test_schema": ["orders", "events", "audit", "Shipments"]},
   "YBSchemaNames": ["test_schema"],
   "DefaultYBSchemaName": "test_schema",
-  "YBTableNames": {"test_schema": ["orders", "events", "audit"]}
+  "YBTableNames": {"test_schema": ["orders", "events", "audit", "Shipments"]}
 }`
 	require.NoError(t, os.WriteFile(regFile, []byte(content), 0644))
 	require.NoError(t, namereg.InitNameRegistry(namereg.NameRegistryParams{
 		FilePath: regFile,
 		Role:     namereg.TARGET_DB_IMPORTER_ROLE,
 	}))
+}
+
+func TestGetExportExcludeColumnList(t *testing.T) {
+	setupCdcOverridesNameRegistry(t)
+	savedMetaDB, savedImporterRole := metaDB, importerRole
+	t.Cleanup(func() { metaDB, importerRole = savedMetaDB, savedImporterRole })
+	metaDB = initMetaDB(t.TempDir())
+
+	lookup := func(name string) sqlname.NameTuple {
+		nt, err := namereg.NameReg.LookupTableName(name)
+		require.NoError(t, err)
+		return nt
+	}
+	orders := lookup("test_schema.orders")
+	shipments := lookup(`test_schema."Shipments"`)
+	excludedColumnsByTableName := func(m *utils.StructMap[sqlname.NameTuple, []string]) map[string][]string {
+		result := map[string][]string{}
+		require.NoError(t, m.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
+			result[table.ForOutput()] = columns
+			return true, nil
+		}))
+		return result
+	}
+	recordSourceExcluded := func(excluded map[string][]string) {
+		require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+			r.ExcludedColumns = excluded
+		}))
+	}
+
+	t.Run("no exclusions recorded yet gives an empty map", func(t *testing.T) {
+		importerRole = TARGET_DB_IMPORTER_ROLE
+		got, err := getExportExcludeColumnList()
+		require.NoError(t, err)
+		assert.Equal(t, map[string][]string{}, excludedColumnsByTableName(got))
+	})
+
+	t.Run("target importer resolves the source exporter's set, including case-sensitive tables", func(t *testing.T) {
+		importerRole = TARGET_DB_IMPORTER_ROLE
+		recordSourceExcluded(map[string][]string{
+			orders.ForKey():    {"note"},
+			shipments.ForKey(): {"Tracking", "eta"},
+		})
+		got, err := getExportExcludeColumnList()
+		require.NoError(t, err)
+		assert.Equal(t, map[string][]string{
+			orders.ForOutput():    {"note"},
+			shipments.ForOutput(): {"Tracking", "eta"},
+		}, excludedColumnsByTableName(got))
+		columns, ok := got.Get(shipments)
+		require.True(t, ok, "lookup by the importer's own NameTuple must find the case-sensitive table")
+		assert.Equal(t, []string{"Tracking", "eta"}, columns)
+	})
+
+	t.Run("other importers get an empty map", func(t *testing.T) {
+		importerRole = SOURCE_DB_IMPORTER_ROLE
+		got, err := getExportExcludeColumnList()
+		require.NoError(t, err)
+		assert.Equal(t, map[string][]string{}, excludedColumnsByTableName(got))
+	})
+
+	t.Run("a recorded table missing from the name registry is an error", func(t *testing.T) {
+		importerRole = TARGET_DB_IMPORTER_ROLE
+		recordSourceExcluded(map[string][]string{`"test_schema"."missing"`: {"note"}})
+		_, err := getExportExcludeColumnList()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `lookup table "test_schema"."missing" of the excluded columns: `)
+	})
 }
 
 func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
@@ -844,7 +1019,7 @@ func TestValidateCdcPartitioningStrategyUnchanged(t *testing.T) {
 	firstRun, err := resolveEffectiveCdcPartitionKeys(
 		tableNames, PARTITION_BY_PK,
 		mustResolveOverrides(t, "test_schema.orders:table", tableNames),
-		utils.NewStructMap[sqlname.NameTuple, bool](), nil, YUGABYTEDB)
+		utils.NewStructMap[sqlname.NameTuple, bool](), nil, YUGABYTEDB, nil, nil)
 	require.NoError(t, err)
 
 	storedMap := make(map[string]metadb.CDCPartitionKey)
@@ -1602,7 +1777,7 @@ func TestCustomKeyResumeGuardChangeCases(t *testing.T) {
 		// not coerced to pk.
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(orders, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
-		resolved, err := resolveAndValidateCdcPartitionKeysForTest(t, tableNames, PARTITION_BY_PK, overrides, nil, nil)
+		resolved, err := resolveAndValidateCdcPartitionKeysForTest(t, tableNames, PARTITION_BY_PK, overrides, nil, nil, nil, nil)
 		require.NoError(t, err)
 		got, ok := resolved.Get(orders)
 		require.True(t, ok)
