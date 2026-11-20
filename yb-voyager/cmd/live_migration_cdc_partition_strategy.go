@@ -154,6 +154,8 @@ func resolveEffectiveCdcPartitionKeys(
 	exprUKSet *utils.StructMap[sqlname.NameTuple, bool],
 	generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn],
 	targetDBType string,
+	excludeColumnList *utils.StructMap[sqlname.NameTuple, []string],
+	tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex],
 ) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
 	result := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 	if overrides == nil {
@@ -165,6 +167,12 @@ func resolveEffectiveCdcPartitionKeys(
 	if generatedStoredCols == nil {
 		generatedStoredCols = utils.NewStructMap[sqlname.NameTuple, []GeneratedStoredColumn]()
 	}
+	if excludeColumnList == nil {
+		excludeColumnList = utils.NewStructMap[sqlname.NameTuple, []string]()
+	}
+	if tableToUniqueIndexes == nil {
+		tableToUniqueIndexes = utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+	}
 
 	switch globalKey {
 	case "auto":
@@ -174,7 +182,7 @@ func resolveEffectiveCdcPartitionKeys(
 			}
 		} else {
 			for _, t := range tableNames {
-				if ok, _, _ := shouldForceTablePartitioningForTable(t, exprUKSet, generatedStoredCols); ok {
+				if ok, _ := shouldForceTablePartitioningForTable(t, exprUKSet, generatedStoredCols, excludeColumnList, tableToUniqueIndexes); ok {
 					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_TABLE})
 				} else {
 					result.Put(t, cdcPartitionKeyOverride{Strategy: PARTITION_BY_PK})
@@ -226,6 +234,12 @@ func tableHasGeneratedColumn(generatedStoredCols *utils.StructMap[sqlname.NameTu
 	return generatedCustomCols, len(generatedCustomCols) > 0
 }
 
+func tableHasExcludedColumns(excludeColumnList *utils.StructMap[sqlname.NameTuple, []string], t sqlname.NameTuple, overrideColumns []string) ([]string, bool) {
+	excludedCols, _ := excludeColumnList.Get(t)
+	excludedOverrideColumns := lo.Intersect(overrideColumns, excludedCols)
+	return excludedOverrideColumns, len(excludedOverrideColumns) > 0
+}
+
 // resolveCdcPartitionKeyOverrides looks up override table names in namereg and
 // validates each is present in importTableList. Returns a map keyed by NameTuple.
 func resolveCdcPartitionKeyOverrides(rawOverrides map[string]cdcPartitionKeyOverride, importTableList []sqlname.NameTuple) (*utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], error) {
@@ -273,14 +287,33 @@ func needsNonTablePartitionKeyChecks(cdcPartitionKey string, overrides *utils.St
 	return validationsNeeded, nil
 }
 
-func shouldForceTablePartitioningForTable(table sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn]) (bool, bool, bool) {
+// shouldForceTablePartitioningForTable returns whether the table must use PARTITION_BY_TABLE and,
+// if so, the reason, worded to follow "because" in an error message.
+func shouldForceTablePartitioningForTable(table sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn], excludeColumnList *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) (bool, string) {
 	if _, ok := exprUKSet.Get(table); ok {
-		return true, true, false
+		return true, "it has an expression-based unique index"
 	}
 	if tableHasUniqueIndexOnGenerated(generatedStoredCols, table) {
-		return true, false, true
+		return true, "it has a unique index on a stored generated column"
 	}
-	return false, false, false
+	if tableHasExcludedUniqueColumns(table, excludeColumnList, tableToUniqueIndexes) {
+		return true, "it has a unique index on an excluded column in the migration"
+	}
+	return false, ""
+}
+
+func tableHasExcludedUniqueColumns(table sqlname.NameTuple, excludeColumnList *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) bool {
+	excludedColumns, ok := excludeColumnList.Get(table)
+	if !ok {
+		return false
+	}
+	indexes, ok := tableToUniqueIndexes.Get(table)
+	if !ok {
+		return false
+	}
+	return lo.SomeBy(indexes, func(index tgtdb.UniqueIndex) bool {
+		return lo.Some(index.Columns, excludedColumns)
+	})
 }
 
 // computeAndPersistCdcPartitioningStrategyPerTable resolves global + overrides +
@@ -322,6 +355,11 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 		return nil, nil, err
 	}
 
+	excludeColumnList, err := getExportExcludeColumnList()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	exprUKSet, err := getExpressionUniqueIndexTablesIfRequired(tableNames, overrides, cdcPartitionKey, isFirstRun, importDataStatus)
 	if err != nil {
 		return nil, nil, err
@@ -332,13 +370,13 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 	if err != nil {
 		return nil, nil, err
 	}
-	tableToPartitionKeyOverrideMap, err := resolveEffectiveCdcPartitionKeys(tableNames, cdcPartitionKey, overrides, exprUKSet, generatedStoredCols, tconf.TargetDBType)
+	tableToPartitionKeyOverrideMap, err := resolveEffectiveCdcPartitionKeys(tableNames, cdcPartitionKey, overrides, exprUKSet, generatedStoredCols, tconf.TargetDBType, excludeColumnList, tableToUniqueIndexes)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap, tableNames, exprUKSet, generatedStoredCols)
+	err = validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap, tableNames, exprUKSet, generatedStoredCols, excludeColumnList, tableToUniqueIndexes)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -346,6 +384,25 @@ func computeCdcPartitioningStrategyPerTable(tableNames []sqlname.NameTuple, isFi
 	exprUKKeysForStorage := make([]string, 0, len(exprUKSet.Keys()))
 	exprUKKeysForStorage = append(exprUKKeysForStorage, exprUKSet.Keys()...)
 	return tableToPartitionKeyOverrideMap, exprUKKeysForStorage, nil
+}
+
+func getExportExcludeColumnList() (*utils.StructMap[sqlname.NameTuple, []string], error) {
+	excludeColumnList := utils.NewStructMap[sqlname.NameTuple, []string]()
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return excludeColumnList, nil
+	}
+	sourceExcluded, err := getSourceExporterExcludedColumns(metaDB)
+	if err != nil {
+		return nil, err
+	}
+	for table, columns := range sourceExcluded {
+		tuple, err := namereg.NameReg.LookupTableName(table)
+		if err != nil {
+			return nil, fmt.Errorf("lookup table %s of the excluded columns: %w", table, err)
+		}
+		excludeColumnList.Put(tuple, columns)
+	}
+	return excludeColumnList, nil
 }
 
 func getExpressionUniqueIndexTablesIfRequired(tableNames []sqlname.NameTuple, overrides *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], cdcPartitionKey string, isFirstRun bool, importDataStatus *metadb.ImportDataStatusRecord) (*utils.StructMap[sqlname.NameTuple, bool], error) {
@@ -613,7 +670,7 @@ type GeneratedStoredColumn struct {
 // table list once in importData.)
 // rejects the PK/Custom strategy on the tables having expression-based unique index or a unique index on a stored generated column
 // custom key columns can't be a stored generated column
-func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableNames []sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn]) error {
+func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap *utils.StructMap[sqlname.NameTuple, cdcPartitionKeyOverride], tableNames []sqlname.NameTuple, exprUKSet *utils.StructMap[sqlname.NameTuple, bool], generatedStoredCols *utils.StructMap[sqlname.NameTuple, []GeneratedStoredColumn], excludeColumnList *utils.StructMap[sqlname.NameTuple, []string], tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 	var customTables []sqlname.NameTuple
 	err := tableToPartitionKeyOverrideMap.IterKV(func(t sqlname.NameTuple, override cdcPartitionKeyOverride) (bool, error) {
 		if override.Strategy == PARTITION_BY_CUSTOM {
@@ -654,16 +711,8 @@ func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap 
 			continue
 		}
 
-		ok, isExprUK, isGeneratedStoredColumn := shouldForceTablePartitioningForTable(t, exprUKSet, generatedStoredCols)
-		if ok {
-			//For PK and custom, we need to check if the table has a unique index on a stored generated column
-			//and if so, we need to reject the strategy
-			if isExprUK {
-				return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has an expression-based unique index; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
-			}
-			if isGeneratedStoredColumn {
-				return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because it has a unique index on a stored generated column; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput())
-			}
+		if ok, reason := shouldForceTablePartitioningForTable(t, exprUKSet, generatedStoredCols, excludeColumnList, tableToUniqueIndexes); ok {
+			return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because %s; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput(), reason)
 		}
 		if override.Strategy == PARTITION_BY_CUSTOM {
 			//For CUSTOM, we need to also check if the custom key column(s) are a stored generated column(s)
@@ -671,6 +720,10 @@ func validateAndFinalizeCDCPartitionKeysPerTable(tableToPartitionKeyOverrideMap 
 			cols, ok := tableHasGeneratedColumn(generatedStoredCols, t, override.Columns)
 			if ok {
 				return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because custom key column(s) - [%s] are a stored generated column(s); use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput(), strings.Join(cols, ", "))
+			}
+			excludedCols, ok := tableHasExcludedColumns(excludeColumnList, t, override.Columns)
+			if ok {
+				return goerrors.Errorf("cdc-partition-key %s is not allowed for table %s because custom key column(s) - [%s] are excluded columns; use table (via --cdc-partition-key or --cdc-partition-key-overrides)", override.Strategy, t.ForOutput(), strings.Join(excludedCols, ", "))
 			}
 		}
 

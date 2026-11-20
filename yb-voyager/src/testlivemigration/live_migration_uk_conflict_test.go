@@ -48,21 +48,6 @@ func uniqueKeyConflictCountFailpoint(lm *LiveMigrationTest) (string, string) {
 	return env, statsPath
 }
 
-// requireCustomCdcPartitionKeyPersisted checks that table was persisted with the custom CDC
-// partitioning strategy and exactly cols as its key columns. This is the precondition that makes
-// a custom-key test's conflict assertions meaningful, so it stops the test rather than only
-// recording a failure.
-func requireCustomCdcPartitionKeyPersisted(t *testing.T, lm *LiveMigrationTest, table string, cols []string) {
-	t.Helper()
-	require.NoError(t, lm.InitMetaDB(), "failed to initialize meta db")
-	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
-	require.NoError(t, err, "failed to get import data status record")
-	partitionKey, ok := importDataStatus.TableToCDCPartitionKey[table]
-	require.True(t, ok, "no persisted cdc partition key for %s", table)
-	require.Equal(t, cmd.PARTITION_BY_CUSTOM, partitionKey.Strategy, "%s should use the custom partition strategy", table)
-	require.Equal(t, cols, partitionKey.Columns, "%s custom key columns should be persisted", table)
-}
-
 // readUniqueKeyConflictStatsOrNil returns nil when the stats file is absent, which is how the
 // count failpoint reports "no conflict was ever detected" - it only writes the file on the first
 // one. Callers expecting no conflicts can then assert on a nil result instead of repeating the

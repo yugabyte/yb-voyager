@@ -20,12 +20,14 @@ package testlivemigration
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -490,4 +492,245 @@ func readExcludedColumns(t *testing.T, lm *LiveMigrationTest, iteration int) (fr
 	})
 	testutils.FatalIfError(t, err, "failed to read excluded columns from metaDB")
 	return fromSource, fromTarget
+}
+
+// cdcStrategiesByTable returns the persisted per-table CDC partitioning strategy, keyed as stored.
+func cdcStrategiesByTable(t *testing.T, lm *LiveMigrationTest) map[string]string {
+	t.Helper()
+	require.NoError(t, lm.InitMetaDB(), "failed to initialize meta db")
+	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
+	require.NoError(t, err, "failed to get import data status record")
+	strategies := map[string]string{}
+	for table, partitionKey := range importDataStatus.TableToCDCPartitionKey {
+		strategies[table] = partitionKey.Strategy
+	}
+	return strategies
+}
+
+// validateColumnsConsistency compares only the given columns of table between source and target.
+// Excluded columns differ by design: rows inserted during streaming get NULL in them on the target.
+func validateColumnsConsistency(lm *LiveMigrationTest, table string, columns string) error {
+	return lm.ValidateDataConsistency([]string{fmt.Sprintf("(SELECT %s FROM %s) AS compared", columns, table)}, "id")
+}
+
+// TestLiveMigrationExcludedUniqueIndexColumnForcesTablePartitioning pins the import guardrail for a
+// unique index containing an --exclude-column-list column (#3962). Debezium streams events without
+// the excluded column, and conflict detection, which runs for pk/custom partitioning, needs every
+// unique-index column in the event, so it would exit with "column ... is missing from fields".
+//   - auto resolves such a table to table partitioning, which skips conflict detection; a table
+//     whose unique index has no excluded column stays on pk;
+//   - an explicit pk or custom strategy for it is rejected before the snapshot and on resume;
+//   - the delta deletes a row, inserts one, and changes the non-excluded column of the composite
+//     index (code, note): each of these reached conflict detection before the fix.
+func TestLiveMigrationExcludedUniqueIndexColumnForcesTablePartitioning(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_excluded_unique_index_column",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_excluded_unique_index_column",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.accounts (
+				id int PRIMARY KEY,
+				email text UNIQUE,
+				code int,
+				note text,
+				val int,
+				UNIQUE (code, note)
+			);
+			CREATE TABLE test_schema.plain_accounts (
+				id int PRIMARY KEY,
+				email text UNIQUE,
+				val int
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.accounts REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.plain_accounts REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.accounts SELECT i, 'a' || i || '@example.com', i, 'n' || i, 0 FROM generate_series(1, 10) i;`,
+			`INSERT INTO test_schema.plain_accounts SELECT i, 'p' || i || '@example.com', 0 FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`DELETE FROM test_schema.accounts WHERE id = 3;`,
+			`INSERT INTO test_schema.accounts VALUES (11, 'a11@example.com', 11, 'n11', 0);`,
+			`UPDATE test_schema.accounts SET code = code + 100 WHERE id = 1;`,
+			`UPDATE test_schema.accounts SET val = 5 WHERE id = 2;`,
+			`DELETE FROM test_schema.plain_accounts WHERE id = 3;`,
+			`INSERT INTO test_schema.plain_accounts VALUES (11, 'p11@example.com', 0);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, map[string]string{"--exclude-column-list": "test_schema.accounts:email,note"})
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	const excludedUniqueColumnRejection = "is not allowed for table test_schema.accounts because it has a unique index on an excluded column in the migration; " +
+		"use table (via --cdc-partition-key or --cdc-partition-key-overrides)"
+
+	err = lm.StartImportData(false, map[string]string{"--cdc-partition-key": "pk"})
+	require.Error(t, err, "import with pk on a table with an excluded unique-index column must fail")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, "cdc-partition-key pk "+excludedUniqueColumnRejection)
+
+	err = lm.StartImportData(false, map[string]string{"--cdc-partition-key-overrides": "test_schema.accounts:(val)"})
+	require.Error(t, err, "import with a custom key on a table with an excluded unique-index column must fail")
+	output = lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, "cdc-partition-key custom "+excludedUniqueColumnRejection)
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."accounts"`:       10,
+		`"test_schema"."plain_accounts"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	require.Equal(t, map[string]string{
+		`"test_schema"."accounts"`:       cmd.PARTITION_BY_TABLE,
+		`"test_schema"."plain_accounts"`: cmd.PARTITION_BY_PK,
+	}, cdcStrategiesByTable(t, lm))
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."accounts"`:       {Inserts: 1, Updates: 2, Deletes: 1},
+		`"test_schema"."plain_accounts"`: {Inserts: 1, Updates: 0, Deletes: 1},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+	require.False(t, lm.GetImportRunner().IsStopped(), "import data must keep streaming")
+
+	err = validateColumnsConsistency(lm, "test_schema.accounts", "id, code, val")
+	testutils.FatalIfError(t, err, "accounts diverged on the streamed columns")
+	err = lm.ValidateDataConsistency([]string{`"test_schema"."plain_accounts"`}, "id")
+	testutils.FatalIfError(t, err, "plain_accounts diverged")
+
+	err = lm.WithTargetConn(func(target *sql.DB) error {
+		for id, expected := range map[int][2]sql.NullString{
+			1:  {{String: "a1@example.com", Valid: true}, {String: "n1", Valid: true}},
+			11: {{}, {}},
+		} {
+			var got [2]sql.NullString
+			if err := target.QueryRow(`SELECT email, note FROM test_schema.accounts WHERE id = $1`, id).Scan(&got[0], &got[1]); err != nil {
+				return err
+			}
+			assert.Equal(t, expected, got, "excluded columns of target row id=%d", id)
+		}
+		return nil
+	})
+	testutils.FatalIfError(t, err, "failed to read excluded columns on the target")
+
+	err = lm.StopImportData()
+	testutils.FatalIfError(t, err, "failed to stop import data")
+	err = lm.ResumeImportData(false, map[string]string{"--cdc-partition-key-overrides": "test_schema.accounts:pk"})
+	require.Error(t, err, "resuming with pk on the table with an excluded unique-index column must fail")
+	output = lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, "cdc-partition-key pk "+excludedUniqueColumnRejection)
+
+	err = lm.ResumeImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to resume import data")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+	err = lm.WaitForCutoverComplete(0, 60)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnExcludedColumn pins the import guardrail for a
+// custom partition key naming an --exclude-column-list column (#3955). Debezium streams events
+// without it, so routing by it would fail with "custom partition key column ... not found in event"
+// on the first event. The excluded column is case-sensitive ("Region", excluded as region) to
+// check that the key and the recorded set are compared by their resolved names. A custom key on
+// the remaining columns is accepted and streams.
+func TestLiveMigrationCdcPartitionKeyRejectsCustomKeyOnExcludedColumn(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_custom_key_on_excluded_column",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_custom_key_on_excluded_column",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.orders (
+				id int PRIMARY KEY,
+				customer_id int,
+				"Region" text,
+				amount int
+			);`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.orders REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.orders SELECT i, i % 3, 'r' || i, i * 10 FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`INSERT INTO test_schema.orders SELECT i, i % 3, 'r' || i, i * 10 FROM generate_series(11, 15) i;`,
+			`UPDATE test_schema.orders SET amount = amount + 1 WHERE id = 1;`,
+			`DELETE FROM test_schema.orders WHERE id = 2;`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, map[string]string{"--exclude-column-list": "test_schema.orders:region"})
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	err = lm.StartImportData(false, map[string]string{"--cdc-partition-key-overrides": `test_schema.orders:(customer_id,"Region")`})
+	require.Error(t, err, "import with a custom key on an excluded column must fail")
+	output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+	require.Contains(t, output, "cdc-partition-key custom is not allowed for table test_schema.orders because custom key column(s) - [Region] are excluded columns; "+
+		"use table (via --cdc-partition-key or --cdc-partition-key-overrides)")
+
+	err = lm.StartImportData(true, map[string]string{"--cdc-partition-key-overrides": "test_schema.orders:(customer_id)"})
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{`"test_schema"."orders"`: 10}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+	requireCustomCdcPartitionKeyPersisted(t, lm, `"test_schema"."orders"`, []string{"customer_id"})
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."orders"`: {Inserts: 5, Updates: 1, Deletes: 1},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+
+	err = validateColumnsConsistency(lm, "test_schema.orders", "id, customer_id, amount")
+	testutils.FatalIfError(t, err, "orders diverged on the streamed columns")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+	err = lm.WaitForCutoverComplete(0, 60)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
 }
