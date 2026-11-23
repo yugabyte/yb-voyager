@@ -102,7 +102,7 @@ func unreachableTargetURI(t *testing.T) string {
 	require.NoError(t, err)
 	addr := listener.Addr().String()
 	require.NoError(t, listener.Close())
-	return fmt.Sprintf("postgres://yugabyte@%s/yugabyte?sslmode=disable", addr)
+	return fmt.Sprintf("postgres://yugabyte@%s/yugabyte?sslmode=disable&connect_timeout=2", addr)
 }
 
 func withConnResult(pool *ConnectionPool) <-chan error {
@@ -115,8 +115,6 @@ func withConnResult(pool *ConnectionPool) <-chan error {
 	return result
 }
 
-// Repro for https://github.com/yugabyte/yb-voyager/issues/3966: while the target is down, each
-// WithConn call must fail with the connect error and leave the pool usable for the caller's retry.
 func TestWithConn_FailedConnectDoesNotLeakPoolSlot(t *testing.T) {
 	const withConnTimeout = 5 * time.Second
 
