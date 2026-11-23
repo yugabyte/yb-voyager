@@ -189,6 +189,7 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		if conn == nil {
 			conn, err = pool.createNewConnection()
 			if err != nil {
+				pool.releaseSlot(nil)
 				return err
 			}
 		}
@@ -201,30 +202,27 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 				log.Warnf("closing the connection: %v", errCloseConn)
 			}
 			pool.removePreparedStmtCacheForConn(conn)
-
-			pool.pendingConnsToCloseLock.Lock()
-			if pool.pendingConnsToClose > 0 {
-				pool.idleConns <- nil
-				log.Infof("adaptive: Closed and moved connection to idle pool because pendingConnsToClose = %d", pool.pendingConnsToClose)
-				pool.pendingConnsToClose--
-			} else {
-				pool.conns <- nil
-			}
-			pool.pendingConnsToCloseLock.Unlock()
+			pool.releaseSlot(nil)
 		} else {
-			pool.pendingConnsToCloseLock.Lock()
-			if pool.pendingConnsToClose > 0 {
-				pool.idleConns <- conn
-				log.Infof("adaptive: Moved connection to idle pool because pendingConnsToClose = %d. main connection pool size=%d", pool.pendingConnsToClose, len(pool.conns))
-				pool.pendingConnsToClose--
-			} else {
-				pool.conns <- conn
-			}
-			pool.pendingConnsToCloseLock.Unlock()
+			pool.releaseSlot(conn)
 		}
 	}
 
 	return err
+}
+
+// Every exit from WithConn must call releaseSlot exactly once (conn is nil when the slot holds no
+// usable connection), otherwise the pool permanently shrinks by one slot.
+func (pool *ConnectionPool) releaseSlot(conn *pgx.Conn) {
+	pool.pendingConnsToCloseLock.Lock()
+	defer pool.pendingConnsToCloseLock.Unlock()
+	if pool.pendingConnsToClose > 0 {
+		pool.idleConns <- conn
+		log.Infof("adaptive: Moved connection slot to idle pool because pendingConnsToClose = %d. main connection pool size=%d", pool.pendingConnsToClose, len(pool.conns))
+		pool.pendingConnsToClose--
+		return
+	}
+	pool.conns <- conn
 }
 
 func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, stmt string) error {
