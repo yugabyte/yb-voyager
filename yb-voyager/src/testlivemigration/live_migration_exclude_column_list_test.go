@@ -639,12 +639,14 @@ func TestLiveMigrationExcludedUniqueIndexColumnForcesTablePartitioning(t *testin
 
 	err = lm.StopImportData()
 	testutils.FatalIfError(t, err, "failed to stop import data")
-	err = lm.ResumeImportData(false, map[string]string{"--cdc-partition-key-overrides": "test_schema.accounts:pk"})
+	// StartImportData builds a fresh command, so the rejected override does not leak into the
+	// resume below the way ResumeImportData's accumulated args would.
+	err = lm.StartImportData(false, map[string]string{"--cdc-partition-key-overrides": "test_schema.accounts:pk"})
 	require.Error(t, err, "resuming with pk on the table with an excluded unique-index column must fail")
 	output = lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
 	require.Contains(t, output, "cdc-partition-key pk "+excludedUniqueColumnRejection)
 
-	err = lm.ResumeImportData(true, nil)
+	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to resume import data")
 
 	err = lm.InitiateCutoverToTarget(false, nil)

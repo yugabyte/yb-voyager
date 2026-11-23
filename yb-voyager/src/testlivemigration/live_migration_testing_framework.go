@@ -1785,20 +1785,3 @@ func (lm *LiveMigrationTest) StartImportDataToSourceReplica(async bool, extraArg
 	lm.sourceReplicaImportCmd = runner
 	return nil
 }
-
-//----------------common helpers
-
-// requireCustomCdcPartitionKeyPersisted checks that table was persisted with the custom CDC
-// partitioning strategy and exactly cols as its key columns. This is the precondition that makes
-// a custom-key test's conflict assertions meaningful, so it stops the test rather than only
-// recording a failure.
-func requireCustomCdcPartitionKeyPersisted(t *testing.T, lm *LiveMigrationTest, table string, cols []string) {
-	t.Helper()
-	require.NoError(t, lm.InitMetaDB(), "failed to initialize meta db")
-	importDataStatus, err := lm.GetMetaDB().GetImportDataStatusRecord()
-	require.NoError(t, err, "failed to get import data status record")
-	partitionKey, ok := importDataStatus.TableToCDCPartitionKey[table]
-	require.True(t, ok, "no persisted cdc partition key for %s", table)
-	require.Equal(t, cmd.PARTITION_BY_CUSTOM, partitionKey.Strategy, "%s should use the custom partition strategy", table)
-	require.Equal(t, cols, partitionKey.Columns, "%s custom key columns should be persisted", table)
-}
