@@ -242,42 +242,46 @@ main() {
 
 	compare_status_reports "test_delimiter_backspace_text.json"
 
-	# Test import from s3 (text file)
-	step "Import data file from S3 (text): text_test.text -> s3_text"
-	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-			--file-table-map "text_test.text:s3_text"
+	if [ "${RUN_AWS_IMPORT_DATA_FILE_CASES}" != "false" ]; then
 
-	compare_status_reports "s3_text.json"
+		# Test import from s3 (text file)
+		step "Import data file from S3 (text): text_test.text -> s3_text"
+		import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+				--file-table-map "text_test.text:s3_text"
 
-	# Test import from s3 (csv)
-	step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
-	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-			--file-table-map "csv_test.csv:s3_csv"
+		compare_status_reports "s3_text.json"
 
-	# Import Data Status reports incomplete percentage for Import Data File Migrations from Cloud Storage : https://yugabyte.atlassian.net/browse/DB-17914
-	compare_status_reports "s3_csv.json"
+		# Test import from s3 (csv)
+		step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
+		import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+				--file-table-map "csv_test.csv:s3_csv"
+
+		# Import Data Status reports incomplete percentage for Import Data File Migrations from Cloud Storage : https://yugabyte.atlassian.net/browse/DB-17914
+		compare_status_reports "s3_csv.json"
+		
+		# Test multi-table import from s3
+		step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
+		import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+				--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
+
+		compare_status_reports "s3_multitable.json"
+
+		# Test csv with header import from s3
+		step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
+		import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+				--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header y
+
+		compare_status_reports "s3_csv_with_header.json"
+
+		export MAX_BATCH_SIZE_BYTES=343245
+		# Test larger import from s3
+		step "Import large data file from S3: volume.text-> s3_volume"
+		import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+				--file-table-map "volume_test:s3_volume"
+
+		compare_status_reports "s3_volume.json"
 	
-	# Test multi-table import from s3
-	step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
-	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-			--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
-
-	compare_status_reports "s3_multitable.json"
-
-	# Test csv with header import from s3
-	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
-	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header y
-
-	compare_status_reports "s3_csv_with_header.json"
-
-	export MAX_BATCH_SIZE_BYTES=343245
-	# Test larger import from s3
-	step "Import large data file from S3: volume.text-> s3_volume"
-	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-			--file-table-map "volume_test:s3_volume"
-
-	compare_status_reports "s3_volume.json"
+	fi
 
 	export MAX_BATCH_SIZE_BYTES=3450 #these are smaller files so its better to have smaller here 
 
