@@ -1327,8 +1327,12 @@ def active_migration_direction(ctx: Context) -> Dict[str, str]:
     raise RuntimeError(f"no streaming exporter/importer pair among started processes: {sorted(names)}")
 
 
-def exported_event_count(export_dir: str, exporter_role: str) -> int | None:
-    """Events the exporter wrote, from voyager's own stats table; None when meta.db cannot be read."""
+def _one_line(text: str) -> str:
+    return " ".join(text.split())
+
+
+def exported_event_count(export_dir: str, exporter_role: str) -> tuple[int | None, str | None]:
+    """Events the exporter wrote, from voyager's own stats table, or (None, reason) when meta.db cannot be read."""
     meta_db = os.path.join(export_dir, "metainfo", "meta.db")
     try:
         proc = subprocess.run(
@@ -1336,39 +1340,45 @@ def exported_event_count(export_dir: str, exporter_role: str) -> int | None:
              f"select coalesce(sum(num_total), 0) from exported_events_stats where exporter_role='{exporter_role}';"],
             capture_output=True, text=True, check=True, timeout=PROGRESS_READ_TIMEOUT_SEC,
         )
-        return int(proc.stdout.strip())
-    except (subprocess.SubprocessError, ValueError):
-        return None
+        return int(proc.stdout.strip()), None
+    except subprocess.CalledProcessError as exc:
+        return None, _one_line(exc.stderr or str(exc))
+    except (subprocess.SubprocessError, ValueError) as exc:
+        return None, _one_line(str(exc))
 
 
-def imported_event_count(cfg: Dict[str, Any], role: str) -> int | None:
-    """Events applied by the importer, read from its own progress table; None when the DB cannot be read."""
+def imported_event_count(cfg: Dict[str, Any], role: str) -> tuple[int | None, str | None]:
+    """Events applied by the importer, read from its own progress table, or (None, reason) when the DB cannot be read."""
     try:
         conn = db_connection(cfg, role, connect_timeout=PROGRESS_READ_TIMEOUT_SEC)
-    except psycopg2.Error:
-        return None
+    except psycopg2.Error as exc:
+        return None, _one_line(str(exc))
     try:
         with conn.cursor() as cur:
             cur.execute(f"set statement_timeout = {PROGRESS_READ_TIMEOUT_SEC * 1000}")
             cur.execute(f"select coalesce(sum(num_inserts + num_updates + num_deletes), 0) from {EVENT_CHANNELS_TABLE}")
-            return int(cur.fetchone()[0])
-    except psycopg2.Error:
-        return None
+            return int(cur.fetchone()[0]), None
+    except psycopg2.Error as exc:
+        return None, _one_line(str(exc))
     finally:
         conn.close()
 
 
-def migration_progress(ctx: Context, direction: Dict[str, str]) -> Dict[str, int | None]:
+def migration_progress(ctx: Context, direction: Dict[str, str]) -> Dict[str, Any]:
+    exported, exported_error = exported_event_count(ctx.iteration_export_dir, direction["exporter_role"])
+    imported, imported_error = imported_event_count(ctx.cfg, direction["importer_db"])
     return {
-        "exported": exported_event_count(ctx.iteration_export_dir, direction["exporter_role"]),
-        "imported": imported_event_count(ctx.cfg, direction["importer_db"]),
+        "exported": exported,
+        "imported": imported,
+        "exported_error": exported_error,
+        "imported_error": imported_error,
     }
 
 
-def format_progress(now: Dict[str, int | None], base: Dict[str, int | None]) -> str:
+def format_progress(now: Dict[str, Any], base: Dict[str, Any]) -> str:
     def one(key: str) -> str:
         if now[key] is None:
-            return f"{key}=unreadable"
+            return f"{key}=unreadable ({now[f'{key}_error']})"
         if base.get(key) is None:
             return f"{key}={now[key]}"
         return f"{key}={now[key]} (+{now[key] - base[key]})"

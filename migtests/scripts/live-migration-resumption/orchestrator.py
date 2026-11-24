@@ -768,9 +768,16 @@ def check_migration_progress_action(stage: Dict[str, Any], ctx: Any) -> None:
         if exporter_moved and importer_moved:
             break
         if time.time() > deadline:
-            stalled = [name for name, moved in (("exporter", exporter_moved), ("importer", importer_moved)) if not moved]
+            problems = []
+            for name, key, moved in (("exporter", "exported", exporter_moved), ("importer", "imported", importer_moved)):
+                if moved:
+                    continue
+                if now[key] is None:
+                    problems.append(f"{name} progress unreadable ({now[f'{key}_error']})")
+                else:
+                    problems.append(f"{name} made no progress")
             raise RuntimeError(
-                f"after {event}: {' and '.join(stalled)} made no progress in {timeout_sec}s: "
+                f"after {event}: {' and '.join(problems)} in {timeout_sec}s: "
                 f"{H.format_progress(now, base)}; processes: {H.process_states(ctx)}"
             )
         time.sleep(interval_sec)
@@ -941,7 +948,11 @@ def main() -> None:
                 H.log(f"failure summary could not be built: {exc!r}")
         # Always capture artifacts/logs at the end regardless of success or failure
         H.scan_logs_for_errors(cfg["export_dir"], cfg["artifacts_dir"])
-        H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"], run_failed=not completed)
+        artifact_error = None
+        try:
+            H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"], run_failed=not completed)
+        except Exception as exc:
+            artifact_error = exc
         if had_failure:
             H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
 
@@ -996,6 +1007,8 @@ def main() -> None:
         except Exception:
             # Never fail the run due to cleanup.
             pass
+        if artifact_error:
+            raise artifact_error
 
 
 if __name__ == "__main__":
