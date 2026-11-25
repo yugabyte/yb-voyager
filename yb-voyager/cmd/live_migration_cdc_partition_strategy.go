@@ -39,7 +39,7 @@ per-table strategies (global --cdc-partition-key + --cdc-partition-key-overrides
 table-partitioning rules in shouldForceTablePartitioningForTable), and persists TableToCDCPartitionKey.
 
 It is intentionally called before snapshot import so bad configs fail fast.
-On resume (map already in metaDB) this is a no-op.
+On resume (map already in metaDB) it checks the persisted map instead of recomputing it.
 */
 func prepareCdcPartitionKey(tableNames []sqlname.NameTuple, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
 	if importerRole != TARGET_DB_IMPORTER_ROLE || !changeStreamingIsEnabled(importType) || sourceDBType != POSTGRESQL {
@@ -54,6 +54,9 @@ func prepareCdcPartitionKey(tableNames []sqlname.NameTuple, tableToUniqueIndexes
 		return goerrors.Errorf("import data status record not found")
 	}
 	if importDataStatus.TableToCDCPartitionKey != nil {
+		if err := validatePersistedCdcPartitionKeysForExcludedColumns(importDataStatus.TableToCDCPartitionKey, tableToUniqueIndexes); err != nil {
+			return err
+		}
 		// On resume the per-table strategy map is already persisted. Rather than trusting
 		// a raw string comparison of the flags (done for the global key in
 		// validateCdcPartitionKeyFlags), re-resolve the effective per-table strategy from
@@ -70,6 +73,47 @@ func prepareCdcPartitionKey(tableNames []sqlname.NameTuple, tableToUniqueIndexes
 
 	_, err = computeAndPersistCdcPartitioningStrategyPerTable(tableNames, importDataStatus, tableToUniqueIndexes)
 	return err
+}
+
+// validatePersistedCdcPartitionKeysForExcludedColumns runs on every resume, not only when the flags
+// change, because the persisted map can predate the excluded-column guardrails: a migration started
+// on an older voyager may have saved pk for a table that the first run now resolves to table (#3962).
+// A changed override cannot fix it either, since diffCdcPartitioningStrategy rejects any change to a
+// persisted strategy, so the error points at --start-clean.
+func validatePersistedCdcPartitionKeysForExcludedColumns(persisted map[string]metadb.CDCPartitionKey, tableToUniqueIndexes *utils.StructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]) error {
+	excludeColumnList, err := getExportExcludeColumnList()
+	if err != nil {
+		return err
+	}
+	var problems []string
+	for _, tableKey := range slices.Sorted(maps.Keys(persisted)) {
+		partitionKey := persisted[tableKey]
+		if partitionKey.Strategy == PARTITION_BY_TABLE {
+			continue
+		}
+		table, err := namereg.NameReg.LookupTableName(tableKey)
+		if err != nil {
+			return fmt.Errorf("lookup table %s of the persisted cdc partition key: %w", tableKey, err)
+		}
+		if indexes := uniqueIndexesWithExcludedColumns(table, excludeColumnList, tableToUniqueIndexes); len(indexes) > 0 {
+			problems = append(problems, fmt.Sprintf("%s uses %s, but its unique index(es) %s contain column(s) excluded via --exclude-column-list",
+				table.ForOutput(), partitionKey.Strategy, strings.Join(indexes, ", ")))
+			continue
+		}
+		if partitionKey.Strategy != PARTITION_BY_CUSTOM {
+			continue
+		}
+		if excludedCols := customKeyExcludedColumns(excludeColumnList, table, partitionKey.Columns); len(excludedCols) > 0 {
+			problems = append(problems, fmt.Sprintf("%s uses custom key column(s) [%s] that are excluded via --exclude-column-list",
+				table.ForOutput(), strings.Join(excludedCols, ", ")))
+		}
+	}
+	if len(problems) > 0 {
+		return goerrors.Errorf("the cdc-partition-key persisted when import data started cannot stream these tables:\n  %s\n"+
+			"They require table partitioning, and the cdc-partition-key cannot change after import data has started. "+
+			"Re-run import data with --start-clean.", strings.Join(problems, "\n  "))
+	}
+	return nil
 }
 
 /*

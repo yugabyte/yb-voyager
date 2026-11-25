@@ -907,6 +907,71 @@ func TestGetExportExcludeColumnList(t *testing.T) {
 	})
 }
 
+// TestPrepareCdcPartitionKeyResumeChecksPersistedStrategyAgainstExcludedColumns covers a resume
+// with unchanged flags, which skips recomputing the strategy: a persisted pk/custom strategy that
+// the excluded-column guardrails reject (e.g. saved by an older voyager) must fail before streaming.
+func TestPrepareCdcPartitionKeyResumeChecksPersistedStrategyAgainstExcludedColumns(t *testing.T) {
+	setupCdcOverridesNameRegistry(t)
+	savedMetaDB, savedImporterRole, savedImportType, savedSourceDBType := metaDB, importerRole, importType, sourceDBType
+	savedKey, savedOverrides := cdcPartitionKey, cdcPartitionKeyOverrides
+	t.Cleanup(func() {
+		metaDB, importerRole, importType, sourceDBType = savedMetaDB, savedImporterRole, savedImportType, savedSourceDBType
+		cdcPartitionKey, cdcPartitionKeyOverrides = savedKey, savedOverrides
+	})
+	metaDB = initMetaDB(t.TempDir())
+	importerRole, importType, sourceDBType = TARGET_DB_IMPORTER_ROLE, SNAPSHOT_AND_CHANGES, POSTGRESQL
+	cdcPartitionKey, cdcPartitionKeyOverrides = "auto", ""
+
+	lookup := func(name string) sqlname.NameTuple {
+		nt, err := namereg.NameReg.LookupTableName(name)
+		require.NoError(t, err)
+		return nt
+	}
+	orders, events, audit := lookup("test_schema.orders"), lookup("test_schema.events"), lookup("test_schema.audit")
+	tableNames := []sqlname.NameTuple{orders, events, audit}
+
+	require.NoError(t, metaDB.UpdateExportDataSourceDBExporterStatusRecord(func(r *metadb.ExportDataSourceDBExporterStatusRecord) {
+		r.ExcludedColumns = map[string][]string{
+			orders.ForKey(): {"email"},
+			audit.ForKey():  {"Email", "region"},
+		}
+	}))
+	uniqueIndexes := utils.NewStructMap[sqlname.NameTuple, []tgtdb.UniqueIndex]()
+	uniqueIndexes.Put(orders, []tgtdb.UniqueIndex{{IndexName: "orders_email_key", Columns: []string{"email"}}})
+	persist := func(persisted map[string]metadb.CDCPartitionKey) {
+		require.NoError(t, metaDB.UpdateImportDataStatusRecord(func(r *metadb.ImportDataStatusRecord) {
+			r.ImportDataStarted = true
+			r.CdcPartitioningStrategyConfig = "auto"
+			r.CdcPartitionKeyOverridesConfig = ""
+			r.TableToCDCPartitionKey = persisted
+		}))
+	}
+
+	t.Run("persisted strategies the guardrails accept resume", func(t *testing.T) {
+		persist(map[string]metadb.CDCPartitionKey{
+			orders.ForKey(): {Strategy: PARTITION_BY_TABLE},
+			events.ForKey(): {Strategy: PARTITION_BY_PK},
+			audit.ForKey():  {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id"}},
+		})
+		require.NoError(t, prepareCdcPartitionKey(tableNames, uniqueIndexes))
+	})
+
+	t.Run("persisted pk on an excluded unique-index column and a custom key on excluded columns are both reported", func(t *testing.T) {
+		persist(map[string]metadb.CDCPartitionKey{
+			orders.ForKey(): {Strategy: PARTITION_BY_PK},
+			events.ForKey(): {Strategy: PARTITION_BY_PK},
+			audit.ForKey():  {Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id", "region", "Email"}},
+		})
+		err := prepareCdcPartitionKey(tableNames, uniqueIndexes)
+		require.Error(t, err)
+		assert.Equal(t, "the cdc-partition-key persisted when import data started cannot stream these tables:\n"+
+			"  test_schema.audit uses custom key column(s) [region, Email] that are excluded via --exclude-column-list\n"+
+			"  test_schema.orders uses pk, but its unique index(es) orders_email_key [email] contain column(s) excluded via --exclude-column-list\n"+
+			"They require table partitioning, and the cdc-partition-key cannot change after import data has started. "+
+			"Re-run import data with --start-clean.", err.Error())
+	})
+}
+
 func TestResolveCdcPartitionKeyOverrides(t *testing.T) {
 	setupCdcOverridesNameRegistry(t)
 
