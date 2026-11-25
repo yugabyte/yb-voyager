@@ -18,6 +18,7 @@ package yugabytedb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
+	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
@@ -46,21 +48,41 @@ type YugabyteDB struct {
 	connMutex          sync.Mutex
 	connPool           *pgxpool.Pool
 	lastRowCountUpdate map[string]time.Time
+
+	// Step claiming (stepclaim.go). operationID is uuid.Nil when it is off.
+	// attempt is guarded by attemptMu; the attempt's own state by its mu.
+	operationID       uuid.UUID
+	executorRef       *string
+	heartbeatInterval time.Duration
+	leaseDuration     time.Duration
+	attemptMu         sync.Mutex
+	attempt           *stepAttempt
 }
 
 func New(exportDir string) *YugabyteDB {
-	return &YugabyteDB{}
+	return &YugabyteDB{
+		heartbeatInterval: defaultHeartbeatInterval,
+		leaseDuration:     defaultLeaseDuration,
+	}
 }
 
 func (cp *YugabyteDB) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []TableProgress, 200)
 
-	err := cp.connect()
+	var err error
+	cp.operationID, cp.executorRef, err = parseStepClaimEnv()
+	if err != nil {
+		return err
+	}
+	err = cp.connect()
 	if err != nil {
 		return err
 	}
 	err = cp.checkTables()
+	if err == nil && cp.StepClaimingEnabled() {
+		err = cp.checkStepTables()
+	}
 	if err != nil {
 		cp.disconnect()
 		return err
@@ -430,31 +452,58 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 	log.Infof("Sending migration event to the yugabytedb control plane: %s %s for migration %s",
 		migrationEvent.EventType, migrationEvent.Status, migrationID)
 
+	// With no open attempt the statements are exactly the unstamped ones, so
+	// the step_execution_id column is not touched.
+	stepExecutionID := cp.activeStepExecutionID()
+	var stampColumn string
+	stampValue := func(n int) string {
+		if stepExecutionID == nil {
+			return ""
+		}
+		return fmt.Sprintf(", $%d::bigint", n)
+	}
+	if stepExecutionID != nil {
+		stampColumn = ", " + STEP_EXECUTION_ID_COLUMN
+	}
+	withStamp := func(args ...any) []any {
+		if stepExecutionID != nil {
+			args = append(args, *stepExecutionID)
+		}
+		return args
+	}
+
 	switch migrationEvent.Status {
 	case STATUS_IN_PROGRESS:
 		cmd := fmt.Sprintf(`
 			WITH started AS (
-				INSERT INTO %[1]s (migration_id, name, value)
-				VALUES ($1::uuid, $2::text, true)
+				INSERT INTO %[1]s (migration_id, name, value%[2]s)
+				VALUES ($1::uuid, $2::text, true%[3]s)
 			)
-			INSERT INTO %[1]s (migration_id, name, value)
-			SELECT $1::uuid, $3::text, false
+			INSERT INTO %[1]s (migration_id, name, value%[2]s)
+			SELECT $1::uuid, $3::text, false%[3]s
 			-- a re-run: unset the done entry if it is currently set. Newest is by
 			-- set_at, since cached sequence blocks mean ids don't follow write order.
 			WHERE (SELECT ms.value FROM %[1]s ms
 			       WHERE ms.migration_id = $1::uuid
 			         AND ms.name = $3::text AND ms.scope = ''
 			       ORDER BY ms.set_at DESC, ms.id DESC LIMIT 1)
-		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME)
-		return cp.exec(cmd, migrationID, phase.startedEntry, phase.doneEntry)
+		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, stampColumn, stampValue(4))
+		return cp.exec(cmd, withStamp(migrationID, phase.startedEntry, phase.doneEntry)...)
 
 	case STATUS_COMPLETED:
+		closing := cp.attemptClosedBy(migrationEvent.EventType)
+		run := func(cmd string, args []any) error {
+			if closing != nil {
+				return cp.execClosingAttempt(closing, cmd, args...)
+			}
+			return cp.exec(cmd, args...)
+		}
 		if phase.metadataKind == "" {
 			cmd := fmt.Sprintf(`
-				INSERT INTO %s (migration_id, name, value)
-				VALUES ($1::uuid, $2::text, true)
-			`, QUALIFIED_MIGRATION_STATE_TABLE_NAME)
-			return cp.exec(cmd, migrationID, phase.doneEntry)
+				INSERT INTO %s (migration_id, name, value%s)
+				VALUES ($1::uuid, $2::text, true%s)
+			`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, stampColumn, stampValue(3))
+			return run(cmd, withStamp(migrationID, phase.doneEntry))
 		}
 		// The done entry and the document are one statement, so a phase is
 		// never recorded as done without the document it produced.
@@ -467,13 +516,13 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 		}
 		cmd := fmt.Sprintf(`
 			WITH done AS (
-				INSERT INTO %[1]s (migration_id, name, value)
-				VALUES ($1::uuid, $2::text, true)
+				INSERT INTO %[1]s (migration_id, name, value%[3]s)
+				VALUES ($1::uuid, $2::text, true%[4]s)
 			)
-			INSERT INTO %[2]s (migration_id, kind, payload, payload_version)
-			VALUES ($1::uuid, $3::text, $4::jsonb, $5::text)
-		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME)
-		return cp.exec(cmd, migrationID, phase.doneEntry, phase.metadataKind, migrationEvent.Payload, payloadVersion)
+			INSERT INTO %[2]s (migration_id, kind, payload, payload_version%[3]s)
+			VALUES ($1::uuid, $3::text, $4::jsonb, $5::text%[4]s)
+		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME, stampColumn, stampValue(6))
+		return run(cmd, withStamp(migrationID, phase.doneEntry, phase.metadataKind, migrationEvent.Payload, payloadVersion))
 
 	default:
 		return goerrors.Errorf("unknown migration event status %q", migrationEvent.Status)
@@ -549,6 +598,15 @@ func (cp *YugabyteDB) sendTableDataProgress(tableProgressList []TableProgress) e
 // is retried on a fresh connection, and the last error is returned if every
 // attempt fails.
 func (cp *YugabyteDB) exec(cmd string, args ...any) error {
+	return cp.withPool(cmd, func(connPool *pgxpool.Pool) error {
+		_, err := connPool.Exec(context.Background(), cmd, args...)
+		return err
+	})
+}
+
+// withPool runs fn with the same retry policy as exec. errAttemptNotRunning is
+// final: retrying cannot change it.
+func (cp *YugabyteDB) withPool(cmd string, fn func(connPool *pgxpool.Pool) error) error {
 	cp.connMutex.Lock()
 	defer cp.connMutex.Unlock()
 
@@ -558,9 +616,12 @@ func (cp *YugabyteDB) exec(cmd string, args ...any) error {
 		var connPool *pgxpool.Pool
 		connPool, err = cp.getConnPool()
 		if err == nil {
-			_, err = connPool.Exec(context.Background(), cmd, args...)
+			err = fn(connPool)
 			if err == nil {
 				return nil
+			}
+			if errors.Is(err, errAttemptNotRunning) {
+				return err
 			}
 		}
 		log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)

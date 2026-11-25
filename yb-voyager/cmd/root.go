@@ -241,6 +241,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		if shouldRunPersistentPreRun(cmd) {
 			controlPlane.Finalize()
+			closeControlPlaneStep(nil)
 		}
 		atexit.Exit(0)
 	},

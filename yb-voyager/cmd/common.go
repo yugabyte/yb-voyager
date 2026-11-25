@@ -737,7 +737,7 @@ func retrieveMigrationUUID() error {
 	} else {
 		log.Infof("migrationID: %s", migrationUUID)
 	}
-	return nil
+	return claimControlPlaneStep()
 }
 
 func nameContainsCapitalLetter(name string) bool {
@@ -1922,6 +1922,10 @@ func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
+	// Exit handlers run in random order, so this lives here, above the
+	// payload-sent guard, rather than in a handler of its own.
+	closeControlPlaneStepOnExit()
+
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}

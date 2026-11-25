@@ -5,6 +5,12 @@ database. The tables and what Voyager writes to them are in
 [`voyager_core_schema.md`](voyager_core_schema.md). Voyager creates none of
 them; `Init` fails if one is missing or not writable.
 
+When `VOYAGER_OPERATION_ID` is set, a command also claims its step in the
+platform's `step_execution` table, heartbeats it and closes it (see the schema
+doc and `design-specs/cp-step-claiming.md`). `Init` then also fails if those
+tables or the `step_execution_id` columns are missing. With it unset, no query
+or statement differs from before.
+
 The type is internal: it is not in the config templates or in the
 `control-plane-type` error message.
 
@@ -42,3 +48,10 @@ The type is internal: it is not in the config templates or in the
   directions. The schema doc lists both without saying so.
 - **`SCHEMA_ANALYSIS_PAYLOAD_VERSION` is bumped by hand** when
   `utils.SchemaReport` changes shape; nothing checks it.
+- **Step claiming: a killed process leaves its attempt open.** Nothing closes
+  it until the next claimer finds its heartbeat older than 2 minutes. Exit
+  paths that bypass `atexit` (`os.Exit` in a signal-free goroutine) are the same.
+- **Step claiming: a failed done-transaction exits 0.** The attempt is closed
+  `failed`, but the command's exit status is unchanged, since the write is async.
+- **Step claiming covers offline commands only.** Live, fall-back and
+  fall-forward commands do not claim.
