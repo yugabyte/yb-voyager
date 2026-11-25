@@ -635,14 +635,14 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 
 		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, nil, excluded, uniqueIndexes)
 		require.Error(t, err)
-		assert.Equal(t, "cdc-partition-key pk is not allowed for table test_schema.audit because it has a unique index on an excluded column in the migration; "+
+		assert.Equal(t, "cdc-partition-key pk is not allowed for table test_schema.audit because its unique index(es) audit_email_key [email] contain column(s) excluded via --exclude-column-list; "+
 			"use table (via --cdc-partition-key or --cdc-partition-key-overrides)", err.Error())
 
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"id"}})
 		_, err = resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_TABLE, overrides, nil, nil, excluded, uniqueIndexes)
 		require.Error(t, err)
-		assert.Equal(t, "cdc-partition-key custom is not allowed for table test_schema.audit because it has a unique index on an excluded column in the migration; "+
+		assert.Equal(t, "cdc-partition-key custom is not allowed for table test_schema.audit because its unique index(es) audit_email_key [email] contain column(s) excluded via --exclude-column-list; "+
 			"use table (via --cdc-partition-key or --cdc-partition-key-overrides)", err.Error())
 
 		overrides = utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
@@ -662,6 +662,20 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 		got, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, "auto", nil, nil, nil, excluded, uniqueIndexes)
 		require.NoError(t, err)
 		assert.Equal(t, PARTITION_BY_TABLE, strategiesByTableName(got)["audit"])
+	})
+
+	t.Run("rejection lists every unique index with an excluded column, sorted by index name", func(t *testing.T) {
+		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"region", "email", "amount"}})
+		uniqueIndexes := uniqueIndexesMap(audit,
+			tgtdb.UniqueIndex{IndexName: "audit_region_email_key", Columns: []string{"col1", "region", "email"}},
+			tgtdb.UniqueIndex{IndexName: "audit_col1_key", Columns: []string{"col1"}},
+			tgtdb.UniqueIndex{IndexName: "audit_email_key", Columns: []string{"email"}},
+		)
+		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, nil, nil, nil, excluded, uniqueIndexes)
+		require.Error(t, err)
+		assert.Equal(t, "cdc-partition-key pk is not allowed for table test_schema.audit because its unique index(es) "+
+			"audit_email_key [email], audit_region_email_key [region, email] contain column(s) excluded via --exclude-column-list; "+
+			"use table (via --cdc-partition-key or --cdc-partition-key-overrides)", err.Error())
 	})
 
 	t.Run("excluded column outside every unique index keeps pk", func(t *testing.T) {
@@ -696,7 +710,7 @@ func TestResolveEffectiveCdcPartitionKeys(t *testing.T) {
 	})
 
 	t.Run("custom key on an excluded column is rejected; custom key on other columns allowed", func(t *testing.T) {
-		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"region", "Email"}})
+		excluded := excludedColumnsMap(map[sqlname.NameTuple][]string{audit: {"Email", "region"}})
 		overrides := utils.NewStructMap[sqlname.NameTuple, cdcPartitionKeyOverride]()
 		overrides.Put(audit, cdcPartitionKeyOverride{Strategy: PARTITION_BY_CUSTOM, Columns: []string{"customer_id", "region", "Email"}})
 		_, err := resolveAndValidateCdcPartitionKeysForTest(t, tables, PARTITION_BY_PK, overrides, nil, nil, excluded, nil)

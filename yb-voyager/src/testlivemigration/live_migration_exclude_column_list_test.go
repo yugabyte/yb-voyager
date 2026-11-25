@@ -581,7 +581,8 @@ func TestLiveMigrationExcludedUniqueIndexColumnForcesTablePartitioning(t *testin
 	err = lm.StartExportData(true, map[string]string{"--exclude-column-list": "test_schema.accounts:email,note"})
 	testutils.FatalIfError(t, err, "failed to start export data")
 
-	const excludedUniqueColumnRejection = "is not allowed for table test_schema.accounts because it has a unique index on an excluded column in the migration; " +
+	const excludedUniqueColumnRejection = "is not allowed for table test_schema.accounts because its unique index(es) " +
+		"accounts_code_note_key [note], accounts_email_key [email] contain column(s) excluded via --exclude-column-list; " +
 		"use table (via --cdc-partition-key or --cdc-partition-key-overrides)"
 
 	err = lm.StartImportData(false, map[string]string{"--cdc-partition-key": "pk"})
@@ -648,6 +649,158 @@ func TestLiveMigrationExcludedUniqueIndexColumnForcesTablePartitioning(t *testin
 
 	err = lm.StartImportData(true, nil)
 	testutils.FatalIfError(t, err, "failed to resume import data")
+
+	err = lm.InitiateCutoverToTarget(false, nil)
+	testutils.FatalIfError(t, err, "failed to initiate cutover")
+	err = lm.WaitForCutoverComplete(0, 60)
+	testutils.FatalIfError(t, err, "failed to wait for cutover complete")
+}
+
+// TestLiveMigrationExcludedUniqueIndexColumnOnPartitionedTables pins the #3962 guardrail for
+// partitioned tables. Excluded columns are recorded per root table, and leaf unique indexes reach
+// the guardrail only after the target merges them into their root, so both sides must line up:
+//   - root_uk_events has a unique index on the root containing the excluded email;
+//   - leaf_uk_events has unique indexes only on its leaves, on the excluded code;
+//   - plain_partitioned_events excludes val, which no unique index contains, so it stays on pk.
+//
+// Updates stay within a partition, since a cross-partition update streams as a delete and an insert.
+func TestLiveMigrationExcludedUniqueIndexColumnOnPartitionedTables(t *testing.T) {
+	t.Parallel()
+	lm := NewLiveMigrationTest(t, &TestConfig{
+		SourceDB: ContainerConfig{
+			Type:         "postgresql",
+			ForLive:      true,
+			DatabaseName: "cdc_excluded_unique_column_partitioned",
+		},
+		TargetDB: ContainerConfig{
+			Type:         "yugabytedb",
+			DatabaseName: "cdc_excluded_unique_column_partitioned",
+		},
+		SchemaNames: []string{"test_schema"},
+		SchemaSQL: []string{
+			`CREATE SCHEMA IF NOT EXISTS test_schema;
+			CREATE TABLE test_schema.root_uk_events (
+				id int,
+				region text,
+				email text,
+				val int,
+				PRIMARY KEY (id, region),
+				UNIQUE (email, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.root_uk_events_east PARTITION OF test_schema.root_uk_events FOR VALUES IN ('east');
+			CREATE TABLE test_schema.root_uk_events_west PARTITION OF test_schema.root_uk_events FOR VALUES IN ('west');
+
+			CREATE TABLE test_schema.leaf_uk_events (
+				id int,
+				region text,
+				code text,
+				val int,
+				PRIMARY KEY (id, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.leaf_uk_events_east PARTITION OF test_schema.leaf_uk_events FOR VALUES IN ('east');
+			CREATE TABLE test_schema.leaf_uk_events_west PARTITION OF test_schema.leaf_uk_events FOR VALUES IN ('west');
+			CREATE UNIQUE INDEX leaf_uk_events_east_code ON test_schema.leaf_uk_events_east (code);
+			CREATE UNIQUE INDEX leaf_uk_events_west_code ON test_schema.leaf_uk_events_west (code);
+
+			CREATE TABLE test_schema.plain_partitioned_events (
+				id int,
+				region text,
+				email text,
+				val int,
+				PRIMARY KEY (id, region),
+				UNIQUE (email, region)
+			) PARTITION BY LIST (region);
+			CREATE TABLE test_schema.plain_partitioned_events_east PARTITION OF test_schema.plain_partitioned_events FOR VALUES IN ('east');
+			CREATE TABLE test_schema.plain_partitioned_events_west PARTITION OF test_schema.plain_partitioned_events FOR VALUES IN ('west');`,
+		},
+		SourceSetupSchemaSQL: []string{
+			`ALTER TABLE test_schema.root_uk_events REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.root_uk_events_east REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.root_uk_events_west REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.leaf_uk_events REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.leaf_uk_events_east REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.leaf_uk_events_west REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.plain_partitioned_events REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.plain_partitioned_events_east REPLICA IDENTITY FULL;`,
+			`ALTER TABLE test_schema.plain_partitioned_events_west REPLICA IDENTITY FULL;`,
+		},
+		InitialDataSQL: []string{
+			`INSERT INTO test_schema.root_uk_events SELECT i, CASE WHEN i % 2 = 1 THEN 'east' ELSE 'west' END, 'r' || i || '@example.com', 0 FROM generate_series(1, 10) i;`,
+			`INSERT INTO test_schema.leaf_uk_events SELECT i, CASE WHEN i % 2 = 1 THEN 'east' ELSE 'west' END, 'c' || i, 0 FROM generate_series(1, 10) i;`,
+			`INSERT INTO test_schema.plain_partitioned_events SELECT i, CASE WHEN i % 2 = 1 THEN 'east' ELSE 'west' END, 'p' || i || '@example.com', 0 FROM generate_series(1, 10) i;`,
+		},
+		SourceDeltaSQL: []string{
+			`DELETE FROM test_schema.root_uk_events WHERE id = 3;`,
+			`INSERT INTO test_schema.root_uk_events VALUES (11, 'east', 'r11@example.com', 0);`,
+			`UPDATE test_schema.root_uk_events SET val = 5 WHERE id IN (1, 2);`,
+			`DELETE FROM test_schema.leaf_uk_events WHERE id = 3;`,
+			`INSERT INTO test_schema.leaf_uk_events VALUES (11, 'east', 'c11', 0);`,
+			`UPDATE test_schema.leaf_uk_events SET val = 5 WHERE id IN (1, 2);`,
+			`DELETE FROM test_schema.plain_partitioned_events WHERE id = 3;`,
+			`INSERT INTO test_schema.plain_partitioned_events VALUES (11, 'east', 'p11@example.com', 0);`,
+			`UPDATE test_schema.plain_partitioned_events SET email = 'p' || id || '-new@example.com' WHERE id IN (1, 2);`,
+		},
+		CleanupSQL: []string{
+			`DROP SCHEMA IF EXISTS test_schema CASCADE;`,
+		},
+	})
+	defer lm.Cleanup()
+
+	err := lm.SetupContainers(context.Background())
+	testutils.FatalIfError(t, err, "failed to setup containers")
+	err = lm.SetupSchema()
+	testutils.FatalIfError(t, err, "failed to setup schema")
+
+	err = lm.StartExportData(true, map[string]string{
+		"--exclude-column-list": "test_schema.root_uk_events:email;test_schema.leaf_uk_events:code;test_schema.plain_partitioned_events:val",
+	})
+	testutils.FatalIfError(t, err, "failed to start export data")
+
+	// The index name is not asserted: the error may name the root's index or any leaf's copy of it.
+	for table, excludedColumn := range map[string]string{
+		"test_schema.root_uk_events": "email",
+		"test_schema.leaf_uk_events": "code",
+	} {
+		err = lm.StartImportData(false, map[string]string{"--cdc-partition-key-overrides": table + ":pk"})
+		require.Error(t, err, "import with pk on %s must fail", table)
+		output := lm.GetImportCommandStderr() + lm.GetImportCommandStdout()
+		require.Contains(t, output, "cdc-partition-key pk is not allowed for table "+table+" because its unique index(es) ")
+		require.Contains(t, output, " ["+excludedColumn+"] contain column(s) excluded via --exclude-column-list; "+
+			"use table (via --cdc-partition-key or --cdc-partition-key-overrides)")
+	}
+
+	err = lm.StartImportData(true, nil)
+	testutils.FatalIfError(t, err, "failed to start import data")
+
+	err = lm.WaitForSnapshotComplete(map[string]int64{
+		`"test_schema"."root_uk_events"`:           10,
+		`"test_schema"."leaf_uk_events"`:           10,
+		`"test_schema"."plain_partitioned_events"`: 10,
+	}, 120)
+	testutils.FatalIfError(t, err, "failed to wait for snapshot complete")
+
+	require.Equal(t, map[string]string{
+		`"test_schema"."root_uk_events"`:           cmd.PARTITION_BY_TABLE,
+		`"test_schema"."leaf_uk_events"`:           cmd.PARTITION_BY_TABLE,
+		`"test_schema"."plain_partitioned_events"`: cmd.PARTITION_BY_PK,
+	}, cdcStrategiesByTable(t, lm))
+
+	err = lm.ExecuteSourceDelta()
+	testutils.FatalIfError(t, err, "failed to execute source delta")
+	err = lm.WaitForForwardStreamingComplete(map[string]ChangesCount{
+		`"test_schema"."root_uk_events"`:           {Inserts: 1, Updates: 2, Deletes: 1},
+		`"test_schema"."leaf_uk_events"`:           {Inserts: 1, Updates: 2, Deletes: 1},
+		`"test_schema"."plain_partitioned_events"`: {Inserts: 1, Updates: 2, Deletes: 1},
+	}, 120, 5)
+	testutils.FatalIfError(t, err, "failed to wait for forward streaming complete")
+	require.False(t, lm.GetImportRunner().IsStopped(), "import data must keep streaming")
+
+	err = validateColumnsConsistency(lm, "test_schema.root_uk_events", "id, region, val")
+	testutils.FatalIfError(t, err, "root_uk_events diverged on the streamed columns")
+	err = validateColumnsConsistency(lm, "test_schema.leaf_uk_events", "id, region, val")
+	testutils.FatalIfError(t, err, "leaf_uk_events diverged on the streamed columns")
+	err = validateColumnsConsistency(lm, "test_schema.plain_partitioned_events", "id, region, email")
+	testutils.FatalIfError(t, err, "plain_partitioned_events diverged on the streamed columns")
 
 	err = lm.InitiateCutoverToTarget(false, nil)
 	testutils.FatalIfError(t, err, "failed to initiate cutover")
