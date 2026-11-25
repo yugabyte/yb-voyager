@@ -211,14 +211,15 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	return err
 }
 
-// Every exit from WithConn must call releaseSlot exactly once (conn is nil when the slot holds no
-// usable connection), otherwise the pool permanently shrinks by one slot.
+// Every slot taken from pool.conns must be handed back via releaseSlot exactly once (conn is nil
+// when the slot holds no usable connection), otherwise the pool permanently shrinks by one slot.
 func (pool *ConnectionPool) releaseSlot(conn *pgx.Conn) {
 	pool.pendingConnsToCloseLock.Lock()
 	defer pool.pendingConnsToCloseLock.Unlock()
 	if pool.pendingConnsToClose > 0 {
 		pool.idleConns <- conn
-		log.Infof("adaptive: Moved connection slot to idle pool because pendingConnsToClose = %d. main connection pool size=%d", pool.pendingConnsToClose, len(pool.conns))
+		log.Infof("adaptive: moved slot (live conn: %t) to idle pool because pendingConnsToClose=%d; pool size=%d, free slots in main pool=%d",
+			conn != nil, pool.pendingConnsToClose, pool.size, len(pool.conns))
 		pool.pendingConnsToClose--
 		return
 	}

@@ -102,7 +102,7 @@ func unreachableTargetURI(t *testing.T) string {
 	require.NoError(t, err)
 	addr := listener.Addr().String()
 	require.NoError(t, listener.Close())
-	return fmt.Sprintf("postgres://yugabyte@%s/yugabyte?sslmode=disable&connect_timeout=2", addr)
+	return fmt.Sprintf("postgres://yugabyte@%s/yugabyte?sslmode=disable&connect_timeout=1", addr)
 }
 
 func withConnResult(pool *ConnectionPool) <-chan error {
@@ -156,6 +156,8 @@ func TestWithConn_FailedConnectDoesNotLeakPoolSlot(t *testing.T) {
 
 			assert.Equal(t, tc.numMaxConnections, len(pool.conns)+len(pool.idleConns),
 				"every slot must be back in conns or idleConns once no WithConn call is in flight")
+			assert.Equal(t, 0, pool.pendingConnsToClose, "failed connects must consume a pending shrink")
+			assert.Equal(t, pool.GetNumConnections(), len(pool.conns), "conns must hold exactly pool.size slots when idle")
 		})
 	}
 }
