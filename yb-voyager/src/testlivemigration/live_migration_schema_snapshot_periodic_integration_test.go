@@ -54,7 +54,7 @@ func TestLiveExportDataCapturesPeriodicSchemaSnapshot(t *testing.T) {
 		SourceDB: ContainerConfig{
 			Type:         "postgresql",
 			ForLive:      true,
-			DatabaseName: "test1",
+			DatabaseName: "test_periodic_schema_snapshot",
 		},
 		// No TargetDB: this test only needs the source export streaming.
 		SchemaNames: []string{"test_schema"},
