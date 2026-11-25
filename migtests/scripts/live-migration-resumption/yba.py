@@ -24,7 +24,9 @@ Two things live here:
    CheckUpgrade refuses a target that lacks a YSQL migration the source already carries,
    which happens when a fix is backported to the older branch first (2025.2.7.0 carried
    migration 30566 before any 2026.1 release did), so the candidates are walked newest
-   first and the first one whose migrations are all in NEW wins. Migrations are read from
+   first and the first one whose migrations are all in NEW wins. Candidates are the
+   newest released build of each patch line (`/version/released/<branch>.<patch>`), so
+   an older hotfix within a patch line is never tried. Migrations are read from
    the yugabyte-db GitHub tree at each build's tag; set GITHUB_TOKEN to avoid the
    unauthenticated rate limit. The upgrade stage registers NEW on the YBA itself if it
    is missing.
@@ -39,10 +41,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 RELEASE_SERVICE_URL = "https://release.dev.yugabyte.com"
-RELEASE_NOTES_URL = "https://docs.yugabyte.com/stable/releases/ybdb-releases"
 MIGRATIONS_API_URL = "https://api.github.com/repos/yugabyte/yugabyte-db/contents/src/yb/yql/pgwrapper/ysql_migrations"
 RELEASE_PACKAGE_URL = "https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/{build}/yugabyte-{build}-centos-x86_64.tar.gz"
 HTTP_TIMEOUT_SEC = 60
@@ -51,7 +52,6 @@ GET_RETRY_SLEEP_SEC = 5
 
 YB_BUILD_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)-b(\d+)$")
 STABLE_BRANCH_RE = re.compile(r"^\d{4}\.\d+$")
-RELEASE_NOTES_BUILD_RE = re.compile(r"Build:\s*(\d+\.\d+\.\d+\.\d+-b\d+)")
 # Release tarballs report -b0 from `select version()`, so only the version number is usable.
 YB_SERVER_VERSION_RE = re.compile(r"-YB-(\d+\.\d+\.\d+\.\d+)-b\d+")
 
@@ -140,13 +140,13 @@ def released_build(branch: str) -> Optional[str]:
     return answer
 
 
-def released_builds_for_branch(branch: str) -> List[str]:
-    """Every GA build of a branch, newest first, from the release notes page."""
-    page = re.sub(r"<[^>]+>", " ", _http_get_text(f"{RELEASE_NOTES_URL}/v{branch}/"))
-    builds = {b for b in RELEASE_NOTES_BUILD_RE.findall(page) if b.startswith(branch + ".")}
-    if not builds:
-        raise RuntimeError(f"no 'Build: <version>-b<n>' entries found on {RELEASE_NOTES_URL}/v{branch}/")
-    return sorted(builds, key=version_key, reverse=True)
+def released_builds_newest_first(branch: str, latest: str) -> Iterator[str]:
+    """`latest`, then the newest released build of each older patch line of `branch`."""
+    yield latest
+    for patch in range(version_key(latest)[2] - 1, -1, -1):
+        build = released_build(f"{branch}.{patch}")
+        if build:
+            yield build
 
 
 def ysql_migrations(build: str) -> set:
@@ -166,10 +166,12 @@ def ysql_migrations(build: str) -> set:
     return {e["name"].split("__", 1)[1] for e in entries if e["name"].startswith("V") and "__" in e["name"]}
 
 
-def compatible_old_build(new: str, old_branch: str, report=print) -> str:
+def compatible_old_build(new: str, old_branch: str, old_latest: str, report=print) -> str:
     """The newest released build of old_branch whose YSQL migrations are all present in `new`."""
     new_migrations = ysql_migrations(new)
-    for candidate in released_builds_for_branch(old_branch):
+    if not new_migrations:
+        raise RuntimeError(f"no YSQL migrations found for {new} at {MIGRATIONS_API_URL}?ref={new}")
+    for candidate in released_builds_newest_first(old_branch, old_latest):
         try:
             candidate_migrations = ysql_migrations(candidate)
         except HTTPStatusError as exc:
@@ -200,8 +202,8 @@ def resolve_versions(report=print) -> Dict[str, str]:
     released.sort(key=lambda item: version_key(item[1]), reverse=True)
     if len(released) < 2:
         raise RuntimeError(f"need released builds on two branches, found {[b for _, b in released]}")
-    (_, new), (old_branch, _) = released[0], released[1]
-    return {"OLD_VERSION": compatible_old_build(new, old_branch, report), "NEW_VERSION": new}
+    (_, new), (old_branch, old_latest) = released[0], released[1]
+    return {"OLD_VERSION": compatible_old_build(new, old_branch, old_latest, report), "NEW_VERSION": new}
 
 
 class YBAClient:
