@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"testing"
 	"time"
 
@@ -79,9 +80,23 @@ func TestStepClaiming(t *testing.T) {
 
 	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	require.NoError(t, yugabyteDBContainer.Start(ctx), "Failed to start yugabytedb container")
-	defer testcontainers.TerminateAllContainers()
 
-	dsn := yugabyteDBContainer.GetConnectionString()
+	// The schema name voyager_core is fixed in the control plane, so this test
+	// works in a database of its own and leaves the container's default
+	// database to TestYugabyteDBControlPlaneWrites.
+	adminDSN := yugabyteDBContainer.GetConnectionString()
+	adminDB, err := sql.Open("pgx", adminDSN)
+	require.NoError(t, err)
+	defer adminDB.Close()
+	require.NoError(t, testutils.WaitForDBToBeReady(adminDB))
+	_, err = adminDB.Exec(`DROP DATABASE IF EXISTS step_claiming`)
+	require.NoError(t, err)
+	_, err = adminDB.Exec(`CREATE DATABASE step_claiming`)
+	require.NoError(t, err)
+	dsnURL, err := url.Parse(adminDSN)
+	require.NoError(t, err)
+	dsnURL.Path = "/step_claiming"
+	dsn := dsnURL.String()
 	db, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	defer db.Close()
@@ -91,8 +106,6 @@ func TestStepClaiming(t *testing.T) {
 	t.Setenv(OPERATION_ID_ENV_VAR, "")
 	t.Setenv(EXECUTOR_REF_ENV_VAR, "")
 
-	_, err = db.Exec(`DROP SCHEMA IF EXISTS voyager_core CASCADE`)
-	require.NoError(t, err)
 	for _, ddl := range controlPlaneSchemaDDL {
 		_, err = db.Exec(ddl)
 		require.NoError(t, err, ddl)
