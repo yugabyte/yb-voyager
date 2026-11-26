@@ -45,8 +45,6 @@ var stepClaimSchemaDDL = []string{
 		name            text,
 		config          jsonb,
 		idempotency_key text,
-		cancelled_at    timestamptz,
-		cancelled_by    text,
 		created_at      timestamptz DEFAULT now()
 	)`,
 	`CREATE TABLE voyager_core.operation_step (
@@ -67,7 +65,6 @@ var stepClaimSchemaDDL = []string{
 		status            text DEFAULT 'running' CHECK (status IN ('running','succeeded','failed','stopped')),
 		reason            text,
 		error_message     text,
-		detail            jsonb,
 		finished_at       timestamptz
 	)`,
 	`CREATE UNIQUE INDEX one_running_per_step ON voyager_core.step_execution (migration_id, step) WHERE status = 'running'`,

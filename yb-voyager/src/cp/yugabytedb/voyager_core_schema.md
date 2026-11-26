@@ -113,8 +113,8 @@ Voyager checks they exist at `Init` and never issues DDL. Design:
 ```sql
 CREATE TABLE voyager_core.operation (
     id uuid PRIMARY KEY, migration_id uuid, sequence_id bigint, issued_by text,
-    name text, config jsonb, idempotency_key text, cancelled_at timestamptz,
-    cancelled_by text, created_at timestamptz DEFAULT now()
+    name text, config jsonb, idempotency_key text,
+    created_at timestamptz DEFAULT now()
 );
 CREATE TABLE voyager_core.operation_step (
     id bigserial PRIMARY KEY, operation_id uuid, step text, ordinal int,
@@ -132,7 +132,6 @@ CREATE TABLE voyager_core.step_execution (
                       CHECK (status IN ('running','succeeded','failed','stopped')),
     reason            text,
     error_message     text,
-    detail            jsonb,
     finished_at       timestamptz
 );
 CREATE UNIQUE INDEX one_running_per_step

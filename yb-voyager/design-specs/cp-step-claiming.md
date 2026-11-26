@@ -47,7 +47,7 @@ voyager_core.operation       (id uuid PK, migration_id uuid, ...)
 voyager_core.step_execution  (id bigserial PK, migration_id uuid NOT NULL, operation_step_id bigint NOT NULL,
                               step text NOT NULL, executor_ref jsonb, started_at, last_heartbeat_at,
                               status text DEFAULT 'running' CHECK (status IN ('running','succeeded','failed','stopped')),
-                              reason text, error_message text, detail jsonb, finished_at)
+                              reason text, error_message text, finished_at)
 UNIQUE INDEX one_running_per_step ON step_execution (migration_id, step) WHERE status = 'running'
 migration_state.step_execution_id bigint NULL
 metadata.step_execution_id        bigint NULL
