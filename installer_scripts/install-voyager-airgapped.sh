@@ -127,6 +127,12 @@ main() {
 		"Red Hat Enterprise Linux Server")
 			centos_main
 			;;
+		"Oracle Linux Server")
+			centos_main
+			;;
+		"Rocky Linux")
+			centos_main
+			;;
 		"Ubuntu")
 			ubuntu_main
 			;;
@@ -379,6 +385,8 @@ get_passed_options() {
                 echo "  -p, --pg-only                  Install and check only PostgreSQL source related voyager dependencies."
                 echo "  -m, --mysql-only               Install and check only MySQL source related voyager dependencies."
                 echo "  -o, --oracle-only              Install and check only Oracle source related voyager dependencies."
+                echo ""
+                echo "On ARM (aarch64) machines, only PostgreSQL source databases are supported: --pg-only is required, and --mysql-only / --oracle-only are not available."
                 PRINT_DEPENDENCIES="true"
                 shift
                 ;;
@@ -393,6 +401,25 @@ get_passed_options() {
         echo "Error: Only one of pg-only, mysql-only, oracle-only options can be passed."
         echo "If you want to install and check dependencies related to all the databases, do not pass any of these options."
         exit 1
+    fi
+
+    # On ARM (aarch64), only PostgreSQL source databases are supported for now:
+    # Oracle Instant Client and perl-DBD-Oracle are not available for aarch64, and the
+    # MySQL/Oracle tooling (ora2pg, cpan modules, perl-DBD-MySQL) is not supported there yet.
+    if [[ "$(uname -m)" == "aarch64" ]]; then
+        if (( MYSQL_ONLY == 1 || ORACLE_ONLY == 1 )); then
+            echo -e "\e[31mERROR: Only PostgreSQL source databases are supported on ARM (aarch64). MySQL and Oracle are not supported yet.\e[0m"
+            exit 1
+        fi
+        if (( PG_ONLY == 0 )); then
+            if [ "$PRINT_DEPENDENCIES" = "true" ]; then
+                # --help: show the PostgreSQL dependencies only
+                PG_ONLY=1
+            else
+                echo -e "\e[31mERROR: On ARM (aarch64), yb-voyager supports PostgreSQL source databases only. Re-run with --pg-only.\e[0m"
+                exit 1
+            fi
+        fi
     fi
 
     # If none of the three options are passed then by default all are true
@@ -643,8 +670,8 @@ centos_main() {
     fi
     echo ""
     echo "Installing yb-voyager..."
-    # The package name is like yb-voyager-1.8.0-b0111.x86_64.rpm. The YB_VOYAGER_YUM_VERSION is 1.8.0. Add * to match the version.
-    sudo yum install -y -q yb-voyager*.x86_64.rpm 1>&2
+    # The package name is like yb-voyager-1.8.0-b0111.x86_64.rpm (.aarch64.rpm on ARM). The YB_VOYAGER_YUM_VERSION is 1.8.0. Add * to match the version.
+    sudo yum install -y -q yb-voyager*.$(uname -m).rpm 1>&2
     if [ $? -ne 0 ]; then
         echo ""
         echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
