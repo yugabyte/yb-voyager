@@ -89,7 +89,9 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 
 - A goroutine runs `UPDATE step_execution SET last_heartbeat_at = now() WHERE id = $id AND status = 'running'` every 10 s.
 - 0 rows updated means someone closed the attempt (for example another pod expired it): stop the command.
-- Heartbeats failing continuously for 2 minutes (the lease length): stop the command. Two pods must never run one step.
+- Each heartbeat `UPDATE` has a 10 s timeout.
+- Heartbeats failing continuously for the lease minus two heartbeat intervals (1 min 40 s): stop the command. Two pods must never run one step.
+  - Not at the full 2 minutes: the failure is only noticed when an `UPDATE` returns, up to one interval plus one timeout later. Stopping at 2 minutes could leave the old pod running after another claimed the step.
 - "Stop the command" is `utils.ErrExit` with a clear message, so the existing exit path (child cleanup, exit handler) runs. The goroutine itself never panics.
 - The goroutine ends when the attempt closes.
 - Heartbeats use their own connection pool, so they are not queued behind event writes.
@@ -132,7 +134,7 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 | Live attempt exists | Command fails before work ("step already running") |
 | Expired attempt exists | Closed `failed`/`lease_expired`, new attempt claimed |
 | Control plane DB unreachable at claim | Command fails before work |
-| Heartbeat lost for 2 minutes, or attempt closed under us | Command stops with an error exit |
+| Heartbeat failing for 1 min 40 s, or attempt closed under us | Command stops with an error exit, before the lease lets another pod claim |
 | Process killed (SIGKILL, node loss) | No close. The lease expires and the next claimer closes it as `lease_expired` |
 | Command exits with error | Attempt closed `failed` with the error text |
 

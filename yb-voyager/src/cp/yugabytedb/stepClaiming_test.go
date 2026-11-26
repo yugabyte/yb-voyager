@@ -294,6 +294,36 @@ func TestStepClaiming(t *testing.T) {
 		assert.Equal(t, "stopped", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
 	})
 
+	t.Run("failing heartbeats stop the command before the lease expires", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, STEP_EXPORT_SCHEMA))
+		controlPlane := newControlPlane(t)
+		controlPlane.heartbeatInterval = 200 * time.Millisecond
+		controlPlane.leaseDuration = 2 * time.Second
+		lost := make(chan error, 1)
+		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
+
+		controlPlane.stepExecutionMu.Lock()
+		execution := controlPlane.stepExecution
+		controlPlane.stepExecutionMu.Unlock()
+		execution.pool.Close()
+		failingSince := time.Now()
+
+		select {
+		case err := <-lost:
+			// The last success was at most one interval before the pool closed, and the
+			// stop comes at lease - 2 intervals (1.6 s) after it, plus at most one tick:
+			// so 1.4-1.8 s after the close, before the 2 s lease. The lower bound
+			// allows 0.2 s for scheduling.
+			elapsed := time.Since(failingSince)
+			assert.ErrorContains(t, err, "stopping so no other pod runs the step twice")
+			assert.GreaterOrEqual(t, elapsed, 1200*time.Millisecond)
+			assert.Less(t, elapsed, controlPlane.leaseDuration)
+		case <-time.After(15 * time.Second):
+			t.Fatal("failing heartbeats did not stop the command")
+		}
+	})
+
 	t.Run("failure closes the attempt with the error", func(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, STEP_IMPORT_DATA_TO_TARGET))
