@@ -275,7 +275,7 @@ func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err e
 			return
 		case <-ticker.C:
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), cp.heartbeatInterval+stepExecutionCloseTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), cp.heartbeatInterval)
 		tag, err := a.pool.Exec(ctx, fmt.Sprintf(
 			`UPDATE %s SET last_heartbeat_at = now() WHERE id = $1 AND status = 'running'`,
 			QUALIFIED_STEP_EXECUTION_TABLE_NAME), a.id)
@@ -295,12 +295,12 @@ func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err e
 			lastSuccess = time.Now()
 			continue
 		}
-		// A failed heartbeat is retried on the next tick. Once none has succeeded
-		// for a whole lease, another claimer may already have taken the step.
 		log.Warnf("Heartbeat for step execution %d failed: %v", a.id, err)
-		if time.Since(lastSuccess) >= cp.leaseDuration {
+		// A failure is only seen when an UPDATE returns, up to one tick plus one
+		// timeout late, so stop that much before the lease lets another pod claim.
+		if failingFor := time.Since(lastSuccess); failingFor >= cp.leaseDuration-2*cp.heartbeatInterval {
 			onLost(fmt.Errorf("heartbeat for step %s (step execution %d) failed for %s; stopping so no other pod runs the step twice: %w",
-				a.step, a.id, cp.leaseDuration, err))
+				a.step, a.id, failingFor.Round(time.Second), err))
 			return
 		}
 	}
