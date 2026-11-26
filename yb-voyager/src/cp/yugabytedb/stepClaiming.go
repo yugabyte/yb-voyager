@@ -36,7 +36,7 @@ import (
 // See design-specs/cp-step-claiming.md.
 
 // OPERATION_ID_ENV_VAR turns step claiming on. EXECUTOR_REF_ENV_VAR is an
-// optional JSON object stored as-is on the attempt.
+// optional JSON object stored as-is on the step execution.
 const OPERATION_ID_ENV_VAR = "VOYAGER_OPERATION_ID"
 const EXECUTOR_REF_ENV_VAR = "EXECUTOR_REF"
 
@@ -51,38 +51,17 @@ const QUALIFIED_STEP_EXECUTION_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + STEP_EX
 const STEP_EXECUTION_ID_COLUMN = "step_execution_id"
 
 const (
-	STEP_ASSESS_MIGRATION        = "assess-migration"
-	STEP_EXPORT_SCHEMA           = "export-schema"
-	STEP_ANALYZE_SCHEMA          = "analyze-schema"
-	STEP_IMPORT_SCHEMA           = "import-schema"
-	STEP_EXPORT_DATA_FROM_SOURCE = "export-data-from-source"
-	STEP_IMPORT_DATA_TO_TARGET   = "import-data-to-target"
-	STEP_FINALIZE_SCHEMA         = "finalize-schema"
-	STEP_END_MIGRATION           = "end-migration"
-)
-
-const (
 	defaultHeartbeatInterval       = 10 * time.Second
 	defaultLeaseDuration           = 2 * time.Minute
-	stepAttemptCloseTimeout        = 10 * time.Second
+	stepExecutionCloseTimeout      = 10 * time.Second
 	uniqueViolationSQLState        = "23505"
 	oneRunningPerStepConstraint    = "one_running_per_step"
 	stepExecutionLeaseExpiredCause = "lease_expired"
 )
 
-// The step each migration event type reports. Its done event closes the attempt.
-var phaseSteps = map[string]string{
-	"ASSESS MIGRATION": STEP_ASSESS_MIGRATION,
-	"EXPORT SCHEMA":    STEP_EXPORT_SCHEMA,
-	"ANALYZE SCHEMA":   STEP_ANALYZE_SCHEMA,
-	"EXPORT DATA":      STEP_EXPORT_DATA_FROM_SOURCE,
-	"IMPORT SCHEMA":    STEP_IMPORT_SCHEMA,
-	"IMPORT DATA":      STEP_IMPORT_DATA_TO_TARGET,
-}
+var errStepExecutionNotRunning = goerrors.New("step attempt is no longer running")
 
-var errAttemptNotRunning = goerrors.New("step attempt is no longer running")
-
-type stepAttempt struct {
+type stepExecution struct {
 	id   int64
 	step string
 	pool *pgxpool.Pool
@@ -95,16 +74,16 @@ type stepAttempt struct {
 	doneErr error
 }
 
-// finishLocked ends the heartbeat and releases the attempt's pool. Callers hold a.mu.
-func (a *stepAttempt) finishLocked() {
+// releaseLocked ends the heartbeat and releases the step execution's pool. Callers hold a.mu.
+func (a *stepExecution) releaseLocked() {
 	a.closed = true
 	close(a.stop)
 	a.pool.Close()
 }
 
-// parseStepClaimEnv reads the operation env vars. A zero uuid means step
+// readStepClaimingEnv reads the operation env vars. A zero uuid means step
 // claiming is off.
-func parseStepClaimEnv() (operationID uuid.UUID, executorRef *string, err error) {
+func readStepClaimingEnv() (operationID uuid.UUID, executorRef *string, err error) {
 	rawOperationID := os.Getenv(OPERATION_ID_ENV_VAR)
 	if rawOperationID == "" {
 		return uuid.Nil, nil, nil
@@ -129,9 +108,9 @@ func (cp *YugabyteDB) StepClaimingEnabled() bool {
 	return cp.operationID != uuid.Nil
 }
 
-// checkStepTables fails when a table or column step claiming uses is missing
+// checkStepClaimingTables fails when a table or column step claiming uses is missing
 // or lacks a privilege it needs.
-func (cp *YugabyteDB) checkStepTables() error {
+func (cp *YugabyteDB) checkStepClaimingTables() error {
 	for _, check := range []struct {
 		table      string
 		privileges []string
@@ -177,7 +156,12 @@ func (cp *YugabyteDB) checkStepTables() error {
 	return nil
 }
 
-func (cp *YugabyteDB) newAttemptPool() (*pgxpool.Pool, error) {
+// newStepExecutionPool opens the step execution's own pool for the claim, heartbeat and close.
+// It is separate from cp.connPool, which Finalize closes before the step execution is
+// closed and whose writers hold connMutex while retrying; a heartbeat must not
+// wait behind them. A pool, not one connection, because the heartbeat goroutine
+// and the close can run at the same time.
+func (cp *YugabyteDB) newStepExecutionPool() (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(context.Background(), os.Getenv(DB_CONN_STRING_ENV_VAR))
 	if err != nil {
 		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step attempt: %w", err)
@@ -189,33 +173,33 @@ func (cp *YugabyteDB) newAttemptPool() (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-// ClaimStep claims step for the migration and starts the attempt's heartbeat.
-// onLost is called from the heartbeat goroutine when the attempt can no longer
-// be held; the command must stop. A second call while an attempt is held is a no-op.
+// ClaimStep claims step for the migration and starts the step execution's heartbeat.
+// onLost is called from the heartbeat goroutine when the step execution can no longer
+// be held; the command must stop. A second call while a step execution is held is a no-op.
 func (cp *YugabyteDB) ClaimStep(migrationID uuid.UUID, step string, onLost func(err error)) error {
-	cp.attemptMu.Lock()
-	defer cp.attemptMu.Unlock()
-	if cp.attempt != nil {
+	cp.stepExecutionMu.Lock()
+	defer cp.stepExecutionMu.Unlock()
+	if cp.stepExecution != nil {
 		return nil
 	}
-	pool, err := cp.newAttemptPool()
+	pool, err := cp.newStepExecutionPool()
 	if err != nil {
 		return err
 	}
-	id, err := cp.claimStepTx(pool, migrationID, step)
+	id, err := cp.claimStepInTx(pool, migrationID, step)
 	if err != nil {
 		pool.Close()
 		return err
 	}
-	attempt := &stepAttempt{id: id, step: step, pool: pool, stop: make(chan struct{})}
-	cp.attempt = attempt
+	execution := &stepExecution{id: id, step: step, pool: pool, stop: make(chan struct{})}
+	cp.stepExecution = execution
 	log.Infof("Claimed step %s of operation %s as step execution %d", step, cp.operationID, id)
-	go cp.heartbeatLoop(attempt, onLost)
+	go cp.heartbeatStepExecution(execution, onLost)
 	return nil
 }
 
-func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, step string) (int64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), stepAttemptCloseTimeout)
+func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, step string) (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), stepExecutionCloseTimeout)
 	defer cancel()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -223,6 +207,8 @@ func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, ste
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
 
+	// 1. Find this command's step in the operation's plan, and check the
+	// operation belongs to the migration this export dir is for.
 	var operationStepID int64
 	var operationMigrationID uuid.UUID
 	err = tx.QueryRow(ctx, fmt.Sprintf(`
@@ -242,6 +228,9 @@ func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, ste
 			cp.operationID, operationMigrationID, migrationID)
 	}
 
+	// 2. Close a previous step execution at this step only if its heartbeat is older
+	// than the lease: its process is gone. A live step execution is left alone, and
+	// the insert below then fails at once on one_running_per_step.
 	_, err = tx.Exec(ctx, fmt.Sprintf(`
 		UPDATE %s
 		SET status = 'failed', reason = $3, finished_at = now()
@@ -253,6 +242,8 @@ func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, ste
 		return 0, fmt.Errorf("claim step %s: close expired attempts: %w", step, err)
 	}
 
+	// 3. The insert is the claim. one_running_per_step allows one running
+	// step execution per (migration, step), so a second claimer gets a unique violation.
 	var id int64
 	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		INSERT INTO %s (migration_id, operation_step_id, step, executor_ref)
@@ -274,7 +265,7 @@ func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, ste
 	return id, nil
 }
 
-func (cp *YugabyteDB) heartbeatLoop(a *stepAttempt, onLost func(err error)) {
+func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err error)) {
 	ticker := time.NewTicker(cp.heartbeatInterval)
 	defer ticker.Stop()
 	lastSuccess := time.Now()
@@ -284,7 +275,7 @@ func (cp *YugabyteDB) heartbeatLoop(a *stepAttempt, onLost func(err error)) {
 			return
 		case <-ticker.C:
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), cp.heartbeatInterval+stepAttemptCloseTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), cp.heartbeatInterval+stepExecutionCloseTimeout)
 		tag, err := a.pool.Exec(ctx, fmt.Sprintf(
 			`UPDATE %s SET last_heartbeat_at = now() WHERE id = $1 AND status = 'running'`,
 			QUALIFIED_STEP_EXECUTION_TABLE_NAME), a.id)
@@ -294,6 +285,8 @@ func (cp *YugabyteDB) heartbeatLoop(a *stepAttempt, onLost func(err error)) {
 			return
 		default:
 		}
+		// No row updated: the step execution is no longer running, so another claimer
+		// closed it as expired. Stop rather than run the step twice.
 		if err == nil && tag.RowsAffected() == 0 {
 			onLost(goerrors.Errorf("step %s (step execution %d) was closed by another process; stopping", a.step, a.id))
 			return
@@ -302,6 +295,8 @@ func (cp *YugabyteDB) heartbeatLoop(a *stepAttempt, onLost func(err error)) {
 			lastSuccess = time.Now()
 			continue
 		}
+		// A failed heartbeat is retried on the next tick. Once none has succeeded
+		// for a whole lease, another claimer may already have taken the step.
 		log.Warnf("Heartbeat for step execution %d failed: %v", a.id, err)
 		if time.Since(lastSuccess) >= cp.leaseDuration {
 			onLost(fmt.Errorf("heartbeat for step %s (step execution %d) failed for %s; stopping so no other pod runs the step twice: %w",
@@ -311,13 +306,13 @@ func (cp *YugabyteDB) heartbeatLoop(a *stepAttempt, onLost func(err error)) {
 	}
 }
 
-// CloseStep closes the held attempt: succeeded when runErr is nil, failed
-// with runErr's text otherwise. It does nothing when no attempt is held or it
+// CloseStep closes the held step execution: succeeded when runErr is nil, failed
+// with runErr's text otherwise. It does nothing when no step execution is held or it
 // is already closed, so both the normal and the exit path can call it.
 func (cp *YugabyteDB) CloseStep(runErr error) error {
-	cp.attemptMu.Lock()
-	a := cp.attempt
-	cp.attemptMu.Unlock()
+	cp.stepExecutionMu.Lock()
+	a := cp.stepExecution
+	cp.stepExecutionMu.Unlock()
 	if a == nil {
 		return nil
 	}
@@ -326,19 +321,21 @@ func (cp *YugabyteDB) CloseStep(runErr error) error {
 	if a.closed {
 		return nil
 	}
-	defer a.finishLocked()
+	defer a.releaseLocked()
 
+	// The command succeeded but writing its done event (which also closes the
+	// step execution) failed: record the step execution as failed, with that error.
 	if runErr == nil && a.doneErr != nil {
 		runErr = fmt.Errorf("recording the step's completion in the control plane failed: %w", a.doneErr)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), stepAttemptCloseTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), stepExecutionCloseTimeout)
 	defer cancel()
 	var tag pgconn.CommandTag
 	var err error
 	if runErr == nil {
-		tag, err = a.pool.Exec(ctx, closeAttemptSQL("'succeeded'", "NULL"), a.id)
+		tag, err = a.pool.Exec(ctx, closeStepExecutionSQL("'succeeded'", "NULL"), a.id)
 	} else {
-		tag, err = a.pool.Exec(ctx, closeAttemptSQL("'failed'", "$2"), a.id, runErr.Error())
+		tag, err = a.pool.Exec(ctx, closeStepExecutionSQL("'failed'", "$2"), a.id, runErr.Error())
 	}
 	if err != nil {
 		return fmt.Errorf("close step execution %d: %w", a.id, err)
@@ -349,17 +346,17 @@ func (cp *YugabyteDB) CloseStep(runErr error) error {
 	return nil
 }
 
-func closeAttemptSQL(status, errorMessage string) string {
+func closeStepExecutionSQL(status, errorMessage string) string {
 	return fmt.Sprintf(`UPDATE %s SET status = %s, error_message = %s, finished_at = now()
 		WHERE id = $1 AND status = 'running'`, QUALIFIED_STEP_EXECUTION_TABLE_NAME, status, errorMessage)
 }
 
 // activeStepExecutionID is the id to stamp on rows written now, nil when no
-// attempt is open.
+// step execution is open.
 func (cp *YugabyteDB) activeStepExecutionID() *int64 {
-	cp.attemptMu.Lock()
-	a := cp.attempt
-	cp.attemptMu.Unlock()
+	cp.stepExecutionMu.Lock()
+	a := cp.stepExecution
+	cp.stepExecutionMu.Unlock()
 	if a == nil {
 		return nil
 	}
@@ -372,39 +369,39 @@ func (cp *YugabyteDB) activeStepExecutionID() *int64 {
 	return &id
 }
 
-// attemptClosedBy returns the open attempt when eventType is its own step's
+// stepExecutionDoneBy returns the open step execution when eventType is its own step's
 // phase: that phase's done event closes it.
-func (cp *YugabyteDB) attemptClosedBy(eventType string) *stepAttempt {
-	cp.attemptMu.Lock()
-	a := cp.attempt
-	cp.attemptMu.Unlock()
-	if a == nil || phaseSteps[eventType] != a.step {
+func (cp *YugabyteDB) stepExecutionDoneBy(eventType string) *stepExecution {
+	cp.stepExecutionMu.Lock()
+	a := cp.stepExecution
+	cp.stepExecutionMu.Unlock()
+	if a == nil || stepForEventType[eventType] != a.step {
 		return nil
 	}
 	return a
 }
 
-// execClosingAttempt runs cmd and closes the attempt in one transaction. The
-// close goes first: if the attempt is no longer running nothing is written.
-func (cp *YugabyteDB) execClosingAttempt(a *stepAttempt, cmd string, args ...any) error {
+// execAndCloseStepExecution runs cmd and closes the step execution in one transaction. The
+// close goes first: if the step execution is no longer running nothing is written.
+func (cp *YugabyteDB) execAndCloseStepExecution(a *stepExecution, cmd string, args ...any) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.closed {
-		return errAttemptNotRunning
+		return errStepExecutionNotRunning
 	}
-	err := cp.withPool(cmd, func(pool *pgxpool.Pool) error {
+	err := cp.withRetry(cmd, func(pool *pgxpool.Pool) error {
 		ctx := context.Background()
 		tx, err := pool.Begin(ctx)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
-		tag, err := tx.Exec(ctx, closeAttemptSQL("'succeeded'", "NULL"), a.id)
+		tag, err := tx.Exec(ctx, closeStepExecutionSQL("'succeeded'", "NULL"), a.id)
 		if err != nil {
 			return err
 		}
 		if tag.RowsAffected() == 0 {
-			return errAttemptNotRunning
+			return errStepExecutionNotRunning
 		}
 		if _, err := tx.Exec(ctx, cmd, args...); err != nil {
 			return err
@@ -415,6 +412,6 @@ func (cp *YugabyteDB) execClosingAttempt(a *stepAttempt, cmd string, args ...any
 		a.doneErr = err
 		return err
 	}
-	a.finishLocked()
+	a.releaseLocked()
 	return nil
 }

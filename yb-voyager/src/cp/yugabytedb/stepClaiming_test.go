@@ -286,7 +286,7 @@ func TestStepClaiming(t *testing.T) {
 			t.Fatal("the heartbeat did not report the lost attempt")
 		}
 
-		assert.ErrorIs(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_COMPLETED, ""), errAttemptNotRunning)
+		assert.ErrorIs(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_COMPLETED, ""), errStepExecutionNotRunning)
 		assert.NotContains(t, stampedEntries(t, migrationID), "schema.exported")
 		assert.Equal(t, "stopped", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
 		// The exit path must not overwrite what closed it.

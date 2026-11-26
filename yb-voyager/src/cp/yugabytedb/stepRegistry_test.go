@@ -15,15 +15,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package yugabytedb
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
-func TestControlPlaneStepFor(t *testing.T) {
+func TestStepForCommand(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		commandPath  string
@@ -40,18 +42,18 @@ func TestControlPlaneStepFor(t *testing.T) {
 		{name: "import schema post snapshot", commandPath: "yb-voyager import schema", postSnapshot: true, wantStep: "finalize-schema", wantClaims: true},
 		{name: "finalize", commandPath: "yb-voyager finalize-schema-post-data-import", wantStep: "finalize-schema", wantClaims: true},
 		{name: "end migration", commandPath: "yb-voyager end migration", wantStep: "end-migration", wantClaims: true},
-		{name: "export data source", commandPath: "yb-voyager export data", exporterRole: SOURCE_DB_EXPORTER_ROLE, wantStep: "export-data-from-source", wantClaims: true},
-		{name: "export data from source", commandPath: "yb-voyager export data from source", exporterRole: SOURCE_DB_EXPORTER_ROLE, wantStep: "export-data-from-source", wantClaims: true},
-		{name: "export data from target", commandPath: "yb-voyager export data from target", exporterRole: TARGET_DB_EXPORTER_FB_ROLE},
-		{name: "export data fall-forward role", commandPath: "yb-voyager export data", exporterRole: TARGET_DB_EXPORTER_FF_ROLE},
-		{name: "import data target", commandPath: "yb-voyager import data", importerRole: TARGET_DB_IMPORTER_ROLE, wantStep: "import-data-to-target", wantClaims: true},
-		{name: "import data to target", commandPath: "yb-voyager import data to target", importerRole: TARGET_DB_IMPORTER_ROLE, wantStep: "import-data-to-target", wantClaims: true},
-		{name: "import data to source", commandPath: "yb-voyager import data to source", importerRole: SOURCE_DB_IMPORTER_ROLE},
-		{name: "import data file", commandPath: "yb-voyager import data file", importerRole: IMPORT_FILE_ROLE},
+		{name: "export data source", commandPath: "yb-voyager export data", exporterRole: constants.SOURCE_DB_EXPORTER_ROLE, wantStep: "export-data-from-source", wantClaims: true},
+		{name: "export data from source", commandPath: "yb-voyager export data from source", exporterRole: constants.SOURCE_DB_EXPORTER_ROLE, wantStep: "export-data-from-source", wantClaims: true},
+		{name: "export data from target", commandPath: "yb-voyager export data from target", exporterRole: constants.TARGET_DB_EXPORTER_FB_ROLE},
+		{name: "export data fall-forward role", commandPath: "yb-voyager export data", exporterRole: constants.TARGET_DB_EXPORTER_FF_ROLE},
+		{name: "import data target", commandPath: "yb-voyager import data", importerRole: constants.TARGET_DB_IMPORTER_ROLE, wantStep: "import-data-to-target", wantClaims: true},
+		{name: "import data to target", commandPath: "yb-voyager import data to target", importerRole: constants.TARGET_DB_IMPORTER_ROLE, wantStep: "import-data-to-target", wantClaims: true},
+		{name: "import data to source", commandPath: "yb-voyager import data to source", importerRole: constants.SOURCE_DB_IMPORTER_ROLE},
+		{name: "import data file", commandPath: "yb-voyager import data file", importerRole: constants.IMPORT_FILE_ROLE},
 		{name: "unrelated command", commandPath: "yb-voyager status"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			step, claims := controlPlaneStepFor(tc.commandPath, tc.exporterRole, tc.importerRole, tc.postSnapshot)
+			step, claims := StepForCommand(tc.commandPath, tc.exporterRole, tc.importerRole, tc.postSnapshot)
 			assert.Equal(t, tc.wantClaims, claims)
 			if tc.wantClaims {
 				assert.Equal(t, tc.wantStep, step)

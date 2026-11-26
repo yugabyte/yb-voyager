@@ -440,8 +440,8 @@ func TestYugabyteDBStructs(t *testing.T) {
 		executorRef             *string
 		heartbeatInterval       time.Duration
 		leaseDuration           time.Duration
-		attemptMu               sync.Mutex
-		attempt                 *stepAttempt
+		stepExecutionMu         sync.Mutex
+		stepExecution           *stepExecution
 	}{}
 
 	t.Run("Validate YugabyteDB Struct Definition", func(t *testing.T) {
