@@ -51,6 +51,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
@@ -738,6 +739,55 @@ func retrieveMigrationUUID() error {
 		log.Infof("migrationID: %s", migrationUUID)
 	}
 	return claimControlPlaneStep()
+}
+
+// Control plane step claiming hooks. See design-specs/cp-step-claiming.md.
+
+func stepClaimingControlPlane() (*yugabytedb.YugabyteDB, bool) {
+	ybdb, ok := controlPlane.(*yugabytedb.YugabyteDB)
+	return ybdb, ok && ybdb.StepClaimingEnabled()
+}
+
+// claimControlPlaneStep claims the current command's step. It does nothing
+// unless the yugabytedb control plane has step claiming on.
+func claimControlPlaneStep() error {
+	ybdb, ok := stepClaimingControlPlane()
+	if !ok {
+		return nil
+	}
+	step, ok := yugabytedb.StepForCommand(currentCommand, exporterRole, importerRole, bool(flagPostSnapshotImport))
+	if !ok {
+		return nil
+	}
+	err := ybdb.ClaimStep(migrationUUID, step, func(err error) {
+		utils.ErrExit("control plane step lost: %w", err)
+	})
+	if err != nil {
+		return fmt.Errorf("claim step %s: %w", step, err)
+	}
+	return nil
+}
+
+// closeControlPlaneStep closes the held attempt: succeeded when runErr is nil,
+// failed otherwise. Safe to call more than once.
+func closeControlPlaneStep(runErr error) {
+	ybdb, ok := stepClaimingControlPlane()
+	if !ok {
+		return
+	}
+	if err := ybdb.CloseStep(runErr); err != nil {
+		log.Errorf("Could not close the control plane step attempt: %v", err)
+	}
+}
+
+// closeControlPlaneStepOnExit is closeControlPlaneStep for the exit handler,
+// which runs only when the command did not reach PersistentPostRun.
+func closeControlPlaneStepOnExit() {
+	runErr := utils.ErrExitErr
+	if runErr == nil {
+		runErr = fmt.Errorf("command was interrupted before it completed")
+	}
+	closeControlPlaneStep(runErr)
 }
 
 func nameContainsCapitalLetter(name string) bool {

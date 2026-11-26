@@ -51,17 +51,6 @@ const QUALIFIED_STEP_EXECUTION_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + STEP_EX
 const STEP_EXECUTION_ID_COLUMN = "step_execution_id"
 
 const (
-	STEP_ASSESS_MIGRATION        = "assess-migration"
-	STEP_EXPORT_SCHEMA           = "export-schema"
-	STEP_ANALYZE_SCHEMA          = "analyze-schema"
-	STEP_IMPORT_SCHEMA           = "import-schema"
-	STEP_EXPORT_DATA_FROM_SOURCE = "export-data-from-source"
-	STEP_IMPORT_DATA_TO_TARGET   = "import-data-to-target"
-	STEP_FINALIZE_SCHEMA         = "finalize-schema"
-	STEP_END_MIGRATION           = "end-migration"
-)
-
-const (
 	defaultHeartbeatInterval       = 10 * time.Second
 	defaultLeaseDuration           = 2 * time.Minute
 	stepAttemptCloseTimeout        = 10 * time.Second
@@ -69,16 +58,6 @@ const (
 	oneRunningPerStepConstraint    = "one_running_per_step"
 	stepExecutionLeaseExpiredCause = "lease_expired"
 )
-
-// The step each migration event type reports. Its done event closes the attempt.
-var phaseSteps = map[string]string{
-	"ASSESS MIGRATION": STEP_ASSESS_MIGRATION,
-	"EXPORT SCHEMA":    STEP_EXPORT_SCHEMA,
-	"ANALYZE SCHEMA":   STEP_ANALYZE_SCHEMA,
-	"EXPORT DATA":      STEP_EXPORT_DATA_FROM_SOURCE,
-	"IMPORT SCHEMA":    STEP_IMPORT_SCHEMA,
-	"IMPORT DATA":      STEP_IMPORT_DATA_TO_TARGET,
-}
 
 var errAttemptNotRunning = goerrors.New("step attempt is no longer running")
 
