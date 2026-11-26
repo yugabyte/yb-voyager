@@ -96,7 +96,7 @@ func validatePersistedCdcPartitionKeysForExcludedColumns(persisted map[string]me
 			return fmt.Errorf("lookup table %s of the persisted cdc partition key: %w", tableKey, err)
 		}
 		if indexes := uniqueIndexesWithExcludedColumns(table, excludeColumnList, tableToUniqueIndexes); len(indexes) > 0 {
-			problems = append(problems, fmt.Sprintf("%s uses %s, but its unique index(es) %s contain column(s) excluded via --exclude-column-list",
+			problems = append(problems, fmt.Sprintf("%s uses %s, but its unique index(es) %s contain column(s) excluded via --exclude-column-list; use table",
 				table.ForOutput(), partitionKey.Strategy, strings.Join(indexes, ", ")))
 			continue
 		}
@@ -104,13 +104,13 @@ func validatePersistedCdcPartitionKeysForExcludedColumns(persisted map[string]me
 			continue
 		}
 		if excludedCols := customKeyExcludedColumns(excludeColumnList, table, partitionKey.Columns); len(excludedCols) > 0 {
-			problems = append(problems, fmt.Sprintf("%s uses custom key column(s) [%s] that are excluded via --exclude-column-list",
+			problems = append(problems, fmt.Sprintf("%s uses custom key column(s) [%s] that are excluded via --exclude-column-list; use pk, table, or a custom key without them",
 				table.ForOutput(), strings.Join(excludedCols, ", ")))
 		}
 	}
 	if len(problems) > 0 {
 		return goerrors.Errorf("the cdc-partition-key persisted when import data started cannot stream these tables:\n  %s\n"+
-			"They require table partitioning, and the cdc-partition-key cannot change after import data has started. "+
+			"The cdc-partition-key cannot change after import data has started. "+
 			"Re-run import data with --start-clean.", strings.Join(problems, "\n  "))
 	}
 	return nil

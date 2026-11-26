@@ -965,9 +965,9 @@ func TestPrepareCdcPartitionKeyResumeChecksPersistedStrategyAgainstExcludedColum
 		err := prepareCdcPartitionKey(tableNames, uniqueIndexes)
 		require.Error(t, err)
 		assert.Equal(t, "the cdc-partition-key persisted when import data started cannot stream these tables:\n"+
-			"  test_schema.audit uses custom key column(s) [region, Email] that are excluded via --exclude-column-list\n"+
-			"  test_schema.orders uses pk, but its unique index(es) orders_email_key [email] contain column(s) excluded via --exclude-column-list\n"+
-			"They require table partitioning, and the cdc-partition-key cannot change after import data has started. "+
+			"  test_schema.audit uses custom key column(s) [region, Email] that are excluded via --exclude-column-list; use pk, table, or a custom key without them\n"+
+			"  test_schema.orders uses pk, but its unique index(es) orders_email_key [email] contain column(s) excluded via --exclude-column-list; use table\n"+
+			"The cdc-partition-key cannot change after import data has started. "+
 			"Re-run import data with --start-clean.", err.Error())
 	})
 }
