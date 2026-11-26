@@ -87,7 +87,16 @@ var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
 	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
 	Long: `A CLI based migration engine for complete database migration from a source database to YugabyteDB. Currently supported source databases are Oracle, MySQL, PostgreSQL.
-Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
+Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.
+
+Migrate with an AI agent:
+  The yb-voyager agent skill guides an AI coding agent through a PostgreSQL to YugabyteDB migration, phase by phase, asking for your approval between phases.
+  Install it for any agent:
+    npx skills add yugabyte/yugabytedb-skills -s yb-voyager
+  Or, in Claude Code, install it as a plugin:
+    /plugin marketplace add yugabyte/yugabytedb-skills
+    /plugin install yb-voyager@yugabytedb-skills
+  More details: https://github.com/yugabyte/yugabytedb-skills#readme`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		suppressInfoMessages = cmd.Name() == "assess-migration"
