@@ -177,6 +177,11 @@ func (cp *YugabyteDB) checkStepTables() error {
 	return nil
 }
 
+// newAttemptPool opens the attempt's own pool for the claim, heartbeat and close.
+// It is separate from cp.connPool, which Finalize closes before the attempt is
+// closed and whose writers hold connMutex while retrying; a heartbeat must not
+// wait behind them. A pool, not one connection, because the heartbeat goroutine
+// and the close can run at the same time.
 func (cp *YugabyteDB) newAttemptPool() (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(context.Background(), os.Getenv(DB_CONN_STRING_ENV_VAR))
 	if err != nil {
@@ -223,6 +228,8 @@ func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, ste
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
 
+	// 1. Find this command's step in the operation's plan, and check the
+	// operation belongs to the migration this export dir is for.
 	var operationStepID int64
 	var operationMigrationID uuid.UUID
 	err = tx.QueryRow(ctx, fmt.Sprintf(`
@@ -242,6 +249,9 @@ func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, ste
 			cp.operationID, operationMigrationID, migrationID)
 	}
 
+	// 2. Close a previous attempt at this step only if its heartbeat is older
+	// than the lease: its process is gone. A live attempt is left alone, and
+	// the insert below then fails at once on one_running_per_step.
 	_, err = tx.Exec(ctx, fmt.Sprintf(`
 		UPDATE %s
 		SET status = 'failed', reason = $3, finished_at = now()
@@ -253,6 +263,8 @@ func (cp *YugabyteDB) claimStepTx(pool *pgxpool.Pool, migrationID uuid.UUID, ste
 		return 0, fmt.Errorf("claim step %s: close expired attempts: %w", step, err)
 	}
 
+	// 3. The insert is the claim. one_running_per_step allows one running
+	// attempt per (migration, step), so a second claimer gets a unique violation.
 	var id int64
 	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		INSERT INTO %s (migration_id, operation_step_id, step, executor_ref)
@@ -294,6 +306,8 @@ func (cp *YugabyteDB) heartbeatLoop(a *stepAttempt, onLost func(err error)) {
 			return
 		default:
 		}
+		// No row updated: the attempt is no longer running, so another claimer
+		// closed it as expired. Stop rather than run the step twice.
 		if err == nil && tag.RowsAffected() == 0 {
 			onLost(goerrors.Errorf("step %s (step execution %d) was closed by another process; stopping", a.step, a.id))
 			return
@@ -302,6 +316,8 @@ func (cp *YugabyteDB) heartbeatLoop(a *stepAttempt, onLost func(err error)) {
 			lastSuccess = time.Now()
 			continue
 		}
+		// A failed heartbeat is retried on the next tick. Once none has succeeded
+		// for a whole lease, another claimer may already have taken the step.
 		log.Warnf("Heartbeat for step execution %d failed: %v", a.id, err)
 		if time.Since(lastSuccess) >= cp.leaseDuration {
 			onLost(fmt.Errorf("heartbeat for step %s (step execution %d) failed for %s; stopping so no other pod runs the step twice: %w",
@@ -328,6 +344,8 @@ func (cp *YugabyteDB) CloseStep(runErr error) error {
 	}
 	defer a.finishLocked()
 
+	// The command succeeded but writing its done event (which also closes the
+	// attempt) failed: record the attempt as failed, with that error.
 	if runErr == nil && a.doneErr != nil {
 		runErr = fmt.Errorf("recording the step's completion in the control plane failed: %w", a.doneErr)
 	}
