@@ -2653,7 +2653,7 @@ func handleEmptyTableListForExport(finalTableList []sqlname.NameTuple) {
 		DataFileList: make([]*datafile.FileEntry, 0),
 	}
 	dfd.Save()
-	closeControlPlaneStep(nil)
+	closeClaimedStep(nil)
 	os.Exit(0)
 }
 

@@ -104,7 +104,7 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 
 - For phases that write a done entry in `migration_state` (assessment.completed, schema.exported, schema.analyzed, schema.imported, data.exported, data.imported), the done entry, its `metadata` document (if any) and the attempt's close are **one transaction**.
 - The close is done first in the transaction. If it matches 0 rows (attempt lost), the transaction rolls back and no done entry is written.
-- Only the done event of the attempt's own step closes the attempt. Other phases that run inside a command (for example the assessment that `export schema` may run first) are stamped with `step_execution_id` but do not close it.
+- Only the done event of the attempt's own step closes the step execution. Other phases that run inside a command (for example the assessment that `export schema` may run first) are stamped with `step_execution_id` but do not close it.
 - For steps with no done entry (`finalize-schema`, `end-migration`), and for a success exit where the done event was never sent (for example `export schema` finding the schema already exported), the attempt closes at successful command completion.
 - Closing on exit runs inside the existing `PackAndSendCallhomePayloadOnExit` exit handler, above its payload-sent guard. Exit handlers run in random order, so a second handler cannot be ordered.
 - "Successful command completion" is recorded by `PersistentPostRun`, which runs only when the command returned normally.

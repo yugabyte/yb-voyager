@@ -49,14 +49,14 @@ type YugabyteDB struct {
 	connPool           *pgxpool.Pool
 	lastRowCountUpdate map[string]time.Time
 
-	// Step claiming (stepclaim.go). operationID is uuid.Nil when it is off.
-	// attempt is guarded by attemptMu; the attempt's own state by its mu.
+	// Step claiming (stepClaiming.go). operationID is uuid.Nil when it is off.
+	// stepExecution is guarded by stepExecutionMu; the step execution's own state by its mu.
 	operationID       uuid.UUID
 	executorRef       *string
 	heartbeatInterval time.Duration
 	leaseDuration     time.Duration
-	attemptMu         sync.Mutex
-	attempt           *stepAttempt
+	stepExecutionMu   sync.Mutex
+	stepExecution     *stepExecution
 }
 
 func New(exportDir string) *YugabyteDB {
@@ -71,7 +71,7 @@ func (cp *YugabyteDB) Init() error {
 	cp.rowCountUpdateEventChan = make(chan []TableProgress, 200)
 
 	var err error
-	cp.operationID, cp.executorRef, err = parseStepClaimEnv()
+	cp.operationID, cp.executorRef, err = readStepClaimingEnv()
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func (cp *YugabyteDB) Init() error {
 	}
 	err = cp.checkTables()
 	if err == nil && cp.StepClaimingEnabled() {
-		err = cp.checkStepTables()
+		err = cp.checkStepClaimingTables()
 	}
 	if err != nil {
 		cp.disconnect()
@@ -452,7 +452,7 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 	log.Infof("Sending migration event to the yugabytedb control plane: %s %s for migration %s",
 		migrationEvent.EventType, migrationEvent.Status, migrationID)
 
-	// With no open attempt the statements are exactly the unstamped ones, so
+	// With no open step execution the statements are exactly the unstamped ones, so
 	// the step_execution_id column is not touched.
 	stepExecutionID := cp.activeStepExecutionID()
 	var stampColumn string
@@ -491,10 +491,10 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 		return cp.exec(cmd, withStamp(migrationID, phase.startedEntry, phase.doneEntry)...)
 
 	case STATUS_COMPLETED:
-		closing := cp.attemptClosedBy(migrationEvent.EventType)
+		closing := cp.stepExecutionDoneBy(migrationEvent.EventType)
 		run := func(cmd string, args []any) error {
 			if closing != nil {
-				return cp.execClosingAttempt(closing, cmd, args...)
+				return cp.execAndCloseStepExecution(closing, cmd, args...)
 			}
 			return cp.exec(cmd, args...)
 		}
@@ -598,15 +598,15 @@ func (cp *YugabyteDB) sendTableDataProgress(tableProgressList []TableProgress) e
 // is retried on a fresh connection, and the last error is returned if every
 // attempt fails.
 func (cp *YugabyteDB) exec(cmd string, args ...any) error {
-	return cp.withPool(cmd, func(connPool *pgxpool.Pool) error {
+	return cp.withRetry(cmd, func(connPool *pgxpool.Pool) error {
 		_, err := connPool.Exec(context.Background(), cmd, args...)
 		return err
 	})
 }
 
-// withPool runs fn with the same retry policy as exec. errAttemptNotRunning is
+// withRetry runs fn with the same retry policy as exec. errStepExecutionNotRunning is
 // final: retrying cannot change it.
-func (cp *YugabyteDB) withPool(cmd string, fn func(connPool *pgxpool.Pool) error) error {
+func (cp *YugabyteDB) withRetry(cmd string, fn func(connPool *pgxpool.Pool) error) error {
 	cp.connMutex.Lock()
 	defer cp.connMutex.Unlock()
 
@@ -620,7 +620,7 @@ func (cp *YugabyteDB) withPool(cmd string, fn func(connPool *pgxpool.Pool) error
 			if err == nil {
 				return nil
 			}
-			if errors.Is(err, errAttemptNotRunning) {
+			if errors.Is(err, errStepExecutionNotRunning) {
 				return err
 			}
 		}

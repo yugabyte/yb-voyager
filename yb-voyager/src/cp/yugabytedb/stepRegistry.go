@@ -30,8 +30,8 @@ const (
 	STEP_END_MIGRATION           = "end-migration"
 )
 
-// The step each migration event type reports. Its done event closes the attempt.
-var phaseSteps = map[string]string{
+// The step each migration event type reports. Its done event closes the step execution.
+var stepForEventType = map[string]string{
 	"ASSESS MIGRATION": STEP_ASSESS_MIGRATION,
 	"EXPORT SCHEMA":    STEP_EXPORT_SCHEMA,
 	"ANALYZE SCHEMA":   STEP_ANALYZE_SCHEMA,

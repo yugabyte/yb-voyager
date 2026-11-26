@@ -738,20 +738,20 @@ func retrieveMigrationUUID() error {
 	} else {
 		log.Infof("migrationID: %s", migrationUUID)
 	}
-	return claimControlPlaneStep()
+	return claimStepForCommand()
 }
 
 // Control plane step claiming hooks. See design-specs/cp-step-claiming.md.
 
-func stepClaimingControlPlane() (*yugabytedb.YugabyteDB, bool) {
+func stepClaimingCP() (*yugabytedb.YugabyteDB, bool) {
 	ybdb, ok := controlPlane.(*yugabytedb.YugabyteDB)
 	return ybdb, ok && ybdb.StepClaimingEnabled()
 }
 
-// claimControlPlaneStep claims the current command's step. It does nothing
+// claimStepForCommand claims the current command's step. It does nothing
 // unless the yugabytedb control plane has step claiming on.
-func claimControlPlaneStep() error {
-	ybdb, ok := stepClaimingControlPlane()
+func claimStepForCommand() error {
+	ybdb, ok := stepClaimingCP()
 	if !ok {
 		return nil
 	}
@@ -768,10 +768,10 @@ func claimControlPlaneStep() error {
 	return nil
 }
 
-// closeControlPlaneStep closes the held attempt: succeeded when runErr is nil,
+// closeClaimedStep closes the held step execution: succeeded when runErr is nil,
 // failed otherwise. Safe to call more than once.
-func closeControlPlaneStep(runErr error) {
-	ybdb, ok := stepClaimingControlPlane()
+func closeClaimedStep(runErr error) {
+	ybdb, ok := stepClaimingCP()
 	if !ok {
 		return
 	}
@@ -780,14 +780,14 @@ func closeControlPlaneStep(runErr error) {
 	}
 }
 
-// closeControlPlaneStepOnExit is closeControlPlaneStep for the exit handler,
+// closeClaimedStepOnExit is closeClaimedStep for the exit handler,
 // which runs only when the command did not reach PersistentPostRun.
-func closeControlPlaneStepOnExit() {
+func closeClaimedStepOnExit() {
 	runErr := utils.ErrExitErr
 	if runErr == nil {
 		runErr = fmt.Errorf("command was interrupted before it completed")
 	}
-	closeControlPlaneStep(runErr)
+	closeClaimedStep(runErr)
 }
 
 func nameContainsCapitalLetter(name string) bool {
@@ -1974,7 +1974,7 @@ func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 func PackAndSendCallhomePayloadOnExit() {
 	// Exit handlers run in random order, so this lives here, above the
 	// payload-sent guard, rather than in a handler of its own.
-	closeControlPlaneStepOnExit()
+	closeClaimedStepOnExit()
 
 	if callHomeErrorOrCompletePayloadSent {
 		return
