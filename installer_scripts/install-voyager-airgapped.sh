@@ -386,7 +386,7 @@ get_passed_options() {
                 echo "  -m, --mysql-only               Install and check only MySQL source related voyager dependencies."
                 echo "  -o, --oracle-only              Install and check only Oracle source related voyager dependencies."
                 echo ""
-                echo "On ARM (aarch64) machines, only PostgreSQL source databases are supported; --mysql-only and --oracle-only are not available."
+                echo "On ARM (aarch64) machines, only PostgreSQL source databases are supported: --pg-only is required, and --mysql-only / --oracle-only are not available."
                 PRINT_DEPENDENCIES="true"
                 shift
                 ;;
@@ -411,8 +411,15 @@ get_passed_options() {
             echo -e "\e[31mERROR: Only PostgreSQL source databases are supported on ARM (aarch64). MySQL and Oracle are not supported yet.\e[0m"
             exit 1
         fi
-        PG_ONLY=1
-        echo -e "\e[33mNOTE: On ARM (aarch64), yb-voyager supports PostgreSQL source databases only. Only PostgreSQL related dependencies will be checked and installed.\e[0m"
+        if (( PG_ONLY == 0 )); then
+            if [ "$PRINT_DEPENDENCIES" = "true" ]; then
+                # --help: show the PostgreSQL dependencies only
+                PG_ONLY=1
+            else
+                echo -e "\e[31mERROR: On ARM (aarch64), yb-voyager supports PostgreSQL source databases only. Re-run with --pg-only.\e[0m"
+                exit 1
+            fi
+        fi
     fi
 
     # If none of the three options are passed then by default all are true
