@@ -140,11 +140,12 @@ def released_build(branch: str) -> Optional[str]:
     return answer
 
 
-def released_builds_newest_first(branch: str, latest: str) -> Iterator[str]:
+def released_builds_newest_first(branch: str, latest: str, report=print) -> Iterator[str]:
     """`latest`, then the newest released build of each older patch line of `branch`."""
     yield latest
     for patch in range(version_key(latest)[2] - 1, -1, -1):
         build = released_build(f"{branch}.{patch}")
+        report(f"  /version/released/{branch}.{patch} -> {build}")
         if build:
             yield build
 
@@ -163,15 +164,16 @@ def ysql_migrations(build: str) -> set:
         raise RuntimeError(
             f"{exc} (GITHUB_TOKEN is unset; the unauthenticated GitHub API allows 60 requests per hour per IP)"
         ) from None
-    return {e["name"].split("__", 1)[1] for e in entries if e["name"].startswith("V") and "__" in e["name"]}
+    migrations = {e["name"].split("__", 1)[1] for e in entries if e["name"].startswith("V") and "__" in e["name"]}
+    if not migrations:
+        raise RuntimeError(f"no YSQL migrations found for {build} at {MIGRATIONS_API_URL}?ref={build}")
+    return migrations
 
 
 def compatible_old_build(new: str, old_branch: str, old_latest: str, report=print) -> str:
-    """The newest released build of old_branch whose YSQL migrations are all present in `new`."""
+    """The newest build, among old_branch's latest release per patch line, whose YSQL migrations are all present in `new`."""
     new_migrations = ysql_migrations(new)
-    if not new_migrations:
-        raise RuntimeError(f"no YSQL migrations found for {new} at {MIGRATIONS_API_URL}?ref={new}")
-    for candidate in released_builds_newest_first(old_branch, old_latest):
+    for candidate in released_builds_newest_first(old_branch, old_latest, report):
         try:
             candidate_migrations = ysql_migrations(candidate)
         except HTTPStatusError as exc:
