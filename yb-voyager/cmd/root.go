@@ -251,7 +251,13 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		if shouldRunPersistentPreRun(cmd) {
 			controlPlane.Finalize()
-			if err := controlPlane.CloseStep(nil); err != nil {
+			// A command interrupted by a signal returns normally too, racing the
+			// exit handler's failed close; it must not be recorded as succeeded.
+			var runErr error
+			if ProcessShutdownRequested.Load() {
+				runErr = fmt.Errorf("interrupted by a signal")
+			}
+			if err := controlPlane.CloseStep(runErr); err != nil {
 				log.Errorf("Could not close the control plane step attempt: %v", err)
 			}
 		}
