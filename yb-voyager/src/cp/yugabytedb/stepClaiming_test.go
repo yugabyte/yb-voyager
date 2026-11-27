@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -101,6 +102,7 @@ func TestStepClaiming(t *testing.T) {
 
 	t.Setenv(DB_CONN_STRING_ENV_VAR, dsn)
 	t.Setenv(OPERATION_ID_ENV_VAR, "")
+	t.Setenv(STEP_EXECUTION_ID_ENV_VAR, "")
 	t.Setenv(EXECUTOR_REF_ENV_VAR, "")
 
 	for _, ddl := range controlPlaneSchemaDDL {
@@ -396,5 +398,62 @@ func TestStepClaiming(t *testing.T) {
 		require.NoError(t, db.QueryRow(`SELECT count(*) FROM voyager_core.step_execution WHERE migration_id IN ($1, $2)`,
 			migrationID, otherMigration).Scan(&count))
 		assert.Equal(t, 0, count)
+	})
+
+	t.Run("a child joins the parent's step execution", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, STEP_EXPORT_SCHEMA))
+		parent := newControlPlane(t)
+		require.NoError(t, parent.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)))
+		parentID := *parent.HeldStepExecutionID()
+
+		t.Setenv(OPERATION_ID_ENV_VAR, "")
+		t.Setenv(STEP_EXECUTION_ID_ENV_VAR, strconv.FormatInt(parentID, 10))
+		child := newControlPlane(t)
+		require.True(t, child.StepClaimingEnabled())
+		require.NoError(t, child.ClaimStep(migrationID, STEP_ASSESS_MIGRATION, neverLost(t)))
+		require.NotNil(t, child.HeldStepExecutionID())
+		assert.Equal(t, parentID, *child.HeldStepExecutionID())
+
+		require.NoError(t, sendEvent(t, child, migrationID, "ASSESS MIGRATION", STATUS_IN_PROGRESS, ""))
+		require.NoError(t, sendEvent(t, child, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, `{"PayloadVersion":"1.8"}`))
+		assert.Equal(t, map[string]sql.NullInt64{
+			"assessment.started":   {Int64: parentID, Valid: true},
+			"assessment.completed": {Int64: parentID, Valid: true},
+		}, stampedEntries(t, migrationID))
+
+		require.NoError(t, child.CloseStep(nil))
+		got := attempts(t, migrationID, STEP_EXPORT_SCHEMA)
+		require.Len(t, got, 1)
+		assert.Equal(t, "running", got[0].status)
+		assert.False(t, got[0].finished)
+
+		require.NoError(t, parent.CloseStep(nil))
+		assert.Equal(t, "succeeded", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
+	})
+
+	t.Run("joining fails for a closed, foreign or missing step execution", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, STEP_EXPORT_SCHEMA))
+		parent := newControlPlane(t)
+		require.NoError(t, parent.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)))
+		parentID := *parent.HeldStepExecutionID()
+
+		join := func(t *testing.T, id int64, forMigration uuid.UUID) error {
+			t.Setenv(OPERATION_ID_ENV_VAR, "")
+			t.Setenv(STEP_EXECUTION_ID_ENV_VAR, strconv.FormatInt(id, 10))
+			return newControlPlane(t).ClaimStep(forMigration, STEP_ASSESS_MIGRATION, neverLost(t))
+		}
+		assert.ErrorContains(t, join(t, parentID, uuid.New()), "belongs to migration")
+		assert.ErrorContains(t, join(t, parentID+1000000, migrationID), "does not exist")
+
+		require.NoError(t, parent.CloseStep(nil))
+		assert.ErrorContains(t, join(t, parentID, migrationID), "is succeeded, not running")
+	})
+
+	t.Run("both env vars set fails Init", func(t *testing.T) {
+		withOperation(t, operationID)
+		t.Setenv(STEP_EXECUTION_ID_ENV_VAR, "1")
+		assert.ErrorContains(t, New(t.TempDir()).Init(), "must not both be set")
 	})
 }

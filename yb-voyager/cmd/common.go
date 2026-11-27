@@ -768,6 +768,17 @@ func claimStepForCommand() error {
 	return nil
 }
 
+// stepClaimingChildEnv is the environment for a child Voyager process: the
+// step claiming vars are removed, and when forwardStepExecution is set and this
+// process holds a step execution the child joins it.
+func stepClaimingChildEnv(forwardStepExecution bool) []string {
+	var stepExecutionID *int64
+	if ybdb, ok := stepClaimingCP(); ok && forwardStepExecution {
+		stepExecutionID = ybdb.HeldStepExecutionID()
+	}
+	return yugabytedb.ChildProcessEnv(os.Environ(), stepExecutionID)
+}
+
 // closeClaimedStep closes the held step execution: succeeded when runErr is nil,
 // failed otherwise. Safe to call more than once.
 func closeClaimedStep(runErr error) {

@@ -151,6 +151,9 @@ What Voyager does with them:
   older than 2 minutes as `failed` with `reason = 'lease_expired'`.
 - Close: `succeeded`, or `failed` with `error_message`. `stopped` is never
   written by Voyager.
+- A child process joined to its parent's step execution (internal
+  `VOYAGER_STEP_EXECUTION_ID`) only checks the row is `running` and belongs to
+  its migration, and stamps its rows. It never inserts, heartbeats or closes it.
 - While an attempt is open, `migration_state` and `metadata` rows carry its
   id in `step_execution_id`. Otherwise the column is NULL, and Voyager does not
   name it in its statements.

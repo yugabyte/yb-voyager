@@ -27,7 +27,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
@@ -49,10 +48,9 @@ type YugabyteDB struct {
 	connPool           *pgxpool.Pool
 	lastRowCountUpdate map[string]time.Time
 
-	// Step claiming (stepClaiming.go). operationID is uuid.Nil when it is off.
+	// Step claiming (stepClaiming.go). claimingEnv.mode is off by default.
 	// stepExecution is guarded by stepExecutionMu; the step execution's own state by its mu.
-	operationID       uuid.UUID
-	executorRef       *string
+	claimingEnv       stepClaimingEnv
 	heartbeatInterval time.Duration
 	leaseDuration     time.Duration
 	stepExecutionMu   sync.Mutex
@@ -71,7 +69,7 @@ func (cp *YugabyteDB) Init() error {
 	cp.rowCountUpdateEventChan = make(chan []TableProgress, 200)
 
 	var err error
-	cp.operationID, cp.executorRef, err = readStepClaimingEnv()
+	cp.claimingEnv, err = readStepClaimingEnv()
 	if err != nil {
 		return err
 	}

@@ -34,9 +34,21 @@
 - Active only when the control plane type is `yugabytedb` **and** `VOYAGER_OPERATION_ID` is set.
 - Otherwise behaviour is unchanged: no new queries, no new columns in any statement, no goroutine.
 
+**Modes** (chosen at `Init` from the two env vars)
+
+- Off: neither var set. Behaviour as above.
+- Claim: `VOYAGER_OPERATION_ID` set. Claims, heartbeats and closes its own step execution (sections 5 to 7).
+- Join: `VOYAGER_STEP_EXECUTION_ID` set. Runs inside a step execution held by its parent process:
+  - `Init` runs the same table checks as claim mode.
+  - When the migration UUID is resolved (where claim mode would claim), the step execution must exist, be `running` and have this migration's `migration_id`. Any mismatch fails the command before work.
+  - Rows are stamped with the id. No claim, no heartbeat, no close: `CloseStep` does nothing and no done event closes it.
+- Both vars set: `Init` fails.
+- Child processes: `export schema` starts `assess-migration` with `VOYAGER_OPERATION_ID` removed and `VOYAGER_STEP_EXECUTION_ID` set to its own step execution id (nothing is set when it holds none). `assess-migration-bulk` children (different migrations) get both removed.
+
 **Environment**
 
 - `VOYAGER_OPERATION_ID`: required to activate. Must parse as a uuid, else `Init` fails.
+- `VOYAGER_STEP_EXECUTION_ID`: internal, set only by Voyager for its own child process. Not part of the platform contract, and not forwarded into docker. Must parse as a positive integer, else `Init` fails.
 - `EXECUTOR_REF`: optional. If set it must parse as a JSON object, else `Init` fails. Stored as-is in `step_execution.executor_ref`. If unset the column is NULL.
 
 ## 3. Data model (owned by the platform)
@@ -106,7 +118,8 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 
 - For phases that write a done entry in `migration_state` (assessment.completed, schema.exported, schema.analyzed, schema.imported, data.exported, data.imported), the done entry, its `metadata` document (if any) and the attempt's close are **one transaction**.
 - The close is done first in the transaction. If it matches 0 rows (attempt lost), the transaction rolls back and no done entry is written.
-- Only the done event of the attempt's own step closes the step execution. Other phases that run inside a command (for example the assessment that `export schema` may run first) are stamped with `step_execution_id` but do not close it.
+- Only the done event of the attempt's own step closes the step execution. Other phases that run inside a command are stamped with `step_execution_id` but do not close it.
+- The assessment that `export schema` may run first is a child process (`assess-migration`) that joins the parent's step execution (section 2): its rows are stamped with the parent's id, and it never claims, heartbeats or closes. The parent's heartbeat keeps the lease.
 - For steps with no done entry (`finalize-schema`, `end-migration`), and for a success exit where the done event was never sent (for example `export schema` finding the schema already exported), the attempt closes at successful command completion.
 - Closing on exit runs inside the existing `PackAndSendCallhomePayloadOnExit` exit handler, above its payload-sent guard. Exit handlers run in random order, so a second handler cannot be ordered.
 - "Successful command completion" is recorded by `PersistentPostRun`, which runs only when the command returned normally.

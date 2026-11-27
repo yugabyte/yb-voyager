@@ -11,6 +11,11 @@ doc and `design-specs/cp-step-claiming.md`). `Init` then also fails if those
 tables or the `step_execution_id` columns are missing. With it unset, no query
 or statement differs from before.
 
+`VOYAGER_STEP_EXECUTION_ID` is the internal join mode: a child process (the
+assessment `export schema` runs) stamps rows with its parent's step execution
+and never claims, heartbeats or closes it. Voyager sets it only for its own
+child; setting both vars is an `Init` error.
+
 The type is internal: it is not in the config templates or in the
 `control-plane-type` error message.
 
