@@ -127,7 +127,7 @@ func (ybaeon *YBAeon) validateConfig() error {
 	return nil
 }
 
-func (ybaeon *YBAeon) ClaimStep(_ uuid.UUID, _ string, _ func(err error)) error {
+func (ybaeon *YBAeon) ClaimStep(_ func() (uuid.UUID, error), _ string, _ func(err error)) error {
 	return nil
 }
 
@@ -136,7 +136,7 @@ func (ybaeon *YBAeon) CloseStep(_ error) error {
 }
 
 func (ybaeon *YBAeon) ChildProcessEnv(environ []string, _ bool) []string {
-	return environ
+	return controlPlane.WithoutStepClaimingEnv(environ)
 }
 
 // Finalize waits for all pending events to be sent and cleans up

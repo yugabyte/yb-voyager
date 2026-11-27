@@ -32,6 +32,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
+	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
@@ -40,12 +41,9 @@ import (
 
 // OPERATION_ID_ENV_VAR turns step claiming on. EXECUTOR_REF_ENV_VAR is an
 // optional JSON object stored as-is on the step execution.
-const OPERATION_ID_ENV_VAR = "VOYAGER_OPERATION_ID"
+const OPERATION_ID_ENV_VAR = controlPlane.OPERATION_ID_ENV_VAR
 const EXECUTOR_REF_ENV_VAR = "EXECUTOR_REF"
-
-// STEP_EXECUTION_ID_ENV_VAR is internal: Voyager sets it for its own child
-// process, which joins the parent's step execution instead of claiming one.
-const STEP_EXECUTION_ID_ENV_VAR = "VOYAGER_STEP_EXECUTION_ID"
+const STEP_EXECUTION_ID_ENV_VAR = controlPlane.STEP_EXECUTION_ID_ENV_VAR
 
 type stepClaimingMode int
 
@@ -139,13 +137,7 @@ func readStepClaimingEnv() (stepClaimingEnv, error) {
 }
 
 func childProcessEnv(environ []string, stepExecutionID *int64) []string {
-	env := make([]string, 0, len(environ)+1)
-	for _, entry := range environ {
-		if strings.HasPrefix(entry, OPERATION_ID_ENV_VAR+"=") || strings.HasPrefix(entry, STEP_EXECUTION_ID_ENV_VAR+"=") {
-			continue
-		}
-		env = append(env, entry)
-	}
+	env := controlPlane.WithoutStepClaimingEnv(environ)
 	if stepExecutionID != nil {
 		env = append(env, fmt.Sprintf("%s=%d", STEP_EXECUTION_ID_ENV_VAR, *stepExecutionID))
 	}
@@ -236,10 +228,18 @@ func (cp *YugabyteDB) newStepExecutionPool() (*pgxpool.Pool, error) {
 // In join mode it instead joins the parent's step execution, with no heartbeat.
 // onLost is called from the heartbeat goroutine when the step execution can no longer
 // be held; the command must stop. A second call while a step execution is held is a no-op.
-func (cp *YugabyteDB) ClaimStep(migrationID uuid.UUID, step string, onLost func(err error)) error {
+func (cp *YugabyteDB) ClaimStep(migrationUUID func() (uuid.UUID, error), step string, onLost func(err error)) error {
 	if !cp.stepClaimingEnabled() {
 		return nil
 	}
+	migrationID, err := migrationUUID()
+	if err != nil {
+		return fmt.Errorf("resolve migration id: %w", err)
+	}
+	return cp.claimStep(migrationID, step, onLost)
+}
+
+func (cp *YugabyteDB) claimStep(migrationID uuid.UUID, step string, onLost func(err error)) error {
 	if cp.claimingEnv.mode == stepClaimingClaim && migrationID == uuid.Nil {
 		return goerrors.Errorf("migration id unknown: %s is not set and the migration has no status record", metadb.MigrationUUIDEnvVarName)
 	}

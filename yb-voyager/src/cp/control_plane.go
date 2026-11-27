@@ -91,8 +91,9 @@ type ControlPlane interface {
 
 	// ClaimStep, CloseStep and ChildProcessEnv are the step claiming hooks; see
 	// design-specs/cp-step-claiming.md. Control planes without step claiming
-	// implement them as no-ops.
-	ClaimStep(migrationUUID uuid.UUID, step string, onLost func(err error)) error
+	// implement them as no-ops. ClaimStep resolves the migration id only when
+	// step claiming is on, so a run without it is unaffected.
+	ClaimStep(migrationUUID func() (uuid.UUID, error), step string, onLost func(err error)) error
 	CloseStep(runErr error) error
 	ChildProcessEnv(environ []string, joinParent bool) []string
 }

@@ -240,7 +240,7 @@ func TestStepClaiming(t *testing.T) {
 		controlPlane := newControlPlane(t)
 		require.True(t, controlPlane.stepClaimingEnabled())
 
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
 		running := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
 		require.Len(t, running, 1)
 		assert.Equal(t, "running", running[0].status)
@@ -285,7 +285,7 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_ASSESS_MIGRATION))
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
 
 		// A payload that is not JSON fails before any statement runs.
 		require.Error(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, "not json"))
@@ -304,7 +304,7 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_ASSESS_MIGRATION))
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
 		require.Error(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, "not json"))
 
 		require.NoError(t, controlPlane.CloseStep(errors.New("saving the assessment config failed")))
@@ -317,7 +317,7 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
 		require.Error(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, "not json"))
 
 		require.NoError(t, controlPlane.CloseStep(nil))
@@ -346,7 +346,7 @@ func TestStepClaiming(t *testing.T) {
 		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		controlPlane := newControlPlane(t)
 		lost := make(chan error, 1)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
 
 		_, err := db.Exec(`UPDATE voyager_core.step_execution SET status = 'stopped', finished_at = now() WHERE migration_id = $1`, migrationID)
 		require.NoError(t, err)
@@ -369,7 +369,7 @@ func TestStepClaiming(t *testing.T) {
 		controlPlane := newControlPlane(t)
 		controlPlane.heartbeatInterval = 50 * time.Millisecond
 		lost := make(chan error, 1)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
 
 		controlPlane.stepExecutionMu.Lock()
 		execution := controlPlane.stepExecution
@@ -390,7 +390,7 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_IMPORT_DATA_TO_TARGET))
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_IMPORT_DATA_TO_TARGET, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_IMPORT_DATA_TO_TARGET, neverLost(t)))
 
 		require.NoError(t, controlPlane.CloseStep(errors.New("target unreachable")))
 		got := attempts(t, migrationID, cp.STEP_IMPORT_DATA_TO_TARGET)
@@ -405,7 +405,7 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_FINALIZE_SCHEMA))
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, cp.STEP_FINALIZE_SCHEMA, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_FINALIZE_SCHEMA, neverLost(t)))
 		require.NoError(t, controlPlane.CloseStep(nil))
 		assert.Equal(t, "succeeded", attempts(t, migrationID, cp.STEP_FINALIZE_SCHEMA)[0].status)
 	})
@@ -420,7 +420,7 @@ func TestStepClaiming(t *testing.T) {
 		require.NoError(t, err)
 
 		controlPlane := newControlPlane(t)
-		assert.ErrorContains(t, controlPlane.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)), "is already running")
+		assert.ErrorContains(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)), "is already running")
 		got := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
 		require.Len(t, got, 1)
 		assert.Equal(t, "running", got[0].status)
@@ -432,10 +432,10 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		first := newControlPlane(t)
-		require.NoError(t, first.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		require.NoError(t, first.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
 
 		second := newControlPlane(t)
-		err := second.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t))
+		err := second.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t))
 		assert.ErrorContains(t, err, "already running")
 		got := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
 		require.Len(t, got, 1)
@@ -447,10 +447,10 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_ASSESS_MIGRATION))
 		controlPlane := newControlPlane(t)
-		assert.ErrorContains(t, controlPlane.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)), "is not planned for operation")
+		assert.ErrorContains(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)), "is not planned for operation")
 
 		otherMigration := uuid.New()
-		assert.ErrorContains(t, controlPlane.ClaimStep(otherMigration, cp.STEP_ASSESS_MIGRATION, neverLost(t)), "belongs to migration")
+		assert.ErrorContains(t, controlPlane.claimStep(otherMigration, cp.STEP_ASSESS_MIGRATION, neverLost(t)), "belongs to migration")
 
 		var count int
 		require.NoError(t, db.QueryRow(`SELECT count(*) FROM voyager_core.step_execution WHERE migration_id IN ($1, $2)`,
@@ -462,14 +462,14 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		parent := newControlPlane(t)
-		require.NoError(t, parent.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		require.NoError(t, parent.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
 		parentID := *parent.activeStepExecutionID()
 
 		t.Setenv(OPERATION_ID_ENV_VAR, "")
 		t.Setenv(STEP_EXECUTION_ID_ENV_VAR, strconv.FormatInt(parentID, 10))
 		child := newControlPlane(t)
 		require.True(t, child.stepClaimingEnabled())
-		require.NoError(t, child.ClaimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
+		require.NoError(t, child.claimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
 		require.NotNil(t, child.activeStepExecutionID())
 		assert.Equal(t, parentID, *child.activeStepExecutionID())
 
@@ -494,13 +494,13 @@ func TestStepClaiming(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		parent := newControlPlane(t)
-		require.NoError(t, parent.ClaimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		require.NoError(t, parent.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
 		parentID := *parent.activeStepExecutionID()
 
 		join := func(t *testing.T, id int64, forMigration uuid.UUID) error {
 			t.Setenv(OPERATION_ID_ENV_VAR, "")
 			t.Setenv(STEP_EXECUTION_ID_ENV_VAR, strconv.FormatInt(id, 10))
-			return newControlPlane(t).ClaimStep(forMigration, cp.STEP_ASSESS_MIGRATION, neverLost(t))
+			return newControlPlane(t).claimStep(forMigration, cp.STEP_ASSESS_MIGRATION, neverLost(t))
 		}
 		assert.ErrorContains(t, join(t, parentID, uuid.New()), "belongs to migration")
 		assert.ErrorContains(t, join(t, parentID+1000000, migrationID), "does not exist")

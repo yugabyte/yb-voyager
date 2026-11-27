@@ -18,6 +18,7 @@ limitations under the License.
 package yugabytedb
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -95,11 +96,21 @@ func TestClaimStepWithoutMigrationID(t *testing.T) {
 	t.Run("claim mode fails", func(t *testing.T) {
 		controlPlane := New("")
 		controlPlane.claimingEnv = stepClaimingEnv{mode: stepClaimingClaim, operationID: uuid.New()}
-		err := controlPlane.ClaimStep(uuid.Nil, "export-schema", nil)
+		err := controlPlane.ClaimStep(func() (uuid.UUID, error) { return uuid.Nil, nil }, "export-schema", nil)
 		assert.ErrorContains(t, err, "migration id unknown: YB_VOYAGER_MIGRATION_UUID is not set")
 	})
-	t.Run("claiming off does nothing", func(t *testing.T) {
-		assert.NoError(t, New("").ClaimStep(uuid.Nil, "export-schema", nil))
+	t.Run("claim mode reports a migration id that cannot be resolved", func(t *testing.T) {
+		controlPlane := New("")
+		controlPlane.claimingEnv = stepClaimingEnv{mode: stepClaimingClaim, operationID: uuid.New()}
+		err := controlPlane.ClaimStep(func() (uuid.UUID, error) { return uuid.Nil, errors.New("bad env") }, "export-schema", nil)
+		assert.ErrorContains(t, err, "resolve migration id: bad env")
+	})
+	t.Run("claiming off does nothing and never resolves the migration id", func(t *testing.T) {
+		resolve := func() (uuid.UUID, error) {
+			t.Fatal("migration id resolved with step claiming off")
+			return uuid.Nil, nil
+		}
+		assert.NoError(t, New("").ClaimStep(resolve, "export-schema", nil))
 	})
 }
 

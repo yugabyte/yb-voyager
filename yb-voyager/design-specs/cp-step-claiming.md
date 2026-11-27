@@ -35,6 +35,7 @@
 
 - Active only when the control plane type is `yugabytedb` **and** `VOYAGER_OPERATION_ID` is set.
 - Otherwise behaviour is unchanged: no new queries, no new columns in any statement, no goroutine.
+- Contract with the platform: with `VOYAGER_OPERATION_ID` set, the platform runs only commands that map to a step (section 4).
 
 **Modes** (chosen at `Init` from the two env vars)
 
@@ -45,7 +46,7 @@
   - Where claim mode would claim (section 5), the step execution must exist, be `running` and have this migration's `migration_id`. Any mismatch fails the command before work.
   - Rows are stamped with the id. No claim, no heartbeat, no close: `CloseStep` does nothing and no done event closes it.
 - Both vars set: `Init` fails.
-- Child processes: `export schema` starts `assess-migration` with `VOYAGER_OPERATION_ID` removed and `VOYAGER_STEP_EXECUTION_ID` set to its own step execution id (nothing is set when it holds none). `assess-migration-bulk` children (different migrations) get both removed.
+- Child processes: `export schema` starts `assess-migration` with `VOYAGER_OPERATION_ID` removed and `VOYAGER_STEP_EXECUTION_ID` set to its own step execution id (nothing is set when it holds none). Every other child Voyager process gets both removed, whatever the parent's control plane (`assess-migration-bulk` children are different migrations).
 
 **Environment**
 
@@ -92,7 +93,7 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 ## 5. Claim
 
 - When: once per process, in the root command's `PersistentPreRun`, after the control plane is set up and before any of the command's own code (so before `export schema`'s early returns and its `--start-clean` wipe). `assess-migration-bulk` does not claim.
-- Migration id: the migration UUID in the migration status record when the metaDB already exists, else `YB_VOYAGER_MIGRATION_UUID`, else none. With no id, a claim fails with "migration id unknown: YB_VOYAGER_MIGRATION_UUID is not set and the migration has no status record". Join mode resolves the id the same way (the child shares the export dir, so the record exists).
+- Migration id: the migration UUID in the migration status record when the metaDB already exists, else `YB_VOYAGER_MIGRATION_UUID`, else none. With no id, a claim fails with "migration id unknown: YB_VOYAGER_MIGRATION_UUID is not set and the migration has no status record". Join mode resolves the id the same way (the child shares the export dir, so the record exists). The id is resolved only in claim or join mode, so a bad `YB_VOYAGER_MIGRATION_UUID` changes nothing when step claiming is off.
 - Step: the registry (section 4), from the command path and flags.
 - The claim goes through the `cp.ControlPlane` interface (`ClaimStep`); control planes other than `yugabytedb`, and `yugabytedb` with claiming off, do nothing.
 - One transaction:

@@ -82,7 +82,7 @@ func (cp *NoopControlPlane) SnapshotImportCompleted(snapshotImportEvent *cp.Snap
 func (cp *NoopControlPlane) MigrationEnded(migrationEndedEvent *cp.MigrationEndedEvent) {
 }
 
-func (cp *NoopControlPlane) ClaimStep(_ uuid.UUID, _ string, _ func(err error)) error {
+func (cp *NoopControlPlane) ClaimStep(_ func() (uuid.UUID, error), _ string, _ func(err error)) error {
 	return nil
 }
 
@@ -90,6 +90,6 @@ func (cp *NoopControlPlane) CloseStep(_ error) error {
 	return nil
 }
 
-func (cp *NoopControlPlane) ChildProcessEnv(environ []string, _ bool) []string {
-	return environ
+func (*NoopControlPlane) ChildProcessEnv(environ []string, _ bool) []string {
+	return cp.WithoutStepClaimingEnv(environ)
 }

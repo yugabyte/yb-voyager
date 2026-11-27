@@ -204,11 +204,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 
 			if step, ok := cp.StepForCommand(currentCommand, bool(flagPostSnapshotImport)); ok {
-				claimUUID, err := stepClaimMigrationUUID()
-				if err != nil {
-					utils.ErrExit("resolve migration id to claim step %s: %w", step, err)
-				}
-				err = controlPlane.ClaimStep(claimUUID, step, func(err error) {
+				err = controlPlane.ClaimStep(stepClaimMigrationUUID, step, func(err error) {
 					utils.ErrExit("control plane step lost: %w", err)
 				})
 				if err != nil {
