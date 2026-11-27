@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	mapset "github.com/deckarep/golang-set/v2"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 // Refer: https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
@@ -204,8 +205,94 @@ var SupportedExtensionsOnYB = []string{
 	"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
 	"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
 	"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
-	"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
-	"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension",
+	"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "tsm_system_rows",
+	"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension", "vector",
+}
+
+var extensionsFixedInVersions = map[string]map[string]string{
+	"timetravel": {
+		ybversion.SERIES_2_14:   "2.14.0.0",
+		ybversion.SERIES_2_18:   "2.18.0.0",
+		ybversion.SERIES_2_20:   "2.20.0.0",
+		ybversion.SERIES_2_21:   "2.21.0.0",
+		ybversion.SERIES_2_23:   "2.23.0.0",
+		ybversion.SERIES_2024_1: "2024.1.0.0",
+		ybversion.SERIES_2024_2: "2024.2.0.0",
+	},
+	"pg_partman": {
+		ybversion.SERIES_2024_2: "2024.2.0.0",
+		ybversion.SERIES_2_25:   "2.25.0.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"pg_walinspect": {
+		ybversion.SERIES_2_25:   "2.25.0.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"old_snapshot": {
+		ybversion.SERIES_2_25:   "2.25.0.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"pgtap": {
+		ybversion.SERIES_2024_2: "2024.2.0.0",
+		ybversion.SERIES_2_25:   "2.25.0.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"yb_ycql_utils": {
+		ybversion.SERIES_2024_1: "2024.1.0.0",
+		ybversion.SERIES_2024_2: "2024.2.0.0",
+		ybversion.SERIES_2_25:   "2.25.0.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"pg_surgery": {
+		ybversion.SERIES_2_25:   "2.25.0.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"yb_xcluster_ddl_replication": {
+		ybversion.SERIES_2024_2: "2024.2.0.0",
+		ybversion.SERIES_2_25:   "2.25.0.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"anon": {
+		ybversion.SERIES_2024_2: "2024.2.0.0",
+		ybversion.SERIES_2_25:   "2.25.1.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"dummy_seclabel": {
+		ybversion.SERIES_2024_2: "2024.2.0.0",
+		ybversion.SERIES_2_25:   "2.25.1.0",
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"documentdb": {
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2_25:   "2.25.2.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"documentdb_core": {
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2_25:   "2.25.2.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"documentdb_distributed": {
+		ybversion.SERIES_2025_1: "2025.1.0.0",
+		ybversion.SERIES_2_25:   "2.25.2.0",
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+	"pg_parquet": {
+		ybversion.SERIES_2025_2: "2025.2.0.0",
+	},
+}
+
+func GetExtensionFixedVersions(extensionName string) map[string]string {
+	return extensionsFixedInVersions[extensionName]
 }
 
 func AppendObjectNameToIssueName(issueName string, objectName string) string {
