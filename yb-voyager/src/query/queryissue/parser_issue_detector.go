@@ -41,20 +41,23 @@ import (
 // It tracks characteristics like data type, index suitability, special types
 // (e.g., JSONB, arrays), and foreign key relationships.
 type ColumnMetadata struct {
-	DataType               string
-	DataTypeMods           []int32
-	IsUnsupportedForIndex  bool
-	IsHotspotForRangeIndex bool
-	IsJsonb                bool
-	IsArray                bool
-	IsUserDefinedType      bool
-	IsNotNull              bool
+	// the element type when IsArray
+	DataType     string
+	DataTypeMods []int32
+	IsArray      bool
+	// "array", "user_defined_type", or the type in UnsupportedIndexDatatypes the column is built
+	// from; empty when YugabyteDB can index the column.
+	UnsupportedIndexDatatype string
+	IsHotspotForRangeIndex   bool
+	IsJsonb                  bool
+	IsNotNull                bool
 
 	IsForeignKey             bool
 	ReferencedTable          string
 	ReferencedColumn         string
 	ReferencedColumnType     string  // Stores the base type (e.g., "varchar", "numeric")
 	ReferencedColumnTypeMods []int32 // Stores the type modifiers (e.g., [255] for varchar(255), [8,2] for numeric(8,2))
+	ReferencedColumnIsArray  bool
 }
 
 // ConstraintMetadata stores metadata about table constraints
@@ -363,23 +366,26 @@ func (p *ParserIssueDetector) getInheritedFrom() map[string][]string {
 	return inheritedFrom
 }
 
-// YugabyteDB indexes enums, but rejects composite and range types as 'user_defined_type', also
-// through a domain over one.
-func (p *ParserIssueDetector) isUserDefinedTypeUnsupportedForIndex(typeName string) bool {
-	return slices.ContainsFunc(p.GetUnderlyingTypes(typeName), func(t UnderlyingType) bool {
+// getUnsupportedIndexDatatype returns the datatype an index on typeName is reported under: "array"
+// for an array, "user_defined_type" for a composite or range type, else the type in
+// UnsupportedIndexDatatypes it is built from, also through a domain, else "". YugabyteDB indexes
+// enums but rejects composite and range types as 'user_defined_type'.
+func (p *ParserIssueDetector) getUnsupportedIndexDatatype(typeName string, isArray bool) string {
+	if isArray {
+		return UNSUPPORTED_INDEX_DATATYPE_ARRAY
+	}
+	types := p.GetUnderlyingTypes(typeName)
+	if slices.ContainsFunc(types, func(t UnderlyingType) bool {
 		return t.Kind == TypeKindComposite || t.Kind == TypeKindRange
-	})
-}
-
-// getUnsupportedIndexDatatype returns the type in UnsupportedIndexDatatypes that typeName is built
-// from, also through a domain over one.
-func (p *ParserIssueDetector) getUnsupportedIndexDatatype(typeName string) (string, bool) {
-	for _, t := range p.GetUnderlyingTypes(typeName) {
+	}) {
+		return UNSUPPORTED_INDEX_DATATYPE_USER_DEFINED_TYPE
+	}
+	for _, t := range types {
 		if isListedDatatype(t, UnsupportedIndexDatatypes) {
-			return strings.ToLower(t.BaseName()), true
+			return strings.ToLower(t.BaseName())
 		}
 	}
-	return "", false
+	return ""
 }
 
 func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
@@ -419,11 +425,11 @@ func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[stri
 	columnsWithUnsupportedIndexDatatypes := make(map[string]map[string]string)
 	for tableName, tm := range p.tablesMetadata {
 		for columnName, meta := range tm.Columns {
-			if meta.IsUnsupportedForIndex {
+			if meta.UnsupportedIndexDatatype != "" {
 				if _, exists := columnsWithUnsupportedIndexDatatypes[tableName]; !exists {
 					columnsWithUnsupportedIndexDatatypes[tableName] = make(map[string]string)
 				}
-				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = meta.DataType
+				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = meta.UnsupportedIndexDatatype
 			}
 		}
 	}
@@ -867,6 +873,7 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 							// Store the referenced column type and modifiers separately for accurate comparison
 							meta.ReferencedColumnType = refMeta.DataType
 							meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
+							meta.ReferencedColumnIsArray = refMeta.IsArray
 						}
 					}
 				} else {
@@ -983,27 +990,10 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			// Store the original type name from parse tree
 			meta.DataType = col.TypeName
 			meta.DataTypeMods = col.TypeMods
+			meta.IsArray = col.IsArrayType
 
-			unsupportedIndexDatatype, isUnsupportedType := p.getUnsupportedIndexDatatype(col.GetFullTypeName())
-			isUDTType := p.isUserDefinedTypeUnsupportedForIndex(col.GetFullTypeName())
-			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
-
-			switch {
-			case col.IsArrayType:
-				meta.IsArray = true
-				meta.IsUnsupportedForIndex = true
-				meta.DataType = "array"
-
-			case isUnsupportedType || isUDTType:
-				meta.IsUnsupportedForIndex = true
-				if isUDTType {
-					meta.IsUserDefinedType = true
-					meta.DataType = "user_defined_type"
-				} else {
-					meta.DataType = unsupportedIndexDatatype
-				}
-
-			case isHotspotType:
+			meta.UnsupportedIndexDatatype = p.getUnsupportedIndexDatatype(col.GetFullTypeName(), col.IsArrayType)
+			if meta.UnsupportedIndexDatatype == "" && slices.Contains(hotspotRangeIndexesTypes, col.TypeName) {
 				meta.IsHotspotForRangeIndex = true
 			}
 
@@ -1034,12 +1024,15 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		// Process primary keys and unique constraints as indexes for foreign key detection
 		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
+		if ddlObj.Kind == queryparser.CreateTypeUnknown {
+			return goerrors.Errorf("type %s has no kind", ddlObj.GetObjectName())
+		}
 		p.userDefinedTypes[ddlObj.GetObjectName()] = ddlObj
-		if ddlObj.IsRange {
+		if ddlObj.Kind == queryparser.CreateTypeRange {
 			multirange := &queryparser.CreateType{
 				TypeName:   ddlObj.MultirangeTypeName,
 				SchemaName: ddlObj.MultirangeSchemaName,
-				IsRange:    true,
+				Kind:       queryparser.CreateTypeMultirange,
 			}
 			// PG 13 and older create no multirange, so a user type of that name keeps it, whichever comes first
 			if _, exists := p.userDefinedTypes[multirange.GetObjectName()]; !exists {

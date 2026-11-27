@@ -70,6 +70,12 @@ var UnsupportedIndexMethods = []string{
 	"spgist",
 }
 
+// keys reportIndexOrConstraintIssuesOnComplexDatatypes reports under, besides the types in UnsupportedIndexDatatypes
+const (
+	UNSUPPORTED_INDEX_DATATYPE_ARRAY             = "array"
+	UNSUPPORTED_INDEX_DATATYPE_USER_DEFINED_TYPE = "user_defined_type"
+)
+
 // Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
 var UnsupportedIndexDatatypes = []string{
 	"citext",

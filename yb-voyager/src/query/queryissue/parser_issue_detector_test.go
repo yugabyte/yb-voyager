@@ -3515,6 +3515,74 @@ func TestIndexOnUserDefinedTypes(t *testing.T) {
 	}
 }
 
+func TestForeignKeyDatatypeMismatchOnColumnsUnsupportedForIndex(t *testing.T) {
+	const (
+		parent = `CREATE TABLE public.p (id int PRIMARY KEY, doc jsonb UNIQUE, label text UNIQUE, addr public.address UNIQUE, ids int[] UNIQUE, "Doc_Dom" public.jsonb_dom UNIQUE);`
+		child  = `CREATE TABLE public.c (id int, doc public.jsonb_dom REFERENCES public.p (doc), label public.text_dom REFERENCES public.p (label), addr public.address2 REFERENCES public.p (addr), ids bigint[] REFERENCES public.p (ids), same_ids int[] REFERENCES public.p (ids), raw_doc jsonb REFERENCES public.p ("Doc_Dom"));`
+	)
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{
+		`CREATE DOMAIN public.jsonb_dom AS jsonb;`,
+		`CREATE DOMAIN public.text_dom AS text;`,
+		`CREATE TYPE public.address AS (street text);`,
+		`CREATE TYPE public.address2 AS (zip int);`,
+		parent,
+		child,
+	} {
+		require.NoError(t, detector.ParseAndProcessDDL(ddl))
+	}
+	detector.FinalizeTablesMetadata()
+
+	issues, err := detector.GetDDLIssues(child, ybversion.LatestStable)
+	require.NoError(t, err)
+	mismatchIssues := lo.Filter(issues, func(issue QueryIssue, _ int) bool {
+		return issue.Type == FOREIGN_KEY_DATATYPE_MISMATCH
+	})
+	expected := []QueryIssue{
+		NewForeignKeyDatatypeMismatchIssue("TABLE", "public.c", child, "public.c.doc", "public.p.doc", "jsonb_dom", "jsonb", ObjectUsageCategoryUnused),
+		NewForeignKeyDatatypeMismatchIssue("TABLE", "public.c", child, "public.c.label", "public.p.label", "text_dom", "text", ObjectUsageCategoryUnused),
+		NewForeignKeyDatatypeMismatchIssue("TABLE", "public.c", child, "public.c.addr", "public.p.addr", "address2", "address", ObjectUsageCategoryUnused),
+		NewForeignKeyDatatypeMismatchIssue("TABLE", "public.c", child, "public.c.ids", "public.p.ids", "bigint[]", "integer[]", ObjectUsageCategoryUnused),
+		NewForeignKeyDatatypeMismatchIssue("TABLE", "public.c", child, "public.c.raw_doc", "public.p.Doc_Dom", "jsonb", "jsonb_dom", ObjectUsageCategoryUnused),
+	}
+	assert.ElementsMatch(t, expected, mismatchIssues)
+}
+
+func TestMostFrequentValueIndexColumnType(t *testing.T) {
+	const table = `CREATE TABLE public.t (id int PRIMARY KEY, doc public.jsonb_dom, ids int[], n int);`
+	detector := NewParserIssueDetector()
+	for _, ddl := range []string{`CREATE DOMAIN public.jsonb_dom AS jsonb;`, table} {
+		require.NoError(t, detector.ParseAndProcessDDL(ddl))
+	}
+	detector.FinalizeTablesMetadata()
+	stat := func(column, value string) utils.ColumnStatistics {
+		return utils.ColumnStatistics{DBType: "postgresql", SchemaName: "public", TableName: "t", ColumnName: column,
+			DistinctValues: 2, MostCommonFrequency: 0.70, MostCommonValue: value}
+	}
+	detector.SetColumnStatistics([]utils.ColumnStatistics{stat("doc", `{"a": 1}`), stat("ids", "{1,2}"), stat("n", "7")})
+
+	testCases := []struct {
+		name               string
+		stmt               string
+		expectedColumnType string
+	}{
+		{"domain over a type unsupported for index keeps the domain", `CREATE INDEX idx_doc ON public.t (doc);`, "jsonb_dom"},
+		{"array is not typed by its element", `CREATE INDEX idx_ids ON public.t (ids);`, ""},
+		{"built-in", `CREATE INDEX idx_n ON public.t (n);`, "int4"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			issues, err := detector.GetDDLIssues(tc.stmt, ybversion.LatestStable)
+			require.NoError(t, err)
+			freqIssues := lo.Filter(issues, func(issue QueryIssue, _ int) bool {
+				return issue.Type == MOST_FREQUENT_VALUE_INDEXES
+			})
+			require.Len(t, freqIssues, 1)
+			assert.Equal(t, tc.expectedColumnType, freqIssues[0].InternalDetails[COLUMN_TYPE])
+		})
+	}
+}
+
 func TestIndexOnDomainOverUnsupportedIndexDatatype(t *testing.T) {
 	const (
 		spans          = `CREATE TABLE public.spans (id int PRIMARY KEY, span public.i4r_dom, "Span_Nested" public.i4r_dom_nested, doc public.jsonb_dom, label public.text_dom, CONSTRAINT spans_uk UNIQUE (span));`
