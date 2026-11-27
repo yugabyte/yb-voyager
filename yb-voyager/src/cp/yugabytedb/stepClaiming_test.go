@@ -359,7 +359,7 @@ func TestStepClaiming(t *testing.T) {
 
 		assert.Equal(t, "stopped", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
 		// The exit path must not overwrite what closed it.
-		assert.Error(t, controlPlane.CloseStep(errors.New("exit")))
+		assert.ErrorContains(t, controlPlane.CloseStep(errors.New("exit")), "it is no longer running")
 		assert.Equal(t, "stopped", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
 	})
 
@@ -383,7 +383,7 @@ func TestStepClaiming(t *testing.T) {
 		case <-time.After(20 * controlPlane.heartbeatInterval):
 		}
 		assert.Equal(t, "running", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
-		assert.Error(t, controlPlane.CloseStep(nil))
+		assert.ErrorContains(t, controlPlane.CloseStep(nil), "close step execution")
 	})
 
 	t.Run("failure closes the attempt with the error", func(t *testing.T) {
