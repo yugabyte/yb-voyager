@@ -84,9 +84,10 @@ type stepExecution struct {
 	stop chan struct{}
 
 	// mu guards closed and doneErr.
-	mu      sync.Mutex
-	closed  bool
-	doneErr error
+	mu               sync.Mutex
+	closed           bool
+	heartbeatStopped bool
+	doneErr          error
 
 	// joined is a step execution held by the parent process: this process
 	// stamps with its id but never heartbeats or closes it. pool is nil.
@@ -96,8 +97,15 @@ type stepExecution struct {
 // releaseLocked ends the heartbeat and releases the step execution's pool. Callers hold a.mu.
 func (a *stepExecution) releaseLocked() {
 	a.closed = true
-	close(a.stop)
+	a.stopHeartbeatLocked()
 	a.pool.Close()
+}
+
+func (a *stepExecution) stopHeartbeatLocked() {
+	if !a.heartbeatStopped {
+		a.heartbeatStopped = true
+		close(a.stop)
+	}
 }
 
 // readStepClaimingEnv reads the step claiming env vars: off when neither
@@ -406,6 +414,9 @@ func (cp *YugabyteDB) CloseStep(runErr error) error {
 	if runErr == nil && a.doneErr != nil {
 		runErr = fmt.Errorf("recording the step's completion in the control plane failed: %w", a.doneErr)
 	}
+	// Before the close: a heartbeat that then matches 0 rows is seeing our own
+	// close, not a cancel, and must not report the step as lost.
+	a.stopHeartbeatLocked()
 	ctx, cancel := context.WithTimeout(context.Background(), stepExecutionCloseTimeout)
 	defer cancel()
 	var tag pgconn.CommandTag
