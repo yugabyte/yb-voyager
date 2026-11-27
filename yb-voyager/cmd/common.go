@@ -51,7 +51,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
@@ -738,67 +737,26 @@ func retrieveMigrationUUID() error {
 	} else {
 		log.Infof("migrationID: %s", migrationUUID)
 	}
-	return claimStepForCommand()
-}
-
-// Control plane step claiming hooks. See design-specs/cp-step-claiming.md.
-
-func stepClaimingCP() (*yugabytedb.YugabyteDB, bool) {
-	ybdb, ok := controlPlane.(*yugabytedb.YugabyteDB)
-	return ybdb, ok && ybdb.StepClaimingEnabled()
-}
-
-// claimStepForCommand claims the current command's step. It does nothing
-// unless the yugabytedb control plane has step claiming on.
-func claimStepForCommand() error {
-	ybdb, ok := stepClaimingCP()
-	if !ok {
-		return nil
-	}
-	step, ok := yugabytedb.StepForCommand(currentCommand, exporterRole, importerRole, bool(flagPostSnapshotImport))
-	if !ok {
-		return nil
-	}
-	err := ybdb.ClaimStep(migrationUUID, step, func(err error) {
-		utils.ErrExit("control plane step lost: %w", err)
-	})
-	if err != nil {
-		return fmt.Errorf("claim step %s: %w", step, err)
-	}
 	return nil
 }
 
-// stepClaimingChildEnv is the environment for a child Voyager process: the
-// step claiming vars are removed, and when forwardStepExecution is set and this
-// process holds a step execution the child joins it.
-func stepClaimingChildEnv(forwardStepExecution bool) []string {
-	var stepExecutionID *int64
-	if ybdb, ok := stepClaimingCP(); ok && forwardStepExecution {
-		stepExecutionID = ybdb.HeldStepExecutionID()
+// stepClaimMigrationUUID is the migration id to claim a step for: the one in the
+// migration status record if there is one, else YB_VOYAGER_MIGRATION_UUID, else uuid.Nil.
+func stepClaimMigrationUUID() (uuid.UUID, error) {
+	if metaDB != nil {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("retrieving migration status record: %w", err)
+		}
+		if msr != nil && msr.MigrationUUID != "" {
+			id, err := uuid.Parse(msr.MigrationUUID)
+			if err != nil {
+				return uuid.Nil, fmt.Errorf("parse migration uuid %q: %w", msr.MigrationUUID, err)
+			}
+			return id, nil
+		}
 	}
-	return yugabytedb.ChildProcessEnv(os.Environ(), stepExecutionID)
-}
-
-// closeClaimedStep closes the held step execution: succeeded when runErr is nil,
-// failed otherwise. Safe to call more than once.
-func closeClaimedStep(runErr error) {
-	ybdb, ok := stepClaimingCP()
-	if !ok {
-		return
-	}
-	if err := ybdb.CloseStep(runErr); err != nil {
-		log.Errorf("Could not close the control plane step attempt: %v", err)
-	}
-}
-
-// closeClaimedStepOnExit is closeClaimedStep for the exit handler,
-// which runs only when the command did not reach PersistentPostRun.
-func closeClaimedStepOnExit() {
-	runErr := utils.ErrExitErr
-	if runErr == nil {
-		runErr = fmt.Errorf("command was interrupted before it completed")
-	}
-	closeClaimedStep(runErr)
+	return metadb.ExternalMigrationUUID()
 }
 
 func nameContainsCapitalLetter(name string) bool {
@@ -1983,10 +1941,6 @@ func createCallhomePayload(migrationUUID uuid.UUID) callhome.Payload {
 }
 
 func PackAndSendCallhomePayloadOnExit() {
-	// Exit handlers run in random order, so this lives here, above the
-	// payload-sent guard, rather than in a handler of its own.
-	closeClaimedStepOnExit()
-
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}

@@ -75,7 +75,7 @@ func (cp *YugabyteDB) Init() error {
 		return err
 	}
 	err = cp.checkTables()
-	if err == nil && cp.StepClaimingEnabled() {
+	if err == nil && cp.stepClaimingEnabled() {
 		err = cp.checkStepClaimingTables()
 	}
 	if err != nil {
@@ -450,7 +450,7 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 	// With claiming off the statements are exactly the unstamped ones, so the
 	// step_execution_id column is not touched.
 	stepExecutionID := cp.activeStepExecutionID()
-	if stepExecutionID == nil && cp.StepClaimingEnabled() {
+	if stepExecutionID == nil && cp.stepClaimingEnabled() {
 		return goerrors.Errorf("%s not recorded: step claiming is on but no step execution is held", migrationEvent.EventType)
 	}
 	var stampColumn string

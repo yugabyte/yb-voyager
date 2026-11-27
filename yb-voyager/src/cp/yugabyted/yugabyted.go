@@ -79,6 +79,18 @@ func (cp *YugabyteD) Init() error {
 	return nil
 }
 
+func (cp *YugabyteD) ClaimStep(_ uuid.UUID, _ string, _ func(err error)) error {
+	return nil
+}
+
+func (cp *YugabyteD) CloseStep(_ error) error {
+	return nil
+}
+
+func (cp *YugabyteD) ChildProcessEnv(environ []string, _ bool) []string {
+	return environ
+}
+
 // Wait for events to publish and Close the connection.
 func (cp *YugabyteD) Finalize() {
 	cp.waitGroup.Wait()

@@ -202,6 +202,20 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if err != nil {
 				utils.ErrExit("ERROR: setting up control plane: %w", err)
 			}
+
+			if step, ok := cp.StepForCommand(currentCommand, bool(flagPostSnapshotImport)); ok {
+				claimUUID, err := stepClaimMigrationUUID()
+				if err != nil {
+					utils.ErrExit("resolve migration id to claim step %s: %w", step, err)
+				}
+				err = controlPlane.ClaimStep(claimUUID, step, func(err error) {
+					utils.ErrExit("control plane step lost: %w", err)
+				})
+				if err != nil {
+					utils.ErrExit("claim step %s: %w", step, err)
+				}
+				atexit.Register(closeStepOnExit)
+			}
 		}
 
 		// Log the flag values set from the config file
@@ -241,10 +255,22 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		if shouldRunPersistentPreRun(cmd) {
 			controlPlane.Finalize()
-			closeClaimedStep(nil)
+			if err := controlPlane.CloseStep(nil); err != nil {
+				log.Errorf("Could not close the control plane step attempt: %v", err)
+			}
 		}
 		atexit.Exit(0)
 	},
+}
+
+func closeStepOnExit() {
+	runErr := utils.ErrExitErr
+	if runErr == nil {
+		runErr = fmt.Errorf("command was interrupted before it completed")
+	}
+	if err := controlPlane.CloseStep(runErr); err != nil {
+		log.Errorf("Could not close the control plane step attempt: %v", err)
+	}
 }
 
 var liveMigrationIterationCommandList = []string{

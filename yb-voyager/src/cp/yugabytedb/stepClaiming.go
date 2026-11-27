@@ -32,6 +32,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
 // See design-specs/cp-step-claiming.md.
@@ -136,10 +138,7 @@ func readStepClaimingEnv() (stepClaimingEnv, error) {
 	return env, nil
 }
 
-// ChildProcessEnv returns environ for a child Voyager process: both step
-// claiming vars removed, and VOYAGER_STEP_EXECUTION_ID set to stepExecutionID
-// when it is not nil, so the child joins that step execution.
-func ChildProcessEnv(environ []string, stepExecutionID *int64) []string {
+func childProcessEnv(environ []string, stepExecutionID *int64) []string {
 	env := make([]string, 0, len(environ)+1)
 	for _, entry := range environ {
 		if strings.HasPrefix(entry, OPERATION_ID_ENV_VAR+"=") || strings.HasPrefix(entry, STEP_EXECUTION_ID_ENV_VAR+"=") {
@@ -153,15 +152,19 @@ func ChildProcessEnv(environ []string, stepExecutionID *int64) []string {
 	return env
 }
 
-// StepClaimingEnabled reports whether step claiming is on at Init, in claim or join mode.
-func (cp *YugabyteDB) StepClaimingEnabled() bool {
+func (cp *YugabyteDB) stepClaimingEnabled() bool {
 	return cp.claimingEnv.mode != stepClaimingOff
 }
 
-// HeldStepExecutionID is the id of the open step execution, for a child
-// process to join. Nil when none is open.
-func (cp *YugabyteDB) HeldStepExecutionID() *int64 {
-	return cp.activeStepExecutionID()
+// ChildProcessEnv returns environ for a child Voyager process: both step
+// claiming vars removed, and when joinParent is set and a step execution is
+// held, VOYAGER_STEP_EXECUTION_ID set to it so the child joins.
+func (cp *YugabyteDB) ChildProcessEnv(environ []string, joinParent bool) []string {
+	var stepExecutionID *int64
+	if joinParent {
+		stepExecutionID = cp.activeStepExecutionID()
+	}
+	return childProcessEnv(environ, stepExecutionID)
 }
 
 // checkStepClaimingTables fails when a table or column step claiming uses is missing
@@ -234,6 +237,12 @@ func (cp *YugabyteDB) newStepExecutionPool() (*pgxpool.Pool, error) {
 // onLost is called from the heartbeat goroutine when the step execution can no longer
 // be held; the command must stop. A second call while a step execution is held is a no-op.
 func (cp *YugabyteDB) ClaimStep(migrationID uuid.UUID, step string, onLost func(err error)) error {
+	if !cp.stepClaimingEnabled() {
+		return nil
+	}
+	if cp.claimingEnv.mode == stepClaimingClaim && migrationID == uuid.Nil {
+		return goerrors.Errorf("migration id unknown: %s is not set and the migration has no status record", metadb.MigrationUUIDEnvVarName)
+	}
 	cp.stepExecutionMu.Lock()
 	defer cp.stepExecutionMu.Unlock()
 	if cp.stepExecution != nil {

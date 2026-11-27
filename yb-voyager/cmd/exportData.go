@@ -2653,7 +2653,10 @@ func handleEmptyTableListForExport(finalTableList []sqlname.NameTuple) {
 		DataFileList: make([]*datafile.FileEntry, 0),
 	}
 	dfd.Save()
-	closeClaimedStep(nil)
+	controlPlane.Finalize()
+	if err := controlPlane.CloseStep(nil); err != nil {
+		log.Errorf("Could not close the control plane step attempt: %v", err)
+	}
 	os.Exit(0)
 }
 

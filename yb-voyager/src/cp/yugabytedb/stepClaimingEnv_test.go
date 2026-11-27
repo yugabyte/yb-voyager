@@ -86,7 +86,25 @@ func TestChildProcessEnv(t *testing.T) {
 		{name: "empty environ", expected: []string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, ChildProcessEnv(tc.environ, tc.id))
+			assert.Equal(t, tc.expected, childProcessEnv(tc.environ, tc.id))
 		})
 	}
+}
+
+func TestClaimStepWithoutMigrationID(t *testing.T) {
+	t.Run("claim mode fails", func(t *testing.T) {
+		controlPlane := New("")
+		controlPlane.claimingEnv = stepClaimingEnv{mode: stepClaimingClaim, operationID: uuid.New()}
+		err := controlPlane.ClaimStep(uuid.Nil, "export-schema", nil)
+		assert.ErrorContains(t, err, "migration id unknown: YB_VOYAGER_MIGRATION_UUID is not set")
+	})
+	t.Run("claiming off does nothing", func(t *testing.T) {
+		assert.NoError(t, New("").ClaimStep(uuid.Nil, "export-schema", nil))
+	})
+}
+
+func TestChildProcessEnvMethod(t *testing.T) {
+	environ := []string{"A=1", "VOYAGER_OPERATION_ID=x"}
+	assert.Equal(t, []string{"A=1"}, New("").ChildProcessEnv(environ, true))
+	assert.Equal(t, []string{"A=1"}, New("").ChildProcessEnv(environ, false))
 }
