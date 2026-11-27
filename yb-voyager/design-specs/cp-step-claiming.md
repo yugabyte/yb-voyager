@@ -19,7 +19,7 @@
 - **Operation**: a row in `voyager_core.operation`, identified by the uuid in `VOYAGER_OPERATION_ID`.
 - **Planned step**: a row in `voyager_core.operation_step` (`operation_id`, `step`). The platform writes it before launching the Job. It says "this operation expects this step to run".
 - **Attempt**: a row in `voyager_core.step_execution` for one run of one step. Status is `running`, `succeeded`, `failed` or `stopped`.
-- **Lease**: an attempt is alive while its `last_heartbeat_at` is newer than 2 minutes.
+- **Lease**: an attempt is alive while its `last_heartbeat_at` is newer than 2 minutes. Voyager only reports it; the platform's controller acts on it.
 - **Claim**: inserting a `running` attempt.
 
 **Non-goals**
@@ -27,6 +27,8 @@
 - Voyager never creates or alters these tables. The platform owns the DDL (as for the existing three tables).
 - No change to command behaviour or output when step claiming is off.
 - `stopped` is written by the platform, not by Voyager.
+- Voyager never modifies another process's attempt. Expiring, cancelling and rerunning a step belong to the platform's controller.
+- Only the happy path is handled in Voyager: a stale attempt blocks a claim until the controller closes it.
 - Live migration, fall-back and fall-forward commands do not claim.
 
 ## 2. When it is active
@@ -92,18 +94,17 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 - One transaction:
   1. Find the planned step: `operation_step` joined to `operation` where `operation_id = $op AND step = $step`.
   2. If there is none, or `operation.migration_id` differs from this migration's UUID: fail the command with a clear error. No attempt row is written.
-  3. Close any `running` attempt for `(migration_id, step)` whose `last_heartbeat_at < now() - 2 minutes`: `status='failed'`, `reason='lease_expired'`, `finished_at=now()`.
-  4. Insert a `running` attempt `(migration_id, operation_step_id, step, executor_ref)` and take its `id`.
-- If the insert hits `one_running_per_step`, a live attempt exists: fail fast with a "step already running" error.
+  3. Insert a `running` attempt `(migration_id, operation_step_id, step, executor_ref)` and take its `id`.
+- If the insert hits `one_running_per_step`, the step already has a `running` attempt, live or stale: fail fast with a "step already running" error. Voyager does not touch that attempt; the controller closes it before a rerun.
 - A claim failure fails the command through the normal error path before it does any work.
 
 ## 6. Heartbeat
 
 - A goroutine runs `UPDATE step_execution SET last_heartbeat_at = now() WHERE id = $id AND status = 'running'` every 10 s.
-- 0 rows updated means someone closed the attempt (for example another pod expired it): stop the command.
-- Each heartbeat `UPDATE` has a 10 s timeout.
-- Heartbeats failing continuously for the lease minus two heartbeat intervals (1 min 40 s): stop the command. Two pods must never run one step.
-  - Not at the full 2 minutes: the failure is only noticed when an `UPDATE` returns, up to one interval plus one timeout later. Stopping at 2 minutes could leave the old pod running after another claimed the step.
+- The heartbeat reports liveness; it never decides on its own to stop the command.
+- 0 rows updated means the controller closed the attempt (a cancel): stop the command.
+- Each heartbeat `UPDATE` has a 10 s timeout. A failed heartbeat is logged and retried on the next tick; the command keeps running however long the control plane is unreachable.
+- Fencing is the controller's job: a process cut off from the control plane keeps running, so before rerunning a step whose attempt is still `running` the controller must stop the old process (for example, delete its Job) and then close the attempt.
 - "Stop the command" is `utils.ErrExit` with a clear message, so the existing exit path (child cleanup, exit handler) runs. The goroutine itself never panics.
 - The goroutine ends when the attempt closes.
 - Heartbeats use their own connection pool, so they are not queued behind event writes.
@@ -144,11 +145,11 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 | Case | Result |
 |---|---|
 | Planned step missing, or operation belongs to another migration | Command fails before work, no attempt row |
-| Live attempt exists | Command fails before work ("step already running") |
-| Expired attempt exists | Closed `failed`/`lease_expired`, new attempt claimed |
+| Running attempt exists, live or stale | Command fails before work ("step already running"); the attempt is left as it is |
 | Control plane DB unreachable at claim | Command fails before work |
-| Heartbeat failing for 1 min 40 s, or attempt closed under us | Command stops with an error exit, before the lease lets another pod claim |
-| Process killed (SIGKILL, node loss) | No close. The lease expires and the next claimer closes it as `lease_expired` |
+| Heartbeat failing | Logged and retried; the command keeps running |
+| Attempt closed under us (controller cancel) | Command stops with an error exit |
+| Process killed (SIGKILL, node loss) | No close. The attempt stays `running` (its lease reads expired) until the controller closes it |
 | Command exits with error | Attempt closed `failed` with the error text |
 
 ## 11. Tests
@@ -156,8 +157,9 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 - Integration (`integration` tag, same style as `yugabytedb_test.go`, which creates the tables itself):
   - claim, heartbeat, done entry and close in one transaction;
   - failure closes `failed` with the error;
-  - an expired attempt is closed `lease_expired` and a new one claimed;
-  - a fresh running attempt makes a second claim fail;
+  - a running attempt, fresh or stale, makes a second claim fail and is left unchanged;
+  - failing heartbeats do not stop the command;
+  - an attempt closed by someone else stops the command;
   - a missing planned step, or a foreign operation, fails fast and writes nothing;
   - env var unset: no new queries, no rows;
   - `step_execution_id` stamped on `migration_state` and `metadata` rows.

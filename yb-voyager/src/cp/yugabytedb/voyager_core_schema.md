@@ -147,8 +147,8 @@ What Voyager does with them:
 - Inserts a `running` `step_execution` row when a command starts (the claim),
   heartbeats `last_heartbeat_at` every 10 s, and closes the row.
   `executor_ref` is the `EXECUTOR_REF` env var, as-is.
-- Closes a `running` row of the same `(migration_id, step)` whose heartbeat is
-  older than 2 minutes as `failed` with `reason = 'lease_expired'`.
+- Never modifies another process's row. If the step already has a `running`
+  row, live or stale, the claim fails; the platform closes that row.
 - Close: `succeeded`, or `failed` with `error_message`. `stopped` is never
   written by Voyager.
 - A child process joined to its parent's step execution (internal
