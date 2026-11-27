@@ -71,12 +71,10 @@ const QUALIFIED_STEP_EXECUTION_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + STEP_EX
 const STEP_EXECUTION_ID_COLUMN = "step_execution_id"
 
 const (
-	defaultHeartbeatInterval       = 10 * time.Second
-	defaultLeaseDuration           = 2 * time.Minute
-	stepExecutionCloseTimeout      = 10 * time.Second
-	uniqueViolationSQLState        = "23505"
-	oneRunningPerStepConstraint    = "one_running_per_step"
-	stepExecutionLeaseExpiredCause = "lease_expired"
+	defaultHeartbeatInterval    = 10 * time.Second
+	stepExecutionCloseTimeout   = 10 * time.Second
+	uniqueViolationSQLState     = "23505"
+	oneRunningPerStepConstraint = "one_running_per_step"
 )
 
 var errStepExecutionNotRunning = goerrors.New("step attempt is no longer running")
@@ -325,22 +323,9 @@ func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, s
 			cp.claimingEnv.operationID, operationMigrationID, migrationID)
 	}
 
-	// 2. Close a previous step execution at this step only if its heartbeat is older
-	// than the lease: its process is gone. A live step execution is left alone, and
-	// the insert below then fails at once on one_running_per_step.
-	_, err = tx.Exec(ctx, fmt.Sprintf(`
-		UPDATE %s
-		SET status = 'failed', reason = $3, finished_at = now()
-		WHERE migration_id = $1 AND step = $2 AND status = 'running'
-		  AND last_heartbeat_at < now() - make_interval(secs => $4::float8)`,
-		QUALIFIED_STEP_EXECUTION_TABLE_NAME),
-		migrationID, step, stepExecutionLeaseExpiredCause, cp.leaseDuration.Seconds())
-	if err != nil {
-		return 0, fmt.Errorf("claim step %s: close expired attempts: %w", step, err)
-	}
-
-	// 3. The insert is the claim. one_running_per_step allows one running
-	// step execution per (migration, step), so a second claimer gets a unique violation.
+	// 2. The insert is the claim. one_running_per_step allows one running step
+	// execution per (migration, step), so any running one, live or stale, makes
+	// this fail. Voyager never closes another process's step execution.
 	var id int64
 	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		INSERT INTO %s (migration_id, operation_step_id, step, executor_ref)
@@ -365,7 +350,6 @@ func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, s
 func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err error)) {
 	ticker := time.NewTicker(cp.heartbeatInterval)
 	defer ticker.Stop()
-	lastSuccess := time.Now()
 	for {
 		select {
 		case <-a.stop:
@@ -382,22 +366,13 @@ func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err e
 			return
 		default:
 		}
-		// No row updated: the step execution is no longer running, so another claimer
-		// closed it as expired. Stop rather than run the step twice.
-		if err == nil && tag.RowsAffected() == 0 {
-			onLost(goerrors.Errorf("step %s (step execution %d) was closed by another process; stopping", a.step, a.id))
-			return
-		}
-		if err == nil {
-			lastSuccess = time.Now()
+		if err != nil {
+			log.Warnf("Heartbeat for step execution %d failed, retrying: %v", a.id, err)
 			continue
 		}
-		log.Warnf("Heartbeat for step execution %d failed: %v", a.id, err)
-		// A failure is only seen when an UPDATE returns, up to one tick plus one
-		// timeout late, so stop that much before the lease lets another pod claim.
-		if failingFor := time.Since(lastSuccess); failingFor >= cp.leaseDuration-2*cp.heartbeatInterval {
-			onLost(fmt.Errorf("heartbeat for step %s (step execution %d) failed for %s; stopping so no other pod runs the step twice: %w",
-				a.step, a.id, failingFor.Round(time.Second), err))
+		// No row updated: the controller closed the step execution (a cancel).
+		if tag.RowsAffected() == 0 {
+			onLost(goerrors.Errorf("step %s (step execution %d) was closed by the control plane; stopping", a.step, a.id))
 			return
 		}
 	}

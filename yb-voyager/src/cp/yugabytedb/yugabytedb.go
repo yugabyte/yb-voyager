@@ -52,7 +52,6 @@ type YugabyteDB struct {
 	// stepExecution is guarded by stepExecutionMu; the step execution's own state by its mu.
 	claimingEnv       stepClaimingEnv
 	heartbeatInterval time.Duration
-	leaseDuration     time.Duration
 	stepExecutionMu   sync.Mutex
 	stepExecution     *stepExecution
 }
@@ -60,7 +59,6 @@ type YugabyteDB struct {
 func New(exportDir string) *YugabyteDB {
 	return &YugabyteDB{
 		heartbeatInterval: defaultHeartbeatInterval,
-		leaseDuration:     defaultLeaseDuration,
 	}
 }
 

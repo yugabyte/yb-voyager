@@ -283,7 +283,7 @@ func TestStepClaiming(t *testing.T) {
 		require.NoError(t, err)
 		select {
 		case err := <-lost:
-			assert.ErrorContains(t, err, "closed by another process")
+			assert.ErrorContains(t, err, "closed by the control plane")
 		case <-time.After(15 * time.Second):
 			t.Fatal("the heartbeat did not report the lost attempt")
 		}
@@ -296,12 +296,11 @@ func TestStepClaiming(t *testing.T) {
 		assert.Equal(t, "stopped", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
 	})
 
-	t.Run("failing heartbeats stop the command before the lease expires", func(t *testing.T) {
+	t.Run("failing heartbeats do not stop the command", func(t *testing.T) {
 		migrationID := uuid.New()
 		withOperation(t, plan(t, migrationID, STEP_EXPORT_SCHEMA))
 		controlPlane := newControlPlane(t)
-		controlPlane.heartbeatInterval = 200 * time.Millisecond
-		controlPlane.leaseDuration = 2 * time.Second
+		controlPlane.heartbeatInterval = 50 * time.Millisecond
 		lost := make(chan error, 1)
 		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
 
@@ -309,21 +308,15 @@ func TestStepClaiming(t *testing.T) {
 		execution := controlPlane.stepExecution
 		controlPlane.stepExecutionMu.Unlock()
 		execution.pool.Close()
-		failingSince := time.Now()
 
+		// A negative check: 20 failing ticks must not report the step as lost.
 		select {
 		case err := <-lost:
-			// The last success was at most one interval before the pool closed, and the
-			// stop comes at lease - 2 intervals (1.6 s) after it, plus at most one tick:
-			// so 1.4-1.8 s after the close, before the 2 s lease. The lower bound
-			// allows 0.2 s for scheduling.
-			elapsed := time.Since(failingSince)
-			assert.ErrorContains(t, err, "stopping so no other pod runs the step twice")
-			assert.GreaterOrEqual(t, elapsed, 1200*time.Millisecond)
-			assert.Less(t, elapsed, controlPlane.leaseDuration)
-		case <-time.After(15 * time.Second):
-			t.Fatal("failing heartbeats did not stop the command")
+			t.Fatalf("failing heartbeats stopped the command: %v", err)
+		case <-time.After(20 * controlPlane.heartbeatInterval):
 		}
+		assert.Equal(t, "running", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
+		assert.Error(t, controlPlane.CloseStep(nil))
 	})
 
 	t.Run("failure closes the attempt with the error", func(t *testing.T) {
@@ -350,7 +343,7 @@ func TestStepClaiming(t *testing.T) {
 		assert.Equal(t, "succeeded", attempts(t, migrationID, STEP_FINALIZE_SCHEMA)[0].status)
 	})
 
-	t.Run("an expired attempt is closed and a new one claimed", func(t *testing.T) {
+	t.Run("a stale attempt makes the claim fail and is left unchanged", func(t *testing.T) {
 		migrationID := uuid.New()
 		planned := plan(t, migrationID, STEP_EXPORT_SCHEMA)
 		withOperation(t, planned)
@@ -360,14 +353,12 @@ func TestStepClaiming(t *testing.T) {
 		require.NoError(t, err)
 
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)))
+		assert.ErrorContains(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)), "is already running")
 		got := attempts(t, migrationID, STEP_EXPORT_SCHEMA)
-		require.Len(t, got, 2)
-		assert.Equal(t, "failed", got[0].status)
-		assert.Equal(t, "lease_expired", got[0].reason.String)
-		assert.True(t, got[0].finished)
-		assert.Equal(t, "running", got[1].status)
-		require.NoError(t, controlPlane.CloseStep(nil))
+		require.Len(t, got, 1)
+		assert.Equal(t, "running", got[0].status)
+		assert.False(t, got[0].reason.Valid)
+		assert.False(t, got[0].finished)
 	})
 
 	t.Run("a live attempt makes a second claim fail", func(t *testing.T) {
