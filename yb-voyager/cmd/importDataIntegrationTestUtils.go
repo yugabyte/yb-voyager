@@ -18,65 +18,17 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
-	"database/sql"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-type TestTargetDB struct {
-	Tconf tgtdb.TargetConf
-	testcontainers.TestContainer
-	tgtdb.TargetDB
-}
+var testYugabyteDBTarget *testutils.TestTargetDB
 
-var testYugabyteDBTarget *TestTargetDB
-
+// setupYugabyteTestDb starts a YugabyteDB test container and points the
+// package-level tdb at it. The container/TargetDB setup itself lives in
+// test/utils so it can be shared with packages outside cmd.
 func setupYugabyteTestDb(t *testing.T) {
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err := yugabytedbContainer.Start(context.Background())
-	testutils.FatalIfError(t, err)
-	host, port, err := yugabytedbContainer.GetHostPort()
-	testutils.FatalIfError(t, err)
-	testYugabyteDBTarget = &TestTargetDB{
-		TestContainer: yugabytedbContainer,
-		TargetDB: tgtdb.NewTargetDB(&tgtdb.TargetConf{
-			TargetDBType: "yugabytedb",
-			DBVersion:    yugabytedbContainer.GetConfig().DBVersion,
-			User:         yugabytedbContainer.GetConfig().User,
-			Password:     yugabytedbContainer.GetConfig().Password,
-			Schemas:      []sqlname.Identifier{sqlname.NewIdentifier(constants.YUGABYTEDB, yugabytedbContainer.GetConfig().Schema)},
-			DBName:       yugabytedbContainer.GetConfig().DBName,
-			Host:         host,
-			Port:         port,
-		}),
-	}
-
+	testYugabyteDBTarget = testutils.SetupYugabyteTestDb(t)
 	tdb = testYugabyteDBTarget.TargetDB
-	err = tdb.Init()
-	testutils.FatalIfError(t, err)
-	err = tdb.CreateVoyagerSchema()
-	testutils.FatalIfError(t, err)
-	err = tdb.InitConnPool()
-	testutils.FatalIfError(t, err)
-}
-
-func assertIdentityColumnIsAlways(t *testing.T, conn *sql.DB, schema, table, column string) {
-	t.Helper()
-	var identityGeneration string
-	err := conn.QueryRow(
-		`SELECT identity_generation FROM information_schema.columns
-		 WHERE table_schema = $1 AND table_name = $2 AND column_name = $3`,
-		schema, table, column,
-	).Scan(&identityGeneration)
-	assert.NoError(t, err, "querying identity_generation for %s.%s.%s", schema, table, column)
-	assert.Equal(t, "ALWAYS", identityGeneration,
-		"expected identity_generation=ALWAYS for %s.%s.%s, got %q", schema, table, column, identityGeneration)
 }
