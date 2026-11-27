@@ -155,7 +155,8 @@ What Voyager does with them:
   `VOYAGER_STEP_EXECUTION_ID`) only checks the row is `running` and belongs to
   its migration, and stamps its rows. It never inserts, heartbeats or closes it.
 - While an attempt is open, `migration_state` and `metadata` rows carry its
-  id in `step_execution_id`. Otherwise the column is NULL, and Voyager does not
+  id in `step_execution_id`. With step claiming on, a write with no open
+  attempt is an error. With it off, the column is NULL and Voyager does not
   name it in its statements.
 
 Command to step:
@@ -171,5 +172,6 @@ Command to step:
 | finalize-schema-post-data-import, `import schema --post-snapshot-import` | `finalize-schema` |
 | end migration | `end-migration` |
 
-For the phases with a done entry (the table under `migration_state`), the done
-entry, its `metadata` document and the attempt's close are one transaction.
+A phase's done entry and its `metadata` document are an ordinary stamped
+write; they never close the attempt. It is closed once, when the command ends.
+If the write of the step's own done entry failed, that close is `failed`.

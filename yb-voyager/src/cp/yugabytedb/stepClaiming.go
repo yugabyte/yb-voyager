@@ -77,16 +77,13 @@ const (
 	oneRunningPerStepConstraint = "one_running_per_step"
 )
 
-var errStepExecutionNotRunning = goerrors.New("step attempt is no longer running")
-
 type stepExecution struct {
 	id   int64
 	step string
 	pool *pgxpool.Pool
 	stop chan struct{}
 
-	// mu guards closed and doneErr. It is held across the done transaction so
-	// a close from the exit handler cannot interleave with it.
+	// mu guards closed and doneErr.
 	mu      sync.Mutex
 	closed  bool
 	doneErr error
@@ -378,8 +375,8 @@ func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err e
 	}
 }
 
-// CloseStep closes the held step execution: succeeded when runErr is nil, failed
-// with runErr's text otherwise. It does nothing when no step execution is held or it
+// CloseStep closes the held step execution: succeeded when runErr is nil and the
+// step's own done event was recorded, failed otherwise. It does nothing when no step execution is held or it
 // is already closed, so both the normal and the exit path can call it.
 func (cp *YugabyteDB) CloseStep(runErr error) error {
 	cp.stepExecutionMu.Lock()
@@ -395,8 +392,8 @@ func (cp *YugabyteDB) CloseStep(runErr error) error {
 	}
 	defer a.releaseLocked()
 
-	// The command succeeded but writing its done event (which also closes the
-	// step execution) failed: record the step execution as failed, with that error.
+	// The command succeeded but recording its done event failed: the platform
+	// must not read the missing done entry as success.
 	if runErr == nil && a.doneErr != nil {
 		runErr = fmt.Errorf("recording the step's completion in the control plane failed: %w", a.doneErr)
 	}
@@ -441,9 +438,10 @@ func (cp *YugabyteDB) activeStepExecutionID() *int64 {
 	return &id
 }
 
-// stepExecutionDoneBy returns the open step execution when eventType is its own step's
-// phase: that phase's done event closes it.
-func (cp *YugabyteDB) stepExecutionDoneBy(eventType string) *stepExecution {
+// stepExecutionOwningDoneEvent returns the held step execution when eventType is
+// the done event of its own step. A joined step execution is never returned: its
+// parent closes it.
+func (cp *YugabyteDB) stepExecutionOwningDoneEvent(eventType string) *stepExecution {
 	cp.stepExecutionMu.Lock()
 	a := cp.stepExecution
 	cp.stepExecutionMu.Unlock()
@@ -453,37 +451,8 @@ func (cp *YugabyteDB) stepExecutionDoneBy(eventType string) *stepExecution {
 	return a
 }
 
-// execAndCloseStepExecution runs cmd and closes the step execution in one transaction. The
-// close goes first: if the step execution is no longer running nothing is written.
-func (cp *YugabyteDB) execAndCloseStepExecution(a *stepExecution, cmd string, args ...any) error {
+func (a *stepExecution) recordDoneErr(err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
-		return errStepExecutionNotRunning
-	}
-	err := cp.withRetry(cmd, func(pool *pgxpool.Pool) error {
-		ctx := context.Background()
-		tx, err := pool.Begin(ctx)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = tx.Rollback(ctx) }()
-		tag, err := tx.Exec(ctx, closeStepExecutionSQL("'succeeded'", "NULL"), a.id)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return errStepExecutionNotRunning
-		}
-		if _, err := tx.Exec(ctx, cmd, args...); err != nil {
-			return err
-		}
-		return tx.Commit(ctx)
-	})
-	if err != nil {
-		a.doneErr = err
-		return err
-	}
-	a.releaseLocked()
-	return nil
+	a.doneErr = err
 }

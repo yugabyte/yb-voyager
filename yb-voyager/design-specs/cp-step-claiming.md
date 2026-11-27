@@ -115,21 +115,19 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 - Failure (error exit, signal, or any non-success exit): `status='failed'`, `error_message=<error>`, `finished_at=now()`.
 - Every close is guarded by `WHERE id = $id AND status = 'running'`. If it matches 0 rows the attempt was already closed by someone else and Voyager does not overwrite it.
 
-**Same-transaction rule**
-
-- For phases that write a done entry in `migration_state` (assessment.completed, schema.exported, schema.analyzed, schema.imported, data.exported, data.imported), the done entry, its `metadata` document (if any) and the attempt's close are **one transaction**.
-- The close is done first in the transaction. If it matches 0 rows (attempt lost), the transaction rolls back and no done entry is written.
-- Only the done event of the attempt's own step closes the step execution. Other phases that run inside a command are stamped with `step_execution_id` but do not close it.
+- The step execution stays `running` for the whole command. A phase's done entry (assessment.completed, schema.exported, schema.analyzed, schema.imported, data.exported, data.imported) and its `metadata` document are an ordinary stamped write and never close it, because commands keep working after sending their done event.
+- If the write of the held step's own done event fails (after retries, or because its payload is invalid), the error is kept. The end-of-command close is then `failed` with "recording the step's completion in the control plane failed: <error>", unless the command itself failed, in which case that error is recorded. The platform therefore does not read a missing done entry as success.
+- If the controller closes the attempt mid-command (a cancel), the heartbeat notices and stops the command (section 6). Voyager does not check the status before writing a done entry.
 - The assessment that `export schema` may run first is a child process (`assess-migration`) that joins the parent's step execution (section 2): its rows are stamped with the parent's id, and it never claims, heartbeats or closes. The parent's heartbeat keeps the lease.
-- For steps with no done entry (`finalize-schema`, `end-migration`), and for a success exit where the done event was never sent (for example `export schema` finding the schema already exported), the attempt closes at successful command completion.
+- For steps with no done entry (`finalize-schema`, `end-migration`), and for a success exit where the done event was never sent (for example `export schema` finding the schema already exported), the close is the same: `succeeded` at command end.
 - Closing on exit runs inside the existing `PackAndSendCallhomePayloadOnExit` exit handler, above its payload-sent guard. Exit handlers run in random order, so a second handler cannot be ordered.
-- "Successful command completion" is recorded by `PersistentPostRun`, which runs only when the command returned normally.
-- If the done transaction failed after retries, the attempt is closed `failed` with that error, so the platform does not read a missing done entry as success.
+- "Successful command completion" is recorded by `PersistentPostRun`, which runs only when the command returned normally, after the control plane has written all queued events.
 
 ## 8. Stamping
 
-- While an attempt is active, every `migration_state` and `metadata` row Voyager writes carries `step_execution_id = <attempt id>`. Otherwise NULL.
-- With no attempt, statements are exactly today's statements, so the column need not exist.
+- While an attempt is active, every `migration_state` and `metadata` row Voyager writes carries `step_execution_id = <attempt id>`.
+- With step claiming on (claim or join mode) and no active attempt (before the claim, after the close, or a command that did not claim), such a write is an error and writes nothing: "<event type> not recorded: step claiming is on but no step execution is held". There are no unstamped rows.
+- With step claiming off, statements are exactly today's statements, so the column need not exist.
 - `table_data_progress` is not stamped.
 
 ## 9. Init checks
@@ -151,15 +149,19 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 | Attempt closed under us (controller cancel) | Command stops with an error exit |
 | Process killed (SIGKILL, node loss) | No close. The attempt stays `running` (its lease reads expired) until the controller closes it |
 | Command exits with error | Attempt closed `failed` with the error text |
+| Done event write fails (command otherwise succeeds) | Attempt closed `failed` with "recording the step's completion in the control plane failed: ..." |
+| `migration_state`/`metadata` write with claiming on and no attempt held | The write returns an error; no row is written |
 
 ## 11. Tests
 
 - Integration (`integration` tag, same style as `yugabytedb_test.go`, which creates the tables itself):
-  - claim, heartbeat, done entry and close in one transaction;
+  - claim, heartbeat and stamped done entry: the done event leaves the attempt `running`, and `CloseStep` then closes it `succeeded`;
+  - a failed write of the step's own done event makes the end-of-command close `failed` with the "recording the step's completion" message;
+  - a write with claiming on and no attempt held fails and writes no row;
+  - an attempt closed by the controller is reported by the heartbeat (`onLost`);
   - failure closes `failed` with the error;
   - a running attempt, fresh or stale, makes a second claim fail and is left unchanged;
   - failing heartbeats do not stop the command;
-  - an attempt closed by someone else stops the command;
   - a missing planned step, or a foreign operation, fails fast and writes nothing;
   - env var unset: no new queries, no rows;
   - `step_execution_id` stamped on `migration_state` and `metadata` rows.
