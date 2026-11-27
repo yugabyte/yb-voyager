@@ -1343,7 +1343,9 @@ def exported_event_count(export_dir: str, exporter_role: str) -> tuple[int | Non
         return int(proc.stdout.strip()), None
     except subprocess.CalledProcessError as exc:
         return None, _one_line(exc.stderr or str(exc))
-    except (subprocess.SubprocessError, ValueError) as exc:
+    except subprocess.TimeoutExpired:
+        return None, f"sqlite3 timed out after {PROGRESS_READ_TIMEOUT_SEC}s"
+    except ValueError as exc:
         return None, _one_line(str(exc))
 
 

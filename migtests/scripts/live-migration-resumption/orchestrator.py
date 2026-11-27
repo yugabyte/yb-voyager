@@ -768,14 +768,11 @@ def check_migration_progress_action(stage: Dict[str, Any], ctx: Any) -> None:
         if exporter_moved and importer_moved:
             break
         if time.time() > deadline:
-            problems = []
-            for name, key, moved in (("exporter", "exported", exporter_moved), ("importer", "imported", importer_moved)):
-                if moved:
-                    continue
-                if now[key] is None:
-                    problems.append(f"{name} progress unreadable ({now[f'{key}_error']})")
-                else:
-                    problems.append(f"{name} made no progress")
+            problems = [
+                f"{name} progress unreadable" if now[key] is None else f"{name} made no progress"
+                for name, key, moved in (("exporter", "exported", exporter_moved), ("importer", "imported", importer_moved))
+                if not moved
+            ]
             raise RuntimeError(
                 f"after {event}: {' and '.join(problems)} in {timeout_sec}s: "
                 f"{H.format_progress(now, base)}; processes: {H.process_states(ctx)}"
@@ -951,10 +948,10 @@ def main() -> None:
         artifact_error = None
         try:
             H.snapshot_msr_and_stats(cfg["export_dir"], cfg["artifacts_dir"], run_failed=not completed)
+            if had_failure:
+                H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
         except Exception as exc:
             artifact_error = exc
-        if had_failure:
-            H.copy_logs_directory(cfg["export_dir"], cfg["artifacts_dir"])
 
         # Best-effort cleanup: ensure background processes started by the orchestrator
         # don't outlive the orchestrator itself.
@@ -1007,8 +1004,10 @@ def main() -> None:
         except Exception:
             # Never fail the run due to cleanup.
             pass
-        if artifact_error:
-            raise artifact_error
+        if artifact_error is not None:
+            if completed:
+                raise artifact_error
+            H.log(f"artifacts: copy failed: {artifact_error!r}")
 
 
 if __name__ == "__main__":
