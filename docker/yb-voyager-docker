@@ -65,6 +65,19 @@ for var_name in "${variables[@]}"; do
   fi
 done
 
+# Variables whose values may contain spaces, quotes or braces (e.g. a JSON object). They are forwarded as
+# "-e NAME" (no value), so docker reads the value straight from this shell's environment and it never goes
+# through the word-splitting of ${dockerCmd} below.
+passthrough_variables=("YUGABYTEDB_CONTROL_PLANE_DB_CONN_STRING"
+"VOYAGER_OPERATION_ID"
+"EXECUTOR_REF")
+
+for var_name in "${passthrough_variables[@]}"; do
+  if [[ -n "${!var_name}" ]]; then
+    exported_vars="${exported_vars} -e ${var_name}"
+  fi
+done
+
 flags_to_store=("--source-ssl-cert"
 "--source-ssl-key"
 "--source-ssl-root-cert"
