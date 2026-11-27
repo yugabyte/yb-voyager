@@ -51,10 +51,22 @@ Full design: `design-specs/cp-step-claiming.md`.
 - **`Init` fails fast** when claiming is on and a table or column it uses is
   missing. With both variables unset, no query or statement differs from a run
   without claiming.
-- **Offline commands only.** Live, fall-back and fall-forward commands do not
-  claim.
+- **Offline commands only.** Live, fall-back and fall-forward are not
+  supported under `VOYAGER_OPERATION_ID` (see Known gaps).
 
 ## Known gaps
+
+- **Step claiming: live flows are unsupported.** `export data` and `import
+  data` claim whatever the export type. At cutover they hand off with
+  `syscall.Exec`, which runs no exit handler, so the step execution stays
+  `running`. The exec'd command claims nothing, so its control plane writes
+  are refused.
+- **Step claiming: a done event dropped before the publisher is lost.** A full
+  event channel, a non-string assessment report or a marshal failure drops it
+  before it is sent, so the step closes `succeeded` with no done entry.
+- **No connect deadline on the control plane pools.** Both pings use no
+  timeout; an unresponsive host fails the command only after the OS connect
+  timeout (about 2 minutes).
 
 - **Partitioned tables (PostgreSQL source).** Leaf partitions' data files are
   renamed to the root table, so several import tasks share one

@@ -29,7 +29,7 @@
 - `stopped` is written by the platform, not by Voyager.
 - Voyager never modifies another process's attempt. Expiring, cancelling and rerunning a step belong to the platform's controller.
 - Only the happy path is handled in Voyager: a stale attempt blocks a claim until the controller closes it.
-- Live migration, fall-back and fall-forward commands do not claim.
+- Live migration, fall-back and fall-forward are not supported under `VOYAGER_OPERATION_ID`. `export data` and `import data` claim whatever the export type, and the `syscall.Exec` handoff at cutover runs no exit handler, so the step execution stays `running`. Live needs its own claiming design.
 
 ## 2. When it is active
 
