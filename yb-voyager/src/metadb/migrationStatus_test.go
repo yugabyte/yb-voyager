@@ -28,7 +28,7 @@ import (
 func TestInitMigrationStatusRecordMigrationUUID(t *testing.T) {
 	t.Run("uses valid UUID from environment", func(t *testing.T) {
 		externalUUID := uuid.New().String()
-		t.Setenv(migrationUUIDEnvVarName, externalUUID)
+		t.Setenv(MigrationUUIDEnvVarName, externalUUID)
 		mdb := newTestMetaDB(t)
 
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
@@ -39,7 +39,7 @@ func TestInitMigrationStatusRecordMigrationUUID(t *testing.T) {
 	})
 
 	t.Run("generates UUID when environment is absent", func(t *testing.T) {
-		t.Setenv(migrationUUIDEnvVarName, "")
+		t.Setenv(MigrationUUIDEnvVarName, "")
 		mdb := newTestMetaDB(t)
 
 		require.NoError(t, mdb.InitMigrationStatusRecord("config.yaml"))
@@ -53,12 +53,12 @@ func TestInitMigrationStatusRecordMigrationUUID(t *testing.T) {
 	})
 
 	t.Run("errors when environment is set but invalid", func(t *testing.T) {
-		t.Setenv(migrationUUIDEnvVarName, "not-a-uuid")
+		t.Setenv(MigrationUUIDEnvVarName, "not-a-uuid")
 		mdb := newTestMetaDB(t)
 
 		err := mdb.InitMigrationStatusRecord("config.yaml")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), migrationUUIDEnvVarName)
+		assert.Contains(t, err.Error(), MigrationUUIDEnvVarName)
 
 		// nothing should have been persisted for a rejected value
 		record, err := mdb.GetMigrationStatusRecord()
@@ -68,7 +68,7 @@ func TestInitMigrationStatusRecordMigrationUUID(t *testing.T) {
 
 	t.Run("preserves persisted UUID", func(t *testing.T) {
 		persistedUUID := uuid.New().String()
-		t.Setenv(migrationUUIDEnvVarName, uuid.New().String())
+		t.Setenv(MigrationUUIDEnvVarName, uuid.New().String())
 		mdb := newTestMetaDB(t)
 		require.NoError(t, mdb.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 			record.MigrationUUID = persistedUUID

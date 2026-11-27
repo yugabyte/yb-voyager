@@ -740,6 +740,25 @@ func retrieveMigrationUUID() error {
 	return nil
 }
 
+// stepClaimMigrationUUID is the migration id to claim a step for: the one in the
+// migration status record if there is one, else YB_VOYAGER_MIGRATION_UUID, else uuid.Nil.
+func stepClaimMigrationUUID() (uuid.UUID, error) {
+	if metaDB != nil {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("retrieving migration status record: %w", err)
+		}
+		if msr != nil && msr.MigrationUUID != "" {
+			id, err := uuid.Parse(msr.MigrationUUID)
+			if err != nil {
+				return uuid.Nil, fmt.Errorf("parse migration uuid %q: %w", msr.MigrationUUID, err)
+			}
+			return id, nil
+		}
+	}
+	return metadb.ExternalMigrationUUID()
+}
+
 func nameContainsCapitalLetter(name string) bool {
 	for _, c := range name {
 		if unicode.IsUpper(c) {

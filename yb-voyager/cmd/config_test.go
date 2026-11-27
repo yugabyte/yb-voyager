@@ -33,6 +33,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabytedb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
@@ -49,6 +50,8 @@ func resetCmdAndEnvVars(cmd *cobra.Command) {
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {}
 	cmd.PostRun = func(cmd *cobra.Command, args []string) {}
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {}
+	// PersistentPreRun now claims a step through controlPlane, and with ErrExit ignored a failed setControlPlane leaves it nil.
+	controlPlane = noopcp.New()
 	// go through all the env vars in confParamEnvVarPairs and unset them
 	for _, envVar := range confParamEnvVarPairs {
 		if envVar != "" {

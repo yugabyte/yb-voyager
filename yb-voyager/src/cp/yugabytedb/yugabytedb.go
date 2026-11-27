@@ -46,21 +46,38 @@ type YugabyteDB struct {
 	connMutex          sync.Mutex
 	connPool           *pgxpool.Pool
 	lastRowCountUpdate map[string]time.Time
+
+	// Step claiming (stepClaiming.go). claimingEnv.mode is off by default.
+	// stepExecution is guarded by stepExecutionMu; the step execution's own state by its mu.
+	claimingEnv       stepClaimingEnv
+	heartbeatInterval time.Duration
+	stepExecutionMu   sync.Mutex
+	stepExecution     *stepExecution
 }
 
 func New(exportDir string) *YugabyteDB {
-	return &YugabyteDB{}
+	return &YugabyteDB{
+		heartbeatInterval: defaultHeartbeatInterval,
+	}
 }
 
 func (cp *YugabyteDB) Init() error {
 	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []TableProgress, 200)
 
-	err := cp.connect()
+	var err error
+	cp.claimingEnv, err = readStepClaimingEnv()
+	if err != nil {
+		return err
+	}
+	err = cp.connect()
 	if err != nil {
 		return err
 	}
 	err = cp.checkTables()
+	if err == nil && cp.stepClaimingEnabled() {
+		err = cp.checkStepClaimingTables()
+	}
 	if err != nil {
 		cp.disconnect()
 		return err
@@ -430,54 +447,88 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 	log.Infof("Sending migration event to the yugabytedb control plane: %s %s for migration %s",
 		migrationEvent.EventType, migrationEvent.Status, migrationID)
 
+	// With claiming off the statements are exactly the unstamped ones, so the
+	// step_execution_id column is not touched.
+	stepExecutionID := cp.activeStepExecutionID()
+	if stepExecutionID == nil && cp.stepClaimingEnabled() {
+		return goerrors.Errorf("%s not recorded: step claiming is on but no step execution is held", migrationEvent.EventType)
+	}
+	var stampColumn string
+	stampValue := func(n int) string {
+		if stepExecutionID == nil {
+			return ""
+		}
+		return fmt.Sprintf(", $%d::bigint", n)
+	}
+	if stepExecutionID != nil {
+		stampColumn = ", " + STEP_EXECUTION_ID_COLUMN
+	}
+	withStamp := func(args ...any) []any {
+		if stepExecutionID != nil {
+			args = append(args, *stepExecutionID)
+		}
+		return args
+	}
+
 	switch migrationEvent.Status {
 	case STATUS_IN_PROGRESS:
 		cmd := fmt.Sprintf(`
 			WITH started AS (
-				INSERT INTO %[1]s (migration_id, name, value)
-				VALUES ($1::uuid, $2::text, true)
+				INSERT INTO %[1]s (migration_id, name, value%[2]s)
+				VALUES ($1::uuid, $2::text, true%[3]s)
 			)
-			INSERT INTO %[1]s (migration_id, name, value)
-			SELECT $1::uuid, $3::text, false
+			INSERT INTO %[1]s (migration_id, name, value%[2]s)
+			SELECT $1::uuid, $3::text, false%[3]s
 			-- a re-run: unset the done entry if it is currently set. Newest is by
 			-- set_at, since cached sequence blocks mean ids don't follow write order.
 			WHERE (SELECT ms.value FROM %[1]s ms
 			       WHERE ms.migration_id = $1::uuid
 			         AND ms.name = $3::text AND ms.scope = ''
 			       ORDER BY ms.set_at DESC, ms.id DESC LIMIT 1)
-		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME)
-		return cp.exec(cmd, migrationID, phase.startedEntry, phase.doneEntry)
+		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, stampColumn, stampValue(4))
+		return cp.exec(cmd, withStamp(migrationID, phase.startedEntry, phase.doneEntry)...)
 
 	case STATUS_COMPLETED:
-		if phase.metadataKind == "" {
-			cmd := fmt.Sprintf(`
-				INSERT INTO %s (migration_id, name, value)
-				VALUES ($1::uuid, $2::text, true)
-			`, QUALIFIED_MIGRATION_STATE_TABLE_NAME)
-			return cp.exec(cmd, migrationID, phase.doneEntry)
-		}
-		// The done entry and the document are one statement, so a phase is
-		// never recorded as done without the document it produced.
-		if migrationEvent.Payload == "" {
-			return goerrors.Errorf("%s completed without its %s document", migrationEvent.EventType, phase.metadataKind)
-		}
-		payloadVersion, err := phase.payloadVersion(migrationEvent.Payload)
+		err := cp.sendPhaseDone(migrationEvent, phase, migrationID, stampColumn, stampValue, withStamp)
 		if err != nil {
-			return fmt.Errorf("payload version of the %s document: %w", phase.metadataKind, err)
+			if own := cp.stepExecutionOwningDoneEvent(migrationEvent.EventType); own != nil {
+				own.recordDoneErr(err)
+			}
 		}
-		cmd := fmt.Sprintf(`
-			WITH done AS (
-				INSERT INTO %[1]s (migration_id, name, value)
-				VALUES ($1::uuid, $2::text, true)
-			)
-			INSERT INTO %[2]s (migration_id, kind, payload, payload_version)
-			VALUES ($1::uuid, $3::text, $4::jsonb, $5::text)
-		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME)
-		return cp.exec(cmd, migrationID, phase.doneEntry, phase.metadataKind, migrationEvent.Payload, payloadVersion)
+		return err
 
 	default:
 		return goerrors.Errorf("unknown migration event status %q", migrationEvent.Status)
 	}
+}
+
+func (cp *YugabyteDB) sendPhaseDone(migrationEvent MigrationEvent, phase migrationPhase, migrationID, stampColumn string,
+	stampValue func(n int) string, withStamp func(args ...any) []any) error {
+	if phase.metadataKind == "" {
+		cmd := fmt.Sprintf(`
+			INSERT INTO %s (migration_id, name, value%s)
+			VALUES ($1::uuid, $2::text, true%s)
+		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, stampColumn, stampValue(3))
+		return cp.exec(cmd, withStamp(migrationID, phase.doneEntry)...)
+	}
+	// The done entry and the document are one statement, so a phase is
+	// never recorded as done without the document it produced.
+	if migrationEvent.Payload == "" {
+		return goerrors.Errorf("%s completed without its %s document", migrationEvent.EventType, phase.metadataKind)
+	}
+	payloadVersion, err := phase.payloadVersion(migrationEvent.Payload)
+	if err != nil {
+		return fmt.Errorf("payload version of the %s document: %w", phase.metadataKind, err)
+	}
+	cmd := fmt.Sprintf(`
+		WITH done AS (
+			INSERT INTO %[1]s (migration_id, name, value%[3]s)
+			VALUES ($1::uuid, $2::text, true%[4]s)
+		)
+		INSERT INTO %[2]s (migration_id, kind, payload, payload_version%[3]s)
+		VALUES ($1::uuid, $3::text, $4::jsonb, $5::text%[4]s)
+	`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME, stampColumn, stampValue(6))
+	return cp.exec(cmd, withStamp(migrationID, phase.doneEntry, phase.metadataKind, migrationEvent.Payload, payloadVersion)...)
 }
 
 // Keyed by the event type of controlPlane.BaseUpdateRowCountEvent.

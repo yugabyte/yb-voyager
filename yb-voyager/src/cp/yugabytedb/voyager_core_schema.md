@@ -103,3 +103,75 @@ One row per table per stream, upserted in place while a command runs.
 
 Voyager does not write `snapshot_rows_errored`, the `cdc_*` counters or
 `details`.
+
+## Step claiming tables (platform-owned)
+
+Only used when `VOYAGER_OPERATION_ID` is set. The platform creates these;
+Voyager checks they exist at `Init` and never issues DDL. Design:
+[`design-specs/cp-step-claiming.md`](../../../design-specs/cp-step-claiming.md).
+
+```sql
+CREATE TABLE voyager_core.operation (
+    id uuid PRIMARY KEY, migration_id uuid, sequence_id bigint, issued_by text,
+    name text, config jsonb, idempotency_key text,
+    created_at timestamptz DEFAULT now()
+);
+CREATE TABLE voyager_core.operation_step (
+    id bigserial PRIMARY KEY, operation_id uuid, step text, ordinal int,
+    UNIQUE (operation_id, step)
+);
+CREATE TABLE voyager_core.step_execution (
+    id                bigserial PRIMARY KEY,
+    migration_id      uuid NOT NULL,
+    operation_step_id bigint NOT NULL,
+    step              text NOT NULL,
+    executor_ref      jsonb,
+    started_at        timestamptz DEFAULT now(),
+    last_heartbeat_at timestamptz DEFAULT now(),
+    status            text DEFAULT 'running'
+                      CHECK (status IN ('running','succeeded','failed','stopped')),
+    reason            text,
+    error_message     text,
+    finished_at       timestamptz
+);
+CREATE UNIQUE INDEX one_running_per_step
+    ON voyager_core.step_execution (migration_id, step) WHERE status = 'running';
+ALTER TABLE voyager_core.migration_state ADD COLUMN step_execution_id bigint;
+ALTER TABLE voyager_core.metadata ADD COLUMN step_execution_id bigint;
+```
+
+What Voyager does with them:
+
+- Reads `operation` and `operation_step`: the step must be planned for the
+  operation, and the operation must belong to this migration.
+- Inserts a `running` `step_execution` row when a command starts (the claim),
+  heartbeats `last_heartbeat_at` every 10 s, and closes the row.
+  `executor_ref` is the `EXECUTOR_REF` env var, as-is.
+- Never modifies another process's row. If the step already has a `running`
+  row, live or stale, the claim fails; the platform closes that row.
+- Close: `succeeded`, or `failed` with `error_message`. `stopped` is never
+  written by Voyager.
+- A child process joined to its parent's step execution (internal
+  `VOYAGER_STEP_EXECUTION_ID`) only checks the row is `running` and belongs to
+  its migration, and stamps its rows. It never inserts, heartbeats or closes it.
+- While an attempt is open, `migration_state` and `metadata` rows carry its
+  id in `step_execution_id`. With step claiming on, a write with no open
+  attempt is an error. With it off, the column is NULL and Voyager does not
+  name it in its statements.
+
+Command to step:
+
+| Command | Step |
+|---|---|
+| assess-migration | `assess-migration` |
+| export schema | `export-schema` |
+| analyze-schema | `analyze-schema` |
+| import schema | `import-schema` |
+| export data (source exporter) | `export-data-from-source` |
+| import data (target importer) | `import-data-to-target` |
+| finalize-schema-post-data-import, `import schema --post-snapshot-import` | `finalize-schema` |
+| end migration | `end-migration` |
+
+A phase's done entry and its `metadata` document are an ordinary stamped
+write; they never close the attempt. It is closed once, when the command ends.
+If the write of the step's own done entry failed, that close is `failed`.

@@ -332,7 +332,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	cmd.Env = os.Environ()
+	cmd.Env = controlPlane.ChildProcessEnv(os.Environ(), true)
 	cmd.Env = append(cmd.Env, "SOURCE_DB_PASSWORD="+source.Password)
 
 	// run and ignore exit status

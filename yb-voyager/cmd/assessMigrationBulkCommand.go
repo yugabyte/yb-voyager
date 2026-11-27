@@ -206,7 +206,7 @@ func executeAssessment(dbConfig AssessMigrationDBConfig) error {
 	execCmd := exec.Command(os.Args[0], cmdArgs...)
 	// password either has to be provided via fleet_config_file or can be provided at run-time by the user.
 	// user setting the env var route is not supported for assess-migration-bulk command
-	execCmd.Env = append(os.Environ(), "SOURCE_DB_PASSWORD="+dbConfig.Password)
+	execCmd.Env = append(controlPlane.ChildProcessEnv(os.Environ(), false), "SOURCE_DB_PASSWORD="+dbConfig.Password)
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 	execCmd.Stdin = os.Stdin

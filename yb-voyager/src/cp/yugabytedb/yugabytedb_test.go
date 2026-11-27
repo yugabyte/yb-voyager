@@ -20,6 +20,7 @@ package yugabytedb
 import (
 	"context"
 	"database/sql"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
@@ -81,12 +82,18 @@ var controlPlaneSchemaDDL = []string{
 	)`,
 }
 
+// The tests share one YugabyteDB container, so none of them may terminate it.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	testcontainers.TerminateAllContainers()
+	os.Exit(code)
+}
+
 func TestYugabyteDBControlPlaneWrites(t *testing.T) {
 	ctx := context.Background()
 
 	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	require.NoError(t, yugabyteDBContainer.Start(ctx), "Failed to start yugabytedb container")
-	defer testcontainers.TerminateAllContainers()
 
 	dsn := yugabyteDBContainer.GetConnectionString()
 	db, err := sql.Open("pgx", dsn)
@@ -429,6 +436,10 @@ func TestYugabyteDBStructs(t *testing.T) {
 		connMutex               sync.Mutex
 		connPool                *pgxpool.Pool
 		lastRowCountUpdate      map[string]time.Time
+		claimingEnv             stepClaimingEnv
+		heartbeatInterval       time.Duration
+		stepExecutionMu         sync.Mutex
+		stepExecution           *stepExecution
 	}{}
 
 	t.Run("Validate YugabyteDB Struct Definition", func(t *testing.T) {
