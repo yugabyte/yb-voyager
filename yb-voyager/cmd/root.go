@@ -255,7 +255,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			// exit handler's failed close; it must not be recorded as succeeded.
 			var runErr error
 			if ProcessShutdownRequested.Load() {
-				runErr = fmt.Errorf("interrupted by a signal")
+				runErr = goerrors.Errorf("interrupted by a signal")
 			}
 			if err := controlPlane.CloseStep(runErr); err != nil {
 				log.Errorf("Could not close the control plane step execution: %v", err)
@@ -268,7 +268,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 func closeStepOnExit() {
 	runErr := utils.ErrExitErr
 	if runErr == nil {
-		runErr = fmt.Errorf("command was interrupted before it completed")
+		runErr = goerrors.Errorf("command was interrupted before it completed")
 	}
 	if err := controlPlane.CloseStep(runErr); err != nil {
 		log.Errorf("Could not close the control plane step execution: %v", err)
