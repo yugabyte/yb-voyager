@@ -223,11 +223,11 @@ func (cp *YugabyteDB) checkStepClaimingTables() error {
 func (cp *YugabyteDB) newStepExecutionPool() (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(context.Background(), os.Getenv(DB_CONN_STRING_ENV_VAR))
 	if err != nil {
-		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step attempt: %w", err)
+		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step execution: %w", err)
 	}
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step attempt: %w", err)
+		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step execution: %w", err)
 	}
 	return pool, nil
 }
@@ -353,7 +353,7 @@ func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, s
 		return 0, goerrors.Errorf("step %s of migration %s is already running", step, migrationID)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("claim step %s: insert attempt: %w", step, err)
+		return 0, fmt.Errorf("claim step %s: insert step execution: %w", step, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("claim step %s: commit: %w", step, err)

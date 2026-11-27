@@ -258,7 +258,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				runErr = fmt.Errorf("interrupted by a signal")
 			}
 			if err := controlPlane.CloseStep(runErr); err != nil {
-				log.Errorf("Could not close the control plane step attempt: %v", err)
+				log.Errorf("Could not close the control plane step execution: %v", err)
 			}
 		}
 		atexit.Exit(0)
@@ -271,7 +271,7 @@ func closeStepOnExit() {
 		runErr = fmt.Errorf("command was interrupted before it completed")
 	}
 	if err := controlPlane.CloseStep(runErr); err != nil {
-		log.Errorf("Could not close the control plane step attempt: %v", err)
+		log.Errorf("Could not close the control plane step execution: %v", err)
 	}
 }
 
