@@ -42,7 +42,7 @@
 - Claim: `VOYAGER_OPERATION_ID` set. Claims, heartbeats and closes its own step execution (sections 5 to 7).
 - Join: `VOYAGER_STEP_EXECUTION_ID` set. Runs inside a step execution held by its parent process:
   - `Init` runs the same table checks as claim mode.
-  - When the migration UUID is resolved (where claim mode would claim), the step execution must exist, be `running` and have this migration's `migration_id`. Any mismatch fails the command before work.
+  - Where claim mode would claim (section 5), the step execution must exist, be `running` and have this migration's `migration_id`. Any mismatch fails the command before work.
   - Rows are stamped with the id. No claim, no heartbeat, no close: `CloseStep` does nothing and no done event closes it.
 - Both vars set: `Init` fails.
 - Child processes: `export schema` starts `assess-migration` with `VOYAGER_OPERATION_ID` removed and `VOYAGER_STEP_EXECUTION_ID` set to its own step execution id (nothing is set when it holds none). `assess-migration-bulk` children (different migrations) get both removed.
@@ -80,17 +80,21 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 | export schema | `export-schema` |
 | analyze-schema | `analyze-schema` |
 | import schema | `import-schema` |
-| export data (source exporter role only) | `export-data-from-source` |
-| import data (target importer role only) | `import-data-to-target` |
+| export data, export data from source | `export-data-from-source` |
+| import data, import data to target | `import-data-to-target` |
 | finalize-schema-post-data-import | `finalize-schema` |
 | end migration | `end-migration` |
 
-- Any other command or role does not claim.
+- Any other command does not claim, including `export data from target`, `import data to source`, `import data to source-replica` and `import data file`.
+- The step comes from the command path and the already-parsed `--post-snapshot-import` flag only, because the exporter and importer roles are not set yet when the claim runs (section 5).
 - `import schema --post-snapshot-import` is the same code as `finalize-schema-post-data-import`, so it claims `finalize-schema`.
 
 ## 5. Claim
 
-- When: once, when the migration UUID is first resolved in a command (`retrieveMigrationUUID`), after command and role are known and before any work.
+- When: once per process, in the root command's `PersistentPreRun`, after the control plane is set up and before any of the command's own code (so before `export schema`'s early returns and its `--start-clean` wipe). `assess-migration-bulk` does not claim.
+- Migration id: the migration UUID in the migration status record when the metaDB already exists, else `YB_VOYAGER_MIGRATION_UUID`, else none. With no id, a claim fails with "migration id unknown: YB_VOYAGER_MIGRATION_UUID is not set and the migration has no status record". Join mode resolves the id the same way (the child shares the export dir, so the record exists).
+- Step: the registry (section 4), from the command path and flags.
+- The claim goes through the `cp.ControlPlane` interface (`ClaimStep`); control planes other than `yugabytedb`, and `yugabytedb` with claiming off, do nothing.
 - One transaction:
   1. Find the planned step: `operation_step` joined to `operation` where `operation_id = $op AND step = $step`.
   2. If there is none, or `operation.migration_id` differs from this migration's UUID: fail the command with a clear error. No attempt row is written.
@@ -120,8 +124,10 @@ Fixed in Voyager. Keyed by command (and role where a command has several):
 - If the controller closes the attempt mid-command (a cancel), the heartbeat notices and stops the command (section 6). Voyager does not check the status before writing a done entry.
 - The assessment that `export schema` may run first is a child process (`assess-migration`) that joins the parent's step execution (section 2): its rows are stamped with the parent's id, and it never claims, heartbeats or closes. The parent's heartbeat keeps the lease.
 - For steps with no done entry (`finalize-schema`, `end-migration`), and for a success exit where the done event was never sent (for example `export schema` finding the schema already exported), the close is the same: `succeeded` at command end.
-- Closing on exit runs inside the existing `PackAndSendCallhomePayloadOnExit` exit handler, above its payload-sent guard. Exit handlers run in random order, so a second handler cannot be ordered.
-- "Successful command completion" is recorded by `PersistentPostRun`, which runs only when the command returned normally, after the control plane has written all queued events.
+- Close sites, all through `ControlPlane.CloseStep`:
+  - Success: `PersistentPostRun`, which runs only when the command returned normally. It calls `Finalize` first so every queued event is written, then `CloseStep(nil)`.
+  - Failure: an exit handler registered right after a successful claim. It closes with the command's error, or "command was interrupted before it completed" when there is none. It is a handler of its own, not part of the callhome handler, so its position among the exit handlers does not matter: `CloseStep` is idempotent, and on a successful run `PersistentPostRun` has already closed.
+  - `export data` finding no tables to export: it exits with `os.Exit(0)`, which skips `PersistentPostRun` and the exit handlers, so it calls `Finalize` and then `CloseStep(nil)` itself.
 
 ## 8. Stamping
 
