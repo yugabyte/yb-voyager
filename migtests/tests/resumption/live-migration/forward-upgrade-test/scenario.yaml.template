@@ -151,6 +151,10 @@ stages:
     action: yba_wait_task
     timeout_sec: 5400
 
+  - name: verify_migration_after_upgrade
+    action: check_migration_progress
+    timeout_sec: 300
+
   - name: check_version_after_upgrade
     action: yba_check_version
     expected: ${NEW_VERSION}
@@ -162,6 +166,10 @@ stages:
   - name: wait_finalize_task
     action: yba_wait_task
     timeout_sec: 1800
+
+  - name: verify_migration_after_finalize
+    action: check_migration_progress
+    timeout_sec: 300
 
   - name: check_version_after_finalize
     action: yba_check_version
@@ -178,6 +186,10 @@ stages:
   - name: wait_rolling_restart_task
     action: yba_wait_task
     timeout_sec: 3600
+
+  - name: verify_migration_after_rolling_restart
+    action: check_migration_progress
+    timeout_sec: 300
 
   - name: stream_after_restart
     action: sleep
