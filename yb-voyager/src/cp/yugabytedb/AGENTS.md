@@ -5,16 +5,68 @@ database. The tables and what Voyager writes to them are in
 [`voyager_core_schema.md`](voyager_core_schema.md). Voyager creates none of
 them; `Init` fails if one is missing or not writable.
 
-When `VOYAGER_OPERATION_ID` is set, a command also claims its step in the
-platform's `step_execution` table, heartbeats it and closes it (see the schema
-doc and `design-specs/cp-step-claiming.md`). `Init` then also fails if those
-tables or the `step_execution_id` columns are missing. With it unset, no query
-or statement differs from before.
+When `VOYAGER_OPERATION_ID` is set, a command also records its run in the
+platform's `step_execution` table; see [Step claiming](#step-claiming).
 
 The type is internal: it is not in the config templates or in the
 `control-plane-type` error message.
 
+## Step claiming
+
+A platform that launches Voyager sets `VOYAGER_OPERATION_ID` (and optionally
+`EXECUTOR_REF`). Each command then owns one `step_execution` row for its run.
+Full design: `design-specs/cp-step-claiming.md`.
+
+- **Voyager touches only its own row.** It never expires, closes or otherwise
+  modifies another process's row. Cancelling, expiring and rerunning a step
+  belong to the platform's controller.
+- **A claim is an insert, nothing more.** If the step already has a `running`
+  row, live or stale, the claim fails with "already running". The controller
+  resolves it.
+- **The row stays open for the whole command.** It is closed once, at command
+  end: `succeeded` from `PersistentPostRun`, `failed` with the error from the
+  exit handler. Phase done events never close it.
+- **A done event that fails to write fails the step.** The write error is kept,
+  and the end-of-command close records `failed` with it.
+- **Every row written while claiming is on is stamped** with the step
+  execution id. A write with no active step execution is an error, not an
+  unstamped row.
+- **The heartbeat signals liveness only.** It runs every 10 s. A failed
+  heartbeat is logged and retried and never stops the command. A heartbeat
+  that updates 0 rows means the controller closed the row (a cancel), and the
+  command stops.
+- **Fencing is the controller's job.** A process cut off from the control
+  plane keeps running, so before rerunning a step whose row is still `running`
+  the controller must stop the old process (for example, delete its Job).
+- **cmd talks only to the `cp.ControlPlane` interface.** Step claiming methods
+  are on the interface; control planes without step claiming implement them as
+  no-ops. cmd never type-asserts a concrete control plane.
+- **Child Voyager processes never claim.** They get their environment from the
+  control plane's child-env method, with `VOYAGER_OPERATION_ID` removed. A
+  child that works for the parent's step (the assessment `export schema` runs)
+  also gets `VOYAGER_STEP_EXECUTION_ID` and joins: it stamps rows with that id
+  and never claims, heartbeats or closes. The variable is internal: only
+  Voyager sets it, for its own children. Setting both variables is an `Init`
+  error.
+- **`Init` fails fast** when claiming is on and a table or column it uses is
+  missing. With both variables unset, no query or statement differs from a run
+  without claiming.
+- **Offline commands only.** Live, fall-back and fall-forward are not
+  supported under `VOYAGER_OPERATION_ID` (see Known gaps).
+
 ## Known gaps
+
+- **Step claiming: live flows are unsupported.** `export data` and `import
+  data` claim whatever the export type. At cutover they hand off with
+  `syscall.Exec`, which runs no exit handler, so the step execution stays
+  `running`. The exec'd command claims nothing, so its control plane writes
+  are refused.
+- **Step claiming: a done event dropped before the publisher is lost.** A full
+  event channel, a non-string assessment report or a marshal failure drops it
+  before it is sent, so the step closes `succeeded` with no done entry.
+- **No connect deadline on the control plane pools.** Both pings use no
+  timeout; an unresponsive host fails the command only after the OS connect
+  timeout (about 2 minutes).
 
 - **Partitioned tables (PostgreSQL source).** Leaf partitions' data files are
   renamed to the root table, so several import tasks share one
@@ -48,10 +100,10 @@ The type is internal: it is not in the config templates or in the
   directions. The schema doc lists both without saying so.
 - **`SCHEMA_ANALYSIS_PAYLOAD_VERSION` is bumped by hand** when
   `utils.SchemaReport` changes shape; nothing checks it.
-- **Step claiming: a killed process leaves its attempt open.** Nothing closes
-  it until the next claimer finds its heartbeat older than 2 minutes. Exit
-  paths that bypass `atexit` (`os.Exit` in a signal-free goroutine) are the same.
-- **Step claiming: a failed done-transaction exits 0.** The attempt is closed
-  `failed`, but the command's exit status is unchanged, since the write is async.
-- **Step claiming covers offline commands only.** Live, fall-back and
-  fall-forward commands do not claim.
+- **Step claiming: a killed process leaves its row `running`.** Nothing in
+  Voyager closes it, so a rerun fails with "already running" until the
+  controller closes it. Exit paths that bypass `atexit` (`os.Exit` in a
+  signal-free goroutine) are the same.
+- **Step claiming: a failed done-event write exits 0.** The step execution is
+  closed `failed`, but the command's exit status is unchanged, since the
+  write is async.

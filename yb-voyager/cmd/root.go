@@ -202,6 +202,16 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if err != nil {
 				utils.ErrExit("ERROR: setting up control plane: %w", err)
 			}
+
+			if step, ok := cp.StepForCommand(currentCommand, bool(flagPostSnapshotImport)); ok {
+				err = controlPlane.ClaimStep(stepClaimMigrationUUID, step, func(err error) {
+					utils.ErrExit("control plane step lost: %w", err)
+				})
+				if err != nil {
+					utils.ErrExit("claim step %s: %w", step, err)
+				}
+				atexit.Register(closeStepOnExit)
+			}
 		}
 
 		// Log the flag values set from the config file
@@ -241,10 +251,28 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		if shouldRunPersistentPreRun(cmd) {
 			controlPlane.Finalize()
-			closeClaimedStep(nil)
+			// A command interrupted by a signal returns normally too, racing the
+			// exit handler's failed close; it must not be recorded as succeeded.
+			var runErr error
+			if ProcessShutdownRequested.Load() {
+				runErr = fmt.Errorf("interrupted by a signal")
+			}
+			if err := controlPlane.CloseStep(runErr); err != nil {
+				log.Errorf("Could not close the control plane step execution: %v", err)
+			}
 		}
 		atexit.Exit(0)
 	},
+}
+
+func closeStepOnExit() {
+	runErr := utils.ErrExitErr
+	if runErr == nil {
+		runErr = fmt.Errorf("command was interrupted before it completed")
+	}
+	if err := controlPlane.CloseStep(runErr); err != nil {
+		log.Errorf("Could not close the control plane step execution: %v", err)
+	}
 }
 
 var liveMigrationIterationCommandList = []string{

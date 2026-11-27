@@ -22,6 +22,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -29,6 +30,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -101,6 +104,7 @@ func TestStepClaiming(t *testing.T) {
 
 	t.Setenv(DB_CONN_STRING_ENV_VAR, dsn)
 	t.Setenv(OPERATION_ID_ENV_VAR, "")
+	t.Setenv(STEP_EXECUTION_ID_ENV_VAR, "")
 	t.Setenv(EXECUTOR_REF_ENV_VAR, "")
 
 	for _, ddl := range controlPlaneSchemaDDL {
@@ -217,7 +221,7 @@ func TestStepClaiming(t *testing.T) {
 	t.Run("operation id unset: no claim, no rows, no stamp", func(t *testing.T) {
 		migrationID := uuid.New()
 		controlPlane := newControlPlane(t)
-		assert.False(t, controlPlane.StepClaimingEnabled())
+		assert.False(t, controlPlane.stepClaimingEnabled())
 		require.NoError(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_IN_PROGRESS, ""))
 		require.NoError(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_COMPLETED, ""))
 
@@ -229,109 +233,167 @@ func TestStepClaiming(t *testing.T) {
 		assert.Equal(t, 0, count)
 	})
 
-	t.Run("claim, heartbeat, done entry and close together", func(t *testing.T) {
+	t.Run("claim, heartbeat, stamped entries; the done event leaves the step running", func(t *testing.T) {
 		migrationID := uuid.New()
-		withOperation(t, plan(t, migrationID, STEP_ASSESS_MIGRATION, STEP_EXPORT_SCHEMA))
+		withOperation(t, plan(t, migrationID, cp.STEP_ASSESS_MIGRATION, cp.STEP_EXPORT_SCHEMA))
 		t.Setenv(EXECUTOR_REF_ENV_VAR, `{"executor_id":"pod-1"}`)
 		controlPlane := newControlPlane(t)
-		require.True(t, controlPlane.StepClaimingEnabled())
+		require.True(t, controlPlane.stepClaimingEnabled())
 
-		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)))
-		running := attempts(t, migrationID, STEP_EXPORT_SCHEMA)
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		running := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
 		require.Len(t, running, 1)
 		assert.Equal(t, "running", running[0].status)
 		assert.JSONEq(t, `{"executor_id":"pod-1"}`, running[0].executorRef.String)
 		attemptID := running[0].id
 
-		waitFor(t, "a heartbeat", func() bool { return attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].heartbeatAfterStarted })
+		waitFor(t, "a heartbeat", func() bool { return attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].heartbeatAfterStarted })
 
 		require.NoError(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_IN_PROGRESS, ""))
 		// A phase that is not the attempt's own step is stamped but does not close it.
 		require.NoError(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, `{"PayloadVersion":"1.8"}`))
-		assert.Equal(t, "running", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
+		assert.Equal(t, "running", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
 		var metadataStamp sql.NullInt64
 		require.NoError(t, db.QueryRow(`SELECT step_execution_id FROM voyager_core.metadata WHERE migration_id = $1`, migrationID).Scan(&metadataStamp))
 		assert.Equal(t, sql.NullInt64{Int64: attemptID, Valid: true}, metadataStamp)
 
 		require.NoError(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_COMPLETED, ""))
-		closed := attempts(t, migrationID, STEP_EXPORT_SCHEMA)
-		require.Len(t, closed, 1)
-		assert.Equal(t, "succeeded", closed[0].status)
-		assert.True(t, closed[0].finished)
+		stillRunning := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
+		require.Len(t, stillRunning, 1)
+		assert.Equal(t, "running", stillRunning[0].status)
+		assert.False(t, stillRunning[0].finished)
 		stamp := sql.NullInt64{Int64: attemptID, Valid: true}
 		assert.Equal(t, map[string]sql.NullInt64{
 			"schema.export_started": stamp, "schema.exported": stamp, "assessment.completed": stamp,
 		}, stampedEntries(t, migrationID))
 
-		// Later closes are no-ops, and later rows are no longer stamped.
+		require.NoError(t, controlPlane.CloseStep(nil))
+		closed := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
+		require.Len(t, closed, 1)
+		assert.Equal(t, "succeeded", closed[0].status)
+		assert.True(t, closed[0].finished)
+
+		// Later closes are no-ops, and later writes are rejected, not left unstamped.
 		require.NoError(t, controlPlane.CloseStep(errors.New("late")))
-		assert.Equal(t, "succeeded", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
-		require.NoError(t, sendEvent(t, controlPlane, migrationID, "IMPORT SCHEMA", STATUS_IN_PROGRESS, ""))
-		assert.False(t, stampedEntries(t, migrationID)["schema.import_started"].Valid)
+		assert.Equal(t, "succeeded", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
+		assert.ErrorContains(t, sendEvent(t, controlPlane, migrationID, "IMPORT SCHEMA", STATUS_IN_PROGRESS, ""),
+			"IMPORT SCHEMA not recorded: step claiming is on but no step execution is held")
+		assert.NotContains(t, stampedEntries(t, migrationID), "schema.import_started")
 	})
 
-	t.Run("a lost attempt gets no done entry", func(t *testing.T) {
+	t.Run("a failed write of the step's own done event closes the step failed", func(t *testing.T) {
 		migrationID := uuid.New()
-		withOperation(t, plan(t, migrationID, STEP_EXPORT_SCHEMA))
+		withOperation(t, plan(t, migrationID, cp.STEP_ASSESS_MIGRATION))
+		controlPlane := newControlPlane(t)
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
+
+		// A payload that is not JSON fails before any statement runs.
+		require.Error(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, "not json"))
+		assert.Equal(t, "running", attempts(t, migrationID, cp.STEP_ASSESS_MIGRATION)[0].status)
+
+		require.NoError(t, controlPlane.CloseStep(nil))
+		got := attempts(t, migrationID, cp.STEP_ASSESS_MIGRATION)
+		require.Len(t, got, 1)
+		assert.Equal(t, "failed", got[0].status)
+		assert.Contains(t, got[0].errorMessage.String,
+			"recording the step's completion in the control plane failed: payload version of the assessment document")
+		assert.NotContains(t, stampedEntries(t, migrationID), "assessment.completed")
+	})
+
+	t.Run("a command error wins over a failed done write", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, cp.STEP_ASSESS_MIGRATION))
+		controlPlane := newControlPlane(t)
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
+		require.Error(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, "not json"))
+
+		require.NoError(t, controlPlane.CloseStep(errors.New("saving the assessment config failed")))
+		got := attempts(t, migrationID, cp.STEP_ASSESS_MIGRATION)
+		assert.Equal(t, "failed", got[0].status)
+		assert.Equal(t, "saving the assessment config failed", got[0].errorMessage.String)
+	})
+
+	t.Run("another phase's failed done write does not fail the step", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
+		controlPlane := newControlPlane(t)
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		require.Error(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, "not json"))
+
+		require.NoError(t, controlPlane.CloseStep(nil))
+		assert.Equal(t, "succeeded", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
+	})
+
+	t.Run("claiming on with no step execution held writes nothing", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA, cp.STEP_ASSESS_MIGRATION))
+		controlPlane := newControlPlane(t)
+		require.True(t, controlPlane.stepClaimingEnabled())
+		require.Nil(t, controlPlane.activeStepExecutionID())
+
+		assert.ErrorContains(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_IN_PROGRESS, ""),
+			"EXPORT SCHEMA not recorded: step claiming is on but no step execution is held")
+		assert.ErrorContains(t, sendEvent(t, controlPlane, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, `{"PayloadVersion":"1.8"}`),
+			"ASSESS MIGRATION not recorded: step claiming is on but no step execution is held")
+		assert.Empty(t, stampedEntries(t, migrationID))
+		var metadataRows int
+		require.NoError(t, db.QueryRow(`SELECT count(*) FROM voyager_core.metadata WHERE migration_id = $1`, migrationID).Scan(&metadataRows))
+		assert.Equal(t, 0, metadataRows)
+	})
+
+	t.Run("an attempt closed by the control plane is reported by the heartbeat", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		controlPlane := newControlPlane(t)
 		lost := make(chan error, 1)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
 
 		_, err := db.Exec(`UPDATE voyager_core.step_execution SET status = 'stopped', finished_at = now() WHERE migration_id = $1`, migrationID)
 		require.NoError(t, err)
 		select {
 		case err := <-lost:
-			assert.ErrorContains(t, err, "closed by another process")
+			assert.ErrorContains(t, err, "closed by the control plane")
 		case <-time.After(15 * time.Second):
 			t.Fatal("the heartbeat did not report the lost attempt")
 		}
 
-		assert.ErrorIs(t, sendEvent(t, controlPlane, migrationID, "EXPORT SCHEMA", STATUS_COMPLETED, ""), errStepExecutionNotRunning)
-		assert.NotContains(t, stampedEntries(t, migrationID), "schema.exported")
-		assert.Equal(t, "stopped", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
+		assert.Equal(t, "stopped", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
 		// The exit path must not overwrite what closed it.
-		assert.Error(t, controlPlane.CloseStep(errors.New("exit")))
-		assert.Equal(t, "stopped", attempts(t, migrationID, STEP_EXPORT_SCHEMA)[0].status)
+		assert.ErrorContains(t, controlPlane.CloseStep(errors.New("exit")), "it is no longer running")
+		assert.Equal(t, "stopped", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
 	})
 
-	t.Run("failing heartbeats stop the command before the lease expires", func(t *testing.T) {
+	t.Run("failing heartbeats do not stop the command", func(t *testing.T) {
 		migrationID := uuid.New()
-		withOperation(t, plan(t, migrationID, STEP_EXPORT_SCHEMA))
+		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		controlPlane := newControlPlane(t)
-		controlPlane.heartbeatInterval = 200 * time.Millisecond
-		controlPlane.leaseDuration = 2 * time.Second
+		controlPlane.heartbeatInterval = 50 * time.Millisecond
 		lost := make(chan error, 1)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, func(err error) { lost <- err }))
 
 		controlPlane.stepExecutionMu.Lock()
 		execution := controlPlane.stepExecution
 		controlPlane.stepExecutionMu.Unlock()
 		execution.pool.Close()
-		failingSince := time.Now()
 
+		// A negative check: 20 failing ticks must not report the step as lost.
 		select {
 		case err := <-lost:
-			// The last success was at most one interval before the pool closed, and the
-			// stop comes at lease - 2 intervals (1.6 s) after it, plus at most one tick:
-			// so 1.4-1.8 s after the close, before the 2 s lease. The lower bound
-			// allows 0.2 s for scheduling.
-			elapsed := time.Since(failingSince)
-			assert.ErrorContains(t, err, "stopping so no other pod runs the step twice")
-			assert.GreaterOrEqual(t, elapsed, 1200*time.Millisecond)
-			assert.Less(t, elapsed, controlPlane.leaseDuration)
-		case <-time.After(15 * time.Second):
-			t.Fatal("failing heartbeats did not stop the command")
+			t.Fatalf("failing heartbeats stopped the command: %v", err)
+		case <-time.After(20 * controlPlane.heartbeatInterval):
 		}
+		assert.Equal(t, "running", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
+		assert.ErrorContains(t, controlPlane.CloseStep(nil), "close step execution")
 	})
 
 	t.Run("failure closes the attempt with the error", func(t *testing.T) {
 		migrationID := uuid.New()
-		withOperation(t, plan(t, migrationID, STEP_IMPORT_DATA_TO_TARGET))
+		withOperation(t, plan(t, migrationID, cp.STEP_IMPORT_DATA_TO_TARGET))
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_IMPORT_DATA_TO_TARGET, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_IMPORT_DATA_TO_TARGET, neverLost(t)))
 
 		require.NoError(t, controlPlane.CloseStep(errors.New("target unreachable")))
-		got := attempts(t, migrationID, STEP_IMPORT_DATA_TO_TARGET)
+		got := attempts(t, migrationID, cp.STEP_IMPORT_DATA_TO_TARGET)
 		require.Len(t, got, 1)
 		assert.Equal(t, "failed", got[0].status)
 		assert.Equal(t, "target unreachable", got[0].errorMessage.String)
@@ -341,16 +403,16 @@ func TestStepClaiming(t *testing.T) {
 
 	t.Run("a step with no done entry closes succeeded", func(t *testing.T) {
 		migrationID := uuid.New()
-		withOperation(t, plan(t, migrationID, STEP_FINALIZE_SCHEMA))
+		withOperation(t, plan(t, migrationID, cp.STEP_FINALIZE_SCHEMA))
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_FINALIZE_SCHEMA, neverLost(t)))
+		require.NoError(t, controlPlane.claimStep(migrationID, cp.STEP_FINALIZE_SCHEMA, neverLost(t)))
 		require.NoError(t, controlPlane.CloseStep(nil))
-		assert.Equal(t, "succeeded", attempts(t, migrationID, STEP_FINALIZE_SCHEMA)[0].status)
+		assert.Equal(t, "succeeded", attempts(t, migrationID, cp.STEP_FINALIZE_SCHEMA)[0].status)
 	})
 
-	t.Run("an expired attempt is closed and a new one claimed", func(t *testing.T) {
+	t.Run("a stale attempt makes the claim fail and is left unchanged", func(t *testing.T) {
 		migrationID := uuid.New()
-		planned := plan(t, migrationID, STEP_EXPORT_SCHEMA)
+		planned := plan(t, migrationID, cp.STEP_EXPORT_SCHEMA)
 		withOperation(t, planned)
 		_, err := db.Exec(`INSERT INTO voyager_core.step_execution (migration_id, operation_step_id, step, last_heartbeat_at)
 			SELECT $1, id, step, now() - interval '10 minutes' FROM voyager_core.operation_step WHERE operation_id = $2`,
@@ -358,26 +420,24 @@ func TestStepClaiming(t *testing.T) {
 		require.NoError(t, err)
 
 		controlPlane := newControlPlane(t)
-		require.NoError(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)))
-		got := attempts(t, migrationID, STEP_EXPORT_SCHEMA)
-		require.Len(t, got, 2)
-		assert.Equal(t, "failed", got[0].status)
-		assert.Equal(t, "lease_expired", got[0].reason.String)
-		assert.True(t, got[0].finished)
-		assert.Equal(t, "running", got[1].status)
-		require.NoError(t, controlPlane.CloseStep(nil))
+		assert.ErrorContains(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)), "is already running")
+		got := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
+		require.Len(t, got, 1)
+		assert.Equal(t, "running", got[0].status)
+		assert.False(t, got[0].reason.Valid)
+		assert.False(t, got[0].finished)
 	})
 
 	t.Run("a live attempt makes a second claim fail", func(t *testing.T) {
 		migrationID := uuid.New()
-		withOperation(t, plan(t, migrationID, STEP_EXPORT_SCHEMA))
+		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
 		first := newControlPlane(t)
-		require.NoError(t, first.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)))
+		require.NoError(t, first.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
 
 		second := newControlPlane(t)
-		err := second.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t))
+		err := second.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t))
 		assert.ErrorContains(t, err, "already running")
-		got := attempts(t, migrationID, STEP_EXPORT_SCHEMA)
+		got := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
 		require.Len(t, got, 1)
 		assert.Equal(t, "running", got[0].status)
 		require.NoError(t, first.CloseStep(nil))
@@ -385,16 +445,73 @@ func TestStepClaiming(t *testing.T) {
 
 	t.Run("an unplanned step or a foreign operation fails before any row", func(t *testing.T) {
 		migrationID := uuid.New()
-		withOperation(t, plan(t, migrationID, STEP_ASSESS_MIGRATION))
+		withOperation(t, plan(t, migrationID, cp.STEP_ASSESS_MIGRATION))
 		controlPlane := newControlPlane(t)
-		assert.ErrorContains(t, controlPlane.ClaimStep(migrationID, STEP_EXPORT_SCHEMA, neverLost(t)), "is not planned for operation")
+		assert.ErrorContains(t, controlPlane.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)), "is not planned for operation")
 
 		otherMigration := uuid.New()
-		assert.ErrorContains(t, controlPlane.ClaimStep(otherMigration, STEP_ASSESS_MIGRATION, neverLost(t)), "belongs to migration")
+		assert.ErrorContains(t, controlPlane.claimStep(otherMigration, cp.STEP_ASSESS_MIGRATION, neverLost(t)), "belongs to migration")
 
 		var count int
 		require.NoError(t, db.QueryRow(`SELECT count(*) FROM voyager_core.step_execution WHERE migration_id IN ($1, $2)`,
 			migrationID, otherMigration).Scan(&count))
 		assert.Equal(t, 0, count)
+	})
+
+	t.Run("a child joins the parent's step execution", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
+		parent := newControlPlane(t)
+		require.NoError(t, parent.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		parentID := *parent.activeStepExecutionID()
+
+		t.Setenv(OPERATION_ID_ENV_VAR, "")
+		t.Setenv(STEP_EXECUTION_ID_ENV_VAR, strconv.FormatInt(parentID, 10))
+		child := newControlPlane(t)
+		require.True(t, child.stepClaimingEnabled())
+		require.NoError(t, child.claimStep(migrationID, cp.STEP_ASSESS_MIGRATION, neverLost(t)))
+		require.NotNil(t, child.activeStepExecutionID())
+		assert.Equal(t, parentID, *child.activeStepExecutionID())
+
+		require.NoError(t, sendEvent(t, child, migrationID, "ASSESS MIGRATION", STATUS_IN_PROGRESS, ""))
+		require.NoError(t, sendEvent(t, child, migrationID, "ASSESS MIGRATION", STATUS_COMPLETED, `{"PayloadVersion":"1.8"}`))
+		assert.Equal(t, map[string]sql.NullInt64{
+			"assessment.started":   {Int64: parentID, Valid: true},
+			"assessment.completed": {Int64: parentID, Valid: true},
+		}, stampedEntries(t, migrationID))
+
+		require.NoError(t, child.CloseStep(nil))
+		got := attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)
+		require.Len(t, got, 1)
+		assert.Equal(t, "running", got[0].status)
+		assert.False(t, got[0].finished)
+
+		require.NoError(t, parent.CloseStep(nil))
+		assert.Equal(t, "succeeded", attempts(t, migrationID, cp.STEP_EXPORT_SCHEMA)[0].status)
+	})
+
+	t.Run("joining fails for a closed, foreign or missing step execution", func(t *testing.T) {
+		migrationID := uuid.New()
+		withOperation(t, plan(t, migrationID, cp.STEP_EXPORT_SCHEMA))
+		parent := newControlPlane(t)
+		require.NoError(t, parent.claimStep(migrationID, cp.STEP_EXPORT_SCHEMA, neverLost(t)))
+		parentID := *parent.activeStepExecutionID()
+
+		join := func(t *testing.T, id int64, forMigration uuid.UUID) error {
+			t.Setenv(OPERATION_ID_ENV_VAR, "")
+			t.Setenv(STEP_EXECUTION_ID_ENV_VAR, strconv.FormatInt(id, 10))
+			return newControlPlane(t).claimStep(forMigration, cp.STEP_ASSESS_MIGRATION, neverLost(t))
+		}
+		assert.ErrorContains(t, join(t, parentID, uuid.New()), "belongs to migration")
+		assert.ErrorContains(t, join(t, parentID+1000000, migrationID), "does not exist")
+
+		require.NoError(t, parent.CloseStep(nil))
+		assert.ErrorContains(t, join(t, parentID, migrationID), "is succeeded, not running")
+	})
+
+	t.Run("both env vars set fails Init", func(t *testing.T) {
+		withOperation(t, operationID)
+		t.Setenv(STEP_EXECUTION_ID_ENV_VAR, "1")
+		assert.ErrorContains(t, New(t.TempDir()).Init(), "must not both be set")
 	})
 }

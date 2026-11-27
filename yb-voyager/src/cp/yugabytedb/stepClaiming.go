@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,14 +32,33 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
+	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
 // See design-specs/cp-step-claiming.md.
 
 // OPERATION_ID_ENV_VAR turns step claiming on. EXECUTOR_REF_ENV_VAR is an
 // optional JSON object stored as-is on the step execution.
-const OPERATION_ID_ENV_VAR = "VOYAGER_OPERATION_ID"
+const OPERATION_ID_ENV_VAR = controlPlane.OPERATION_ID_ENV_VAR
 const EXECUTOR_REF_ENV_VAR = "EXECUTOR_REF"
+const STEP_EXECUTION_ID_ENV_VAR = controlPlane.STEP_EXECUTION_ID_ENV_VAR
+
+type stepClaimingMode int
+
+const (
+	stepClaimingOff stepClaimingMode = iota
+	stepClaimingClaim
+	stepClaimingJoin
+)
+
+type stepClaimingEnv struct {
+	mode        stepClaimingMode
+	operationID uuid.UUID
+	joinID      int64
+	executorRef *string
+}
 
 const OPERATION_TABLE = "operation"
 const OPERATION_STEP_TABLE = "operation_step"
@@ -51,15 +71,11 @@ const QUALIFIED_STEP_EXECUTION_TABLE_NAME = CONTROL_PLANE_SCHEMA + "." + STEP_EX
 const STEP_EXECUTION_ID_COLUMN = "step_execution_id"
 
 const (
-	defaultHeartbeatInterval       = 10 * time.Second
-	defaultLeaseDuration           = 2 * time.Minute
-	stepExecutionCloseTimeout      = 10 * time.Second
-	uniqueViolationSQLState        = "23505"
-	oneRunningPerStepConstraint    = "one_running_per_step"
-	stepExecutionLeaseExpiredCause = "lease_expired"
+	defaultHeartbeatInterval    = 10 * time.Second
+	stepExecutionCloseTimeout   = 10 * time.Second
+	uniqueViolationSQLState     = "23505"
+	oneRunningPerStepConstraint = "one_running_per_step"
 )
-
-var errStepExecutionNotRunning = goerrors.New("step attempt is no longer running")
 
 type stepExecution struct {
 	id   int64
@@ -67,45 +83,88 @@ type stepExecution struct {
 	pool *pgxpool.Pool
 	stop chan struct{}
 
-	// mu guards closed and doneErr. It is held across the done transaction so
-	// a close from the exit handler cannot interleave with it.
-	mu      sync.Mutex
-	closed  bool
-	doneErr error
+	// mu guards closed and doneErr.
+	mu               sync.Mutex
+	closed           bool
+	heartbeatStopped bool
+	doneErr          error
+
+	// joined is a step execution held by the parent process: this process
+	// stamps with its id but never heartbeats or closes it. pool is nil.
+	joined bool
 }
 
 // releaseLocked ends the heartbeat and releases the step execution's pool. Callers hold a.mu.
 func (a *stepExecution) releaseLocked() {
 	a.closed = true
-	close(a.stop)
+	a.stopHeartbeatLocked()
 	a.pool.Close()
 }
 
-// readStepClaimingEnv reads the operation env vars. A zero uuid means step
-// claiming is off.
-func readStepClaimingEnv() (operationID uuid.UUID, executorRef *string, err error) {
+func (a *stepExecution) stopHeartbeatLocked() {
+	if !a.heartbeatStopped {
+		a.heartbeatStopped = true
+		close(a.stop)
+	}
+}
+
+// readStepClaimingEnv reads the step claiming env vars: off when neither
+// VOYAGER_OPERATION_ID nor VOYAGER_STEP_EXECUTION_ID is set, claim for the
+// first, join for the second. Both set is an error.
+func readStepClaimingEnv() (stepClaimingEnv, error) {
 	rawOperationID := os.Getenv(OPERATION_ID_ENV_VAR)
+	rawJoinID := os.Getenv(STEP_EXECUTION_ID_ENV_VAR)
+	if rawOperationID != "" && rawJoinID != "" {
+		return stepClaimingEnv{}, goerrors.Errorf("%s and %s must not both be set", OPERATION_ID_ENV_VAR, STEP_EXECUTION_ID_ENV_VAR)
+	}
+	if rawJoinID != "" {
+		joinID, err := strconv.ParseInt(rawJoinID, 10, 64)
+		if err != nil || joinID <= 0 {
+			return stepClaimingEnv{}, goerrors.Errorf("%s=%q is not a positive integer", STEP_EXECUTION_ID_ENV_VAR, rawJoinID)
+		}
+		return stepClaimingEnv{mode: stepClaimingJoin, joinID: joinID}, nil
+	}
 	if rawOperationID == "" {
-		return uuid.Nil, nil, nil
+		return stepClaimingEnv{}, nil
 	}
-	operationID, err = uuid.Parse(rawOperationID)
+	operationID, err := uuid.Parse(rawOperationID)
 	if err != nil {
-		return uuid.Nil, nil, goerrors.Errorf("%s=%q is not a uuid: %w", OPERATION_ID_ENV_VAR, rawOperationID, err)
+		return stepClaimingEnv{}, goerrors.Errorf("%s=%q is not a uuid: %w", OPERATION_ID_ENV_VAR, rawOperationID, err)
 	}
+	env := stepClaimingEnv{mode: stepClaimingClaim, operationID: operationID}
 	rawExecutorRef := os.Getenv(EXECUTOR_REF_ENV_VAR)
 	if rawExecutorRef == "" {
-		return operationID, nil, nil
+		return env, nil
 	}
 	var parsed map[string]any
 	if err := json.Unmarshal([]byte(rawExecutorRef), &parsed); err != nil || parsed == nil {
-		return uuid.Nil, nil, goerrors.Errorf("%s must be a JSON object, got %q", EXECUTOR_REF_ENV_VAR, rawExecutorRef)
+		return stepClaimingEnv{}, goerrors.Errorf("%s must be a JSON object, got %q", EXECUTOR_REF_ENV_VAR, rawExecutorRef)
 	}
-	return operationID, &rawExecutorRef, nil
+	env.executorRef = &rawExecutorRef
+	return env, nil
 }
 
-// StepClaimingEnabled reports whether VOYAGER_OPERATION_ID was set at Init.
-func (cp *YugabyteDB) StepClaimingEnabled() bool {
-	return cp.operationID != uuid.Nil
+func childProcessEnv(environ []string, stepExecutionID *int64) []string {
+	env := controlPlane.WithoutStepClaimingEnv(environ)
+	if stepExecutionID != nil {
+		env = append(env, fmt.Sprintf("%s=%d", STEP_EXECUTION_ID_ENV_VAR, *stepExecutionID))
+	}
+	return env
+}
+
+func (cp *YugabyteDB) stepClaimingEnabled() bool {
+	return cp.claimingEnv.mode != stepClaimingOff
+}
+
+// ChildProcessEnv returns environ for a child Voyager process: both step
+// claiming vars removed, and when joinParent is set and a step execution is
+// held, VOYAGER_STEP_EXECUTION_ID set to it so the child joins.
+func (cp *YugabyteDB) ChildProcessEnv(environ []string, joinParent bool) []string {
+	var stepExecutionID *int64
+	if joinParent {
+		stepExecutionID = cp.activeStepExecutionID()
+	}
+	return childProcessEnv(environ, stepExecutionID)
 }
 
 // checkStepClaimingTables fails when a table or column step claiming uses is missing
@@ -164,19 +223,34 @@ func (cp *YugabyteDB) checkStepClaimingTables() error {
 func (cp *YugabyteDB) newStepExecutionPool() (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(context.Background(), os.Getenv(DB_CONN_STRING_ENV_VAR))
 	if err != nil {
-		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step attempt: %w", err)
+		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step execution: %w", err)
 	}
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step attempt: %w", err)
+		return nil, fmt.Errorf("connect to yugabytedb control plane db for the step execution: %w", err)
 	}
 	return pool, nil
 }
 
 // ClaimStep claims step for the migration and starts the step execution's heartbeat.
+// In join mode it instead joins the parent's step execution, with no heartbeat.
 // onLost is called from the heartbeat goroutine when the step execution can no longer
 // be held; the command must stop. A second call while a step execution is held is a no-op.
-func (cp *YugabyteDB) ClaimStep(migrationID uuid.UUID, step string, onLost func(err error)) error {
+func (cp *YugabyteDB) ClaimStep(migrationUUID func() (uuid.UUID, error), step string, onLost func(err error)) error {
+	if !cp.stepClaimingEnabled() {
+		return nil
+	}
+	migrationID, err := migrationUUID()
+	if err != nil {
+		return fmt.Errorf("resolve migration id: %w", err)
+	}
+	return cp.claimStep(migrationID, step, onLost)
+}
+
+func (cp *YugabyteDB) claimStep(migrationID uuid.UUID, step string, onLost func(err error)) error {
+	if cp.claimingEnv.mode == stepClaimingClaim && migrationID == uuid.Nil {
+		return goerrors.Errorf("migration id unknown: %s is not set and the migration has no status record", metadb.MigrationUUIDEnvVarName)
+	}
 	cp.stepExecutionMu.Lock()
 	defer cp.stepExecutionMu.Unlock()
 	if cp.stepExecution != nil {
@@ -186,6 +260,16 @@ func (cp *YugabyteDB) ClaimStep(migrationID uuid.UUID, step string, onLost func(
 	if err != nil {
 		return err
 	}
+	if cp.claimingEnv.mode == stepClaimingJoin {
+		defer pool.Close()
+		execution, err := cp.joinStepExecution(pool, migrationID)
+		if err != nil {
+			return err
+		}
+		cp.stepExecution = execution
+		log.Infof("Joined step execution %d (step %s) held by the parent process", execution.id, execution.step)
+		return nil
+	}
 	id, err := cp.claimStepInTx(pool, migrationID, step)
 	if err != nil {
 		pool.Close()
@@ -193,9 +277,34 @@ func (cp *YugabyteDB) ClaimStep(migrationID uuid.UUID, step string, onLost func(
 	}
 	execution := &stepExecution{id: id, step: step, pool: pool, stop: make(chan struct{})}
 	cp.stepExecution = execution
-	log.Infof("Claimed step %s of operation %s as step execution %d", step, cp.operationID, id)
+	log.Infof("Claimed step %s of operation %s as step execution %d", step, cp.claimingEnv.operationID, id)
 	go cp.heartbeatStepExecution(execution, onLost)
 	return nil
+}
+
+// joinStepExecution checks that the step execution of VOYAGER_STEP_EXECUTION_ID is
+// running and belongs to the migration, and returns it for stamping only.
+func (cp *YugabyteDB) joinStepExecution(pool *pgxpool.Pool, migrationID uuid.UUID) (*stepExecution, error) {
+	id := cp.claimingEnv.joinID
+	ctx, cancel := context.WithTimeout(context.Background(), stepExecutionCloseTimeout)
+	defer cancel()
+	var step, status string
+	var executionMigrationID uuid.UUID
+	err := pool.QueryRow(ctx, fmt.Sprintf(`SELECT step, status, migration_id FROM %s WHERE id = $1`,
+		QUALIFIED_STEP_EXECUTION_TABLE_NAME), id).Scan(&step, &status, &executionMigrationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, goerrors.Errorf("step execution %d from %s does not exist", id, STEP_EXECUTION_ID_ENV_VAR)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("join step execution %d: %w", id, err)
+	}
+	if status != "running" {
+		return nil, goerrors.Errorf("step execution %d is %s, not running", id, status)
+	}
+	if executionMigrationID != migrationID {
+		return nil, goerrors.Errorf("step execution %d belongs to migration %s, not migration %s", id, executionMigrationID, migrationID)
+	}
+	return &stepExecution{id: id, step: step, joined: true}, nil
 }
 
 func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, step string) (int64, error) {
@@ -216,40 +325,27 @@ func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, s
 		FROM %s os JOIN %s o ON o.id = os.operation_id
 		WHERE os.operation_id = $1 AND os.step = $2`,
 		QUALIFIED_OPERATION_STEP_TABLE_NAME, QUALIFIED_OPERATION_TABLE_NAME),
-		cp.operationID, step).Scan(&operationStepID, &operationMigrationID)
+		cp.claimingEnv.operationID, step).Scan(&operationStepID, &operationMigrationID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, goerrors.Errorf("step %s is not planned for operation %s", step, cp.operationID)
+		return 0, goerrors.Errorf("step %s is not planned for operation %s", step, cp.claimingEnv.operationID)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("claim step %s: find planned step: %w", step, err)
 	}
 	if operationMigrationID != migrationID {
 		return 0, goerrors.Errorf("operation %s belongs to migration %s, not migration %s",
-			cp.operationID, operationMigrationID, migrationID)
+			cp.claimingEnv.operationID, operationMigrationID, migrationID)
 	}
 
-	// 2. Close a previous step execution at this step only if its heartbeat is older
-	// than the lease: its process is gone. A live step execution is left alone, and
-	// the insert below then fails at once on one_running_per_step.
-	_, err = tx.Exec(ctx, fmt.Sprintf(`
-		UPDATE %s
-		SET status = 'failed', reason = $3, finished_at = now()
-		WHERE migration_id = $1 AND step = $2 AND status = 'running'
-		  AND last_heartbeat_at < now() - make_interval(secs => $4::float8)`,
-		QUALIFIED_STEP_EXECUTION_TABLE_NAME),
-		migrationID, step, stepExecutionLeaseExpiredCause, cp.leaseDuration.Seconds())
-	if err != nil {
-		return 0, fmt.Errorf("claim step %s: close expired attempts: %w", step, err)
-	}
-
-	// 3. The insert is the claim. one_running_per_step allows one running
-	// step execution per (migration, step), so a second claimer gets a unique violation.
+	// 2. The insert is the claim. one_running_per_step allows one running step
+	// execution per (migration, step), so any running one, live or stale, makes
+	// this fail. Voyager never closes another process's step execution.
 	var id int64
 	err = tx.QueryRow(ctx, fmt.Sprintf(`
 		INSERT INTO %s (migration_id, operation_step_id, step, executor_ref)
 		VALUES ($1, $2, $3, $4::jsonb)
 		RETURNING id`, QUALIFIED_STEP_EXECUTION_TABLE_NAME),
-		migrationID, operationStepID, step, cp.executorRef).Scan(&id)
+		migrationID, operationStepID, step, cp.claimingEnv.executorRef).Scan(&id)
 	// YugabyteDB leaves ConstraintName empty and names the index only in Message.
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolationSQLState &&
@@ -257,7 +353,7 @@ func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, s
 		return 0, goerrors.Errorf("step %s of migration %s is already running", step, migrationID)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("claim step %s: insert attempt: %w", step, err)
+		return 0, fmt.Errorf("claim step %s: insert step execution: %w", step, err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("claim step %s: commit: %w", step, err)
@@ -268,7 +364,6 @@ func (cp *YugabyteDB) claimStepInTx(pool *pgxpool.Pool, migrationID uuid.UUID, s
 func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err error)) {
 	ticker := time.NewTicker(cp.heartbeatInterval)
 	defer ticker.Stop()
-	lastSuccess := time.Now()
 	for {
 		select {
 		case <-a.stop:
@@ -285,29 +380,20 @@ func (cp *YugabyteDB) heartbeatStepExecution(a *stepExecution, onLost func(err e
 			return
 		default:
 		}
-		// No row updated: the step execution is no longer running, so another claimer
-		// closed it as expired. Stop rather than run the step twice.
-		if err == nil && tag.RowsAffected() == 0 {
-			onLost(goerrors.Errorf("step %s (step execution %d) was closed by another process; stopping", a.step, a.id))
-			return
-		}
-		if err == nil {
-			lastSuccess = time.Now()
+		if err != nil {
+			log.Warnf("Heartbeat for step execution %d failed, retrying: %v", a.id, err)
 			continue
 		}
-		log.Warnf("Heartbeat for step execution %d failed: %v", a.id, err)
-		// A failure is only seen when an UPDATE returns, up to one tick plus one
-		// timeout late, so stop that much before the lease lets another pod claim.
-		if failingFor := time.Since(lastSuccess); failingFor >= cp.leaseDuration-2*cp.heartbeatInterval {
-			onLost(fmt.Errorf("heartbeat for step %s (step execution %d) failed for %s; stopping so no other pod runs the step twice: %w",
-				a.step, a.id, failingFor.Round(time.Second), err))
+		// No row updated: the controller closed the step execution (a cancel).
+		if tag.RowsAffected() == 0 {
+			onLost(goerrors.Errorf("step %s (step execution %d) was closed by the control plane; stopping", a.step, a.id))
 			return
 		}
 	}
 }
 
-// CloseStep closes the held step execution: succeeded when runErr is nil, failed
-// with runErr's text otherwise. It does nothing when no step execution is held or it
+// CloseStep closes the held step execution: succeeded when runErr is nil and the
+// step's own done event was recorded, failed otherwise. It does nothing when no step execution is held or it
 // is already closed, so both the normal and the exit path can call it.
 func (cp *YugabyteDB) CloseStep(runErr error) error {
 	cp.stepExecutionMu.Lock()
@@ -318,16 +404,19 @@ func (cp *YugabyteDB) CloseStep(runErr error) error {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
+	if a.closed || a.joined {
 		return nil
 	}
 	defer a.releaseLocked()
 
-	// The command succeeded but writing its done event (which also closes the
-	// step execution) failed: record the step execution as failed, with that error.
+	// The command succeeded but recording its done event failed: the platform
+	// must not read the missing done entry as success.
 	if runErr == nil && a.doneErr != nil {
 		runErr = fmt.Errorf("recording the step's completion in the control plane failed: %w", a.doneErr)
 	}
+	// Before the close: a heartbeat that then matches 0 rows is seeing our own
+	// close, not a cancel, and must not report the step as lost.
+	a.stopHeartbeatLocked()
 	ctx, cancel := context.WithTimeout(context.Background(), stepExecutionCloseTimeout)
 	defer cancel()
 	var tag pgconn.CommandTag
@@ -369,49 +458,21 @@ func (cp *YugabyteDB) activeStepExecutionID() *int64 {
 	return &id
 }
 
-// stepExecutionDoneBy returns the open step execution when eventType is its own step's
-// phase: that phase's done event closes it.
-func (cp *YugabyteDB) stepExecutionDoneBy(eventType string) *stepExecution {
+// stepExecutionOwningDoneEvent returns the held step execution when eventType is
+// the done event of its own step. A joined step execution is never returned: its
+// parent closes it.
+func (cp *YugabyteDB) stepExecutionOwningDoneEvent(eventType string) *stepExecution {
 	cp.stepExecutionMu.Lock()
 	a := cp.stepExecution
 	cp.stepExecutionMu.Unlock()
-	if a == nil || stepForEventType[eventType] != a.step {
+	if a == nil || a.joined || stepForEventType[eventType] != a.step {
 		return nil
 	}
 	return a
 }
 
-// execAndCloseStepExecution runs cmd and closes the step execution in one transaction. The
-// close goes first: if the step execution is no longer running nothing is written.
-func (cp *YugabyteDB) execAndCloseStepExecution(a *stepExecution, cmd string, args ...any) error {
+func (a *stepExecution) recordDoneErr(err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.closed {
-		return errStepExecutionNotRunning
-	}
-	err := cp.withRetry(cmd, func(pool *pgxpool.Pool) error {
-		ctx := context.Background()
-		tx, err := pool.Begin(ctx)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = tx.Rollback(ctx) }()
-		tag, err := tx.Exec(ctx, closeStepExecutionSQL("'succeeded'", "NULL"), a.id)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return errStepExecutionNotRunning
-		}
-		if _, err := tx.Exec(ctx, cmd, args...); err != nil {
-			return err
-		}
-		return tx.Commit(ctx)
-	})
-	if err != nil {
-		a.doneErr = err
-		return err
-	}
-	a.releaseLocked()
-	return nil
+	a.doneErr = err
 }

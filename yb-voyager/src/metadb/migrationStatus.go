@@ -149,7 +149,7 @@ type CutoverTimingRecord struct {
 
 const (
 	MIGRATION_STATUS_KEY    = "migration_status"
-	migrationUUIDEnvVarName = "YB_VOYAGER_MIGRATION_UUID"
+	MigrationUUIDEnvVarName = "YB_VOYAGER_MIGRATION_UUID"
 )
 
 func (m *MetaDB) UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
@@ -203,16 +203,27 @@ func (m *MetaDB) InitMigrationStatusRecord(cfgFile string) error {
 // not a valid UUID, an error is returned instead of silently falling back, so that an
 // external caller relying on this UUID for correlation is notified of the bad value.
 func externalOrNewMigrationUUID() (string, error) {
-	envVal := os.Getenv(migrationUUIDEnvVarName)
-	if envVal == "" {
+	external, err := ExternalMigrationUUID()
+	if err != nil {
+		return "", err
+	}
+	if external == uuid.Nil {
 		return uuid.New().String(), nil
 	}
+	return external.String(), nil
+}
 
+// ExternalMigrationUUID returns the UUID in YB_VOYAGER_MIGRATION_UUID, or uuid.Nil when it is unset.
+func ExternalMigrationUUID() (uuid.UUID, error) {
+	envVal := os.Getenv(MigrationUUIDEnvVarName)
+	if envVal == "" {
+		return uuid.Nil, nil
+	}
 	migrationUUID, err := uuid.Parse(envVal)
 	if err != nil {
-		return "", fmt.Errorf("invalid %s=%q: %w", migrationUUIDEnvVarName, envVal, err)
+		return uuid.Nil, fmt.Errorf("invalid %s=%q: %w", MigrationUUIDEnvVarName, envVal, err)
 	}
-	return migrationUUID.String(), nil
+	return migrationUUID, nil
 }
 
 func (msr *MigrationStatusRecord) IsSnapshotExportedViaDebezium() bool {

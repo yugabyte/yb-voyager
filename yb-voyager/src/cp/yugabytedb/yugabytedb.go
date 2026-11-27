@@ -18,7 +18,6 @@ package yugabytedb
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -27,7 +26,6 @@ import (
 	"time"
 
 	goerrors "github.com/go-errors/errors"
-	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
@@ -49,12 +47,10 @@ type YugabyteDB struct {
 	connPool           *pgxpool.Pool
 	lastRowCountUpdate map[string]time.Time
 
-	// Step claiming (stepClaiming.go). operationID is uuid.Nil when it is off.
+	// Step claiming (stepClaiming.go). claimingEnv.mode is off by default.
 	// stepExecution is guarded by stepExecutionMu; the step execution's own state by its mu.
-	operationID       uuid.UUID
-	executorRef       *string
+	claimingEnv       stepClaimingEnv
 	heartbeatInterval time.Duration
-	leaseDuration     time.Duration
 	stepExecutionMu   sync.Mutex
 	stepExecution     *stepExecution
 }
@@ -62,7 +58,6 @@ type YugabyteDB struct {
 func New(exportDir string) *YugabyteDB {
 	return &YugabyteDB{
 		heartbeatInterval: defaultHeartbeatInterval,
-		leaseDuration:     defaultLeaseDuration,
 	}
 }
 
@@ -71,7 +66,7 @@ func (cp *YugabyteDB) Init() error {
 	cp.rowCountUpdateEventChan = make(chan []TableProgress, 200)
 
 	var err error
-	cp.operationID, cp.executorRef, err = readStepClaimingEnv()
+	cp.claimingEnv, err = readStepClaimingEnv()
 	if err != nil {
 		return err
 	}
@@ -80,7 +75,7 @@ func (cp *YugabyteDB) Init() error {
 		return err
 	}
 	err = cp.checkTables()
-	if err == nil && cp.StepClaimingEnabled() {
+	if err == nil && cp.stepClaimingEnabled() {
 		err = cp.checkStepClaimingTables()
 	}
 	if err != nil {
@@ -452,9 +447,12 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 	log.Infof("Sending migration event to the yugabytedb control plane: %s %s for migration %s",
 		migrationEvent.EventType, migrationEvent.Status, migrationID)
 
-	// With no open step execution the statements are exactly the unstamped ones, so
-	// the step_execution_id column is not touched.
+	// With claiming off the statements are exactly the unstamped ones, so the
+	// step_execution_id column is not touched.
 	stepExecutionID := cp.activeStepExecutionID()
+	if stepExecutionID == nil && cp.stepClaimingEnabled() {
+		return goerrors.Errorf("%s not recorded: step claiming is on but no step execution is held", migrationEvent.EventType)
+	}
 	var stampColumn string
 	stampValue := func(n int) string {
 		if stepExecutionID == nil {
@@ -491,42 +489,46 @@ func (cp *YugabyteDB) sendMigrationEvent(migrationEvent MigrationEvent) error {
 		return cp.exec(cmd, withStamp(migrationID, phase.startedEntry, phase.doneEntry)...)
 
 	case STATUS_COMPLETED:
-		closing := cp.stepExecutionDoneBy(migrationEvent.EventType)
-		run := func(cmd string, args []any) error {
-			if closing != nil {
-				return cp.execAndCloseStepExecution(closing, cmd, args...)
-			}
-			return cp.exec(cmd, args...)
-		}
-		if phase.metadataKind == "" {
-			cmd := fmt.Sprintf(`
-				INSERT INTO %s (migration_id, name, value%s)
-				VALUES ($1::uuid, $2::text, true%s)
-			`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, stampColumn, stampValue(3))
-			return run(cmd, withStamp(migrationID, phase.doneEntry))
-		}
-		// The done entry and the document are one statement, so a phase is
-		// never recorded as done without the document it produced.
-		if migrationEvent.Payload == "" {
-			return goerrors.Errorf("%s completed without its %s document", migrationEvent.EventType, phase.metadataKind)
-		}
-		payloadVersion, err := phase.payloadVersion(migrationEvent.Payload)
+		err := cp.sendPhaseDone(migrationEvent, phase, migrationID, stampColumn, stampValue, withStamp)
 		if err != nil {
-			return fmt.Errorf("payload version of the %s document: %w", phase.metadataKind, err)
+			if own := cp.stepExecutionOwningDoneEvent(migrationEvent.EventType); own != nil {
+				own.recordDoneErr(err)
+			}
 		}
-		cmd := fmt.Sprintf(`
-			WITH done AS (
-				INSERT INTO %[1]s (migration_id, name, value%[3]s)
-				VALUES ($1::uuid, $2::text, true%[4]s)
-			)
-			INSERT INTO %[2]s (migration_id, kind, payload, payload_version%[3]s)
-			VALUES ($1::uuid, $3::text, $4::jsonb, $5::text%[4]s)
-		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME, stampColumn, stampValue(6))
-		return run(cmd, withStamp(migrationID, phase.doneEntry, phase.metadataKind, migrationEvent.Payload, payloadVersion))
+		return err
 
 	default:
 		return goerrors.Errorf("unknown migration event status %q", migrationEvent.Status)
 	}
+}
+
+func (cp *YugabyteDB) sendPhaseDone(migrationEvent MigrationEvent, phase migrationPhase, migrationID, stampColumn string,
+	stampValue func(n int) string, withStamp func(args ...any) []any) error {
+	if phase.metadataKind == "" {
+		cmd := fmt.Sprintf(`
+			INSERT INTO %s (migration_id, name, value%s)
+			VALUES ($1::uuid, $2::text, true%s)
+		`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, stampColumn, stampValue(3))
+		return cp.exec(cmd, withStamp(migrationID, phase.doneEntry)...)
+	}
+	// The done entry and the document are one statement, so a phase is
+	// never recorded as done without the document it produced.
+	if migrationEvent.Payload == "" {
+		return goerrors.Errorf("%s completed without its %s document", migrationEvent.EventType, phase.metadataKind)
+	}
+	payloadVersion, err := phase.payloadVersion(migrationEvent.Payload)
+	if err != nil {
+		return fmt.Errorf("payload version of the %s document: %w", phase.metadataKind, err)
+	}
+	cmd := fmt.Sprintf(`
+		WITH done AS (
+			INSERT INTO %[1]s (migration_id, name, value%[3]s)
+			VALUES ($1::uuid, $2::text, true%[4]s)
+		)
+		INSERT INTO %[2]s (migration_id, kind, payload, payload_version%[3]s)
+		VALUES ($1::uuid, $3::text, $4::jsonb, $5::text%[4]s)
+	`, QUALIFIED_MIGRATION_STATE_TABLE_NAME, QUALIFIED_METADATA_TABLE_NAME, stampColumn, stampValue(6))
+	return cp.exec(cmd, withStamp(migrationID, phase.doneEntry, phase.metadataKind, migrationEvent.Payload, payloadVersion)...)
 }
 
 // Keyed by the event type of controlPlane.BaseUpdateRowCountEvent.
@@ -598,15 +600,6 @@ func (cp *YugabyteDB) sendTableDataProgress(tableProgressList []TableProgress) e
 // is retried on a fresh connection, and the last error is returned if every
 // attempt fails.
 func (cp *YugabyteDB) exec(cmd string, args ...any) error {
-	return cp.withRetry(cmd, func(connPool *pgxpool.Pool) error {
-		_, err := connPool.Exec(context.Background(), cmd, args...)
-		return err
-	})
-}
-
-// withRetry runs fn with the same retry policy as exec. errStepExecutionNotRunning is
-// final: retrying cannot change it.
-func (cp *YugabyteDB) withRetry(cmd string, fn func(connPool *pgxpool.Pool) error) error {
 	cp.connMutex.Lock()
 	defer cp.connMutex.Unlock()
 
@@ -616,12 +609,9 @@ func (cp *YugabyteDB) withRetry(cmd string, fn func(connPool *pgxpool.Pool) erro
 		var connPool *pgxpool.Pool
 		connPool, err = cp.getConnPool()
 		if err == nil {
-			err = fn(connPool)
+			_, err = connPool.Exec(context.Background(), cmd, args...)
 			if err == nil {
 				return nil
-			}
-			if errors.Is(err, errStepExecutionNotRunning) {
-				return err
 			}
 		}
 		log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)

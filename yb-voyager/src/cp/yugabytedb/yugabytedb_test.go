@@ -436,10 +436,8 @@ func TestYugabyteDBStructs(t *testing.T) {
 		connMutex               sync.Mutex
 		connPool                *pgxpool.Pool
 		lastRowCountUpdate      map[string]time.Time
-		operationID             uuid.UUID
-		executorRef             *string
+		claimingEnv             stepClaimingEnv
 		heartbeatInterval       time.Duration
-		leaseDuration           time.Duration
 		stepExecutionMu         sync.Mutex
 		stepExecution           *stepExecution
 	}{}

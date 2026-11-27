@@ -147,12 +147,16 @@ What Voyager does with them:
 - Inserts a `running` `step_execution` row when a command starts (the claim),
   heartbeats `last_heartbeat_at` every 10 s, and closes the row.
   `executor_ref` is the `EXECUTOR_REF` env var, as-is.
-- Closes a `running` row of the same `(migration_id, step)` whose heartbeat is
-  older than 2 minutes as `failed` with `reason = 'lease_expired'`.
+- Never modifies another process's row. If the step already has a `running`
+  row, live or stale, the claim fails; the platform closes that row.
 - Close: `succeeded`, or `failed` with `error_message`. `stopped` is never
   written by Voyager.
+- A child process joined to its parent's step execution (internal
+  `VOYAGER_STEP_EXECUTION_ID`) only checks the row is `running` and belongs to
+  its migration, and stamps its rows. It never inserts, heartbeats or closes it.
 - While an attempt is open, `migration_state` and `metadata` rows carry its
-  id in `step_execution_id`. Otherwise the column is NULL, and Voyager does not
+  id in `step_execution_id`. With step claiming on, a write with no open
+  attempt is an error. With it off, the column is NULL and Voyager does not
   name it in its statements.
 
 Command to step:
@@ -168,5 +172,6 @@ Command to step:
 | finalize-schema-post-data-import, `import schema --post-snapshot-import` | `finalize-schema` |
 | end migration | `end-migration` |
 
-For the phases with a done entry (the table under `migration_state`), the done
-entry, its `metadata` document and the attempt's close are one transaction.
+A phase's done entry and its `metadata` document are an ordinary stamped
+write; they never close the attempt. It is closed once, when the command ends.
+If the write of the step's own done entry failed, that close is `failed`.
